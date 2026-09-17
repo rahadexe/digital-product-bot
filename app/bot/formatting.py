@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from html import escape
@@ -16,11 +17,17 @@ TELEGRAM_TEXT_LIMIT = 4000
 async def respond(event: Message | CallbackQuery, text: str, keyboard: InlineKeyboardMarkup | None = None) -> None:
     """Replace the message behind a pressed button, or reply to a typed message or command."""
     if isinstance(event, CallbackQuery):
-        with suppress(TelegramBadRequest):
-            await event.answer()
-        if event.message:
+        # Both calls go to Telegram; sent together they cost one round trip instead of two.
+        async def acknowledge() -> None:
             with suppress(TelegramBadRequest):
-                await event.message.edit_text(text, reply_markup=keyboard)
+                await event.answer()
+
+        async def replace() -> None:
+            if event.message:
+                with suppress(TelegramBadRequest):
+                    await event.message.edit_text(text, reply_markup=keyboard)
+
+        await asyncio.gather(acknowledge(), replace())
     else:
         await event.answer(text, reply_markup=keyboard)
 

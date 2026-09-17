@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from contextlib import suppress
 from html import escape
 from typing import Any
@@ -21,6 +22,9 @@ from app.services import Services
 
 router = Router(name="start_router")
 
+# Telegram file_id of the uploaded welcome banner, keyed by its versioned setting value.
+BANNER_FILE_IDS: dict[str, str] = {}
+
 
 def build_welcome_text(store_name: str, support_handle: str, custom_text: str = "", paused_notice: str = "") -> str:
     prefix = f"⚠️ <b>Maintenance Notice:</b> {escape(paused_notice)}\n━━━━━━━━━━━━━━━━━━\n\n" if paused_notice else ""
@@ -32,7 +36,6 @@ def build_welcome_text(store_name: str, support_handle: str, custom_text: str = 
 
 async def render_main_dashboard(message: Message, services: Services, tg_user_id: int, edit: bool = False) -> None:
     """The welcome screen."""
-    user = await services.users.get(tg_user_id)
     values = await services.settings.values()
     store_name = values.get("store_name", "PixelStore")
     support_handle = values.get("support_username", "")
@@ -43,18 +46,29 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
     text = build_welcome_text(store_name, support_handle, custom_welcome, paused_notice)
     persistent_kb = get_persistent_reply_keyboard()
 
-    # 1. Check if an uploaded banner exists in database
+    # 1. An uploaded banner. Its setting value names the version (/media/welcome-banner?v=...), so once
+    # Telegram has the image it is resent by file_id instead of loading and uploading it again.
+    cached_file_id = BANNER_FILE_IDS.get(banner_url)
+    if cached_file_id:
+        try:
+            await message.answer_photo(photo=cached_file_id, caption=text or None, reply_markup=persistent_kb)
+            return
+        except Exception:
+            BANNER_FILE_IDS.pop(banner_url, None)
+
     uploaded_banner = await services.media.get_welcome_banner()
     if uploaded_banner:
         data, content_type, _w, _h, _v = uploaded_banner
         ext = "png" if "png" in content_type else "webp" if "webp" in content_type else "jpg"
         photo_file = BufferedInputFile(data, filename=f"banner.{ext}")
         try:
-            await message.answer_photo(
+            sent = await message.answer_photo(
                 photo=photo_file,
                 caption=text or None,
                 reply_markup=persistent_kb,
             )
+            if banner_url.startswith("/media/") and sent.photo:
+                BANNER_FILE_IDS[banner_url] = sent.photo[-1].file_id
             return
         except Exception:
             pass
@@ -110,11 +124,11 @@ async def handle_start(message: Message, state: FSMContext, services: Services):
     if not tg_user:
         return
     product_id = start_parameter(message.text)
-    await services.users.sync_profile(
-        tg_user.id, tg_user.username, tg_user.first_name, tg_user.last_name
+    # The membership check does not need the profile row, so both run at once.
+    _, (passed, missing) = await asyncio.gather(
+        services.users.sync_profile(tg_user.id, tg_user.username, tg_user.first_name, tg_user.last_name),
+        services.gate.check(tg_user.id),
     )
-
-    passed, missing = await services.gate.check(tg_user.id)
     if not passed:
         await message.answer(gate_text(missing), reply_markup=get_gate_keyboard(missing))
         return

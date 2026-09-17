@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import re
 from contextlib import suppress
 from html import escape
@@ -82,11 +83,18 @@ async def show_deposit_methods(event: Message | CallbackQuery, state: FSMContext
     setting_values = await services.settings.values()
     binance_enabled = setting_values.get("binance_enabled") == "1"
 
-    all_methods = await services.deposits.methods(active_only=True)
+    # Independent reads, so they share one database round trip instead of queueing.
+    all_methods, pending = await asyncio.gather(
+        services.deposits.methods(active_only=True), services.deposits.pending_for(user.id)
+    )
     displayed_methods = []
 
     if binance_enabled:
-        binance_m = await services.deposits.get_or_create_binance_method()
+        # Saving Binance settings in the console already keeps this row in sync; rewriting it on every
+        # tap cost several round trips and a row lock. Only create it when it has never been saved.
+        binance_m = next((m for m in all_methods if m.get("auto_verify") == "binance_pay"), None)
+        if binance_m is None:
+            binance_m = await services.deposits.get_or_create_binance_method()
         if binance_m:
             displayed_methods.append(binance_m)
 
@@ -94,7 +102,6 @@ async def show_deposit_methods(event: Message | CallbackQuery, state: FSMContext
         if m.get("auto_verify") == "none":
             displayed_methods.append(m)
 
-    pending = await services.deposits.pending_for(user.id)
     if pending:
         symbol = await services.settings.get("currency_symbol")
         text = (

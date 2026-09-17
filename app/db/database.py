@@ -60,8 +60,12 @@ class Database:
                         raise RuntimeError("DATABASE_URL is not configured.")
                     self._pool = await asyncpg.create_pool(
                         normalize_dsn(self.dsn),
-                        min_size=1,
+                        # A few connections stay open: opening one to a remote database (TLS and setup)
+                        # takes far longer than a query, and asyncpg would otherwise close idle ones
+                        # after five minutes, making the first taps after a quiet spell slow.
+                        min_size=min(3, self.max_size),
                         max_size=self.max_size,
+                        max_inactive_connection_lifetime=0,
                         statement_cache_size=self.statement_cache_size,
                         init=self._init_connection,
                         setup=self._use_schema if self.schema else None,
