@@ -9,6 +9,8 @@ RUN npm run build
 # ---- Bot, API and workers ----
 FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+# Container defaults, so the deployment only has to provide secrets and the public address.
+ENV APP_ENV=production HOST=0.0.0.0 PORT=8000
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

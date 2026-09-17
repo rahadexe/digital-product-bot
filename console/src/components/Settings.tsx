@@ -57,6 +57,7 @@ const SECTIONS: Section[] = [
     fields: [
       { key: 'store_name', label: 'Bot / Store Name', placeholder: 'PremiumOne' },
       { key: 'support_username', label: 'Telegram Support Username', placeholder: '@username' },
+      { key: 'admin_tg_id', label: 'Admin Telegram ID (deposit and order alerts)', placeholder: '123456789', hint: 'Send /start to @userinfobot to find it.' },
       { key: 'currency_symbol', label: 'Currency Symbol', placeholder: '৳' },
       { key: 'currency', label: 'Currency Code', placeholder: 'BDT' },
     ],

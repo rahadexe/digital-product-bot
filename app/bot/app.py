@@ -11,7 +11,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import ErrorEvent
 
 from app.bot.handlers import deposit, help_guide, profile, shop, start
-from app.bot.middlewares import StoreAccess
+from app.bot.middlewares import StoreAccess, Throttle
 from app.services import Services
 
 logger = logging.getLogger("app.bot")
@@ -30,6 +30,10 @@ async def on_error(event: ErrorEvent) -> bool:
 def create_dispatcher(services: Services, storage: BaseStorage | None = None) -> Dispatcher:
     # Handlers receive ``services`` by parameter name from the dispatcher's workflow data.
     dispatcher = Dispatcher(storage=storage or MemoryStorage(), services=services)
+    # Throttling runs first, so a flood is dropped before the access checks read the database.
+    throttle = Throttle()
+    dispatcher.message.outer_middleware(throttle)
+    dispatcher.callback_query.outer_middleware(throttle)
     access = StoreAccess()
     dispatcher.message.outer_middleware(access)
     dispatcher.callback_query.outer_middleware(access)
