@@ -18,6 +18,7 @@ from app.services import Services, build_services
 logger = logging.getLogger("app.runtime")
 
 ROLES = ("all", "web", "worker", "migrate")
+KEEP_WARM_SECONDS = 10
 
 
 async def run(role: str, config: Settings) -> None:
@@ -134,7 +135,16 @@ async def run_webhook(services: Services) -> None:
 
     try:
         while True:
-            await asyncio.sleep(3600)
+            # aiohttp closes a connection after 15 idle seconds, so the first reply after a quiet spell would
+            # wait for a new TCP and TLS handshake with Telegram (several round trips away from Europe).
+            # A light call every few seconds keeps one connection open for real replies.
+            await asyncio.sleep(KEEP_WARM_SECONDS)
+            try:
+                await bot.get_me()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                pass
     finally:
         tasks = list(services.runtime.update_tasks)
         if tasks:

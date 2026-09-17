@@ -4,6 +4,8 @@ import asyncio
 import json
 import logging
 import secrets
+import time
+from datetime import datetime, timezone
 from typing import Any
 
 from aiogram.types import Update
@@ -16,6 +18,20 @@ router = APIRouter(tags=["telegram"])
 
 MAX_BODY_BYTES = 1024 * 1024  # 1 MB
 BACKGROUND_TASKS: set[asyncio.Task[Any]] = set()
+
+
+async def _process(dispatcher: Any, bot: Any, update: Update) -> None:
+    """Handle one update and log how long it took, so slow replies can be traced from the logs."""
+    started = time.perf_counter()
+    try:
+        await dispatcher.feed_update(bot, update)
+    finally:
+        elapsed_ms = (time.perf_counter() - started) * 1000
+        # Message dates have one-second precision; a large lag means Telegram was retrying delivery.
+        lag = ""
+        if update.message and update.message.date:
+            lag = f", delivered {(datetime.now(timezone.utc) - update.message.date).total_seconds():.0f} s after sending"
+        logger.info("Update %s (%s) handled in %.0f ms%s", update.update_id, update.event_type, elapsed_ms, lag)
 
 
 @router.post("/telegram/webhook", include_in_schema=False)
@@ -54,7 +70,7 @@ async def telegram_webhook(request: Request) -> JSONResponse:
         return JSONResponse(status_code=400, content={"detail": "Invalid update payload."})
 
     # Answer Telegram immediately and process in the background.
-    task = asyncio.create_task(dispatcher.feed_update(bot, update))
+    task = asyncio.create_task(_process(dispatcher, bot, update))
     BACKGROUND_TASKS.add(task)
     if hasattr(services.runtime, "update_tasks"):
         services.runtime.update_tasks.add(task)
