@@ -1,0 +1,22 @@
+[project]
+name = "pixelstore"
+version = "1.0.0"
+description = "Telegram digital subscription shop: customer bot, Mini App storefront and web admin console"
+requires-python = ">=3.12"
+readme = "README.md"
+
+[tool.ruff]
+line-length = 130
+target-version = "py312"
+extend-exclude = ["console", ".agents"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "B"]
+# FastAPI declares dependencies as function-call defaults (Depends, Query, Body).
+ignore = ["B008"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "support"]
+
+[tool.ruff.format]
+quote-style = "preserve"

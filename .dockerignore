@@ -1,0 +1,11 @@
+.git
+.env
+.env.*
+.venv
+**/__pycache__
+.agents
+.claude
+console/node_modules
+console/.next
+console/out
+*.log
