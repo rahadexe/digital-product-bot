@@ -189,7 +189,7 @@ export function Validities({ say }: { say: Say }) {
           </button>
         </header>
 
-        <div className="scroll">
+        <div className="scroll" style={{ minHeight: '220px' }}>
           <table>
             <thead>
               <tr>

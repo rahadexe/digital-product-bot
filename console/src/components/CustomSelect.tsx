@@ -91,6 +91,7 @@ export function CustomSelect({
         minWidth: minWidth,
         maxWidth: maxWidth,
         flexShrink: 0,
+        zIndex: isOpen ? 100 : undefined,
         userSelect: 'none',
         ...style,
       }}
