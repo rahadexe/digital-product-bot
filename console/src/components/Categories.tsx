@@ -355,7 +355,8 @@ function CategoryFormModal({
       />
 
       <FlagRow
-        label="📅 Enable Validity/Duration Filter (Ask user for validity duration first)"
+        label="Filter by Validity"
+        hint="Ask user for validity duration first"
         on={form.has_validity_filter}
         onChange={(on) => set({ has_validity_filter: on })}
       />

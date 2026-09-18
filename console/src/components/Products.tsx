@@ -300,8 +300,6 @@ function ProductForm({
   const [validityPresets, setValidityPresets] = useState<string[]>([
     '3 Days', '7 Days', '14 Days', '30 Days', '90 Days', '1 Year'
   ]);
-  const [addingPreset, setAddingPreset] = useState(false);
-  const [newPresetVal, setNewPresetVal] = useState('');
 
   useEffect(() => {
     api.settings().then((sets) => {
@@ -311,36 +309,6 @@ function ProductForm({
       }
     }).catch(() => {});
   }, []);
-
-  async function handleAddPreset() {
-    const val = newPresetVal.trim();
-    if (!val) return;
-    let updated = validityPresets;
-    if (!validityPresets.some((p) => p.toLowerCase() === val.toLowerCase())) {
-      updated = [...validityPresets, val];
-      setValidityPresets(updated);
-      try {
-        await api.updateSettings({ validity_presets: updated.join(', ') });
-        say(`Added "${val}" to validity presets.`);
-      } catch {
-        // ok
-      }
-    }
-    set({ duration_label: val });
-    setNewPresetVal('');
-    setAddingPreset(false);
-  }
-
-  async function handleRemovePreset(presetToRemove: string) {
-    const updated = validityPresets.filter((p) => p !== presetToRemove);
-    setValidityPresets(updated);
-    try {
-      await api.updateSettings({ validity_presets: updated.join(', ') });
-      say(`Removed "${presetToRemove}".`);
-    } catch {
-      // ok
-    }
-  }
 
   const set = (patch: Partial<Draft>) => setForm((current) => ({ ...current, ...patch }));
 
@@ -411,151 +379,50 @@ function ProductForm({
         <input type="number" step="any" min="0" required value={form.price} onChange={(event) => set({ price: parseFloat(event.target.value) || 0 })} />
       </label>
 
-      <div className="field">
+      <label className="field">
         <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>Duration / Validity <small style={{ color: 'var(--muted)', fontWeight: 'normal' }}>(মেয়াদ / ভ্যালিডিটি)</small></span>
-          {form.duration_label ? (
-            <span style={{ fontSize: '12px', color: '#10b981', fontWeight: 600 }}>
-              Active: 📅 {form.duration_label}
-            </span>
-          ) : (
-            <small style={{ color: 'var(--muted)', fontWeight: 'normal' }}>Optional</small>
-          )}
-        </span>
-        <input
-          type="text"
-          placeholder="e.g. 3 Days, 7 Days, 30 Days (বা নিজে লিখুন)"
-          value={form.duration_label}
-          onChange={(event) => set({ duration_label: event.target.value })}
-        />
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
-          <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600' }}>Validities:</span>
-          {validityPresets.map((preset) => {
-            const isSelected = form.duration_label.trim().toLowerCase() === preset.toLowerCase();
-            return (
-              <div
-                key={preset}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  background: isSelected ? '#0284c7' : 'var(--subtle, #f1f5f9)',
-                  borderRadius: '4px',
-                  border: isSelected ? '1px solid #0284c7' : '1px solid var(--border, #e2e8f0)',
-                  overflow: 'hidden',
-                }}
-              >
-                <button
-                  type="button"
-                  style={{
-                    border: 'none',
-                    background: 'none',
-                    color: isSelected ? '#ffffff' : 'inherit',
-                    fontSize: '11px',
-                    padding: '3px 8px',
-                    cursor: 'pointer',
-                    fontWeight: isSelected ? '600' : 'normal',
-                  }}
-                  onClick={() => set({ duration_label: preset })}
-                >
-                  {preset}
-                </button>
-                <button
-                  type="button"
-                  style={{
-                    border: 'none',
-                    background: 'none',
-                    color: isSelected ? '#ffffffcc' : '#94a3b8',
-                    fontSize: '12px',
-                    lineHeight: '1',
-                    padding: '2px 5px',
-                    cursor: 'pointer',
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void handleRemovePreset(preset);
-                  }}
-                  title={`Delete ${preset} preset`}
-                >
-                  ×
-                </button>
-              </div>
-            );
-          })}
-
-          {addingPreset ? (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'var(--subtle, #f1f5f9)', padding: '2px 6px', borderRadius: '6px', border: '1px solid #0284c7' }}>
-              <input
-                type="text"
-                autoFocus
-                placeholder="e.g. 5 Days or 15 Days"
-                value={newPresetVal}
-                onChange={(e) => setNewPresetVal(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    void handleAddPreset();
-                  } else if (e.key === 'Escape') {
-                    setAddingPreset(false);
-                    setNewPresetVal('');
-                  }
-                }}
-                style={{ fontSize: '11px', padding: '2px 6px', width: '130px', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-              />
-              <button
-                type="button"
-                className="mini btn"
-                style={{ fontSize: '10px', padding: '2px 8px', background: '#0284c7', color: '#fff' }}
-                onClick={() => void handleAddPreset()}
-              >
-                Save
-              </button>
-              <button
-                type="button"
-                className="mini ghost"
-                style={{ fontSize: '10px', padding: '2px 4px' }}
-                onClick={() => {
-                  setAddingPreset(false);
-                  setNewPresetVal('');
-                }}
-              >
-                ✕
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              className="mini btn"
-              style={{
-                fontSize: '11px',
-                padding: '3px 10px',
-                borderRadius: '4px',
-                background: '#0284c7',
-                color: '#ffffff',
-                fontWeight: '600',
-                cursor: 'pointer',
-              }}
-              onClick={() => setAddingPreset(true)}
-            >
-              ➕ Add Validity
-            </button>
-          )}
-
+          <span>Validity / Duration <small style={{ color: 'var(--muted)', fontWeight: 'normal' }}>(Optional)</small></span>
           {form.duration_label ? (
             <button
               type="button"
               className="mini ghost"
-              style={{ fontSize: '11px', padding: '3px 8px', color: '#ef4444' }}
+              style={{ fontSize: '11px', color: 'var(--danger)', padding: '0 4px' }}
               onClick={() => set({ duration_label: '' })}
-              title="Clear duration"
             >
-              ✕ Clear
+              Clear
             </button>
           ) : null}
-        </div>
-        <small style={{ color: 'var(--muted)', fontSize: '11px', marginTop: '6px', lineHeight: '1.4', display: 'block' }}>
-          💡 <strong>বটে কীভাবে কাজ করে:</strong> যে ক্যাটাগরিতে ভ্যালিডিটি ফিল্টার চালু আছে (যেমন VPN), সেখানে কাস্টমার প্রথমে মেয়াদ দেখতে পাবে। আপনি এখানে যে মেয়াদ সিলেক্ট করবেন (যেমন: 7 Days), টেলিগ্রাম বটে সেই মেয়াদের বাটনে ক্লিক করলেই কেবল এই প্রোডাক্টটি শো করবে। সব ভ্যালিডিটি দেখতে বা নতুন যোগ/এডিট করতে সাইডবারের <strong><a href="#validities" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>Validities</a></strong> মেনুতে যান।
-        </small>
-      </div>
+        </span>
+        <input
+          type="text"
+          placeholder="e.g. 3 Days, 1 Month, 1 Year"
+          value={form.duration_label}
+          onChange={(event) => set({ duration_label: event.target.value })}
+        />
+        {validityPresets.length > 0 ? (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
+            {validityPresets.map((preset) => {
+              const isSelected = form.duration_label.trim().toLowerCase() === preset.toLowerCase();
+              return (
+                <button
+                  key={preset}
+                  type="button"
+                  className={`mini ${isSelected ? 'btn' : 'ghost'}`}
+                  style={{
+                    fontSize: '11px',
+                    padding: '3px 8px',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => set({ duration_label: isSelected ? '' : preset })}
+                >
+                  {preset}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+      </label>
 
       <label className="field">
         <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
