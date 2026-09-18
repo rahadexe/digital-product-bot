@@ -267,7 +267,7 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
 
     if not orders:
         text = (
-            f"{ICON_ORDERS} <b>My Orders</b>\n"
+            f"{ICON_ORDERS} <b>Order History</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n\n"
             f"<i>You have no orders yet.</i>"
         )
@@ -284,7 +284,7 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
         cur_page = page + 1
         page_suffix = f" (Page {cur_page}/{total_pages})" if total_pages > 1 else ""
         text = (
-            f"{ICON_ORDERS} <b>My Orders{page_suffix}</b>\n"
+            f"{ICON_ORDERS} <b>Order History{page_suffix}</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n\n"
             f"Tap an order below to view details & credentials:"
         )
@@ -415,14 +415,14 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
 
     if not deposits:
         text = (
-            f"{ICON_STATS} <b>Deposit History</b>\n"
+            f"{ICON_STATS} <b>Balance History</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n\n"
-            f"<i>You have no deposit records yet.</i>"
+            f"<i>You have no balance transaction records yet.</i>"
         )
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
                 [
-                    InlineKeyboardButton(text="Deposit", callback_data="open_deposit_from_history", style="success", icon_custom_emoji_id=Icons.DEPOSIT),
+                    InlineKeyboardButton(text="Add Balance", callback_data="open_deposit_from_history", style="success", icon_custom_emoji_id=Icons.DEPOSIT),
                     InlineKeyboardButton(text="Back", callback_data="open_account", style="danger", icon_custom_emoji_id=Icons.BACK),
                 ],
             ]
@@ -430,7 +430,7 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
     else:
         page_suffix = f" (Page {page}/{total_pages})" if total_pages > 1 else ""
         text = (
-            f"{ICON_STATS} <b>Deposit History{page_suffix}</b>\n"
+            f"{ICON_STATS} <b>Balance History{page_suffix}</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n\n"
         )
         items = []
@@ -471,7 +471,7 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
             buttons.append(nav_row)
 
         buttons.append([
-            InlineKeyboardButton(text="Deposit", callback_data="open_deposit_from_history", style="success", icon_custom_emoji_id=Icons.DEPOSIT),
+            InlineKeyboardButton(text="Add Balance", callback_data="open_deposit_from_history", style="success", icon_custom_emoji_id=Icons.DEPOSIT),
             InlineKeyboardButton(text="Back", callback_data="open_account", style="danger", icon_custom_emoji_id=Icons.BACK),
         ])
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
