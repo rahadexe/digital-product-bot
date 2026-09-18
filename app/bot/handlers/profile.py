@@ -30,6 +30,7 @@ from app.bot.icons import (
     ICON_MONEY,
     ICON_ORDERS,
     ICON_RESELLER,
+    ICON_ROCKET,
     ICON_SPENT,
     ICON_STATS,
     ICON_TIMER,
@@ -99,7 +100,7 @@ async def show_user_profile(event: Message | CallbackQuery, state: FSMContext, s
 
 @router.message(Command("referral"))
 @router.message(Command("refer"))
-@router.message(F.text.in_({"🎁 Refer & Earn", "Refer & Earn", "refer & earn", "রেফার", "রেফার করুন"}))
+@router.message(F.text.in_({"🎁 Refer & Earn", "Refer & Earn", "refer & earn", "রেফার", "রেফার করুন", "🎁 রেফার ও ইনকাম", "🎁 রেফার ও আর্ন", "রেফারেল", "🎁 রেফারেল"}))
 @router.callback_query(F.data == "open_referral")
 async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, services: Services):
     await state.clear()
@@ -137,41 +138,47 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
     ref_link = f"https://t.me/{bot_user}?start=ref_{tg_user.id}"
     store_name = (await services.settings.get("store_name")) or "Premium Haven"
 
-    force_join_active = await services.settings.flag("force_join_enabled")
-    if force_join_active:
-        reward_label = f"<code>{reward_str}</code> / Verified Join"
-        note_line = "\n\n<i>💡 Bonus is added once your friend joins & verifies our channel.</i>"
+    if reward_enabled and reward_amount > 0:
+        reward_display = f"<code>{reward_str}</code>"
+        tagline = f"{ICON_ROCKET} <i>Share your link and earn {reward_str} per referral!</i>"
     else:
-        reward_label = f"<code>{reward_str}</code> / Successful Join"
-        note_line = "\n\n<i>💡 Bonus is added once your friend joins the bot.</i>"
-
-    reward_line = f"{ICON_COIN} <b>Reward:</b> {reward_label}\n" if (reward_enabled and reward_amount > 0) else ""
+        reward_display = f"<code>0 {symbol}</code>"
+        tagline = f"{ICON_ROCKET} <i>Share your referral link with friends!</i>"
 
     text = (
-        f"{ICON_ORDERS} <b>Refer & Earn</b>\n"
+        f"{ICON_ORDERS} <b>REFER & EARN</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"{reward_line}"
-        f"{ICON_ACCOUNT} <b>Successful Invites:</b> <code>{total_invited}</code>\n"
-        f"{ICON_SPENT} <b>Total Earned:</b> <code>{total_earned_str}</code>\n"
+        f"🔗 <b>Your Referral Link:</b>\n"
+        f"<code>{ref_link}</code>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"🔗 <b>Your Referral Link:</b> <i>(Tap to copy)</i>\n"
-        f"<code>{ref_link}</code>"
-        f"{note_line}"
+        f"{ICON_ACCOUNT} <b>Total Refers:</b> <code>{total_invited}</code>\n"
+        f"{ICON_COIN} <b>Reward Per Refer:</b> {reward_display}\n"
+        f"{ICON_BALANCE} <b>Total Earned:</b> <code>{total_earned_str}</code>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"{tagline}"
     )
 
-    share_text = quote(f"Join {store_name} for the best digital services!")
+    share_text = quote(f"🔥 Join {store_name} for premium digital subscriptions and services!\n\n👉 Start now:\n{ref_link}")
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="Share Referral Link",
+                    text="📢 Share Referral Link",
                     url=f"https://t.me/share/url?url={ref_link}&text={share_text}",
-                    style="success",
                     icon_custom_emoji_id=Icons.CHANNEL,
                 )
             ],
             [
-                InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
+                InlineKeyboardButton(
+                    text="🔄 Refresh",
+                    callback_data="open_referral",
+                    icon_custom_emoji_id=Icons.REFRESH,
+                ),
+                InlineKeyboardButton(
+                    text="❌ Close",
+                    callback_data="close_menu",
+                    icon_custom_emoji_id=Icons.CLOSE,
+                ),
             ],
         ]
     )

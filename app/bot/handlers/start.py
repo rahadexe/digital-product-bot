@@ -137,11 +137,15 @@ def start_parameter(text: str | None) -> int | None:
 
 
 def referral_parameter(text: str | None) -> int | None:
-    """Referrer ID from a /start deep link (e.g. /start ref_123456)."""
+    """Referrer ID from a /start deep link (e.g. /start ref_123456 or /start ref123456)."""
     parts = (text or "").split(maxsplit=1)
     param = parts[1].strip() if len(parts) > 1 else ""
     if param.startswith("ref_"):
         val = param[4:]
+        if val.isdigit() and len(val) <= 18:
+            return int(val)
+    elif param.startswith("ref"):
+        val = param[3:]
         if val.isdigit() and len(val) <= 18:
             return int(val)
     return None
