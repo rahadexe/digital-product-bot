@@ -318,7 +318,7 @@ function ProductForm({
     const payload = {
       category_id: form.category_id ?? undefined,
       title: form.title.trim(),
-      description: form.description,
+      description: (form.description || '').trim(),
       price: form.price,
       icon: '',
       duration_label: form.duration_label,
@@ -434,9 +434,6 @@ function ProductForm({
           value={form.custom_emoji_id}
           onChange={(event) => set({ custom_emoji_id: event.target.value })}
         />
-        <small style={{ color: 'var(--muted)', fontSize: '11px', marginTop: 2 }}>
-          Shows as a 3D/Premium icon in Telegram. Tip: Send any custom emoji to your bot in Telegram to get its ID!
-        </small>
       </label>
 
       <div className="field">
@@ -469,16 +466,16 @@ function ProductForm({
 
       <label className="field">
         <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>Description</span>
+          <span>Description <small style={{ color: 'var(--muted)', fontWeight: 'normal' }}>(Optional)</small></span>
           <small style={{ fontWeight: 'normal', color: 'var(--muted)', fontSize: '11px' }}>
-            {form.description.length}/300
+            {(form.description || '').length}/300
           </small>
         </span>
         <textarea
           rows={3}
           maxLength={300}
-          placeholder="What it includes, how to activate, warranty (Max 300 characters)"
-          value={form.description}
+          placeholder="What it includes, warranty, etc. (Optional, Max 300 chars)"
+          value={form.description || ''}
           onChange={(event) => set({ description: event.target.value.slice(0, 300) })}
         />
       </label>

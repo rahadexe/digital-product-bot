@@ -291,6 +291,10 @@ async def product_view(
     if duration and duration.lower() not in {"instant", "none", "n/a", ""}:
         text += f"{ICON_TIMER} <b>Validity:</b> {duration}\n"
 
+    desc = (product.get("description") or "").strip()
+    if desc and desc.lower() not in {"n/a", "none", "no description", "null"} and not is_redundant_description(product["title"], desc):
+        text += f"{ICON_NOTE} <b>Description:</b> {escape(desc)}\n"
+
     text += (
         f"━━━━━━━━━━━━━━━━━━\n"
         f"{ICON_CART} <b>Quantity:</b> <code>{quantity}</code>\n"
@@ -710,6 +714,16 @@ async def get_keypad_view_text(
     unit_price_str = f"{unit_price:g} {symbol}" if unit_price == int(unit_price) else f"{unit_price:.2f} {symbol}"
     balance_str = f"{balance:g} {symbol}" if balance == int(balance) else f"{balance:.2f} {symbol}"
 
+    duration = escape(product.get("duration_label") or "")
+    duration_line = ""
+    if duration and duration.lower() not in {"instant", "none", "n/a", ""}:
+        duration_line = f"{ICON_TIMER} <b>Validity:</b> {duration}\n"
+
+    desc = (product.get("description") or "").strip()
+    desc_line = ""
+    if desc and desc.lower() not in {"n/a", "none", "no description", "null"} and not is_redundant_description(product["title"], desc):
+        desc_line = f"{ICON_NOTE} <b>Description:</b> {escape(desc)}\n"
+
     return (
         f"{ICON_BALANCE} <b>Your Balance:</b> <code>{balance_str}</code>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
@@ -717,6 +731,8 @@ async def get_keypad_view_text(
         f"{prod_icon_display} <b>Package:</b> <b>{clean_title}</b>\n"
         f"{ICON_MONEY} <b>Price Rate:</b> <code>{unit_price_str}</code>\n"
         f"{ICON_STATS} <b>Available Stock:</b> {stock_text}\n"
+        f"{duration_line}"
+        f"{desc_line}"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"💡 <b>How to use:</b> tap the digits below or send a number, then tap <b>Confirm</b>.\n\n"
         f"🔢 <b>Current Quantity:</b> <code>{buffer}</code>"
