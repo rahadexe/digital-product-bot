@@ -74,19 +74,19 @@ async def show_user_profile(event: Message | CallbackQuery, state: FSMContext, s
 
     rank_val = (user.get("rank") or "Standard").strip()
     if rank_val.lower() in {"affiliate", "affiliate partner"}:
-        account_type = "Affiliate Partner 🤝"
+        account_type = "Affiliate Partner"
     elif rank_val.lower() in {"reseller", "reseller partner"}:
-        account_type = "Reseller Partner 💼"
+        account_type = "Reseller Partner"
     elif rank_val.lower() in {"vip", "vip member", "vip customer"}:
-        account_type = "VIP Member 💎"
+        account_type = "VIP Member"
     elif user.get("referral_count", 0) > 0:
-        account_type = "Affiliate Partner 🤝"
+        account_type = "Affiliate Partner"
     else:
-        account_type = "Normal User 👤"
+        account_type = "Normal User"
 
     text = (
         f"{ICON_ACCOUNT} <b>My Profile</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
+        f"━━━━━━━━━━━━━━━━━━\n\n"
         f"{ICON_ID} <b>User ID:</b> <code>{tg_user.id}</code>\n"
         f"{ICON_ACCOUNT} <b>Name:</b> {user_name}\n"
         f"{ICON_RESELLER} <b>Account Type:</b> <b>{account_type}</b>\n"

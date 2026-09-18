@@ -216,11 +216,17 @@ def get_account_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="Deposit", callback_data="open_deposit_from_account", style="primary", icon_custom_emoji_id=Icons.DEPOSIT),
+                InlineKeyboardButton(text="Deposit", callback_data="open_deposit_from_account", style="success", icon_custom_emoji_id=Icons.DEPOSIT),
+            ],
+            [
                 InlineKeyboardButton(text="Deposit History", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.STATS),
+            ],
+            [
+                InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
             ],
         ]
     )
+
 
 
 def get_support_keyboard(support_handle: str) -> InlineKeyboardMarkup:
