@@ -99,6 +99,7 @@ SPECS: dict[str, SettingSpec] = {
     "store_description": SettingSpec("VPNs, Streaming & AI tools at your fingertips.", max_length=240),
     "currency": SettingSpec("BDT", _currency_code, 10),
     "currency_symbol": SettingSpec("৳", max_length=8),
+    "validity_presets": SettingSpec("3 Days, 7 Days, 14 Days, 30 Days, 90 Days, 1 Year", max_length=2000),
     "support_username": SettingSpec("", _username, 65),
     "notice_banner": SettingSpec("", max_length=1000),
     "welcome_text": SettingSpec("", max_length=3500),
