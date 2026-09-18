@@ -475,9 +475,12 @@ async def show_products_list(
             elif cat_icon:
                 category_icon_display = f"{cat_icon} "
 
-    is_other_products = (back_target == "open_categories") or (category_id is None) or (category_id == "uncategorized") or (cat is not None and not cat.get("is_pinned"))
-
-    effective_back_target = back_target if (back_target.startswith("catval_menu_") or back_target == "open_categories") else ("open_categories" if is_other_products else "back_to_main")
+    if cat and cat.get("has_validity_filter") == 1:
+        effective_back_target = f"catval_menu_{cat['id']}"
+    elif back_target and (back_target.startswith("catval_menu_") or back_target == "open_categories"):
+        effective_back_target = back_target
+    else:
+        effective_back_target = "open_categories" if is_other_products else "back_to_main"
 
     if not products:
         if category_name and duration_label:
@@ -570,7 +573,10 @@ async def paginate_products(query: CallbackQuery, state: FSMContext, services: S
             elif cat_icon:
                 category_icon_display = f"{cat_icon} "
 
-    is_other_products = (category_id is None) or (category_id == "uncategorized") or bool(cat is not None and not cat.get("is_pinned"))
+    if cat and cat.get("has_validity_filter") == 1:
+        back_target = f"catval_menu_{cat['id']}"
+    else:
+        back_target = "open_categories" if is_other_products else "back_to_main"
 
     if not products:
         header = (
@@ -579,31 +585,19 @@ async def paginate_products(query: CallbackQuery, state: FSMContext, services: S
             else f"{ICON_SHOP} <b>Available Products:</b>"
         )
         msg = f"{header}\n\n{ICON_SHOP} <b>No products available right now.</b>"
-        if is_other_products:
-            kb = InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [
-                        InlineKeyboardButton(text="Back", callback_data="open_categories", style="primary", icon_custom_emoji_id=Icons.BACK),
-                        InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
-                    ],
-                ]
-            )
-        else:
-            kb = InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)],
-                ]
-            )
+        nav_btns = []
+        if back_target and back_target not in ("back_to_main", "none"):
+            nav_btns.append(InlineKeyboardButton(text="Back", callback_data=back_target, style="primary", icon_custom_emoji_id=Icons.BACK))
+        nav_btns.append(InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE))
         if query.message:
             with suppress(TelegramBadRequest):
-                await query.message.edit_text(msg, reply_markup=kb)
+                await query.message.edit_text(msg, reply_markup=InlineKeyboardMarkup(inline_keyboard=[nav_btns]))
         return
 
     total_pages = max(1, math.ceil(len(products) / PAGE_SIZE))
     page = min(max(requested_page, 1), total_pages)
     page_products = products[(page - 1) * PAGE_SIZE : page * PAGE_SIZE]
 
-    back_target = "open_categories" if is_other_products else "back_to_main"
     keyboard = get_products_keyboard(
         products=page_products,
         page=page,
