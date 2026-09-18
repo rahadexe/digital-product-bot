@@ -124,6 +124,13 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
       {/* Styled Box matching CustomSelect */}
       <div
         className="emoji-input-box"
+        onMouseDown={(e) => {
+          if (e.target !== inputRef.current) {
+            e.preventDefault();
+            setIsOpen((prev) => !prev);
+            inputRef.current?.focus();
+          }
+        }}
         onClick={() => {
           setIsOpen(true);
           inputRef.current?.focus();
