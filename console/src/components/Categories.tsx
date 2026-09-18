@@ -59,16 +59,27 @@ export function Categories({ say }: { say: Say }) {
   }
 
   async function togglePin(cat: Category) {
+    const willPin = !cat.is_pinned;
+    const title = willPin ? `Pin "${cat.name}" to Menu?` : `Unpin "${cat.name}" from Menu?`;
+    const msg = willPin
+      ? `Show "${cat.name}" directly on the customer's Telegram reply keyboard menu for 1-tap access?`
+      : `Move "${cat.name}" into the "Other Products" list instead of the main Telegram keyboard?`;
+    const label = willPin ? 'Pin to Menu' : 'Unpin';
+
+    if (!(await confirm(title, msg, label))) {
+      return;
+    }
+
     try {
       await api.updateCategory(cat.id, {
         name: cat.name,
         sort_order: cat.sort_order,
         is_active: cat.is_active,
-        is_pinned: cat.is_pinned ? 0 : 1,
+        is_pinned: willPin ? 1 : 0,
         has_validity_filter: cat.has_validity_filter ? 1 : 0,
         custom_emoji_id: cat.custom_emoji_id,
       });
-      say(cat.is_pinned ? 'Unpinned from menu.' : 'Pinned to Telegram reply keyboard!');
+      say(willPin ? 'Pinned to Telegram reply keyboard!' : 'Unpinned from menu.');
       await load();
     } catch (cause) {
       say(errorText(cause), 'bad');
@@ -76,16 +87,27 @@ export function Categories({ say }: { say: Say }) {
   }
 
   async function toggleActive(cat: Category) {
+    const willHide = Boolean(cat.is_active);
+    const title = willHide ? `Hide category "${cat.name}"?` : `Activate category "${cat.name}"?`;
+    const msg = willHide
+      ? `Are you sure you want to hide "${cat.name}"? Customers will not see this category or its products in the Telegram bot store.`
+      : `Are you sure you want to activate "${cat.name}"? It will become visible and available for customers in the Telegram bot.`;
+    const label = willHide ? 'Hide Category' : 'Activate Category';
+
+    if (!(await confirm(title, msg, label))) {
+      return;
+    }
+
     try {
       await api.updateCategory(cat.id, {
         name: cat.name,
         sort_order: cat.sort_order,
-        is_active: cat.is_active ? 0 : 1,
+        is_active: willHide ? 0 : 1,
         is_pinned: cat.is_pinned,
         has_validity_filter: cat.has_validity_filter ? 1 : 0,
         custom_emoji_id: cat.custom_emoji_id,
       });
-      say(cat.is_active ? 'Category hidden.' : 'Category active.');
+      say(willHide ? 'Category hidden.' : 'Category active.');
       await load();
     } catch (cause) {
       say(errorText(cause), 'bad');
@@ -176,13 +198,13 @@ export function Categories({ say }: { say: Say }) {
           <table>
             <thead>
               <tr>
-                <th>Category Name</th>
-                <th>Products</th>
-                <th>Menu Location</th>
-                <th>Validity Filter</th>
-                <th>Order</th>
-                <th>Status</th>
-                <th className="right" aria-label="Actions" />
+                <th style={{ minWidth: '160px' }}>Category Name</th>
+                <th style={{ width: '110px' }}>Products</th>
+                <th style={{ width: '150px' }}>Menu Location</th>
+                <th style={{ width: '130px' }}>Validity Filter</th>
+                <th style={{ width: '70px', textAlign: 'center' }}>Order</th>
+                <th style={{ width: '100px', textAlign: 'center' }}>Status</th>
+                <th className="right" style={{ width: '140px' }} aria-label="Actions" />
               </tr>
             </thead>
             <tbody>
@@ -213,16 +235,24 @@ export function Categories({ say }: { say: Say }) {
                         type="button"
                         className={`mini ${cat.is_pinned ? 'btn' : 'ghost'}`}
                         onClick={() => togglePin(cat)}
-                        style={{ fontSize: '11px', padding: '3px 10px' }}
+                        style={{
+                          fontSize: '11px',
+                          padding: '3px 8px',
+                          width: '132px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          boxSizing: 'border-box',
+                        }}
                         title="Click to toggle between pinned keyboard and other products"
                       >
                         {cat.is_pinned ? (
                           <>
-                            <Pin size={11} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 4 }} />
-                            Pinned to Menu
+                            <Pin size={11} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 4, flexShrink: 0 }} />
+                            <span>Pinned to Menu</span>
                           </>
                         ) : (
-                          'In Other Products'
+                          <span>In Other Products</span>
                         )}
                       </button>
                     </td>
@@ -238,8 +268,8 @@ export function Categories({ say }: { say: Say }) {
                         <span style={{ color: 'var(--muted)', fontSize: '12px' }}>Standard</span>
                       )}
                     </td>
-                    <td>{cat.sort_order}</td>
-                    <td>
+                    <td style={{ textAlign: 'center' }}>{cat.sort_order}</td>
+                    <td style={{ textAlign: 'center' }}>
                       <button
                         type="button"
                         onClick={() => toggleActive(cat)}
@@ -247,12 +277,15 @@ export function Categories({ say }: { say: Say }) {
                         style={{
                           cursor: 'pointer',
                           fontSize: '11.5px',
-                          padding: '3px 10px',
+                          padding: '3px 8px',
                           fontWeight: 600,
                           border: 'none',
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '5px',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          width: '78px',
+                          boxSizing: 'border-box',
                         }}
                         title={cat.is_active ? 'Click to hide category' : 'Click to activate category'}
                       >
@@ -262,9 +295,10 @@ export function Categories({ say }: { say: Say }) {
                             height: 6,
                             borderRadius: '50%',
                             background: cat.is_active ? 'var(--positive)' : 'var(--danger)',
+                            flexShrink: 0,
                           }}
                         />
-                        {cat.is_active ? 'Active' : 'Hidden'}
+                        <span>{cat.is_active ? 'Active' : 'Hidden'}</span>
                       </button>
                     </td>
                     <td>
