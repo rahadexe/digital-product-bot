@@ -56,6 +56,28 @@ class ProductPayload(Payload):
         return v if v in ("stock", "manual") else "stock"
 
 
+class ProductUpdatePayload(Payload):
+    category_id: Optional[int] = Field(default=None, gt=0)
+    title: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    description: Optional[str] = Field(default=None, max_length=300)
+    price: Optional[float] = Field(default=None, gt=0, le=AMOUNT_LIMIT)
+    icon: Optional[str] = Field(default=None, max_length=16)
+    duration_label: Optional[str] = Field(default=None, max_length=64)
+    sort_order: Optional[int] = Field(default=None, ge=-100_000, le=100_000)
+    is_active: Optional[Flag] = None
+    delivery_type: Optional[str] = Field(default=None, max_length=16)
+    custom_emoji_id: Optional[str] = Field(default=None, max_length=64)
+
+    _empty_text = field_validator("description", "duration_label", "icon", "custom_emoji_id", mode="before")(_empty_if_none)
+
+    @field_validator("delivery_type")
+    @classmethod
+    def _check_delivery_type(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        return v if v in ("stock", "manual") else "stock"
+
+
 class BulkStockPayload(Payload):
     product_id: int = Field(gt=0)
     items_text: str = Field(max_length=1_000_000)

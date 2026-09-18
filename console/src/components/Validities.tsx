@@ -121,7 +121,10 @@ export function Validities({ say }: { say: Say }) {
             (p) => p.duration_label && p.duration_label.trim().toLowerCase() === oldLabel.toLowerCase()
           );
           for (const prod of matchingProds) {
-            await api.updateProduct(prod.id, { duration_label: trimmed });
+            await api.updateProduct(prod.id, {
+              ...prod,
+              duration_label: trimmed,
+            });
           }
         }
         say(`Updated "${trimmed}".`);

@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 
 from app.api.admin.auth import WRITE
-from app.api.admin.schemas import CategoryPayload, ProductPayload
+from app.api.admin.schemas import CategoryPayload, ProductPayload, ProductUpdatePayload
 from app.api.deps import ServicesDep
 
 router = APIRouter()
@@ -48,12 +48,13 @@ async def create_product(payload: ProductPayload, services: ServicesDep):
 
 
 @router.put("/products/{product_id}", dependencies=WRITE)
-async def update_product(product_id: int, payload: ProductPayload, services: ServicesDep, background: BackgroundTasks):
-    old_price = await services.catalog.update_product(product_id, **payload.model_dump())
+async def update_product(product_id: int, payload: ProductUpdatePayload, services: ServicesDep, background: BackgroundTasks):
+    data = payload.model_dump(exclude_unset=True)
+    old_price = await services.catalog.update_product(product_id, **data)
     if old_price is None:
         raise HTTPException(status_code=404, detail="Product not found.")
-    if payload.price < old_price:
-        background.add_task(services.announcements.price_drop, product_id, old_price, payload.price)
+    if "price" in data and data["price"] is not None and data["price"] < old_price:
+        background.add_task(services.announcements.price_drop, product_id, old_price, data["price"])
     return {"success": True}
 
 
