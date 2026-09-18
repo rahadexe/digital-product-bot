@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Bookmark, FolderTree, Layers, Pin, Plus } from 'lucide-react';
-import { api, type Category } from '@/lib/api';
+import { api, type Category, type Product } from '@/lib/api';
 import { EmptyRow, FlagRow, Modal, errorText, useConfirm, type Say } from './ui';
 import { EmojiPicker } from './EmojiPicker';
 
@@ -18,14 +18,19 @@ type CategoryDraft = {
 
 export function Categories({ say }: { say: Say }) {
   const [categories, setCategories] = useState<Category[] | null>(null);
+  const [products, setProducts] = useState<Product[] | null>(null);
   const [search, setSearch] = useState('');
   const [draft, setDraft] = useState<CategoryDraft | null>(null);
   const [confirm, confirmDialog] = useConfirm();
 
   const load = useCallback(async () => {
     try {
-      const cats = await api.categories();
+      const [cats, prods] = await Promise.all([
+        api.categories(),
+        api.products(),
+      ]);
       setCategories(cats);
+      setProducts(prods);
     } catch (cause) {
       say(errorText(cause), 'bad');
     }
@@ -36,7 +41,12 @@ export function Categories({ say }: { say: Say }) {
   }, [load]);
 
   async function deleteCat(cat: Category) {
-    if (!(await confirm(`Delete category "${cat.name}"?`, 'Products in this category will remain, but will become uncategorized.', 'Delete category'))) {
+    const catProducts = (products ?? []).filter((p) => p.category_id === cat.id);
+    const msg = catProducts.length > 0
+      ? `This category contains ${catProducts.length} product(s). If deleted, those products will remain in the store but will become uncategorized.`
+      : 'Products in this category will remain, but will become uncategorized.';
+
+    if (!(await confirm(`Delete category "${cat.name}"?`, msg, 'Delete category'))) {
       return;
     }
     try {
@@ -135,7 +145,7 @@ export function Categories({ say }: { say: Say }) {
           <div className="filters">
             <input
               type="search"
-              placeholder="Search categories"
+              placeholder="Search..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -164,92 +174,113 @@ export function Categories({ say }: { say: Say }) {
             <thead>
               <tr>
                 <th>Category Name</th>
+                <th>Products</th>
                 <th>Menu Location</th>
-                <th>Telegram Emoji ID</th>
+                <th>Validity Filter</th>
                 <th>Order</th>
                 <th>Status</th>
                 <th className="right" aria-label="Actions" />
               </tr>
             </thead>
             <tbody>
-              {shown.map((cat) => (
-                <tr key={cat.id}>
-                  <td className="name">
-                    <strong>{cat.name}</strong>
-                    <small>ID: #{cat.id}</small>
-                  </td>
-                  <td>
-                    <button
-                      type="button"
-                      className={`mini ${cat.is_pinned ? 'btn' : 'ghost'}`}
-                      onClick={() => togglePin(cat)}
-                      style={{ fontSize: '11px', padding: '3px 10px' }}
-                      title="Click to toggle between pinned keyboard and other products"
-                    >
-                      {cat.is_pinned ? (
-                        <>
-                          <Pin size={11} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 4 }} />
-                          Pinned to Menu
-                        </>
+              {shown.map((cat) => {
+                const catProducts = (products ?? []).filter((p) => p.category_id === cat.id);
+                return (
+                  <tr key={cat.id}>
+                    <td className="name">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <FolderTree size={16} color="var(--accent)" />
+                        <strong>{cat.name}</strong>
+                      </div>
+                    </td>
+                    <td>
+                      {catProducts.length > 0 ? (
+                        <span
+                          className="pill good"
+                          style={{ fontSize: '11px', padding: '2px 8px', fontWeight: 600 }}
+                        >
+                          {catProducts.length} product{catProducts.length !== 1 ? 's' : ''}
+                        </span>
                       ) : (
-                        'In Other Products'
+                        <span style={{ color: 'var(--muted)', fontSize: '12px' }}>0 products</span>
                       )}
-                    </button>
-                  </td>
-                  <td>
-                    {cat.custom_emoji_id ? (
-                      <code style={{ fontSize: '11px', background: 'var(--subtle)', padding: '2px 6px', borderRadius: 4 }}>
-                        {cat.custom_emoji_id}
-                      </code>
-                    ) : (
-                      <span style={{ color: 'var(--muted)', fontSize: '12px' }}>Standard icon</span>
-                    )}
-                  </td>
-                  <td>{cat.sort_order}</td>
-                  <td>
-                    <button
-                      type="button"
-                      className="mini"
-                      onClick={() => toggleActive(cat)}
-                      style={{ fontSize: '11px', padding: '2px 8px' }}
-                    >
-                      <span className={`pill ${cat.is_active ? 'good' : 'bad'}`}>
-                        {cat.is_active ? 'Active' : 'Hidden'}
-                      </span>
-                    </button>
-                  </td>
-                  <td>
-                    <div className="row-actions">
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className={`mini ${cat.is_pinned ? 'btn' : 'ghost'}`}
+                        onClick={() => togglePin(cat)}
+                        style={{ fontSize: '11px', padding: '3px 10px' }}
+                        title="Click to toggle between pinned keyboard and other products"
+                      >
+                        {cat.is_pinned ? (
+                          <>
+                            <Pin size={11} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 4 }} />
+                            Pinned to Menu
+                          </>
+                        ) : (
+                          'In Other Products'
+                        )}
+                      </button>
+                    </td>
+                    <td>
+                      {cat.has_validity_filter ? (
+                        <span
+                          className="pill good"
+                          style={{ fontSize: '11px', padding: '2px 8px', fontWeight: 600 }}
+                        >
+                          With Validity
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--muted)', fontSize: '12px' }}>Standard</span>
+                      )}
+                    </td>
+                    <td>{cat.sort_order}</td>
+                    <td>
                       <button
                         type="button"
                         className="mini"
-                        onClick={() =>
-                          setDraft({
-                            id: cat.id,
-                            name: cat.name,
-                            sort_order: cat.sort_order,
-                            is_active: Boolean(cat.is_active),
-                            is_pinned: Boolean(cat.is_pinned),
-                            has_validity_filter: Boolean(cat.has_validity_filter),
-                            custom_emoji_id: cat.custom_emoji_id || '',
-                          })
-                        }
+                        onClick={() => toggleActive(cat)}
+                        style={{ fontSize: '11px', padding: '2px 8px' }}
                       >
-                        Edit
+                        <span className={`pill ${cat.is_active ? 'good' : 'bad'}`}>
+                          {cat.is_active ? 'Active' : 'Hidden'}
+                        </span>
                       </button>
-                      <button type="button" className="mini danger" onClick={() => deleteCat(cat)}>
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td>
+                      <div className="row-actions">
+                        <button
+                          type="button"
+                          className="mini"
+                          onClick={() =>
+                            setDraft({
+                              id: cat.id,
+                              name: cat.name,
+                              sort_order: cat.sort_order,
+                              is_active: Boolean(cat.is_active),
+                              is_pinned: Boolean(cat.is_pinned),
+                              has_validity_filter: Boolean(cat.has_validity_filter),
+                              custom_emoji_id: cat.custom_emoji_id || '',
+                            })
+                          }
+                        >
+                          Edit
+                        </button>
+                        <button type="button" className="mini danger" onClick={() => deleteCat(cat)}>
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
               {categories && shown.length === 0 ? (
-                <EmptyRow columns={6}>
+                <EmptyRow columns={7}>
                   {search ? 'Nothing matches.' : 'No categories yet. Click "New category" above.'}
                 </EmptyRow>
               ) : null}
-              {!categories ? <EmptyRow columns={6}>Loading…</EmptyRow> : null}
+              {!categories ? <EmptyRow columns={7}>Loading…</EmptyRow> : null}
             </tbody>
           </table>
         </div>
