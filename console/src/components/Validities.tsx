@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Clock, Plus, Trash2, Edit3 } from 'lucide-react';
-import { api, type Product } from '@/lib/api';
+import { api, type Category, type Product } from '@/lib/api';
 import { EmptyRow, FlagRow, Modal, errorText, useConfirm, type Say } from './ui';
 
 interface EditDraft {
@@ -12,9 +12,20 @@ interface EditDraft {
   updateProducts: boolean;
 }
 
+function parseDurationToDays(label: string): number {
+  const m = label.match(/(\d+)/);
+  let num = m ? parseInt(m[1], 10) : 999999;
+  const lower = label.toLowerCase();
+  if (lower.includes('month') || lower.includes('mash')) num *= 30;
+  else if (lower.includes('year') || lower.includes('bochor')) num *= 365;
+  return num;
+}
+
 export function Validities({ say }: { say: Say }) {
   const [presets, setPresets] = useState<string[]>([]);
   const [products, setProducts] = useState<Product[] | null>(null);
+  const [categories, setCategories] = useState<Category[] | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [search, setSearch] = useState('');
   const [draft, setDraft] = useState<EditDraft | null>(null);
   const [busy, setBusy] = useState(false);
@@ -22,9 +33,10 @@ export function Validities({ say }: { say: Say }) {
 
   const loadData = useCallback(async () => {
     try {
-      const [sets, prods] = await Promise.all([
+      const [sets, prods, cats] = await Promise.all([
         api.settings(),
         api.products(),
+        api.categories(),
       ]);
 
       let loadedPresets: string[] = [];
@@ -38,6 +50,7 @@ export function Validities({ say }: { say: Say }) {
       }
       setPresets(loadedPresets);
       setProducts(prods);
+      setCategories(cats);
     } catch (cause) {
       say(errorText(cause), 'bad');
     }
@@ -57,12 +70,15 @@ export function Validities({ say }: { say: Say }) {
       (p) => p.duration_label && p.duration_label.trim().toLowerCase() === label.toLowerCase()
     );
 
-    const warning =
-      usingProducts.length > 0
-        ? `${usingProducts.length} product(s) currently use "${label}". Delete from presets?`
-        : 'Remove this validity duration from presets?';
+    if (usingProducts.length > 0) {
+      say(
+        `Cannot delete "${label}": used by ${usingProducts.length} product(s). Please change or clear the duration on those products first.`,
+        'bad'
+      );
+      return;
+    }
 
-    if (!(await confirm(`Delete "${label}"?`, warning, 'Delete'))) {
+    if (!(await confirm(`Delete "${label}"?`, 'Remove this validity duration?', 'Delete'))) {
       return;
     }
 
@@ -70,6 +86,7 @@ export function Validities({ say }: { say: Say }) {
     try {
       await savePresets(updated);
       say(`Deleted "${label}".`);
+      await loadData();
     } catch (cause) {
       say(errorText(cause), 'bad');
     }
@@ -119,9 +136,34 @@ export function Validities({ say }: { say: Say }) {
     }
   }
 
-  const filteredPresets = presets.filter((p) =>
-    p.toLowerCase().includes(search.toLowerCase())
+  // Merge presets with any duration label in active products so nothing is hidden
+  const allDurations = Array.from(
+    new Set([
+      ...presets,
+      ...(products ?? [])
+        .map((p) => p.duration_label?.trim())
+        .filter((d): d is string => Boolean(d)),
+    ])
   );
+
+  const sortedDurations = [...allDurations].sort(
+    (a, b) => parseDurationToDays(a) - parseDurationToDays(b)
+  );
+
+  const filteredDurations = sortedDurations.filter((val) => {
+    if (search && !val.toLowerCase().includes(search.toLowerCase())) return false;
+    if (selectedCategory !== 'all') {
+      const catId = Number(selectedCategory);
+      const hasProductInCat = (products ?? []).some(
+        (p) =>
+          p.duration_label &&
+          p.duration_label.trim().toLowerCase() === val.toLowerCase() &&
+          p.category_id === catId
+      );
+      if (!hasProductInCat) return false;
+    }
+    return true;
+  });
 
   return (
     <>
@@ -137,6 +179,17 @@ export function Validities({ say }: { say: Say }) {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+            >
+              <option value="all">All Categories</option>
+              {(categories ?? []).map((c) => (
+                <option key={c.id} value={String(c.id)}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
           </div>
           <button
             type="button"
@@ -163,10 +216,11 @@ export function Validities({ say }: { say: Say }) {
               </tr>
             </thead>
             <tbody>
-              {filteredPresets.map((val) => {
+              {filteredDurations.map((val) => {
                 const matchingProducts = (products ?? []).filter(
                   (p) => p.duration_label && p.duration_label.trim().toLowerCase() === val.toLowerCase()
                 );
+                const isUsed = matchingProducts.length > 0;
 
                 return (
                   <tr key={val}>
@@ -204,20 +258,32 @@ export function Validities({ say }: { say: Say }) {
                         >
                           <Edit3 size={13} style={{ marginRight: 3 }} /> Edit
                         </button>
-                        <button
-                          type="button"
-                          className="mini danger"
-                          onClick={() => handleDelete(val)}
-                        >
-                          <Trash2 size={13} style={{ marginRight: 3 }} /> Delete
-                        </button>
+                        {isUsed ? (
+                          <button
+                            type="button"
+                            className="mini danger"
+                            disabled
+                            title={`Cannot delete: used by ${matchingProducts.length} product(s).`}
+                            style={{ opacity: 0.4, cursor: 'not-allowed' }}
+                          >
+                            <Trash2 size={13} style={{ marginRight: 3 }} /> Delete
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="mini danger"
+                            onClick={() => handleDelete(val)}
+                          >
+                            <Trash2 size={13} style={{ marginRight: 3 }} /> Delete
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
                 );
               })}
 
-              {presets && filteredPresets.length === 0 ? (
+              {filteredDurations.length === 0 ? (
                 <EmptyRow columns={4}>
                   {search ? 'Nothing matches.' : 'No validities found.'}
                 </EmptyRow>
