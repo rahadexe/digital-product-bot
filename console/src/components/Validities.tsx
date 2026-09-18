@@ -139,7 +139,7 @@ export function Validities({ say }: { say: Say }) {
       {confirmDialog}
 
       {/* Summary Stat Cards */}
-      <div className="stat-cards-grid">
+      <div className="stat-cards-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
         <div className="stat-card">
           <div className="stat-card-top">
             <span className="stat-card-label">Total Validities</span>
@@ -154,14 +154,6 @@ export function Validities({ say }: { say: Say }) {
             <Package className="stat-card-icon" />
           </div>
           <div className="stat-card-value">{productsWithValidity}</div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <span className="stat-card-label">Categories with Filter</span>
-            <FolderTree className="stat-card-icon" />
-          </div>
-          <div className="stat-card-value">{categoriesWithFilter}</div>
         </div>
       </div>
 
@@ -196,8 +188,7 @@ export function Validities({ say }: { say: Say }) {
             <thead>
               <tr>
                 <th>Duration</th>
-                <th>Products</th>
-                <th>Categories</th>
+                <th>Linked Products</th>
                 <th className="right" aria-label="Actions" />
               </tr>
             </thead>
@@ -205,13 +196,6 @@ export function Validities({ say }: { say: Say }) {
               {filteredPresets.map((val) => {
                 const matchingProducts = (products ?? []).filter(
                   (p) => p.duration_label && p.duration_label.trim().toLowerCase() === val.toLowerCase()
-                );
-                const categoryNames = Array.from(
-                  new Set(
-                    matchingProducts
-                      .map((p) => p.category_name)
-                      .filter((name): name is string => Boolean(name))
-                  )
                 );
 
                 return (
@@ -229,19 +213,6 @@ export function Validities({ say }: { say: Say }) {
                           style={{ fontSize: '11px', padding: '2px 8px', fontWeight: 600 }}
                         >
                           {matchingProducts.length} product{matchingProducts.length > 1 ? 's' : ''}
-                        </span>
-                      ) : (
-                        <span style={{ color: 'var(--muted)', fontSize: '12px' }}>0</span>
-                      )}
-                    </td>
-                    <td>
-                      {categoryNames.length > 0 ? (
-                        <span
-                          className="pill info"
-                          style={{ fontSize: '11px', padding: '2px 8px', fontWeight: 600 }}
-                          title={categoryNames.join(', ')}
-                        >
-                          {categoryNames.length} {categoryNames.length === 1 ? 'category' : 'categories'}
                         </span>
                       ) : (
                         <span style={{ color: 'var(--muted)', fontSize: '12px' }}>0</span>
@@ -323,7 +294,6 @@ export function Validities({ say }: { say: Say }) {
             <div style={{ marginTop: '10px' }}>
               <FlagRow
                 label="Update linked products"
-                hint="Auto-renames this duration on all products currently using it."
                 on={draft.updateProducts}
                 onChange={(on) => setDraft({ ...draft, updateProducts: on })}
               />
