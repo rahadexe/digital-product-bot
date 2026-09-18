@@ -426,14 +426,14 @@ function CategoryFormModal({
       </div>
 
       <label className="field">
-        <span>Sort Order</span>
+        <span style={{ userSelect: 'none' }}>Sort Order</span>
         <input
           type="number"
           min="0"
           value={form.sort_order}
           onChange={(e) => set({ sort_order: Math.max(0, parseInt(e.target.value, 10) || 0) })}
         />
-        <small>Smaller number shows first in bot</small>
+        <small style={{ userSelect: 'none' }}>Smaller number shows first in bot</small>
       </label>
 
       <FlagRow

@@ -621,7 +621,7 @@ select {
 .modal > header h2 { font-size: 16px; }
 .modal .close { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; color: var(--muted); }
 .modal .close:hover { background: var(--surface-2); color: var(--text); }
-.modal .body { display: grid; gap: 14px; padding: 18px 20px; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+.modal .body { display: grid; gap: 14px; padding: 18px 20px; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
 .modal .body::-webkit-scrollbar { width: 5px; }
 .modal .body::-webkit-scrollbar-track { background: transparent; }
 .modal .body::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 999px; }

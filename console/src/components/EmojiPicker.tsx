@@ -115,26 +115,52 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
     inputRef.current?.focus();
   };
 
+  const handleBoxClick = (e: React.MouseEvent) => {
+    if (e.target === inputRef.current) {
+      if (!isOpen) {
+        setIsOpen(true);
+      }
+      return;
+    }
+
+    setIsOpen((prev) => {
+      const next = !prev;
+      if (next) {
+        setTimeout(() => inputRef.current?.focus(), 10);
+      }
+      return next;
+    });
+  };
+
   return (
-    <div ref={containerRef} className="emoji-combobox-wrap" style={{ position: 'relative', width: '100%', minWidth: 0 }}>
-      <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text-dim)', marginBottom: '5px', display: 'block' }}>
+    <div
+      ref={containerRef}
+      className="emoji-combobox-wrap"
+      style={{
+        position: 'relative',
+        width: '100%',
+        minWidth: 0,
+        zIndex: isOpen ? 100 : 1,
+        userSelect: 'none',
+      }}
+    >
+      <span
+        style={{
+          fontSize: '12.5px',
+          fontWeight: 600,
+          color: 'var(--text-dim)',
+          marginBottom: '5px',
+          display: 'block',
+          userSelect: 'none',
+        }}
+      >
         Custom Emoji <small style={{ color: 'var(--muted)', fontWeight: 'normal' }}>(Optional)</small>
       </span>
 
       {/* Styled Box matching CustomSelect */}
       <div
         className="emoji-input-box"
-        onMouseDown={(e) => {
-          if (e.target !== inputRef.current) {
-            e.preventDefault();
-            setIsOpen((prev) => !prev);
-            inputRef.current?.focus();
-          }
-        }}
-        onClick={() => {
-          setIsOpen(true);
-          inputRef.current?.focus();
-        }}
+        onClick={handleBoxClick}
         style={{
           width: '100%',
           minHeight: '40px',
@@ -147,13 +173,14 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
           background: '#fbfcfb',
           border: `1px solid ${isOpen ? 'var(--accent)' : 'var(--border)'}`,
           borderRadius: 'var(--radius-sm)',
-          cursor: 'text',
+          cursor: 'pointer',
           outline: 'none',
           boxShadow: isOpen
             ? '0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent)'
             : 'none',
           transition: 'border-color 120ms ease, box-shadow 120ms ease',
           boxSizing: 'border-box',
+          userSelect: 'none',
         }}
       >
         <input
@@ -162,8 +189,16 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
           className="emoji-combobox-field"
           value={displayValue}
           placeholder="Select icon or enter custom ID..."
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!isOpen) {
+              setIsOpen(true);
+            }
+          }}
           onFocus={() => {
-            setIsOpen(true);
+            if (!isOpen) {
+              setIsOpen(true);
+            }
           }}
           onChange={(e) => {
             setIsTyping(true);
@@ -179,11 +214,17 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
                 );
                 handleSelect(match ? match.id : query.trim());
               }
+            } else if (e.key === 'Escape') {
+              e.preventDefault();
+              setIsOpen(false);
+              setIsTyping(false);
+              setQuery('');
             }
           }}
+          style={{ cursor: 'text', userSelect: 'text' }}
         />
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, userSelect: 'none' }}>
           {trimmedValue ? (
             <button
               type="button"
@@ -210,20 +251,23 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
             </button>
           ) : null}
 
-          <ChevronDown
-            size={14}
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsOpen((prev) => !prev);
-            }}
+          <div
             style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               color: 'var(--muted)',
-              cursor: 'pointer',
-              flexShrink: 0,
-              transition: 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-              transform: isOpen ? 'rotate(180deg)' : 'none',
+              pointerEvents: 'none',
             }}
-          />
+          >
+            <ChevronDown
+              size={14}
+              style={{
+                transition: 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                transform: isOpen ? 'rotate(180deg)' : 'none',
+              }}
+            />
+          </div>
         </div>
       </div>
 
