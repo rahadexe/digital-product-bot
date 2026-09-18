@@ -149,8 +149,8 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
     )
 
     text = (
-        f"{ICON_ORDERS} <b>REFER & EARN</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
+        f"{ICON_ORDERS} <b>Refer & Earn</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n\n"
         f"{ICON_ACCOUNT} <b>Total Refers:</b> <code>{total_invited}</code>\n"
         f"{ICON_COIN} <b>Reward Per Refer:</b> <code>{reward_display}</code>\n"
         f"{ICON_BALANCE} <b>Total Earned:</b> <code>{earned_display}</code>\n\n"
