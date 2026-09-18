@@ -137,23 +137,26 @@ class CatalogService:
 
     async def products(
         self,
-        category_id: int | None = None,
+        category_id: int | str | None = None,
         active_only: bool = True,
         limit: int = 50,
         offset: int = 0,
         *,
         in_stock_first: bool = False,
+        uncategorized: bool = False,
     ) -> list[dict[str, Any]]:
         """Products in admin order; customer listings pass ``in_stock_first`` so buyable items lead."""
         now = time.monotonic()
-        cache_key = f"{category_id}_{active_only}_{limit}_{offset}_{in_stock_first}"
+        cache_key = f"{category_id}_{active_only}_{limit}_{offset}_{in_stock_first}_{uncategorized}"
         cached = self._products_cache.get(cache_key)
         if cached and now - cached[0] < self.PRODUCTS_CACHE_SECONDS:
             return [dict(row) for row in cached[1]]
 
         where, params = "", []
-        if category_id is not None:
-            params.append(category_id)
+        if category_id in ("uncategorized", "uncat") or uncategorized:
+            where += " AND (p.category_id IS NULL OR p.category_id = 0 OR p.category_id NOT IN (SELECT id FROM categories))"
+        elif category_id is not None:
+            params.append(int(category_id))
             where += f" AND p.category_id = ${len(params)}"
         if active_only:
             where += " AND p.is_active = 1"

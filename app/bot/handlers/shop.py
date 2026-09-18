@@ -202,10 +202,12 @@ async def product_view(
 
     cat_id = product.get("category_id")
     cat = await services.catalog.category(cat_id) if cat_id else None
-    category_name = cat["name"] if cat else "General"
+    category_name = cat["name"] if cat else "Uncategorized"
     cat_emoji_id = cat.get("custom_emoji_id") if cat else None
-    cat_icon = cat.get("icon") or "📁" if cat else "📁"
-    if cat_emoji_id and str(cat_emoji_id).strip().isdigit():
+    cat_icon = cat.get("icon") or "📁" if cat else "📝"
+    if not cat:
+        cat_icon_display = f"{ICON_NOTE} "
+    elif cat_emoji_id and str(cat_emoji_id).strip().isdigit():
         cat_icon_display = tg_icon(str(cat_emoji_id).strip(), cat_icon)
     else:
         cat_icon_display = cat_icon
@@ -248,7 +250,7 @@ async def product_view(
         f"{ICON_DEPOSIT} <b>Total Price:</b> <code>{total_price_str}</code>"
     )
 
-    back_target = f"cat_{cat_id}" if cat_id else "open_shop"
+    back_target = f"cat_{cat_id}" if cat_id else "shop_uncat"
 
     keyboard = get_quantity_selector_keyboard(
         product_id=product["id"],
@@ -310,6 +312,13 @@ async def show_all_products(query: CallbackQuery, state: FSMContext, services: S
     await show_products_list(query, state, services, category_id=None, back_target="open_categories")
 
 
+@router.callback_query(F.data.in_({"shop_uncat", "shop_uncategorized"}))
+@router.message(F.text.in_({"Uncategorized", "uncategorized", "আনক্যাটাগরাইজড"}))
+async def show_uncat_products(event: Message | CallbackQuery, state: FSMContext, services: Services):
+    await state.clear()
+    await show_products_list(event, state, services, category_id="uncategorized", back_target="open_categories")
+
+
 @router.callback_query(F.data.startswith("cat_"))
 async def show_category_products(query: CallbackQuery, state: FSMContext, services: Services):
     """Show products for a specific selected category."""
@@ -324,7 +333,7 @@ async def show_products_list(
     event: Message | CallbackQuery,
     state: FSMContext,
     services: Services,
-    category_id: int | None = None,
+    category_id: int | str | None = None,
     back_target: str = "back_to_main",
 ):
     products = await services.catalog.products(category_id=category_id, active_only=True, limit=100, in_stock_first=True)
@@ -333,7 +342,10 @@ async def show_products_list(
     category_name = ""
     category_icon_display = ""
     cat = None
-    if category_id:
+    if category_id == "uncategorized":
+        category_name = "Uncategorized"
+        category_icon_display = f"{ICON_NOTE} "
+    elif isinstance(category_id, int):
         cat = await services.catalog.category(category_id)
         if cat:
             category_name = cat["name"]
@@ -344,7 +356,7 @@ async def show_products_list(
             elif cat_icon:
                 category_icon_display = f"{cat_icon} "
 
-    is_other_products = (back_target == "open_categories") or (category_id is None) or (cat is not None and not cat.get("is_pinned"))
+    is_other_products = (back_target == "open_categories") or (category_id is None) or (category_id == "uncategorized") or (cat is not None and not cat.get("is_pinned"))
 
     if not products:
         header = (
@@ -416,9 +428,12 @@ async def paginate_products(query: CallbackQuery, state: FSMContext, services: S
         return
 
     parts = query.data.split("_")
-    category_id: int | None = None
-    if len(parts) >= 4 and parts[2] != "all" and parts[2].isdigit():
-        category_id = int(parts[2])
+    category_id: int | str | None = None
+    if len(parts) >= 4:
+        if parts[2] == "uncat":
+            category_id = "uncategorized"
+        elif parts[2] != "all" and parts[2].isdigit():
+            category_id = int(parts[2])
     requested_page = int(parts[-1]) if parts[-1].isdigit() else 1
 
     with suppress(TelegramBadRequest):
@@ -430,7 +445,10 @@ async def paginate_products(query: CallbackQuery, state: FSMContext, services: S
     category_name = ""
     category_icon_display = ""
     cat = None
-    if category_id:
+    if category_id == "uncategorized":
+        category_name = "Uncategorized"
+        category_icon_display = f"{ICON_NOTE} "
+    elif isinstance(category_id, int):
         cat = await services.catalog.category(category_id)
         if cat:
             category_name = cat["name"]
@@ -441,7 +459,7 @@ async def paginate_products(query: CallbackQuery, state: FSMContext, services: S
             elif cat_icon:
                 category_icon_display = f"{cat_icon} "
 
-    is_other_products = (category_id is None) or bool(cat is not None and not cat.get("is_pinned"))
+    is_other_products = (category_id is None) or (category_id == "uncategorized") or bool(cat is not None and not cat.get("is_pinned"))
 
     if not products:
         header = (

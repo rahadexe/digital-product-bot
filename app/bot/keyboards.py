@@ -139,7 +139,13 @@ def get_categories_keyboard(
                 callback_data="shop_all",
                 style="success",
                 icon_custom_emoji_id=Icons.PRODUCTS,
-            )
+            ),
+            InlineKeyboardButton(
+                text="Uncategorized",
+                callback_data="shop_uncat",
+                style="primary",
+                icon_custom_emoji_id=Icons.NOTE,
+            ),
         ])
 
     buttons.append([
@@ -274,7 +280,7 @@ def get_products_keyboard(
     page: int = 1,
     total_pages: int = 1,
     currency_symbol: str = "৳",
-    category_id: int | None = None,
+    category_id: int | str | None = None,
     back_target: str = "back_to_main",
 ) -> InlineKeyboardMarkup:
     """
@@ -286,7 +292,12 @@ def get_products_keyboard(
     Bottom row: [Back] [Close]
     """
     buttons = []
-    prefix = f"shop_p_{category_id}_" if category_id else "shop_p_all_"
+    if category_id == "uncategorized":
+        prefix = "shop_p_uncat_"
+    elif category_id:
+        prefix = f"shop_p_{category_id}_"
+    else:
+        prefix = "shop_p_all_"
 
     for p in products:
         stock = p.get("stock", 0)
