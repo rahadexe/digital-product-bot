@@ -266,23 +266,35 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
     symbol = await services.settings.get("currency_symbol")
 
     if not orders:
-        text = "📦 <b>Orders:</b>\n\nYou have no orders yet."
+        text = (
+            f"{ICON_ORDERS} <b>My Orders</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n\n"
+            f"<i>You have no orders yet.</i>"
+        )
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(text="🛍️ Products", callback_data="open_shop", style="success")],
+                [
+                    InlineKeyboardButton(text="Shop", callback_data="open_shop", style="success", icon_custom_emoji_id=Icons.CART),
+                    InlineKeyboardButton(text="Back", callback_data="open_account", style="danger", icon_custom_emoji_id=Icons.BACK),
+                ],
             ]
         )
     else:
         total_pages = max(1, math.ceil(total / ORDERS_PAGE_SIZE))
         cur_page = page + 1
-        text = f"📦 <b>Orders ({total}):</b>"
+        page_suffix = f" (Page {cur_page}/{total_pages})" if total_pages > 1 else ""
+        text = (
+            f"{ICON_ORDERS} <b>My Orders{page_suffix}</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n\n"
+            f"Tap an order below to view details & credentials:"
+        )
         buttons = []
         for order in orders:
-            status = "↩️" if order["status"] != "completed" else "⏳" if order.get("fulfillment") == "waiting" else "✅"
             price_val = order["price"]
             price_str = f"{price_val:g}{symbol}" if price_val == int(price_val) else f"{price_val:.1f}{symbol}"
-            label = f"#{order['id']} {order['product_title']} {price_str} ({status})"
-            buttons.append([InlineKeyboardButton(text=label[:64], callback_data=f"view_order_{order['id']}", style="primary")])
+            label = f"#{order['id']} · {order['product_title']} · {price_str}"
+            status_icon = Icons.CHECK if order["status"] == "completed" and order.get("fulfillment") != "waiting" else (Icons.TIMER if order.get("fulfillment") == "waiting" else Icons.CROSS)
+            buttons.append([InlineKeyboardButton(text=label[:64], callback_data=f"view_order_{order['id']}", style="primary", icon_custom_emoji_id=status_icon)])
 
         nav_row = []
         if total_pages > 1:
@@ -304,14 +316,14 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
                     InlineKeyboardButton(text=f"{cur_page}/{total_pages}", callback_data="noop"),
                     InlineKeyboardButton(text="Next", callback_data=f"orders_page_{page + 1}", style="primary", icon_custom_emoji_id=Icons.NEXT),
                 ]
-        elif total > 0:
-            nav_row = [
-                InlineKeyboardButton(text="Refresh", callback_data="orders_page_0", style="success", icon_custom_emoji_id=Icons.REFRESH),
-                InlineKeyboardButton(text="1/1", callback_data="noop"),
-            ]
-
         if nav_row:
             buttons.append(nav_row)
+
+        action_row = [
+            InlineKeyboardButton(text="Shop", callback_data="open_shop", style="success", icon_custom_emoji_id=Icons.CART),
+            InlineKeyboardButton(text="Back", callback_data="open_account", style="danger", icon_custom_emoji_id=Icons.BACK),
+        ]
+        buttons.append(action_row)
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
     await respond(event, text, keyboard)
@@ -350,7 +362,8 @@ async def view_order_detail(query: CallbackQuery, state: FSMContext, services: S
     date = created.strftime("%Y-%m-%d %H:%M UTC") if isinstance(created, datetime) else str(created)
     symbol = await services.settings.get("currency_symbol")
     text = (
-        f"{ICON_ORDERS} <b>Order #{order['id']} Details</b>\n\n"
+        f"{ICON_ORDERS} <b>Order #{order['id']} Details</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n\n"
         f"{ICON_VIP} <b>Product:</b> {escape(order['product_title'])}\n"
         f"{ICON_MONEY} <b>Price Paid:</b> <code>{price(symbol, order['price'])}</code>\n"
         f"{ICON_TIMER} <b>Date:</b> {date}\n"
@@ -362,7 +375,7 @@ async def view_order_detail(query: CallbackQuery, state: FSMContext, services: S
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="Copy Credentials", copy_text=CopyTextButton(text=order["delivered_item"]), style="success", icon_custom_emoji_id=Icons.KEY)],
-            [InlineKeyboardButton(text="Back", callback_data="open_orders", style="primary", icon_custom_emoji_id=Icons.BACK)],
+            [InlineKeyboardButton(text="Back", callback_data="open_orders", style="danger", icon_custom_emoji_id=Icons.BACK)],
         ]
     )
     with suppress(TelegramBadRequest):
@@ -408,15 +421,17 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
         )
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(text="Deposit", callback_data="open_deposit_from_history", style="success", icon_custom_emoji_id=Icons.DEPOSIT)],
-                [InlineKeyboardButton(text="Back", callback_data="open_account", style="danger", icon_custom_emoji_id=Icons.BACK)],
+                [
+                    InlineKeyboardButton(text="Deposit", callback_data="open_deposit_from_history", style="success", icon_custom_emoji_id=Icons.DEPOSIT),
+                    InlineKeyboardButton(text="Back", callback_data="open_account", style="danger", icon_custom_emoji_id=Icons.BACK),
+                ],
             ]
         )
     else:
         page_suffix = f" (Page {page}/{total_pages})" if total_pages > 1 else ""
         text = (
             f"{ICON_STATS} <b>Deposit History{page_suffix}</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
+            f"━━━━━━━━━━━━━━━━━━\n\n"
         )
         items = []
         for deposit in deposits:
@@ -424,13 +439,13 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
             date = created.strftime("%Y-%m-%d %H:%M") if isinstance(created, datetime) else str(created)[:16]
             status_badge = DEPOSIT_STATUS_BADGES.get(deposit["status"], f"<b>{escape(str(deposit['status']).title())}</b>")
             entry = (
-                f"\n{ICON_DEPOSIT} <b>#{deposit['id']}</b> · <code>{price(symbol, deposit['amount'])}</code> · <b>{escape(deposit['method_name'])}</b>\n"
+                f"{ICON_DEPOSIT} <b>#{deposit['id']}</b> · <code>{price(symbol, deposit['amount'])}</code> · <b>{escape(deposit['method_name'])}</b>\n"
                 f"↳ {status_badge} · <code>{date}</code>"
             )
             if deposit["status"] == "rejected" and deposit.get("admin_note"):
                 entry += f"\n   <i>Note: {escape(deposit['admin_note'])}</i>"
             items.append(entry)
-        text += "".join(items)
+        text += "\n\n".join(items)
 
         buttons = []
         if total_pages > 1:
@@ -455,8 +470,10 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
                 ]
             buttons.append(nav_row)
 
-        buttons.append([InlineKeyboardButton(text="Deposit", callback_data="open_deposit_from_history", style="success", icon_custom_emoji_id=Icons.DEPOSIT)])
-        buttons.append([InlineKeyboardButton(text="Back", callback_data="open_account", style="danger", icon_custom_emoji_id=Icons.BACK)])
+        buttons.append([
+            InlineKeyboardButton(text="Deposit", callback_data="open_deposit_from_history", style="success", icon_custom_emoji_id=Icons.DEPOSIT),
+            InlineKeyboardButton(text="Back", callback_data="open_account", style="danger", icon_custom_emoji_id=Icons.BACK),
+        ])
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
     await respond(event, text, keyboard)

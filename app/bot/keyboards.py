@@ -212,13 +212,14 @@ def get_update_channels_keyboard(channels: List[Dict[str, Any]]) -> InlineKeyboa
 
 
 def get_account_keyboard() -> InlineKeyboardMarkup:
-    """Account actions: add funds or see past deposits."""
+    """Account actions: add funds, view orders, or see past deposits."""
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(text="Deposit", callback_data="open_deposit_from_account", style="success", icon_custom_emoji_id=Icons.DEPOSIT),
             ],
             [
+                InlineKeyboardButton(text="My Orders", callback_data="open_orders", style="primary", icon_custom_emoji_id=Icons.ORDERS),
                 InlineKeyboardButton(text="Deposit History", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.STATS),
             ],
             [
