@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { FolderTree, Pin, Plus } from 'lucide-react';
+import { ArrowUpDown, FolderTree, Package, Pin, Plus } from 'lucide-react';
 import { api, type Category, type Product } from '@/lib/api';
 import { EmptyRow, FlagRow, Modal, errorText, useConfirm, type Say } from './ui';
 import { EmojiPicker } from './EmojiPicker';
@@ -194,7 +194,8 @@ export function Categories({ say }: { say: Say }) {
           </button>
         </header>
 
-        <div className="scroll">
+        {/* Desktop View: Table */}
+        <div className="scroll hide-sm">
           <table>
             <thead>
               <tr>
@@ -336,6 +337,143 @@ export function Categories({ say }: { say: Say }) {
               {!categories ? <EmptyRow columns={7}>Loading…</EmptyRow> : null}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile View: Clean, structured Cards */}
+        <div className="cat-mobile-list show-sm">
+          {shown.map((cat) => {
+            const catProducts = (products ?? []).filter((p) => p.category_id === cat.id);
+            return (
+              <div key={cat.id} className="cat-mobile-card">
+                {/* Header: Title + Active/Hidden toggle */}
+                <div className="cat-card-header">
+                  <div className="cat-card-title">
+                    <FolderTree size={16} color="var(--accent)" style={{ flexShrink: 0 }} />
+                    <strong>{cat.name}</strong>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => toggleActive(cat)}
+                    className={`pill ${cat.is_active ? 'good' : 'bad'}`}
+                    style={{
+                      cursor: 'pointer',
+                      fontSize: '11.5px',
+                      padding: '3px 9px',
+                      fontWeight: 600,
+                      border: 'none',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      boxSizing: 'border-box',
+                      flexShrink: 0,
+                    }}
+                    title={cat.is_active ? 'Click to hide category' : 'Click to activate category'}
+                  >
+                    <span
+                      style={{
+                        width: 6,
+                        height: 6,
+                        borderRadius: '50%',
+                        background: cat.is_active ? 'var(--positive)' : 'var(--danger)',
+                        flexShrink: 0,
+                      }}
+                    />
+                    <span>{cat.is_active ? 'Active' : 'Hidden'}</span>
+                  </button>
+                </div>
+
+                {/* Badges / Information Chips */}
+                <div className="cat-card-chips">
+                  {/* Products count */}
+                  {catProducts.length > 0 ? (
+                    <span className="pill good">
+                      <Package size={11} style={{ flexShrink: 0 }} />
+                      <span>{catProducts.length} product{catProducts.length !== 1 ? 's' : ''}</span>
+                    </span>
+                  ) : (
+                    <span className="pill neutral">
+                      <Package size={11} style={{ flexShrink: 0 }} />
+                      <span>0 products</span>
+                    </span>
+                  )}
+
+                  {/* Menu location toggle */}
+                  <button
+                    type="button"
+                    className={`mini ${cat.is_pinned ? 'btn' : 'ghost'}`}
+                    onClick={() => togglePin(cat)}
+                    title="Click to toggle between pinned keyboard and other products"
+                  >
+                    {cat.is_pinned ? (
+                      <>
+                        <Pin size={11} style={{ flexShrink: 0 }} />
+                        <span>Pinned to Menu</span>
+                      </>
+                    ) : (
+                      <span>In Other Products</span>
+                    )}
+                  </button>
+
+                  {/* Validity filter badge */}
+                  {cat.has_validity_filter ? (
+                    <span className="pill good">
+                      With Validity
+                    </span>
+                  ) : (
+                    <span className="pill neutral">
+                      Standard
+                    </span>
+                  )}
+
+                  {/* Sort order with clear label */}
+                  <span className="pill neutral">
+                    <ArrowUpDown size={10} style={{ flexShrink: 0 }} />
+                    <span>Order: {cat.sort_order}</span>
+                  </span>
+                </div>
+
+                {/* Footer: Actions */}
+                <div className="cat-card-footer">
+                  <button
+                    type="button"
+                    className="btn mini ghost"
+                    onClick={() =>
+                      setDraft({
+                        id: cat.id,
+                        name: cat.name,
+                        sort_order: cat.sort_order,
+                        is_active: Boolean(cat.is_active),
+                        is_pinned: Boolean(cat.is_pinned),
+                        has_validity_filter: Boolean(cat.has_validity_filter),
+                        custom_emoji_id: cat.custom_emoji_id || '',
+                      })
+                    }
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="btn mini danger ghost"
+                    onClick={() => deleteCat(cat)}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+
+          {categories && shown.length === 0 ? (
+            <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--muted)', fontSize: '13px' }}>
+              {search ? 'Nothing matches.' : 'No categories yet. Click "New category" above.'}
+            </div>
+          ) : null}
+
+          {!categories ? (
+            <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--muted)', fontSize: '13px' }}>
+              Loading…
+            </div>
+          ) : null}
         </div>
       </section>
 
