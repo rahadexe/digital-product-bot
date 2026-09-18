@@ -1,9 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Clock, Plus, Trash2 } from 'lucide-react';
 import { api, type Category, type Product } from '@/lib/api';
 import { EmptyRow, Modal, errorText, useConfirm, type Say } from './ui';
+import { CustomSelect, type SelectOption } from './CustomSelect';
 
 function parseDurationToDays(label: string): number {
   const m = label.match(/(\d+)/);
@@ -140,6 +141,21 @@ export function Validities({ say }: { say: Say }) {
     return true;
   });
 
+  const categoryOptions: SelectOption[] = useMemo(() => {
+    const list: SelectOption[] = [{ value: 'all', label: 'All Categories' }];
+    for (const c of categories ?? []) {
+      const count = (products ?? []).filter(
+        (p) => p.category_id === c.id && p.duration_label && p.duration_label.trim()
+      ).length;
+      list.push({
+        value: String(c.id),
+        label: c.name,
+        badge: count > 0 ? count : undefined,
+      });
+    }
+    return list;
+  }, [categories, products]);
+
   return (
     <>
       {confirmDialog}
@@ -154,17 +170,12 @@ export function Validities({ say }: { say: Say }) {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
-            <select
+            <CustomSelect
               value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-            >
-              <option value="all">All Categories</option>
-              {(categories ?? []).map((c) => (
-                <option key={c.id} value={String(c.id)}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+              onChange={setSelectedCategory}
+              options={categoryOptions}
+              minWidth={190}
+            />
           </div>
           <button
             type="button"

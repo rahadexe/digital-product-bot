@@ -7,6 +7,7 @@ import { useMoney } from '@/lib/currency';
 import { EmptyRow, FlagRow, Modal, errorText, useConfirm, type Say } from './ui';
 import { EmojiPicker } from './EmojiPicker';
 import { ValidityPicker } from './ValidityPicker';
+import { CustomSelect } from './CustomSelect';
 
 // Older products kept their emoji apart from the name; the form edits them as one text.
 function editableName(name: string, icon?: string) {
@@ -369,20 +370,24 @@ function ProductForm({
         />
       </div>
 
-      <label className="field">
-        <span>Category <small style={{ color: 'var(--muted)', fontWeight: 'normal' }}>(Optional)</small></span>
-        <select
-          value={form.category_id ?? ''}
-          onChange={(event) => set({ category_id: event.target.value ? Number(event.target.value) : null })}
-        >
-          <option value="">None (Uncategorized)</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name} {c.is_pinned ? '[Pinned to Menu]' : ''}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="field">
+        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', display: 'block', marginBottom: '6px' }}>
+          Category <small style={{ color: 'var(--muted)', fontWeight: 'normal' }}>(Optional)</small>
+        </span>
+        <CustomSelect
+          value={String(form.category_id ?? '')}
+          onChange={(val) => set({ category_id: val ? Number(val) : null })}
+          options={[
+            { value: '', label: 'None (Uncategorized)' },
+            ...categories.map((c) => ({
+              value: String(c.id),
+              label: c.name,
+              badge: c.is_pinned ? 'Pinned' : undefined,
+            })),
+          ]}
+          minWidth="100%"
+        />
+      </div>
 
       <label className="field">
         <span>Price</span>

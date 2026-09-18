@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { AlertCircle, CheckCircle2, Clock, Layers, PackageCheck } from 'lucide-react';
 import { api, type InventoryItem, type InventorySummary, type Product } from '@/lib/api';
 import { EmptyRow, Modal, Pager, errorText, when, type Say } from './ui';
+import { CustomSelect } from './CustomSelect';
 
 const PAGE = 100;
 
@@ -92,20 +93,31 @@ export function Inventory({ say }: { say: Say }) {
       <section className="panel">
         <header>
           <div className="filters">
-            <select aria-label="Product" value={productId} onChange={(event) => { setProductId(Number(event.target.value)); setOffset(0); }}>
-              <option value={0}>All products</option>
-              {products.map((product) => (
-                <option key={product.id} value={product.id}>
-                  {product.title} ({product.stock ?? 0})
-                </option>
-              ))}
-            </select>
-            <select aria-label="Status" value={status} onChange={(event) => { setStatus(event.target.value); setOffset(0); }}>
-              <option value="available">In stock</option>
-              <option value="sold">Sold</option>
-              <option value="expired">Expired</option>
-              <option value="">Everything</option>
-            </select>
+            <CustomSelect
+              value={String(productId)}
+              onChange={(val) => { setProductId(Number(val)); setOffset(0); }}
+              options={[
+                { value: '0', label: 'All products' },
+                ...products.map((p) => ({
+                  value: String(p.id),
+                  label: p.title,
+                  badge: p.stock ?? 0,
+                })),
+              ]}
+              minWidth={210}
+              searchable={products.length > 6}
+            />
+            <CustomSelect
+              value={status}
+              onChange={(val) => { setStatus(val); setOffset(0); }}
+              options={[
+                { value: 'available', label: 'In stock' },
+                { value: 'sold', label: 'Sold' },
+                { value: 'expired', label: 'Expired' },
+                { value: '', label: 'Everything' },
+              ]}
+              minWidth={135}
+            />
           </div>
           <button type="button" className="btn" onClick={() => setAdding(true)}>
             Add stock
@@ -270,16 +282,20 @@ function AddStock({ products, initialProduct, say, onClose, onAdded }: { product
         </>
       }
     >
-      <label className="field">
-        <span>Product</span>
-        <select value={productId} onChange={(event) => setProductId(Number(event.target.value))}>
-          {products.map((product) => (
-            <option key={product.id} value={product.id}>
-              {product.title} ({product.stock ?? 0} in stock)
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="field">
+        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', display: 'block', marginBottom: '6px' }}>Product</span>
+        <CustomSelect
+          value={String(productId)}
+          onChange={(val) => setProductId(Number(val))}
+          options={products.map((p) => ({
+            value: String(p.id),
+            label: p.title,
+            badge: `${p.stock ?? 0} in stock`,
+          }))}
+          minWidth="100%"
+          searchable={products.length > 6}
+        />
+      </div>
       <label className="field">
         <span>One item per line</span>
         <textarea className="mono" rows={8} placeholder={'email@example.com:password\nKEY-1234-5678'} value={text} onChange={(event) => setText(event.target.value)} />

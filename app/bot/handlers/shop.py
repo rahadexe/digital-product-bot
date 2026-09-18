@@ -479,6 +479,8 @@ async def show_products_list(
             elif cat_icon:
                 category_icon_display = f"{cat_icon} "
 
+    is_other_products = (back_target == "open_categories") or (category_id is None) or (category_id == "uncategorized") or bool(cat is not None and not cat.get("is_pinned"))
+
     if cat and cat.get("has_validity_filter") == 1:
         effective_back_target = f"catval_menu_{cat['id']}"
     elif back_target and (back_target.startswith("catval_menu_") or back_target == "open_categories"):
@@ -576,6 +578,8 @@ async def paginate_products(query: CallbackQuery, state: FSMContext, services: S
                 category_icon_display = f"{tg_icon(str(cat_emoji_id).strip(), cat_icon)} "
             elif cat_icon:
                 category_icon_display = f"{cat_icon} "
+
+    is_other_products = (category_id is None) or (category_id == "uncategorized") or bool(cat is not None and not cat.get("is_pinned"))
 
     if cat and cat.get("has_validity_filter") == 1:
         back_target = f"catval_menu_{cat['id']}"
