@@ -1,16 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Clock, Plus, Trash2, Edit3 } from 'lucide-react';
+import { Clock, Plus, Trash2 } from 'lucide-react';
 import { api, type Category, type Product } from '@/lib/api';
-import { EmptyRow, FlagRow, Modal, errorText, useConfirm, type Say } from './ui';
-
-interface EditDraft {
-  mode: 'new' | 'edit';
-  originalLabel?: string;
-  label: string;
-  updateProducts: boolean;
-}
+import { EmptyRow, Modal, errorText, useConfirm, type Say } from './ui';
 
 function parseDurationToDays(label: string): number {
   const m = label.match(/(\d+)/);
@@ -27,7 +20,8 @@ export function Validities({ say }: { say: Say }) {
   const [categories, setCategories] = useState<Category[] | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [search, setSearch] = useState('');
-  const [draft, setDraft] = useState<EditDraft | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [newLabel, setNewLabel] = useState('');
   const [busy, setBusy] = useState(false);
   const [confirm, confirmDialog] = useConfirm();
 
@@ -72,13 +66,13 @@ export function Validities({ say }: { say: Say }) {
 
     if (usingProducts.length > 0) {
       say(
-        `Cannot delete "${label}": used by ${usingProducts.length} product(s). Please change or clear the duration on those products first.`,
+        `Cannot delete "${label}": used by ${usingProducts.length} product(s). Remove duration from those products first.`,
         'bad'
       );
       return;
     }
 
-    if (!(await confirm(`Delete "${label}"?`, 'Remove this validity duration?', 'Delete'))) {
+    if (!(await confirm(`Delete "${label}"?`, 'Remove this validity duration from presets?', 'Delete'))) {
       return;
     }
 
@@ -92,45 +86,23 @@ export function Validities({ say }: { say: Say }) {
     }
   }
 
-  async function handleModalSubmit(e: React.FormEvent) {
+  async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    if (!draft) return;
-    const trimmed = draft.label.trim();
+    const trimmed = newLabel.trim();
     if (!trimmed) return;
+
+    if (presets.some((p) => p.toLowerCase() === trimmed.toLowerCase())) {
+      say(`"${trimmed}" already exists.`, 'bad');
+      return;
+    }
 
     setBusy(true);
     try {
-      if (draft.mode === 'new') {
-        if (presets.some((p) => p.toLowerCase() === trimmed.toLowerCase())) {
-          say(`"${trimmed}" already exists.`, 'bad');
-          setBusy(false);
-          return;
-        }
-        const updated = [...presets, trimmed];
-        await savePresets(updated);
-        say(`Created "${trimmed}".`);
-      } else if (draft.mode === 'edit' && draft.originalLabel) {
-        const oldLabel = draft.originalLabel;
-        const updated = presets.map((p) =>
-          p.toLowerCase() === oldLabel.toLowerCase() ? trimmed : p
-        );
-        await savePresets(updated);
-
-        if (draft.updateProducts) {
-          const matchingProds = (products ?? []).filter(
-            (p) => p.duration_label && p.duration_label.trim().toLowerCase() === oldLabel.toLowerCase()
-          );
-          for (const prod of matchingProds) {
-            await api.updateProduct(prod.id, {
-              ...prod,
-              duration_label: trimmed,
-            });
-          }
-        }
-        say(`Updated "${trimmed}".`);
-      }
-
-      setDraft(null);
+      const updated = [...presets, trimmed];
+      await savePresets(updated);
+      say(`Created "${trimmed}".`);
+      setIsCreating(false);
+      setNewLabel('');
       await loadData();
     } catch (cause) {
       say(errorText(cause), 'bad');
@@ -197,13 +169,10 @@ export function Validities({ say }: { say: Say }) {
           <button
             type="button"
             className="btn"
-            onClick={() =>
-              setDraft({
-                mode: 'new',
-                label: '',
-                updateProducts: false,
-              })
-            }
+            onClick={() => {
+              setNewLabel('');
+              setIsCreating(true);
+            }}
           >
             <Plus size={16} style={{ marginRight: 4 }} /> New Validity
           </button>
@@ -247,20 +216,6 @@ export function Validities({ say }: { say: Say }) {
                     </td>
                     <td>
                       <div className="row-actions">
-                        <button
-                          type="button"
-                          className="mini"
-                          onClick={() =>
-                            setDraft({
-                              mode: 'edit',
-                              originalLabel: val,
-                              label: val,
-                              updateProducts: true,
-                            })
-                          }
-                        >
-                          <Edit3 size={13} style={{ marginRight: 3 }} /> Edit
-                        </button>
                         {isUsed ? (
                           <button
                             type="button"
@@ -296,23 +251,23 @@ export function Validities({ say }: { say: Say }) {
         </div>
       </section>
 
-      {/* Create / Edit Modal */}
-      {draft ? (
+      {/* Simple Create Modal */}
+      {isCreating ? (
         <Modal
-          title={draft.mode === 'new' ? 'New Validity' : `Edit "${draft.originalLabel}"`}
-          onClose={() => setDraft(null)}
-          onSubmit={handleModalSubmit}
+          title="New Validity"
+          onClose={() => setIsCreating(false)}
+          onSubmit={handleCreate}
           footer={
             <>
               <button
                 type="button"
                 className="btn ghost"
-                onClick={() => setDraft(null)}
+                onClick={() => setIsCreating(false)}
               >
                 Cancel
               </button>
               <button type="submit" className="btn" disabled={busy}>
-                {draft.mode === 'new' ? 'Create' : 'Save'}
+                Create
               </button>
             </>
           }
@@ -323,21 +278,11 @@ export function Validities({ say }: { say: Say }) {
               type="text"
               required
               placeholder="e.g. 7 Days, 1 Month"
-              value={draft.label}
+              value={newLabel}
               autoFocus
-              onChange={(e) => setDraft({ ...draft, label: e.target.value })}
+              onChange={(e) => setNewLabel(e.target.value)}
             />
           </label>
-
-          {draft.mode === 'edit' && (
-            <div style={{ marginTop: '10px' }}>
-              <FlagRow
-                label="Update linked products"
-                on={draft.updateProducts}
-                onChange={(on) => setDraft({ ...draft, updateProducts: on })}
-              />
-            </div>
-          )}
         </Modal>
       ) : null}
     </>

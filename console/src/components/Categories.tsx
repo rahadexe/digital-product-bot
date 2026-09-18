@@ -55,6 +55,7 @@ export function Categories({ say }: { say: Say }) {
         sort_order: cat.sort_order,
         is_active: cat.is_active,
         is_pinned: cat.is_pinned ? 0 : 1,
+        has_validity_filter: cat.has_validity_filter ? 1 : 0,
         custom_emoji_id: cat.custom_emoji_id,
       });
       say(cat.is_pinned ? 'Unpinned from menu.' : 'Pinned to Telegram reply keyboard!');
@@ -71,6 +72,7 @@ export function Categories({ say }: { say: Say }) {
         sort_order: cat.sort_order,
         is_active: cat.is_active ? 0 : 1,
         is_pinned: cat.is_pinned,
+        has_validity_filter: cat.has_validity_filter ? 1 : 0,
         custom_emoji_id: cat.custom_emoji_id,
       });
       say(cat.is_active ? 'Category hidden.' : 'Category active.');
