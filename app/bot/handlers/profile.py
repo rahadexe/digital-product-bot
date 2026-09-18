@@ -48,7 +48,7 @@ from app.services import Services
 
 router = Router(name="profile_router")
 
-ORDERS_PAGE_SIZE = 8
+ORDERS_PAGE_SIZE = 5
 INLINE_CREDENTIAL_LIMIT = 2800
 
 
@@ -261,8 +261,13 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
     if not tg_user:
         return
 
-    page = (callback_int(event.data, "orders_page_") or 0) if isinstance(event, CallbackQuery) else 0
-    orders, total = await services.purchases.customer_orders(tg_user.id, limit=ORDERS_PAGE_SIZE, offset=page * ORDERS_PAGE_SIZE)
+    page = 1
+    if isinstance(event, CallbackQuery) and event.data and event.data.startswith("orders_page_"):
+        suffix = event.data[len("orders_page_") :]
+        if suffix.isdigit():
+            page = max(1, int(suffix))
+
+    orders, total = await services.purchases.customer_orders(tg_user.id, limit=ORDERS_PAGE_SIZE, offset=(page - 1) * ORDERS_PAGE_SIZE)
     symbol = await services.settings.get("currency_symbol")
 
     if not orders:
@@ -274,15 +279,15 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
                 [
-                    InlineKeyboardButton(text="Shop", callback_data="open_shop", style="success", icon_custom_emoji_id=Icons.CART),
-                    InlineKeyboardButton(text="Back", callback_data="open_account", style="danger", icon_custom_emoji_id=Icons.BACK),
+                    InlineKeyboardButton(text="Back", callback_data="open_account", style="primary", icon_custom_emoji_id=Icons.BACK),
+                    InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
                 ],
             ]
         )
     else:
         total_pages = max(1, math.ceil(total / ORDERS_PAGE_SIZE))
-        cur_page = page + 1
-        page_suffix = f" (Page {cur_page}/{total_pages})" if total_pages > 1 else ""
+        page = min(page, total_pages)
+        page_suffix = f" (Page {page}/{total_pages})" if total_pages > 1 else ""
         text = (
             f"{ICON_ORDERS} <b>Order History{page_suffix}</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n\n"
@@ -298,30 +303,29 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
 
         nav_row = []
         if total_pages > 1:
-            if cur_page == 1:
+            if page == 1:
                 nav_row = [
                     InlineKeyboardButton(text="Refresh", callback_data=f"orders_page_{page}", style="success", icon_custom_emoji_id=Icons.REFRESH),
-                    InlineKeyboardButton(text=f"{cur_page}/{total_pages}", callback_data="noop"),
+                    InlineKeyboardButton(text=f"{page}/{total_pages}", callback_data="noop"),
                     InlineKeyboardButton(text="Next", callback_data=f"orders_page_{page + 1}", style="primary", icon_custom_emoji_id=Icons.NEXT),
                 ]
-            elif cur_page == total_pages:
+            elif page == total_pages:
                 nav_row = [
                     InlineKeyboardButton(text="Prev", callback_data=f"orders_page_{page - 1}", style="primary", icon_custom_emoji_id=Icons.BACK),
-                    InlineKeyboardButton(text=f"{cur_page}/{total_pages}", callback_data="noop"),
+                    InlineKeyboardButton(text=f"{page}/{total_pages}", callback_data="noop"),
                     InlineKeyboardButton(text="Refresh", callback_data=f"orders_page_{page}", style="success", icon_custom_emoji_id=Icons.REFRESH),
                 ]
             else:
                 nav_row = [
                     InlineKeyboardButton(text="Prev", callback_data=f"orders_page_{page - 1}", style="primary", icon_custom_emoji_id=Icons.BACK),
-                    InlineKeyboardButton(text=f"{cur_page}/{total_pages}", callback_data="noop"),
+                    InlineKeyboardButton(text=f"{page}/{total_pages}", callback_data="noop"),
                     InlineKeyboardButton(text="Next", callback_data=f"orders_page_{page + 1}", style="primary", icon_custom_emoji_id=Icons.NEXT),
                 ]
-        if nav_row:
             buttons.append(nav_row)
 
         action_row = [
-            InlineKeyboardButton(text="Shop", callback_data="open_shop", style="success", icon_custom_emoji_id=Icons.CART),
-            InlineKeyboardButton(text="Back", callback_data="open_account", style="danger", icon_custom_emoji_id=Icons.BACK),
+            InlineKeyboardButton(text="Back", callback_data="open_account", style="primary", icon_custom_emoji_id=Icons.BACK),
+            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
         ]
         buttons.append(action_row)
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
