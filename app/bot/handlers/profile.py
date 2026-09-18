@@ -166,6 +166,7 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
                 InlineKeyboardButton(
                     text="Share Referral Link",
                     url=f"https://t.me/share/url?url={ref_link}&text={share_text}",
+                    style="success",
                     icon_custom_emoji_id=Icons.CHANNEL,
                 )
             ],
@@ -173,6 +174,7 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
                 InlineKeyboardButton(
                     text="Close",
                     callback_data="close_menu",
+                    style="danger",
                     icon_custom_emoji_id=Icons.CLOSE,
                 )
             ],
