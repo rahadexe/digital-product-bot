@@ -210,9 +210,10 @@ async def show_reseller_info(event: Message | CallbackQuery, state: FSMContext, 
         f"{ICON_NOTE} <b>Application Format:</b>\n"
         f"<code>{format_copy_text}</code>\n\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"{ICON_STAR} <b>Wholesale Rates:</b> Bulk discounts on all products\n"
-        f"{ICON_LIGHTNING} <b>Priority Stock:</b> Instant reservation & rapid delivery\n"
-        f"{ICON_SUPPORT} <b>VIP Support:</b> Direct 24/7 management access"
+        f"{ICON_VIP} <b>Reseller Benefits:</b>\n"
+        f"{ICON_COIN} <b>Bulk Discounts:</b> Bulk discounts on all products\n"
+        f"{ICON_LIGHTNING} <b>Rapid Delivery:</b> Instant reservation & rapid delivery\n"
+        f"{ICON_SUPPORT} <b>24/7 Support:</b> Direct 24/7 management access"
     )
 
     rows = [
