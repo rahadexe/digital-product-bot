@@ -117,29 +117,15 @@ export function CustomSelect({
           transition: 'all 0.15s ease',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', minWidth: 0 }}>
           {selectedOption?.icon && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', color: 'var(--accent)' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', color: 'var(--accent)', flexShrink: 0 }}>
               {selectedOption.icon}
             </span>
           )}
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {selectedOption ? selectedOption.label : placeholder}
           </span>
-          {selectedOption?.badge !== undefined && (
-            <span
-              style={{
-                fontSize: '11px',
-                padding: '1px 6px',
-                borderRadius: '10px',
-                background: 'var(--surface-2)',
-                color: 'var(--text-dim)',
-                fontWeight: 600,
-              }}
-            >
-              {selectedOption.badge}
-            </span>
-          )}
         </div>
 
         <ChevronDown
@@ -147,6 +133,7 @@ export function CustomSelect({
           style={{
             color: 'var(--muted)',
             flexShrink: 0,
+            marginLeft: '6px',
             transition: 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
             transform: isOpen ? 'rotate(180deg)' : 'none',
           }}
@@ -159,10 +146,10 @@ export function CustomSelect({
             position: 'absolute',
             top: 'calc(100% + 5px)',
             [align === 'right' ? 'right' : 'left']: 0,
-            minWidth: '100%',
+            minWidth: 'max(100%, 220px)',
             width: 'max-content',
-            maxWidth: '320px',
-            maxHeight: '280px',
+            maxWidth: '340px',
+            maxHeight: '360px',
             background: 'var(--surface)',
             border: '1px solid var(--border)',
             borderRadius: '10px',
@@ -171,7 +158,7 @@ export function CustomSelect({
             zIndex: 1000,
             display: 'flex',
             flexDirection: 'column',
-            overflow: 'hidden',
+            boxSizing: 'border-box',
           }}
         >
           {searchable && (

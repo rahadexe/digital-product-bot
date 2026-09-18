@@ -174,7 +174,7 @@ export function Validities({ say }: { say: Say }) {
               value={selectedCategory}
               onChange={setSelectedCategory}
               options={categoryOptions}
-              minWidth={190}
+              minWidth={240}
             />
           </div>
           <button
