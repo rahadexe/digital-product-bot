@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { CalendarClock, Clock, FolderTree, Package, Plus, Trash2, Edit3 } from 'lucide-react';
-import { api, type Category, type Product } from '@/lib/api';
+import { Clock, Plus, Trash2, Edit3 } from 'lucide-react';
+import { api, type Product } from '@/lib/api';
 import { EmptyRow, FlagRow, Modal, errorText, useConfirm, type Say } from './ui';
 
 interface EditDraft {
@@ -15,7 +15,6 @@ interface EditDraft {
 export function Validities({ say }: { say: Say }) {
   const [presets, setPresets] = useState<string[]>([]);
   const [products, setProducts] = useState<Product[] | null>(null);
-  const [categories, setCategories] = useState<Category[] | null>(null);
   const [search, setSearch] = useState('');
   const [draft, setDraft] = useState<EditDraft | null>(null);
   const [busy, setBusy] = useState(false);
@@ -23,10 +22,9 @@ export function Validities({ say }: { say: Say }) {
 
   const loadData = useCallback(async () => {
     try {
-      const [sets, prods, cats] = await Promise.all([
+      const [sets, prods] = await Promise.all([
         api.settings(),
         api.products(),
-        api.categories(),
       ]);
 
       let loadedPresets: string[] = [];
@@ -40,7 +38,6 @@ export function Validities({ say }: { say: Say }) {
       }
       setPresets(loadedPresets);
       setProducts(prods);
-      setCategories(cats);
     } catch (cause) {
       say(errorText(cause), 'bad');
     }
@@ -122,14 +119,6 @@ export function Validities({ say }: { say: Say }) {
     }
   }
 
-  const totalValidities = presets.length;
-  const productsWithValidity = (products ?? []).filter(
-    (p) => Boolean(p.duration_label && p.duration_label.trim())
-  ).length;
-  const categoriesWithFilter = (categories ?? []).filter(
-    (c) => Boolean(c.has_validity_filter)
-  ).length;
-
   const filteredPresets = presets.filter((p) =>
     p.toLowerCase().includes(search.toLowerCase())
   );
@@ -137,25 +126,6 @@ export function Validities({ say }: { say: Say }) {
   return (
     <>
       {confirmDialog}
-
-      {/* Summary Stat Cards */}
-      <div className="stat-cards-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <span className="stat-card-label">Total Validities</span>
-            <CalendarClock className="stat-card-icon" />
-          </div>
-          <div className="stat-card-value">{totalValidities}</div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <span className="stat-card-label">Products with Validity</span>
-            <Package className="stat-card-icon" />
-          </div>
-          <div className="stat-card-value">{productsWithValidity}</div>
-        </div>
-      </div>
 
       {/* Main Table Section */}
       <section className="panel">
