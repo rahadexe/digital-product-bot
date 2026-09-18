@@ -413,8 +413,7 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
 
     if not deposits:
         text = (
-            f"{ICON_STATS} <b>Balance History</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n\n"
+            f"{ICON_STATS} <b>Balance History</b>\n\n"
             f"<i>You have no balance transaction records yet.</i>"
         )
         keyboard = InlineKeyboardMarkup(
@@ -427,10 +426,7 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
         )
     else:
         page_suffix = f" (Page {page}/{total_pages})" if total_pages > 1 else ""
-        text = (
-            f"{ICON_STATS} <b>Balance History{page_suffix}</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n\n"
-        )
+        text = f"{ICON_STATS} <b>Balance History{page_suffix}</b>\n\n"
         items = []
         for deposit in deposits:
             created = deposit["created_at"]
