@@ -18,13 +18,13 @@ export function useDebounced<T>(value: T, delay = 300): T {
 export type Say = (message: string, kind?: 'good' | 'bad') => void;
 
 export function useConfirm() {
-  const [request, setRequest] = useState<{ title: string; message: string; confirmLabel: string } | null>(null);
+  const [request, setRequest] = useState<{ title: string; message: string; confirmLabel: string; isDanger?: boolean } | null>(null);
   const resolver = useRef<((confirmed: boolean) => void) | null>(null);
 
-  const confirm = (title: string, message: string, confirmLabel = 'Confirm') =>
+  const confirm = (title: string, message: string, confirmLabel = 'Confirm', isDanger = true) =>
     new Promise<boolean>((resolve) => {
       resolver.current = resolve;
-      setRequest({ title, message, confirmLabel });
+      setRequest({ title, message, confirmLabel, isDanger });
     });
 
   const close = (confirmed: boolean) => {
@@ -40,7 +40,13 @@ export function useConfirm() {
       footer={
         <>
           <button type="button" className="btn ghost" onClick={() => close(false)}>Cancel</button>
-          <button type="button" className="btn danger" onClick={() => close(true)}>{request.confirmLabel}</button>
+          <button
+            type="button"
+            className={`btn ${request.isDanger !== false ? 'danger' : ''}`}
+            onClick={() => close(true)}
+          >
+            {request.confirmLabel}
+          </button>
         </>
       }
     >

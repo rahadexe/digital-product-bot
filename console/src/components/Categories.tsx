@@ -41,12 +41,10 @@ export function Categories({ say }: { say: Say }) {
   }, [load]);
 
   async function deleteCat(cat: Category) {
-    const catProducts = (products ?? []).filter((p) => p.category_id === cat.id);
-    const msg = catProducts.length > 0
-      ? `This category contains ${catProducts.length} product(s). If deleted, those products will remain in the store but will become uncategorized.`
-      : 'Products in this category will remain, but will become uncategorized.';
+    const title = `Delete "${cat.name}"?`;
+    const msg = 'Products inside will remain in store as uncategorized.';
 
-    if (!(await confirm(`Delete category "${cat.name}"?`, msg, 'Delete category'))) {
+    if (!(await confirm(title, msg, 'Delete', true))) {
       return;
     }
     try {
@@ -60,13 +58,13 @@ export function Categories({ say }: { say: Say }) {
 
   async function togglePin(cat: Category) {
     const willPin = !cat.is_pinned;
-    const title = willPin ? `Pin "${cat.name}" to Menu?` : `Unpin "${cat.name}" from Menu?`;
+    const title = willPin ? `Pin "${cat.name}"?` : `Unpin "${cat.name}"?`;
     const msg = willPin
-      ? `Show "${cat.name}" directly on the customer's Telegram reply keyboard menu for 1-tap access?`
-      : `Move "${cat.name}" into the "Other Products" list instead of the main Telegram keyboard?`;
+      ? 'Show on main Telegram menu for 1-tap access.'
+      : 'Move into "Other Products" list.';
     const label = willPin ? 'Pin to Menu' : 'Unpin';
 
-    if (!(await confirm(title, msg, label))) {
+    if (!(await confirm(title, msg, label, false))) {
       return;
     }
 
@@ -79,7 +77,7 @@ export function Categories({ say }: { say: Say }) {
         has_validity_filter: cat.has_validity_filter ? 1 : 0,
         custom_emoji_id: cat.custom_emoji_id,
       });
-      say(willPin ? 'Pinned to Telegram reply keyboard!' : 'Unpinned from menu.');
+      say(willPin ? 'Pinned to Telegram keyboard!' : 'Unpinned from menu.');
       await load();
     } catch (cause) {
       say(errorText(cause), 'bad');
@@ -88,13 +86,13 @@ export function Categories({ say }: { say: Say }) {
 
   async function toggleActive(cat: Category) {
     const willHide = Boolean(cat.is_active);
-    const title = willHide ? `Hide category "${cat.name}"?` : `Activate category "${cat.name}"?`;
+    const title = willHide ? `Hide "${cat.name}"?` : `Activate "${cat.name}"?`;
     const msg = willHide
-      ? `Are you sure you want to hide "${cat.name}"? Customers will not see this category or its products in the Telegram bot store.`
-      : `Are you sure you want to activate "${cat.name}"? It will become visible and available for customers in the Telegram bot.`;
-    const label = willHide ? 'Hide Category' : 'Activate Category';
+      ? 'Customers will not see this category in the bot.'
+      : 'Make this category visible to customers in the bot.';
+    const label = willHide ? 'Hide' : 'Activate';
 
-    if (!(await confirm(title, msg, label))) {
+    if (!(await confirm(title, msg, label, willHide))) {
       return;
     }
 
