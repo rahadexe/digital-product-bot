@@ -138,7 +138,7 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
     ref_link = f"https://t.me/{bot_user}?start=ref_{tg_user.id}"
     store_name = (await services.settings.get("store_name")) or "Premium Haven"
 
-    reward_unit = "TK"
+    reward_unit = "TK" if (not symbol or symbol in ("৳", "TK", "BDT")) else symbol
     reward_display = f"{reward_amount:g} {reward_unit}" if reward_enabled and reward_amount > 0 else f"0 {reward_unit}"
     earned_display = f"{total_earned:g} {reward_unit}" if total_earned == int(total_earned) else f"{total_earned:.2f} {reward_unit}"
 
