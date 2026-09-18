@@ -5,6 +5,7 @@ import { AlertCircle, CheckCircle2, Layers, Package } from 'lucide-react';
 import { api, type Category, type Product } from '@/lib/api';
 import { useMoney } from '@/lib/currency';
 import { EmptyRow, FlagRow, Modal, errorText, useConfirm, type Say } from './ui';
+import { EmojiPicker } from './EmojiPicker';
 
 // Older products kept their emoji apart from the name; the form edits them as one text.
 function editableName(name: string, icon?: string) {
@@ -424,17 +425,12 @@ function ProductForm({
         ) : null}
       </label>
 
-      <label className="field">
-        <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>Telegram Custom Emoji ID <small style={{ color: 'var(--muted)', fontWeight: 'normal' }}>(Optional)</small></span>
-        </span>
-        <input
-          type="text"
-          placeholder="e.g. 5368324170671202286"
+      <div className="field">
+        <EmojiPicker
           value={form.custom_emoji_id}
-          onChange={(event) => set({ custom_emoji_id: event.target.value })}
+          onChange={(id) => set({ custom_emoji_id: id })}
         />
-      </label>
+      </div>
 
       <div className="field">
         <span>Delivery Method</span>

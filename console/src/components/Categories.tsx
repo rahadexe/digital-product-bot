@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Bookmark, FolderTree, Layers, Pin, Plus } from 'lucide-react';
 import { api, type Category } from '@/lib/api';
 import { EmptyRow, FlagRow, Modal, errorText, useConfirm, type Say } from './ui';
+import { EmojiPicker } from './EmojiPicker';
 
 type CategoryDraft = {
   id: number | null;
@@ -324,20 +325,12 @@ function CategoryFormModal({
         />
       </label>
 
-      <label className="field">
-        <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>Telegram Custom Emoji ID <small style={{ color: 'var(--muted)', fontWeight: 'normal' }}>(Optional)</small></span>
-        </span>
-        <input
-          type="text"
-          placeholder="e.g. 5368324170671202286"
+      <div className="field">
+        <EmojiPicker
           value={form.custom_emoji_id}
-          onChange={(e) => set({ custom_emoji_id: e.target.value })}
+          onChange={(id) => set({ custom_emoji_id: id })}
         />
-        <small style={{ color: 'var(--muted)', fontSize: '11px', marginTop: 2 }}>
-          Send any Telegram emoji to your bot in Telegram to get its ID.
-        </small>
-      </label>
+      </div>
 
       <label className="field">
         <span>Sort Order</span>
