@@ -828,6 +828,33 @@ label.mini[aria-disabled='true'] { opacity: 0.45; cursor: not-allowed; }
 /* On a phone each row becomes a small card: the name on its own line, then what matters beside each other.
    No sideways scrolling, and nothing squeezed into a column two words wide. */
 @media (max-width: 760px) {
+  .panel > header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+  .panel > header > div:first-child {
+    width: 100% !important;
+    flex: 1 1 100% !important;
+  }
+  .panel > header .filters {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    gap: 8px;
+  }
+  .panel > header .filters input,
+  .panel > header .filters select,
+  .panel > header .filters .custom-select-container {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  .panel > header .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
   .scroll table { min-width: 0; }
   .scroll thead { display: none; }
   .scroll tbody tr { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
@@ -838,6 +865,37 @@ label.mini[aria-disabled='true'] { opacity: 0.45; cursor: not-allowed; }
   .scroll tbody td.empty { flex-basis: 100%; padding: 14px 0; }
   .scroll .key { max-width: calc(100vw - 80px); }
   .split .scroll tbody td:first-child { flex-basis: auto; flex: 1 1 60%; }
+
+  /* Validities table: 1-line layout on mobile (duration left, products middle, delete right) */
+  .validities-table tbody tr {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    padding: 12px 14px !important;
+  }
+  .validities-table tbody td:first-child {
+    flex: 1 1 auto !important;
+    flex-basis: auto !important;
+    min-width: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+  .validities-table tbody td:nth-child(2) {
+    flex: 0 0 auto !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin: 0 !important;
+  }
+  .validities-table tbody td:last-child {
+    flex: 0 0 auto !important;
+    margin-inline-start: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+  }
 }
 
 /* ---- one order -------------------------------------------------------- */

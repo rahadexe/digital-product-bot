@@ -166,7 +166,7 @@ export function Validities({ say }: { say: Say }) {
           <div className="filters">
             <input
               type="search"
-              placeholder="Search validities..."
+              placeholder="Search..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -190,11 +190,11 @@ export function Validities({ say }: { say: Say }) {
         </header>
 
         <div className="scroll" style={{ minHeight: '220px' }}>
-          <table>
+          <table className="validities-table">
             <thead>
               <tr>
                 <th>Duration</th>
-                <th>Linked Products</th>
+                <th style={{ textAlign: 'center' }}>Linked Products</th>
                 <th className="right" aria-label="Actions" />
               </tr>
             </thead>
@@ -213,7 +213,7 @@ export function Validities({ say }: { say: Say }) {
                         <strong>{val}</strong>
                       </div>
                     </td>
-                    <td>
+                    <td style={{ textAlign: 'center' }}>
                       {matchingProducts.length > 0 ? (
                         <span
                           className="pill good"
