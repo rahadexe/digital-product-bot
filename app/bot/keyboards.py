@@ -217,8 +217,6 @@ def get_account_keyboard() -> InlineKeyboardMarkup:
         inline_keyboard=[
             [
                 InlineKeyboardButton(text="Order History", callback_data="open_orders", style="primary", icon_custom_emoji_id=Icons.ORDERS),
-            ],
-            [
                 InlineKeyboardButton(text="Balance History", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.STATS),
             ],
             [
