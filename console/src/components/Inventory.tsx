@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { AlertCircle, Calendar, CheckCircle2, Clock, Layers, PackageCheck } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock, Layers, PackageCheck } from 'lucide-react';
 import { api, type InventoryItem, type InventorySummary, type Product } from '@/lib/api';
 import { EmptyRow, Modal, Pager, errorText, when, type Say } from './ui';
 
@@ -155,13 +155,15 @@ export function Inventory({ say }: { say: Say }) {
                     </td>
                     <td>
                       <div className="row-actions">
-                        <button type="button" className="mini" onClick={() => setEditing(item)}>
-                          Edit
-                        </button>
-                        {item.status === 'available' ? (
-                          <button type="button" className="mini danger" onClick={() => setRemoving(item)}>
-                            Remove
-                          </button>
+                        {item.status === 'available' && !isExpired ? (
+                          <>
+                            <button type="button" className="mini" onClick={() => setEditing(item)}>
+                              Edit
+                            </button>
+                            <button type="button" className="mini danger" onClick={() => setRemoving(item)}>
+                              Remove
+                            </button>
+                          </>
                         ) : null}
                       </div>
                     </td>
@@ -374,48 +376,41 @@ function formatExpiryDisplay(isoString: string): string {
 }
 
 function ExpiryPicker({ value, onChange }: { value: string; onChange: (val: string) => void }) {
-  const datePart = value ? value.slice(0, 10) : '';
-  const timePart = value ? value.slice(11, 16) : '12:00';
+  const [amount, setAmount] = useState('');
+  const [unit, setUnit] = useState<'hours' | 'days'>('hours');
 
-  const [isEditingCustom, setIsEditingCustom] = useState(false);
-  const [customMode, setCustomMode] = useState<'duration' | 'datetime'>('duration');
-  const [durationAmount, setDurationAmount] = useState('24');
-  const [durationUnit, setDurationUnit] = useState<'hours' | 'days'>('hours');
-
-  const applyDuration = (amount: number, unit: 'hours' | 'days') => {
-    const hours = unit === 'hours' ? amount : amount * 24;
+  const handleAmountChange = (newAmount: string) => {
+    setAmount(newAmount);
+    if (!newAmount.trim() || isNaN(Number(newAmount)) || Number(newAmount) <= 0) {
+      onChange('');
+      return;
+    }
+    const num = Number(newAmount);
+    const hours = unit === 'hours' ? num : num * 24;
     const target = new Date(Date.now() + hours * 3600 * 1000);
     onChange(toLocalISOString(target));
   };
 
-  const applyPreset = (hours: number) => {
-    setIsEditingCustom(false);
-    const target = new Date(Date.now() + hours * 3600 * 1000);
+  const handleUnitChange = (newUnit: 'hours' | 'days') => {
+    setUnit(newUnit);
+    if (amount.trim() && !isNaN(Number(amount)) && Number(amount) > 0) {
+      const num = Number(amount);
+      const hours = newUnit === 'hours' ? num : num * 24;
+      const target = new Date(Date.now() + hours * 3600 * 1000);
+      onChange(toLocalISOString(target));
+    }
+  };
+
+  const applyPreset = (presetHours: number, displayAmount: string, displayUnit: 'hours' | 'days') => {
+    setAmount(displayAmount);
+    setUnit(displayUnit);
+    const target = new Date(Date.now() + presetHours * 3600 * 1000);
     onChange(toLocalISOString(target));
   };
 
   const applyNone = () => {
-    setIsEditingCustom(false);
+    setAmount('');
     onChange('');
-  };
-
-  const updateDatePart = (newDate: string) => {
-    if (!newDate) return;
-    const currentTime = timePart || '12:00';
-    onChange(`${newDate}T${currentTime}`);
-  };
-
-  const updateTimePart = (newTime: string) => {
-    const currentDate = datePart || toLocalISOString(new Date()).slice(0, 10);
-    onChange(`${currentDate}T${newTime || '12:00'}`);
-  };
-
-  const handleDurationSubmit = () => {
-    const num = parseFloat(durationAmount);
-    if (num > 0) {
-      applyDuration(num, durationUnit);
-      setIsEditingCustom(false);
-    }
   };
 
   return (
@@ -433,152 +428,82 @@ function ExpiryPicker({ value, onChange }: { value: string; onChange: (val: stri
           </button>
           <button
             type="button"
-            className="expiry-preset-btn"
-            onClick={() => applyPreset(24)}
+            className={`expiry-preset-btn ${value && amount === '24' && unit === 'hours' ? 'active' : ''}`}
+            onClick={() => applyPreset(24, '24', 'hours')}
           >
-            24 Hours (1 Day)
+            24 Hours
           </button>
           <button
             type="button"
-            className="expiry-preset-btn"
-            onClick={() => applyPreset(72)}
+            className={`expiry-preset-btn ${value && amount === '3' && unit === 'days' ? 'active' : ''}`}
+            onClick={() => applyPreset(72, '3', 'days')}
           >
             3 Days
           </button>
           <button
             type="button"
-            className="expiry-preset-btn"
-            onClick={() => applyPreset(168)}
+            className={`expiry-preset-btn ${value && amount === '7' && unit === 'days' ? 'active' : ''}`}
+            onClick={() => applyPreset(168, '7', 'days')}
           >
             7 Days
           </button>
           <button
             type="button"
-            className="expiry-preset-btn"
-            onClick={() => applyPreset(720)}
+            className={`expiry-preset-btn ${value && amount === '30' && unit === 'days' ? 'active' : ''}`}
+            onClick={() => applyPreset(720, '30', 'days')}
           >
             30 Days
           </button>
-          <button
-            type="button"
-            className={`expiry-preset-btn ${isEditingCustom ? 'active' : ''}`}
-            onClick={() => setIsEditingCustom(!isEditingCustom)}
-          >
-            Custom...
-          </button>
         </div>
 
-        {/* Custom Configuration Box */}
-        {isEditingCustom ? (
-          <div className="expiry-custom-card">
-            <div className="expiry-mode-toggle">
-              <button
-                type="button"
-                className={`expiry-mode-tab ${customMode === 'duration' ? 'active' : ''}`}
-                onClick={() => setCustomMode('duration')}
-              >
-                In Hours / Days
-              </button>
-              <button
-                type="button"
-                className={`expiry-mode-tab ${customMode === 'datetime' ? 'active' : ''}`}
-                onClick={() => setCustomMode('datetime')}
-              >
-                Specific Date & Time
-              </button>
-            </div>
+        {/* Custom duration row */}
+        <div className="expiry-custom-row">
+          <span className="expiry-custom-label">Expire in:</span>
+          <div className="expiry-input-wrapper">
+            <input
+              type="number"
+              min="1"
+              max="1000"
+              className="expiry-duration-input"
+              value={amount}
+              onChange={(e) => handleAmountChange(e.target.value)}
+              placeholder="e.g. 12 (leave empty for no expiry)"
+            />
+            <select
+              className="expiry-duration-select"
+              value={unit}
+              onChange={(e) => handleUnitChange(e.target.value as 'hours' | 'days')}
+            >
+              <option value="hours">Hours</option>
+              <option value="days">Days</option>
+            </select>
+          </div>
+        </div>
 
-            {customMode === 'duration' ? (
-              <div className="expiry-duration-row">
-                <span>Expire in:</span>
-                <input
-                  type="number"
-                  min="1"
-                  max="1000"
-                  className="expiry-duration-input"
-                  value={durationAmount}
-                  onChange={(e) => setDurationAmount(e.target.value)}
-                  placeholder="24"
-                />
-                <select
-                  className="expiry-duration-select"
-                  value={durationUnit}
-                  onChange={(e) => setDurationUnit(e.target.value as 'hours' | 'days')}
-                >
-                  <option value="hours">Hours</option>
-                  <option value="days">Days</option>
-                </select>
-                <button
-                  type="button"
-                  className="btn small"
-                  style={{ minHeight: 38 }}
-                  onClick={handleDurationSubmit}
-                >
-                  Apply
-                </button>
-              </div>
-            ) : (
-              <div className="expiry-datetime-row">
-                <div className="expiry-input-group">
-                  <label>
-                    <Calendar size={13} style={{ display: 'inline', verticalAlign: 'text-bottom', marginRight: 4 }} />
-                    Date
-                  </label>
-                  <input
-                    type="date"
-                    value={datePart || toLocalISOString(new Date()).slice(0, 10)}
-                    min={toLocalISOString(new Date()).slice(0, 10)}
-                    onChange={(e) => updateDatePart(e.target.value)}
-                  />
-                </div>
-                <div className="expiry-input-group">
-                  <label>
-                    <Clock size={13} style={{ display: 'inline', verticalAlign: 'text-bottom', marginRight: 4 }} />
-                    Time
-                  </label>
-                  <input
-                    type="time"
-                    value={timePart}
-                    onChange={(e) => updateTimePart(e.target.value)}
-                  />
-                </div>
-              </div>
-            )}
+        {/* Live Status Preview (Fixed height container to prevent modal jitter) */}
+        <div className={`expiry-status-bar ${value ? 'active' : 'idle'}`}>
+          <div className="expiry-preview-content">
+            <Clock size={14} className={value ? 'expiry-preview-icon' : 'expiry-idle-icon'} />
+            <span>
+              {value ? (
+                <>
+                  Will expire on: <strong>{formatExpiryDisplay(value)}</strong>
+                </>
+              ) : (
+                'No expiry set (stock remains active indefinitely)'
+              )}
+            </span>
           </div>
-        ) : null}
-
-        {/* Live Status Preview */}
-        {value ? (
-          <div className="expiry-preview">
-            <div className="expiry-preview-content">
-              <Clock size={15} className="expiry-preview-icon" />
-              <span>
-                Will expire on: <strong>{formatExpiryDisplay(value)}</strong>
-              </span>
-            </div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <button
-                type="button"
-                className="expiry-clear-btn"
-                onClick={() => setIsEditingCustom(!isEditingCustom)}
-              >
-                {isEditingCustom ? 'Close' : 'Edit'}
-              </button>
-              <button
-                type="button"
-                className="expiry-clear-btn"
-                style={{ color: 'var(--bad, #dc2626)' }}
-                onClick={applyNone}
-              >
-                Remove
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="expiry-hint-text">
-            No expiry set. Stock remains active indefinitely until sold.
-          </div>
-        )}
+          {value ? (
+            <button
+              type="button"
+              className="expiry-clear-btn"
+              onClick={applyNone}
+            >
+              Clear Expiry
+            </button>
+          ) : null}
+        </div>
       </div>
     </div>
   );

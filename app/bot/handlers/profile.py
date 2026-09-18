@@ -19,6 +19,22 @@ from aiogram.types import (
 )
 
 from app.bot.formatting import callback_int, price, respond
+from app.bot.icons import (
+    ICON_ACCOUNT,
+    ICON_BALANCE,
+    ICON_CHECK,
+    ICON_COIN,
+    ICON_ID,
+    ICON_KEY,
+    ICON_MONEY,
+    ICON_ORDERS,
+    ICON_RESELLER,
+    ICON_SPENT,
+    ICON_STATS,
+    ICON_TIMER,
+    ICON_VIP,
+    Icons,
+)
 from app.bot.keyboards import get_account_keyboard
 from app.services import Services
 
@@ -31,6 +47,10 @@ INLINE_CREDENTIAL_LIMIT = 2800
 
 
 @router.message(Command("account"))
+@router.message(Command("profile"))
+@router.message(F.text == "👤 My Profile")
+@router.message(F.text == "My Profile")
+@router.message(F.text.casefold() == "my profile")
 @router.message(F.text == "👤 Account")
 @router.message(F.text == "💳 My Balance")
 @router.message(F.text == "💰 My Balance")
@@ -49,17 +69,139 @@ async def show_user_profile(event: Message | CallbackQuery, state: FSMContext, s
     user = stats.get("user", {})
     symbol = await services.settings.get("currency_symbol")
     user_name = escape(tg_user.full_name or tg_user.first_name or "Customer")
+
+    rank_val = (user.get("rank") or "Standard").strip()
+    if rank_val.lower() in {"affiliate", "affiliate partner"}:
+        account_type = "Affiliate Partner 🤝"
+    elif rank_val.lower() in {"reseller", "reseller partner"}:
+        account_type = "Reseller Partner 💼"
+    elif rank_val.lower() in {"vip", "vip member", "vip customer"}:
+        account_type = "VIP Member 💎"
+    elif user.get("referral_count", 0) > 0:
+        account_type = "Affiliate Partner 🤝"
+    else:
+        account_type = "Normal User 👤"
+
     text = (
-        f"👤 <b>Account</b>\n"
+        f"{ICON_ACCOUNT} <b>My Profile</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"🆔 <b>User ID:</b> <code>{tg_user.id}</code>\n"
-        f"👤 <b>Name:</b> {user_name}\n"
-        f"💰 <b>Current Balance:</b> <code>{price(symbol, user.get('balance', 0.0))}</code>\n"
-        f"📦 <b>Total Orders:</b> {stats.get('order_count', 0)}\n"
-        f"💸 <b>Total Spent:</b> {price(symbol, stats.get('total_spent', 0.0))}\n"
+        f"{ICON_ID} <b>User ID:</b> <code>{tg_user.id}</code>\n"
+        f"{ICON_ACCOUNT} <b>Name:</b> {user_name}\n"
+        f"{ICON_RESELLER} <b>Account Type:</b> <b>{account_type}</b>\n"
+        f"{ICON_BALANCE} <b>Current Balance:</b> <code>{price(symbol, user.get('balance', 0.0))}</code>\n"
+        f"{ICON_ORDERS} <b>Total Orders:</b> {stats.get('order_count', 0)}\n"
+        f"{ICON_SPENT} <b>Total Spent:</b> <code>{price(symbol, stats.get('total_spent', 0.0))}</code>\n"
         f"━━━━━━━━━━━━━━━━━━"
     )
     await respond(event, text, get_account_keyboard())
+
+
+@router.message(Command("referral"))
+@router.message(Command("refer"))
+@router.message(F.text.in_({"🎁 Refer & Earn", "Refer & Earn", "refer & earn", "রেফার", "রেফার করুন"}))
+@router.callback_query(F.data == "open_referral")
+async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, services: Services):
+    await state.clear()
+    tg_user = event.from_user
+    if not tg_user:
+        return
+
+    user = await services.users.get(tg_user.id)
+    balance = user["balance"] if user else 0.0
+    symbol = await services.settings.get("currency_symbol")
+    reward_amount = await services.settings.number("referral_reward_amount")
+    reward_enabled = await services.settings.flag("referral_enabled")
+
+    reward_str = f"{reward_amount:g} {symbol}" if reward_amount == int(reward_amount) else f"{reward_amount:.2f} {symbol}"
+    balance_str = f"{balance:g} {symbol}" if balance == int(balance) else f"{balance:.2f} {symbol}"
+
+    async with services.db.connect() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT 
+                COUNT(*) AS total_invited,
+                COALESCE(SUM(amount), 0) AS total_earned
+            FROM referral_rewards
+            WHERE referrer_tg_id = $1
+            """,
+            tg_user.id,
+        )
+        total_invited = row["total_invited"] if row else 0
+        total_earned = float(row["total_earned"]) if row else 0.0
+
+    total_earned_str = f"{total_earned:g} {symbol}" if total_earned == int(total_earned) else f"{total_earned:.2f} {symbol}"
+    status_badge = "🟢 Active" if reward_enabled and reward_amount > 0 else "⚪ Disabled"
+
+    bot_user = await services.notifier.bot_username()
+    ref_link = f"https://t.me/{bot_user}?start=ref_{tg_user.id}"
+
+    text = (
+        f"{ICON_ORDERS} <b>Refer & Earn Program</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"Invite your friends to <b>Premium Haven</b> and earn instant wallet balance for every friend who joins!\n\n"
+        f"{ICON_COIN} <b>Bonus Per Referral:</b> <code>{reward_str}</code>\n"
+        f"⚡ <b>Program Status:</b> <b>{status_badge}</b>\n\n"
+        f"{ICON_STATS} <b>Your Referral Statistics:</b>\n"
+        f"• Total Friends Invited: <b>{total_invited}</b> Users\n"
+        f"• Total Referral Earnings: <code>{total_earned_str}</code>\n"
+        f"• Your Wallet Balance: <code>{balance_str}</code>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"🔗 <b>Your Exclusive Referral Link:</b>\n"
+        f"<code>{ref_link}</code>\n\n"
+        f"<i>💡 Share your link above. When a friend joins the bot and completes channel verification, you instantly get <b>{reward_str}</b> credited to your balance!</i>"
+    )
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Share Referral Link",
+                    url=f"https://t.me/share/url?url={ref_link}&text=Join%20Premium%20Haven%20for%20the%20best%20VPNs%2C%20Proxies%20%26%20Digital%20Services!",
+                    style="success",
+                    icon_custom_emoji_id=Icons.CHANNEL,
+                )
+            ],
+            [
+                InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
+            ],
+        ]
+    )
+    await respond(event, text, kb)
+
+
+@router.message(Command("reseller"))
+@router.message(F.text.in_({"💼 Apply as a Reseller", "Apply as a Reseller", "apply as a reseller", "reseller", "রিসেলার"}))
+@router.callback_query(F.data == "open_reseller")
+async def show_reseller_info(event: Message | CallbackQuery, state: FSMContext, services: Services):
+    await state.clear()
+    handle = (await services.settings.get("support_username")).lstrip("@")
+    text = (
+        f"{ICON_RESELLER} <b>Apply as a Reseller</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"Start and scale your digital service business with <b>Premium Haven</b>!\n\n"
+        f"🌟 <b>Exclusive Reseller Benefits:</b>\n"
+        f"• <b>Wholesale Rates:</b> Heavy discounts on bulk VPNs, Proxies & Tools.\n"
+        f"• <b>Priority Fulfillment:</b> Instant stock reservation & rapid delivery.\n"
+        f"• <b>Dedicated Support:</b> 24/7 direct VIP access to our management team.\n"
+        f"• <b>Custom Solutions:</b> Tailored bulk orders for your shop or channel.\n\n"
+        f"📋 <b>Requirements:</b>\n"
+        f"Must have an active channel, store, or monthly order volume.\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"<i>Ready to partner with us? Tap below to send your application!</i>"
+    )
+
+    rows = []
+    if handle:
+        rows.append([
+            InlineKeyboardButton(
+                text="💬 Contact Management",
+                url=f"https://t.me/{handle}?text=Hello%2C%20I%20would%20like%20to%20apply%20as%20a%20Reseller%20at%20Premium%20Haven.",
+                style="success",
+                icon_custom_emoji_id=Icons.RESELLER,
+            )
+        ])
+    rows.append([InlineKeyboardButton(text="◀ Back", callback_data="back_to_main", style="danger")])
+    await respond(event, text, InlineKeyboardMarkup(inline_keyboard=rows))
 
 
 @router.message(Command("orders"))
@@ -146,12 +288,12 @@ async def view_order_detail(query: CallbackQuery, state: FSMContext, services: S
     if not query.message:
         return
 
-    back = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="◀ Back", callback_data="open_orders", style="danger")]])
+    back = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Back", callback_data="open_orders", style="primary", icon_custom_emoji_id=Icons.BACK)]])
     if order["status"] == "completed" and order.get("fulfillment") == "waiting":
         with suppress(TelegramBadRequest):
             await query.message.edit_text(
-                f"⏳ <b>Order #{order['id']}: {escape(order['product_title'])}</b>\n\n"
-                "Paid. Your item is being prepared and will be sent here soon.",
+                f"{ICON_TIMER} <b>Order #{order['id']}: {escape(order['product_title'])}</b>\n\n"
+                "Paid. Your item is being prepared and will be delivered here shortly.",
                 reply_markup=back,
             )
         return
@@ -164,19 +306,19 @@ async def view_order_detail(query: CallbackQuery, state: FSMContext, services: S
     date = created.strftime("%Y-%m-%d %H:%M UTC") if isinstance(created, datetime) else str(created)
     symbol = await services.settings.get("currency_symbol")
     text = (
-        f"📦 <b>Order #{order['id']} Details</b>\n\n"
-        f"🏷️ <b>Product:</b> {escape(order['product_title'])}\n"
-        f"💵 <b>Price Paid:</b> {price(symbol, order['price'])}\n"
-        f"📅 <b>Date:</b> {date}\n"
-        f"🔖 <b>Status:</b> {order['status'].upper()}\n\n"
-        f"🔑 <b>Delivered Credentials:</b>\n"
+        f"{ICON_ORDERS} <b>Order #{order['id']} Details</b>\n\n"
+        f"{ICON_VIP} <b>Product:</b> {escape(order['product_title'])}\n"
+        f"{ICON_MONEY} <b>Price Paid:</b> <code>{price(symbol, order['price'])}</code>\n"
+        f"{ICON_TIMER} <b>Date:</b> {date}\n"
+        f"{ICON_CHECK} <b>Status:</b> <code>{order['status'].upper()}</code>\n\n"
+        f"{ICON_KEY} <b>Delivered Credentials:</b>\n"
         f"<code>{escape(order['delivered_item'])}</code>\n\n"
         "<i>(Tap the button below or tap the code to copy)</i>"
     )
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="📋 Copy Credentials", copy_text=CopyTextButton(text=order["delivered_item"]), style="success")],
-            [InlineKeyboardButton(text="◀ Back", callback_data="open_orders", style="danger")],
+            [InlineKeyboardButton(text="Copy Credentials", copy_text=CopyTextButton(text=order["delivered_item"]), style="success", icon_custom_emoji_id=Icons.KEY)],
+            [InlineKeyboardButton(text="Back", callback_data="open_orders", style="primary", icon_custom_emoji_id=Icons.BACK)],
         ]
     )
     with suppress(TelegramBadRequest):
@@ -212,7 +354,7 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
         text = "\n".join(lines)
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="💳 Deposit", callback_data="open_deposit_from_history", style="success")],
+            [InlineKeyboardButton(text="Deposit", callback_data="open_deposit_from_history", style="success", icon_custom_emoji_id=Icons.DEPOSIT)],
             [InlineKeyboardButton(text="◀ Back", callback_data="open_account", style="danger")],
         ]
     )

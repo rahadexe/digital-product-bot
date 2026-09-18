@@ -7,15 +7,17 @@ import { Fragment, useEffect, useRef, useState } from 'react';
 import { UploadCloud } from 'lucide-react';
 import { api, type BinanceStatus, type PaymentsStatus } from '@/lib/api';
 import { resetCurrencySymbol } from '@/lib/currency';
+import { AdminNotifications } from './AdminNotifications';
 import { GateChannels } from './GateChannels';
 import { PaymentMethods } from './PaymentMethods';
 import { UpdateChannels } from './UpdateChannels';
 import { FlagRow, Modal, Switch, errorText, useConfirm, type Say } from './ui';
 
-export type SettingsTab = 'store' | 'notices' | 'access' | 'payments';
+export type SettingsTab = 'store' | 'notifications' | 'notices' | 'access' | 'payments';
 
 const TABS: { key: SettingsTab; label: string }[] = [
   { key: 'store', label: 'Store' },
+  { key: 'notifications', label: 'Admin & Alerts' },
   { key: 'notices', label: 'Notices' },
   { key: 'access', label: 'Access' },
   { key: 'payments', label: 'Payments' },
@@ -57,9 +59,25 @@ const SECTIONS: Section[] = [
     fields: [
       { key: 'store_name', label: 'Bot / Store Name', placeholder: 'PremiumOne' },
       { key: 'support_username', label: 'Telegram Support Username', placeholder: '@username' },
-      { key: 'admin_tg_id', label: 'Admin Telegram ID (deposit and order alerts)', placeholder: '123456789', hint: 'Send /start to @userinfobot to find it.' },
+      { key: 'admin_tg_id', label: 'Primary Admin Telegram ID', placeholder: '123456789', hint: 'Manage all admin accounts & alert rules in the Admin & Alerts tab.' },
       { key: 'currency_symbol', label: 'Currency Symbol', placeholder: '৳' },
       { key: 'currency', label: 'Currency Code', placeholder: 'BDT' },
+    ],
+  },
+  {
+    id: 'referral',
+    tab: 'store',
+    title: 'Refer & Earn Program',
+    master: { key: 'referral_enabled' },
+    fields: [
+      {
+        key: 'referral_reward_amount',
+        label: 'Bonus per Referral (Flat Cash)',
+        type: 'number',
+        fallback: '3',
+        money: true,
+        hint: 'Cash bonus credited to referrer wallet when invited friend joins bot and verifies channel membership (Max limit: 100 ৳).',
+      },
     ],
   },
   {
@@ -369,6 +387,15 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
         );
       })}
 
+      {tab === 'notifications' ? (
+        <AdminNotifications
+          say={say}
+          values={values}
+          setValues={setValues}
+          setSaved={setSaved}
+          flip={flip}
+        />
+      ) : null}
       {tab === 'notices' ? <UpdateChannels say={say} /> : null}
       {tab === 'access' ? <GateChannels say={say} /> : null}
     </>

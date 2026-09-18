@@ -350,7 +350,8 @@ class PaymentService:
                 self.notifier.send_admin(
                     f"⚠️ <b>ZiniPay refused a payment</b>\n\n{escape(str(exc))}\n\n"
                     "<i>Check the API key in Settings → Payments, and that the brand website in ZiniPay "
-                    "is this shop's domain.</i>"
+                    "is this shop's domain.</i>",
+                    event="system_error",
                 )
             )
             raise InvalidInputError("The payment page could not be opened. Please try again in a moment.") from None
@@ -428,7 +429,8 @@ class PaymentService:
             self.notifier.in_background(
                 self.notifier.send_admin(
                     f"⚠️ <b>Automatic payment needs a look</b>\n\nReference <code>{escape(row['reference'])}</code>, "
-                    f"user <code>{row['tg_user_id']}</code>\n{escape(reason)}\n\n<i>Nothing was credited. Check it in ZiniPay.</i>"
+                    f"user <code>{row['tg_user_id']}</code>\n{escape(reason)}\n\n<i>Nothing was credited. Check it in ZiniPay.</i>",
+                    event="system_error",
                 )
             )
         return updated
@@ -535,7 +537,8 @@ class PaymentService:
             f"💳 <b>Automatic deposit #{deposit_id}</b>\n\n"
             f"👤 User <code>{row['tg_user_id']}</code>\n"
             f"💵 Credit {symbol}{credit:.2f} · paid {float(row['pay_amount']):.2f} {LOCAL_CURRENCY}\n"
-            f"💳 {escape(row['payment_method'] or 'ZiniPay')} · TrxID <code>{escape(row['provider_transaction_id'] or '')}</code>"
+            f"💳 {escape(row['payment_method'] or 'ZiniPay')} · TrxID <code>{escape(row['provider_transaction_id'] or '')}</code>",
+            event="payment",
         )
 
     async def list(self, status: str | None = None, limit: int = 50, offset: int = 0) -> tuple[list[dict[str, Any]], int]:

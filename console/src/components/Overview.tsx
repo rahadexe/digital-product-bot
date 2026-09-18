@@ -115,7 +115,7 @@ export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) =
 
       {/* Top 4 Stat Metric Cards */}
       <div className="stat-cards-grid">
-        <div className="stat-card" onClick={() => onOpen('orders')} style={{ cursor: 'pointer' }}>
+        <div className="stat-card">
           <div className="stat-card-top">
             <span className="stat-card-label">Revenue</span>
             <Wallet className="stat-card-icon" />
@@ -123,7 +123,7 @@ export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) =
           <div className="stat-card-value">{money(stats.total_revenue)}</div>
         </div>
 
-        <div className="stat-card" onClick={() => onOpen('orders')} style={{ cursor: 'pointer' }}>
+        <div className="stat-card">
           <div className="stat-card-top">
             <span className="stat-card-label">Orders</span>
             <ShoppingBag className="stat-card-icon" />
@@ -131,7 +131,7 @@ export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) =
           <div className="stat-card-value">{stats.total_orders}</div>
         </div>
 
-        <div className="stat-card" onClick={() => onOpen('users')} style={{ cursor: 'pointer' }}>
+        <div className="stat-card">
           <div className="stat-card-top">
             <span className="stat-card-label">Unique Customers</span>
             <Users className="stat-card-icon" />
@@ -139,7 +139,7 @@ export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) =
           <div className="stat-card-value">{stats.total_users}</div>
         </div>
 
-        <div className="stat-card" onClick={() => onOpen('inventory')} style={{ cursor: 'pointer' }}>
+        <div className="stat-card">
           <div className="stat-card-top">
             <span className="stat-card-label">Delivered</span>
             <PackageCheck className="stat-card-icon" />

@@ -45,6 +45,8 @@ export interface Category {
   icon: string;
   sort_order: number;
   is_active: number;
+  is_pinned?: number;
+  custom_emoji_id?: string;
 }
 
 export interface Product {
@@ -58,6 +60,8 @@ export interface Product {
   duration_label: string;
   sort_order: number;
   is_active: number;
+  delivery_type?: 'stock' | 'manual';
+  custom_emoji_id?: string;
   created_at?: string;
   stock?: number;
 }
@@ -494,6 +498,11 @@ export const api = {
     request<{ success: boolean; is_banned: boolean }>(`/api/admin/users/${tgUserId}/ban`, {
       method: 'POST',
     }),
+  setUserRank: (tgUserId: number, rank: string) =>
+    request<{ success: boolean; rank: string }>(`/api/admin/users/${tgUserId}/rank`, {
+      method: 'POST',
+      body: JSON.stringify({ rank }),
+    }),
 
   // Gate channels
   gateChannels: () => request<GateChannel[]>('/api/admin/gate-channels'),
@@ -539,6 +548,14 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+  testAdminNotification: () =>
+    request<{
+      success: boolean;
+      message?: string;
+      delivered_count: number;
+      total_admins: number;
+      results: { chat_id: number; delivered: boolean; error?: string | null }[];
+    }>('/api/admin/settings/test-admin-notification', { method: 'POST' }),
   getWelcomeBanner: () =>
     request<{
       has_banner: boolean;

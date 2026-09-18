@@ -17,6 +17,14 @@ import asyncpg
 from app.db import Database
 from app.services.audit import record
 from app.services.errors import NotFoundError
+from app.bot.icons import (
+    ICON_CHECK,
+    ICON_KEY,
+    ICON_MONEY,
+    ICON_ORDERS,
+    ICON_TIMER,
+    ICON_VIP,
+)
 
 LEASE_SECONDS = 120
 
@@ -25,8 +33,10 @@ def waiting_notice(order: dict[str, Any]) -> str:
     order_id = order.get('order_id', order.get('id'))
     title = escape(order.get('product_title', 'Purchase'))
     return (
-        f"⏳ <b>Order #{order_id}: {title}</b>\n\n"
-        "Payment successful. Your item is being prepared and will be delivered here shortly."
+        f"{ICON_TIMER} <b>Order #{order_id}: {title}</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"{ICON_CHECK} <b>Payment Received!</b>\n\n"
+        f"Your order is being prepared and will be delivered directly here shortly."
     )
 
 
@@ -52,14 +62,14 @@ def receipt(order: dict[str, Any]) -> str:
     content = escape(str(order.get('delivered_item', '')).strip())
 
     lines = [
-        f"📦 <b>Order #{order_id} Details</b>\n",
-        f"🏷️ <b>Product:</b> {title}",
-        f"💵 <b>Price Paid:</b> {price_str}",
+        f"{ICON_ORDERS} <b>Order #{order_id} Details</b>\n",
+        f"{ICON_VIP} <b>Product:</b> {title}",
+        f"{ICON_MONEY} <b>Price Paid:</b> <code>{price_str}</code>",
     ]
     if date_str:
-        lines.append(f"📅 <b>Date:</b> {date_str}")
-    lines.append("🔖 <b>Status:</b> COMPLETED\n")
-    lines.append("🔑 <b>Delivered Credentials:</b>")
+        lines.append(f"{ICON_TIMER} <b>Date:</b> {date_str}")
+    lines.append(f"{ICON_CHECK} <b>Status:</b> <code>COMPLETED</code>\n")
+    lines.append(f"{ICON_KEY} <b>Delivered Credentials:</b>")
     lines.append(f"<code>{content}</code>\n")
     lines.append("<i>(Tap the button below or tap the code to copy)</i>")
 

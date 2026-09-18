@@ -52,6 +52,17 @@ def _telegram_id(value: str) -> str:
     return value or "0"
 
 
+def _telegram_ids(value: str) -> str:
+    value = value.strip()
+    if not value:
+        return ""
+    raw_ids = [part.strip() for part in re.split(r"[\s,;]+", value) if part.strip()]
+    for pid in raw_ids:
+        if not re.fullmatch(r"\d{5,20}", pid):
+            raise ValueError(f"'{pid}' is not a valid Telegram user ID (must be numeric)")
+    return ", ".join(raw_ids)
+
+
 def _username(value: str) -> str:
     value = value.strip()
     if value and not re.fullmatch(r"@?[A-Za-z0-9_]{3,64}", value):
@@ -92,12 +103,20 @@ SPECS: dict[str, SettingSpec] = {
     "notice_banner": SettingSpec("", max_length=1000),
     "welcome_text": SettingSpec("", max_length=3500),
     "guide_text": SettingSpec(DEFAULT_GUIDE, max_length=3500),
-    "referral_bonus_percent": SettingSpec("5", _number(0, 100), 16),
+    "referral_enabled": SettingSpec("1", _flag, 1),
+    "referral_reward_amount": SettingSpec("3.0", _number(0, 100), 16),
+    "referral_bonus_percent": SettingSpec("0", _number(0, 100), 16),
     "force_join_enabled": SettingSpec("0", _flag, 1),
     "store_paused": SettingSpec("0", _flag, 1),
     "maintenance_message": SettingSpec("Store maintenance is in progress. Please try again soon.", max_length=240),
     "max_deposit_limit": SettingSpec("50000", _number(1, 1_000_000_000), 16),
     "admin_tg_id": SettingSpec("0", _telegram_id, 20),
+    "admin_tg_ids": SettingSpec("", _telegram_ids, 1000),
+    "notify_admin_orders": SettingSpec("1", _flag, 1),
+    "notify_admin_deposits": SettingSpec("1", _flag, 1),
+    "notify_admin_payments": SettingSpec("1", _flag, 1),
+    "notify_admin_restock": SettingSpec("1", _flag, 1),
+    "notify_admin_new_user": SettingSpec("0", _flag, 1),
     "announcement_channel": SettingSpec("", _chat, 65),
     "auto_restock_alerts": SettingSpec("1", _flag, 1),
     "auto_price_drop_alerts": SettingSpec("1", _flag, 1),
@@ -176,8 +195,23 @@ class SettingsService:
         values = await self.values()
         return values["maintenance_message"] if values["store_paused"] == "1" else ""
 
+    async def admin_chat_ids(self) -> list[int]:
+        values = await self.values()
+        raw = values.get("admin_tg_ids", "").strip()
+        ids: list[int] = []
+        if raw:
+            for part in re.split(r"[\s,;]+", raw):
+                if part.isdigit():
+                    ids.append(int(part))
+        if not ids:
+            single = int(values.get("admin_tg_id", 0)) or self.config.admin_tg_id
+            if single:
+                ids.append(single)
+        return list(dict.fromkeys(ids))
+
     async def admin_chat_id(self) -> int:
-        return int(await self.get("admin_tg_id")) or self.config.admin_tg_id
+        ids = await self.admin_chat_ids()
+        return ids[0] if ids else (self.config.admin_tg_id or 0)
 
     async def supplier_credentials(self) -> tuple[str, str]:
         values = await self.values()

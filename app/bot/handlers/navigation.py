@@ -8,14 +8,36 @@ from aiogram.types import Message
 from app.services import Services
 
 NAVIGATION_TEXTS = {
+    "Cancel": "cancel",
     "❌ Cancel": "cancel",
     "❌ Cancel Operation": "cancel",
     "❌ Cancel Deposit": "cancel",
+    # 9-button layout
+    "Buy VPN": "vpn",
+    "Proxy Hub": "proxy",
+    "Other Products": "other_products",
+    "Other Product": "other_products",
+    "Premium Products": "other_products",
+    "Mail Box": "mailbox",
+    "Add Balance": "deposit",
+    "Refer & Earn": "referral",
+    "My Profile": "account",
+    "Support": "support",
+    "Apply as a Reseller": "reseller",
+    # Legacy / Emoji variations
+    "🛡️ Buy VPN": "vpn",
+    "🌐 Proxy Hub": "proxy",
+    "💎 Other Products": "other_products",
+    "👑 Premium Products": "other_products",
+    "✉️ Mail Box": "mailbox",
+    "🎁 Refer & Earn": "referral",
+    "👤 My Profile": "account",
+    "💼 Apply as a Reseller": "reseller",
     # Shop
-    "🛍️ Products": "shop",
-    "🛒 Products": "shop",
-    "Products": "shop",
-    "🛍️ Buy Products": "shop",
+    "🛍️ Products": "other_products",
+    "🛒 Products": "other_products",
+    "Products": "other_products",
+    "🛍️ Buy Products": "other_products",
     "🛒 Buy Products": "shop",
     "🛍️ Shop": "shop",
     "🛒 Shop": "shop",
@@ -44,7 +66,6 @@ NAVIGATION_TEXTS = {
     # Support
     "🎧 Support": "support",
     "💬 Support": "support",
-    "Support": "support",
     "কাস্টমার সাপোর্ট": "support",
     # Channel / Updates
     "📢 Channel": "channel",
@@ -89,6 +110,13 @@ async def navigate(text: str, message: Message, state: FSMContext, services: Ser
         await start.render_main_dashboard(message, services, message.from_user.id)
         return
     handlers = {
+        "vpn": shop.show_vpn_hub,
+        "proxy": shop.show_proxy_hub,
+        "other_products": shop.show_other_products_hub,
+        "premium": shop.show_other_products_hub,
+        "mailbox": shop.show_mailbox_hub,
+        "referral": profile.show_referral_info,
+        "reseller": profile.show_reseller_info,
         "shop": shop.show_categories,
         "deposit": deposit.show_deposit_methods,
         "account": profile.show_user_profile,

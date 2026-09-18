@@ -42,7 +42,7 @@ class UserService:
                 ON CONFLICT (tg_user_id) DO UPDATE
                 SET username = EXCLUDED.username, first_name = EXCLUDED.first_name,
                     last_name = EXCLUDED.last_name, updated_at = now()
-                RETURNING *
+                RETURNING *, (xmax = 0) AS is_new
                 """,
                 tg_user_id,
                 username,
@@ -50,7 +50,85 @@ class UserService:
                 last_name,
                 referred_by,
             )
-            return dict(row)
+            result = dict(row)
+            if row["is_new"]:
+                cust = f"@{escape(username)}" if username else "No username"
+                full_name = escape(" ".join(filter(None, [first_name, last_name])) or "New User")
+                self.notifier.in_background(
+                    self.notifier.send_admin(
+                        f"👤 <b>New Customer Joined</b>\n\n"
+                        f"Name: {full_name}\n"
+                        f"Username: {cust}\n"
+                        f"Telegram ID: <code>{tg_user_id}</code>",
+                        event="new_user",
+                    )
+                )
+            return result
+
+    async def process_referral_reward(self, tg_user_id: int) -> dict[str, Any] | None:
+        """
+        If user was referred by someone and the referral bonus hasn't been credited yet,
+        credits the referrer's balance by referral_reward_amount and sends them an instant notification.
+        """
+        enabled = await self.settings.flag("referral_enabled")
+        if not enabled:
+            return None
+
+        reward_amount = await self.settings.number("referral_reward_amount")
+        if reward_amount <= 0:
+            return None
+        reward_amount = min(reward_amount, 100.0)
+
+        async with self.db.transaction() as conn:
+            user = await conn.fetchrow("SELECT * FROM users WHERE tg_user_id = $1 FOR UPDATE", tg_user_id)
+            if not user or not user["referred_by"] or user.get("referral_rewarded"):
+                return None
+
+            referrer_id = user["referred_by"]
+            if referrer_id == tg_user_id:
+                return None
+
+            referrer = await conn.fetchrow("SELECT * FROM users WHERE tg_user_id = $1 FOR UPDATE", referrer_id)
+            if not referrer or referrer["is_banned"]:
+                return None
+
+            existing = await conn.fetchrow("SELECT id FROM referral_rewards WHERE referred_tg_id = $1", tg_user_id)
+            if existing:
+                await conn.execute("UPDATE users SET referral_rewarded = 1 WHERE tg_user_id = $1", tg_user_id)
+                return None
+
+            await conn.execute(
+                "INSERT INTO referral_rewards (referrer_tg_id, referred_tg_id, amount) VALUES ($1, $2, $3)",
+                referrer_id, tg_user_id, reward_amount
+            )
+            await conn.execute(
+                """
+                UPDATE users
+                SET balance = balance + $1,
+                    referral_count = referral_count + 1,
+                    referral_earnings = referral_earnings + $1,
+                    updated_at = now()
+                WHERE tg_user_id = $2
+                """,
+                reward_amount, referrer_id
+            )
+            await conn.execute("UPDATE users SET referral_rewarded = 1, updated_at = now() WHERE tg_user_id = $1", tg_user_id)
+            await record(conn, "referral_reward_paid", f"User #{referrer_id} received {reward_amount:.2f} for referring #{tg_user_id}")
+
+        symbol = await self.settings.get("currency_symbol")
+        joined_name = escape(" ".join(filter(None, [user.get("first_name"), user.get("last_name")])) or (f"@{user['username']}" if user.get("username") else "A friend"))
+        reward_str = f"{reward_amount:g} {symbol}" if reward_amount == int(reward_amount) else f"{reward_amount:.2f} {symbol}"
+        self.notifier.in_background(
+            self.notifier.send(
+                referrer_id,
+                f"🎉 <b>New Referral Bonus!</b>\n\n"
+                f"👤 <b>{joined_name}</b> joined using your referral link!\n"
+                f"💰 <b>Bonus Earned:</b> <code>+{reward_str}</code> (Credited to your wallet)\n\n"
+                f"Keep sharing your link to earn more!",
+                event="referral_reward",
+            )
+        )
+        return {"referrer_id": referrer_id, "amount": reward_amount}
 
     async def get(self, tg_user_id: int) -> dict[str, Any] | None:
         async with self.db.connect() as conn:
@@ -165,3 +243,14 @@ class UserService:
                 await conn.execute("UPDATE users SET is_banned = $1 WHERE tg_user_id = $2", value, tg_user_id)
                 await record(conn, "user_banned" if value else "user_unbanned", f"User {tg_user_id}")
             return bool(value)
+
+    async def set_rank(self, tg_user_id: int, rank: str) -> str:
+        """Update customer rank/role (Standard, Affiliate, Reseller, VIP)."""
+        valid_ranks = {"Standard", "Affiliate", "Reseller", "VIP"}
+        clean_rank = rank.strip().title()
+        if clean_rank not in valid_ranks:
+            clean_rank = "Standard"
+        async with self.db.transaction() as conn:
+            await conn.execute("UPDATE users SET rank = $1, updated_at = now() WHERE tg_user_id = $2", clean_rank, tg_user_id)
+            await record(conn, "user_rank_updated", f"User #{tg_user_id} rank set to {clean_rank}")
+        return clean_rank

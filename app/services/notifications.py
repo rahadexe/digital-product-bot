@@ -18,13 +18,7 @@ logger = logging.getLogger("app.services.notifications")
 FALLBACK_USERNAME = "subsmarket247bot"
 
 COMMANDS = [
-    BotCommand(command="start", description="Main Menu"),
-    BotCommand(command="products", description="Products"),
-    BotCommand(command="deposit", description="Deposit"),
-    BotCommand(command="orders", description="Orders"),
-    BotCommand(command="account", description="Account"),
-    BotCommand(command="support", description="Support"),
-    BotCommand(command="channel", description="Channel"),
+    BotCommand(command="start", description="Start the Bot"),
 ]
 
 
@@ -100,10 +94,36 @@ class Notifier:
             logger.warning("Could not send Telegram message to %s: %s", chat_id, type(exc).__name__)
             return False
 
-    async def send_admin(self, text: str) -> bool:
+    async def send_admin(self, text: str, event: str = "general", keyboard: InlineKeyboardMarkup | None = None) -> bool:
+        """
+        Send a notification to all configured admin Telegram accounts.
+        If an event type is toggled off in settings, the message is skipped.
+        Mandatory events (waiting_order, system_error, general) cannot be toggled off.
+        """
         if not self.bot:
             return False
-        return await self.send(await self.settings.admin_chat_id(), text)
+
+        # Configurable event toggles
+        if event == "order" and not await self.settings.flag("notify_admin_orders"):
+            return False
+        if event == "deposit" and not await self.settings.flag("notify_admin_deposits"):
+            return False
+        if event == "payment" and not await self.settings.flag("notify_admin_payments"):
+            return False
+        if event == "restock" and not await self.settings.flag("notify_admin_restock"):
+            return False
+        if event == "new_user" and not await self.settings.flag("notify_admin_new_user"):
+            return False
+
+        chat_ids = await self.settings.admin_chat_ids()
+        if not chat_ids:
+            return False
+
+        results = await asyncio.gather(
+            *(self.send(chat_id, text, keyboard=keyboard) for chat_id in chat_ids),
+            return_exceptions=True,
+        )
+        return any(r is True for r in results)
 
     async def is_member(self, chat: str, user_id: int) -> bool:
         """Raises when membership cannot be verified, so callers can fail closed."""

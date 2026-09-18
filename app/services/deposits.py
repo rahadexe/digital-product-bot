@@ -258,7 +258,8 @@ class DepositService:
             f"💳 <b>Method:</b> {escape(quote['method_name'])}\n"
             f"💵 <b>Wallet credit:</b> {symbol}{quote['amount']:.2f}{payable}\n"
             f"🔖 <b>Transaction ID:</b> <code>{escape(transaction_id)}</code>\n\n"
-            "<i>Verify the payment, then review it in the Admin Console.</i>"
+            "<i>Verify the payment, then review it in the Admin Console.</i>",
+            event="deposit",
         )
 
     async def _notify_customer(self, tg_user_id: int, text_for_symbol: Callable[[str], str]) -> None:

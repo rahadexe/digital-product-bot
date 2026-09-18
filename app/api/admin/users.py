@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 
 from app.api.admin.auth import WRITE
-from app.api.admin.schemas import BalanceAdjustPayload, BanPayload
+from app.api.admin.schemas import BalanceAdjustPayload, BanPayload, UserRankPayload
 from app.api.deps import ServicesDep
 
 router = APIRouter()
@@ -35,3 +35,9 @@ async def adjust_balance(tg_user_id: int, payload: BalanceAdjustPayload, service
 async def set_ban(tg_user_id: int, services: ServicesDep, payload: Optional[BanPayload] = None):
     banned = await services.users.set_banned(tg_user_id, payload.banned if payload else None)
     return {"success": True, "is_banned": banned}
+
+
+@router.post("/users/{tg_user_id}/rank", dependencies=WRITE)
+async def set_user_rank(tg_user_id: int, payload: UserRankPayload, services: ServicesDep):
+    rank = await services.users.set_rank(tg_user_id, payload.rank)
+    return {"success": True, "rank": rank}

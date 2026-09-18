@@ -20,6 +20,18 @@ from app.services.inventory import InventoryService
 from app.services.notifications import Notifier
 from app.services.settings import SettingsService
 from app.services.supplier import SupplierService
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from app.bot.icons import (
+    ICON_ACCOUNT,
+    ICON_CHECK,
+    ICON_MONEY,
+    ICON_ORDERS,
+    ICON_SHOP,
+    ICON_TIMER,
+    ICON_VIP,
+    ICON_WARNING,
+)
+from app.core.config import get_settings
 
 logger = logging.getLogger("app.services.purchases")
 
@@ -54,18 +66,21 @@ class PurchaseService:
         self.delivery = delivery
         self.notifier = notifier
 
-    async def purchase(self, tg_user_id: int, product_id: int, request_id: str | None = None) -> PurchaseResult:
+    async def purchase(self, tg_user_id: int, product_id: int, quantity: int = 1, request_id: str | None = None) -> PurchaseResult:
         """
-        Charge the wallet, take a stock seat (or fulfil through the supplier), record the order, credit the
-        referrer and queue the customer's message, all in one transaction.
+        Charge the wallet, take stock seats (or fulfil through manual delivery), record the order,
+        and queue the customer's message, all in one transaction.
         The price always comes from the database, never from the caller.
         """
+        if quantity < 1:
+            return False, "Invalid quantity.", None
         # Paused applies to every way in (bot, Mini App), so it is checked here rather than in each of them.
         paused = await self.settings.paused_message()
         if paused:
             return False, paused, None
         referral_percent = await self.settings.number("referral_bonus_percent")
         waiting_reason = ""
+        is_manual = False
         async with self.db.connect() as db:
             await db.execute("BEGIN")
             try:
@@ -93,55 +108,74 @@ class PurchaseService:
                 if not product:
                     await db.execute("ROLLBACK")
                     return False, "Product is currently unavailable.", None
-                price = money(product["price"], positive=True)
-                if user["balance"] < price:
+                unit_price = money(product["price"], positive=True)
+                total_price = round(unit_price * quantity, 4)
+                if user["balance"] < total_price:
                     await db.execute("ROLLBACK")
-                    short = round(price - user["balance"], 2)
+                    short = round(total_price - user["balance"], 2)
                     return False, f"Insufficient balance. You need {short:.2f} more to purchase this item.", None
 
-                # 3. A seat in local stock
-                stock_item = await InventoryService.claim_seat(db, product_id, tg_user_id)
-                if not stock_item:
-                    await db.execute("ROLLBACK")
-                    return False, "Sorry, this item is currently out of stock!", None
+                # 3. Check delivery type
+                is_manual = product.get("delivery_type") == "manual"
+                stock_item_ids: list[int] = []
+                if is_manual:
+                    delivered_content = ""
+                    source = "manual"
+                    fulfillment = "waiting"
+                    waiting_reason = f"Manual delivery product (Quantity: {quantity})" if quantity > 1 else "Manual delivery product"
+                else:
+                    # Seats in local stock
+                    stock_items = await InventoryService.claim_seats(db, product_id, tg_user_id, count=quantity)
+                    if not stock_items or len(stock_items) < quantity:
+                        await db.execute("ROLLBACK")
+                        return False, f"Sorry, this item currently does not have {quantity} in stock!", None
 
-                delivered_content = stock_item["content"]
-                source = "stock"
+                    delivered_content = "\n".join(item["content"] for item in stock_items)
+                    source = "stock"
+                    fulfillment = "delivered"
+                    stock_item_ids = [item["id"] for item in stock_items]
 
                 # 4. Charge the wallet
-                new_balance = round(user["balance"] - price, 4)
+                new_balance = round(user["balance"] - total_price, 4)
                 await db.execute(
                     "UPDATE users SET balance = $1, total_spent = $2, updated_at = now() WHERE id = $3",
                     new_balance,
-                    round(user["total_spent"] + price, 4),
+                    round(user["total_spent"] + total_price, 4),
                     user["id"],
                 )
 
-                # 5. Record order and mark stock seat used
+                # 5. Record order and mark stock seats used if applicable
+                order_title = f"{product['title']} (x{quantity})" if quantity > 1 else product["title"]
+                primary_stock_id = stock_item_ids[0] if stock_item_ids else None
                 order_row = await db.fetchrow(
                     """
                     INSERT INTO orders (user_id, tg_user_id, product_id, product_title, price, delivered_item,
                                         status, request_id, delivery_status, fulfillment, source, inventory_item_id,
                                         fulfilled_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, 'completed', $7, 'pending', 'delivered', $8, $9, now())
+                    VALUES ($1, $2, $3, $4, $5, $6, 'completed', $7, 'pending', $8, $9, $10, CASE WHEN $8 = 'delivered' THEN now() ELSE NULL END)
                     RETURNING *
                     """,
                     user["id"],
                     tg_user_id,
                     product_id,
-                    product["title"],
-                    price,
+                    order_title,
+                    total_price,
                     delivered_content,
                     request_id,
+                    fulfillment,
                     source,
-                    stock_item["id"],
+                    primary_stock_id,
                 )
                 order_id = order_row["id"]
-                await InventoryService.use_seat(db, stock_item["id"], order_id)
+                for sid in stock_item_ids:
+                    await InventoryService.use_seat(db, sid, order_id)
 
                 order = _receipt_fields(order_row, new_balance)
                 order["currency_symbol"] = await self.settings.get("currency_symbol")
-                await self.delivery.enqueue_order(tg_user_id, order, conn=db)
+                if is_manual:
+                    await self.delivery.enqueue_waiting_notice(tg_user_id, order, conn=db)
+                else:
+                    await self.delivery.enqueue_order(tg_user_id, order, conn=db)
                 await db.execute("COMMIT")
             except Exception as exc:
                 if db.is_in_transaction():
@@ -150,25 +184,49 @@ class PurchaseService:
                 return False, "Purchase could not be completed. Please contact support before retrying.", None
 
         # The customer gets the result now; the admin alert must not add a Telegram round trip.
-        self.notifier.in_background(self._notify_admin(user, order, waiting_reason if waiting else ""))
+        self.notifier.in_background(self._notify_admin(user, order, waiting_reason if is_manual else ""))
         return True, "Success", order
 
     async def _notify_admin(self, user: Any, order: dict[str, Any], waiting_reason: str = "") -> None:
         symbol = escape(await self.settings.get("currency_symbol"))
-        customer = f"@{escape(user['username'])}" if user["username"] else "No username"
-        heading = "⏳ <b>Order waiting for you</b>" if waiting_reason else "🛒 <b>New order</b>"
-        delivery = (
-            f"⚠️ <b>Not delivered:</b> {escape(waiting_reason)}\nSend it from the console → Orders."
-            if waiting_reason
-            else "📬 <b>Delivery:</b> Queued"
-        )
+        customer = f"@{escape(user['username'])}" if user.get("username") else "No username"
+        order_id = order.get("order_id", order.get("id"))
+
+        cfg = get_settings()
+        base_url = cfg.webhook_base_url.rstrip("/") if cfg.webhook_base_url else (await self.settings.get("webapp_url") or "http://127.0.0.1:8000")
+        order_link = f"{base_url}/#orders/{order_id}"
+
+        keyboard = None
+        if waiting_reason:
+            heading = f"{ICON_TIMER} <b>Manual Order Action Required</b>"
+            delivery = (
+                f"{ICON_WARNING} <b>Delivery:</b> Manual Fulfillment Required\n\n"
+                f"🔗 <b>Direct Link:</b> <a href=\"{order_link}\">Open Order #{order_id} in Admin Panel</a>"
+            )
+            keyboard = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text=f"📦 Deliver Order #{order_id}",
+                            url=order_link,
+                        )
+                    ]
+                ]
+            )
+        else:
+            heading = f"{ICON_SHOP} <b>New Order Received</b>"
+            delivery = f"{ICON_CHECK} <b>Delivery:</b> Instant (Delivered)"
+
         await self.notifier.send_admin(
-            f"{heading}\n\n"
-            f"📦 <b>Order ID:</b> #{order['order_id']}\n"
-            f"👤 <b>Customer:</b> {customer} (<code>{user['tg_user_id']}</code>)\n"
-            f"🏷️ <b>Product:</b> {escape(order['product_title'])}\n"
-            f"💵 <b>Price:</b> {symbol}{order['price']:.2f}\n"
-            f"{delivery}"
+            f"{heading}\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{ICON_ORDERS} <b>Order ID:</b> <code>#{order_id}</code>\n"
+            f"{ICON_ACCOUNT} <b>Customer:</b> {customer} (<code>{user['tg_user_id']}</code>)\n"
+            f"{ICON_VIP} <b>Product:</b> {escape(order['product_title'])}\n"
+            f"{ICON_MONEY} <b>Price Paid:</b> <code>{symbol}{order['price']:.2f}</code>\n"
+            f"{delivery}",
+            event="waiting_order" if waiting_reason else "order",
+            keyboard=keyboard,
         )
 
     # --- orders that are paid but not delivered ---

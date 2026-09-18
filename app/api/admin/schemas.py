@@ -28,6 +28,11 @@ class CategoryPayload(Payload):
     icon: str = Field(default="📦", max_length=16)
     sort_order: int = Field(default=0, ge=-100_000, le=100_000)
     is_active: Flag = 1
+    is_pinned: Flag = 0
+    custom_emoji_id: Optional[str] = Field(default=None, max_length=64)
+
+    _empty_text = field_validator("icon", "custom_emoji_id", mode="before")(_empty_if_none)
+
 
 
 class ProductPayload(Payload):
@@ -39,8 +44,15 @@ class ProductPayload(Payload):
     duration_label: str = Field(default="", max_length=64)
     sort_order: int = Field(default=0, ge=-100_000, le=100_000)
     is_active: Flag = 1
+    delivery_type: str = Field(default="stock", max_length=16)
+    custom_emoji_id: Optional[str] = Field(default=None, max_length=64)
 
-    _empty_text = field_validator("description", "duration_label", "icon", mode="before")(_empty_if_none)
+    _empty_text = field_validator("description", "duration_label", "icon", "custom_emoji_id", mode="before")(_empty_if_none)
+
+    @field_validator("delivery_type")
+    @classmethod
+    def _check_delivery_type(cls, v: str) -> str:
+        return v if v in ("stock", "manual") else "stock"
 
 
 class BulkStockPayload(Payload):
@@ -124,3 +136,8 @@ class SupplierSyncPayload(Payload):
 
 class SupplierItemPricePayload(Payload):
     price: float = Field(gt=0.0, le=AMOUNT_LIMIT)
+
+
+class UserRankPayload(Payload):
+    rank: str = Field(min_length=1, max_length=50)
+

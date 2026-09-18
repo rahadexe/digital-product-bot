@@ -13,6 +13,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.bot.formatting import callback_int, price, respond
+from app.bot.icons import ICON_DEPOSIT, ICON_TIMER, ICON_WARNING
 from app.bot.handlers.navigation import is_navigation, navigate
 from app.bot.handlers.start import render_main_dashboard
 from app.bot.keyboards import (
@@ -54,9 +55,7 @@ async def cancel_deposit_flow(query: CallbackQuery, state: FSMContext, services:
 
 
 @router.message(Command("deposit"))
-@router.message(F.text == "💰 Add Balance")
-@router.message(F.text == "💳 Deposit")
-@router.message(F.text == "ডিপোজিট করুন")
+@router.message(F.text.in_({"Add Balance", "add balance", "💰 Add Balance", "💳 Add Balance", "Deposit", "deposit", "💳 Deposit", "ডিপোজিট করুন"}))
 @router.callback_query(F.data == "open_deposit")
 @router.callback_query(F.data == "open_deposit_from_history")
 @router.callback_query(F.data == "open_deposit_from_account")
@@ -76,7 +75,7 @@ async def show_deposit_methods(event: Message | CallbackQuery, state: FSMContext
 
     paused_msg = await services.settings.paused_message()
     if paused_msg:
-        await respond(event, f"⚠️ <b>Deposits Temporarily Paused</b>\n\n{escape(paused_msg)}", None)
+        await respond(event, f"{ICON_WARNING} <b>Deposits Temporarily Paused</b>\n\n{escape(paused_msg)}", None)
         return
 
     instant = await services.payments.instant_options()
@@ -105,7 +104,7 @@ async def show_deposit_methods(event: Message | CallbackQuery, state: FSMContext
     if pending:
         symbol = await services.settings.get("currency_symbol")
         text = (
-            f"⏳ <b>Deposit #{pending['id']} Pending Review</b>\n\n"
+            f"{ICON_TIMER} <b>Deposit #{pending['id']} Pending Review</b>\n\n"
             f"Method: {escape(pending['method_name'])}\n"
             f"Amount: {price(symbol, pending['amount'])}\n"
             f"TrxID: <code>{escape(pending['transaction_id'])}</code>\n\n"
@@ -113,7 +112,7 @@ async def show_deposit_methods(event: Message | CallbackQuery, state: FSMContext
         )
         keyboard = get_deposit_methods_keyboard([], instant["label"], back_target=back_target) if instant else None
     else:
-        text = "<b>Choose your payment method:</b>"
+        text = f"{ICON_DEPOSIT} <b>Choose your payment method:</b>"
         keyboard = get_deposit_methods_keyboard(
             displayed_methods, instant["label"] if instant else None, back_target=back_target
         )

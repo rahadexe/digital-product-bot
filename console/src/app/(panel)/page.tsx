@@ -15,10 +15,12 @@ import {
   Users as UsersIcon,
   Wallet,
   X,
+  FolderTree,
   type LucideIcon,
 } from 'lucide-react';
 import { api, setCsrf } from '@/lib/api';
 import { Broadcast } from '@/components/Broadcast';
+import { Categories } from '@/components/Categories';
 import { Deposits } from '@/components/Deposits';
 import { Inventory } from '@/components/Inventory';
 import { Orders } from '@/components/Orders';
@@ -33,6 +35,7 @@ type Key =
   | 'orders'
   | 'inventory'
   | 'products'
+  | 'categories'
   | 'deposits'
   | 'users'
   | 'broadcast'
@@ -44,6 +47,7 @@ const ITEMS: { key: Key; label: string; icon: LucideIcon }[] = [
   { key: 'orders', label: 'Orders', icon: ShoppingBag },
   { key: 'inventory', label: 'Stock', icon: Boxes },
   { key: 'products', label: 'Products', icon: Package },
+  { key: 'categories', label: 'Categories', icon: FolderTree },
   { key: 'deposits', label: 'Deposits', icon: Wallet },
   { key: 'users', label: 'Customers', icon: UsersIcon },
   { key: 'broadcast', label: 'Broadcast', icon: Megaphone },
@@ -90,7 +94,10 @@ export default function ConsolePage() {
   useEffect(() => {
     setScreen(readAddress());
     void check();
-    const follow = () => setScreen(readAddress());
+    const follow = () => {
+      const next = readAddress();
+      setScreen((prev) => (prev.key === next.key && prev.tab === next.tab ? prev : next));
+    };
     const expired = () => setSignedIn(false);
     window.addEventListener('hashchange', follow);
     window.addEventListener('session-expired', expired);
@@ -100,6 +107,20 @@ export default function ConsolePage() {
       window.clearTimeout(timer.current);
     };
   }, [check]);
+
+  // Lock background body scroll when mobile drawer is open
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      const prevOverflow = document.body.style.overflow;
+      const prevTouchAction = document.body.style.touchAction;
+      document.body.style.overflow = 'hidden';
+      document.body.style.touchAction = 'none';
+      return () => {
+        document.body.style.overflow = prevOverflow;
+        document.body.style.touchAction = prevTouchAction;
+      };
+    }
+  }, [mobileMenuOpen]);
 
   // The two numbers worth keeping current while the console is open: deposits to review and paid orders not sent.
   useEffect(() => {
@@ -120,9 +141,11 @@ export default function ConsolePage() {
   const open = (address: string) => {
     const [key, tab = ''] = address.split('/');
     if (!isKey(key)) return;
-    window.location.hash = address;
-    setScreen({ key, tab });
     setMobileMenuOpen(false);
+    if (window.location.hash.slice(1) !== address) {
+      window.location.hash = address;
+    }
+    setScreen((prev) => (prev.key === key && prev.tab === tab ? prev : { key, tab }));
   };
   const label = ITEMS.find((item) => item.key === screen.key)?.label ?? 'Dashboard';
 
@@ -142,67 +165,79 @@ export default function ConsolePage() {
         >
           <Menu size={20} />
         </button>
-        <div className="mobile-brand-title">
+        <button
+          type="button"
+          onClick={() => open('overview')}
+          className="mobile-brand-title"
+          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
+        >
           <span>Bot Admin</span>
           <span className="online-indicator" />
-        </div>
+        </button>
       </header>
 
       {/* Off-canvas Mobile Drawer */}
-      {mobileMenuOpen ? (
-        <div className="drawer-backdrop" onClick={() => setMobileMenuOpen(false)}>
-          <aside className="drawer-panel" onClick={(e) => e.stopPropagation()}>
-            <div className="drawer-header">
-              <div className="drawer-brand">
-                <Brand />
-                <span className="online-indicator" />
-              </div>
-              <button
-                type="button"
-                className="drawer-close"
-                onClick={() => setMobileMenuOpen(false)}
-                aria-label="Close navigation"
-              >
-                <X size={20} />
-              </button>
-            </div>
+      <div
+        className={`drawer-backdrop${mobileMenuOpen ? ' open' : ''}`}
+        onClick={() => setMobileMenuOpen(false)}
+        aria-hidden={!mobileMenuOpen}
+      >
+        <aside className="drawer-panel" onClick={(e) => e.stopPropagation()}>
+          <div className="drawer-header">
+            <button
+              type="button"
+              className="drawer-brand"
+              onClick={() => open('overview')}
+              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
+            >
+              <Brand />
+              <span className="online-indicator" />
+            </button>
+            <button
+              type="button"
+              className="drawer-close"
+              onClick={() => setMobileMenuOpen(false)}
+              aria-label="Close navigation"
+            >
+              <X size={20} />
+            </button>
+          </div>
 
-            <div className="drawer-nav">
-              {ITEMS.map(({ key, label: name, icon: Icon }) => (
-                <button
-                  key={key}
-                  type="button"
-                  className={screen.key === key ? 'active' : ''}
-                  onClick={() => open(key)}
-                >
-                  <Icon size={18} />
-                  <span>{name}</span>
-                  {key === 'deposits' && pending > 0 ? <span className="count">{pending}</span> : null}
-                  {key === 'orders' && waitingOrders > 0 ? <span className="count">{waitingOrders}</span> : null}
-                </button>
-              ))}
-            </div>
-
-            <div className="drawer-footer">
+          <div className="drawer-nav">
+            {ITEMS.map(({ key, label: name, icon: Icon }) => (
               <button
+                key={key}
                 type="button"
-                className="sign-out"
-                onClick={async () => {
-                  try {
-                    await api.logout();
-                    setSignedIn(false);
-                  } catch (cause) {
-                    say(errorText(cause, 'Could not sign out.'), 'bad');
-                  }
-                }}
+                className={screen.key === key ? 'active' : ''}
+                onClick={() => open(key)}
               >
-                <LogOut size={16} />
-                <span>Sign out</span>
+                <Icon size={18} />
+                <span>{name}</span>
+                {key === 'deposits' && pending > 0 ? <span className="count">{pending}</span> : null}
+                {key === 'orders' && waitingOrders > 0 ? <span className="count">{waitingOrders}</span> : null}
               </button>
-            </div>
-          </aside>
-        </div>
-      ) : null}
+            ))}
+          </div>
+
+          <div className="drawer-footer">
+            <button
+              type="button"
+              className="sign-out"
+              onClick={async () => {
+                try {
+                  await api.logout();
+                  setSignedIn(false);
+                } catch (cause) {
+                  say(errorText(cause, 'Could not sign out.'), 'bad');
+                }
+              }}
+            >
+              <LogOut size={16} />
+              <span>Sign out</span>
+            </button>
+          </div>
+        </aside>
+      </div>
 
       {/* Desktop Sidebar Rail */}
       <nav className="rail" aria-label="Main navigation">
@@ -252,9 +287,18 @@ export default function ConsolePage() {
           ) : null}
 
           {screen.key === 'overview' ? <Overview say={say} onOpen={open} /> : null}
-          {screen.key === 'orders' ? <Orders key={screen.tab} say={say} initialWaiting={screen.tab === 'waiting'} onWaitingChange={setWaitingOrders} /> : null}
+          {screen.key === 'orders' ? (
+            <Orders
+              key={screen.tab}
+              say={say}
+              initialWaiting={screen.tab === 'waiting'}
+              initialOrderId={/^\d+$/.test(screen.tab) ? Number(screen.tab) : null}
+              onWaitingChange={setWaitingOrders}
+            />
+          ) : null}
           {screen.key === 'deposits' ? <Deposits say={say} initialMode={screen.tab === 'instant' ? 'instant' : 'deposits'} onPendingChange={setPending} /> : null}
           {screen.key === 'products' ? <Products say={say} /> : null}
+          {screen.key === 'categories' ? <Categories say={say} /> : null}
           {screen.key === 'inventory' ? <Inventory say={say} /> : null}
           {screen.key === 'users' ? <Users say={say} /> : null}
           {screen.key === 'broadcast' ? <Broadcast say={say} /> : null}

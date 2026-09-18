@@ -85,3 +85,41 @@ async def delete_welcome_banner(services: ServicesDep):
     await services.media.remove_welcome_banner()
     return {"success": True}
 
+
+@router.post("/settings/test-admin-notification", dependencies=WRITE)
+async def test_admin_notification(services: ServicesDep):
+    chat_ids = await services.settings.admin_chat_ids()
+    if not chat_ids:
+        raise HTTPException(400, "No admin Telegram IDs configured. Add at least one ID first.")
+    if not services.notifier.bot:
+        return {
+            "success": False,
+            "message": "Telegram bot is running in offline mode (no active bot connection).",
+            "delivered_count": 0,
+            "total_admins": len(chat_ids),
+            "results": [{"chat_id": cid, "delivered": False, "error": "Bot is offline"} for cid in chat_ids],
+        }
+
+    results = []
+    for cid in chat_ids:
+        ok = await services.notifier.send(
+            cid,
+            "🔔 <b>Admin Notification Test</b>\n\n"
+            "This is a test notification from your Store Console.\n"
+            "If you see this message, your Telegram ID is correctly configured and alerts are working! 🎉",
+        )
+        results.append({
+            "chat_id": cid,
+            "delivered": ok,
+            "error": None if ok else "Could not send message. Ensure the user has started the bot (/start) and hasn't blocked it.",
+        })
+
+    delivered_count = sum(1 for r in results if r["delivered"])
+    return {
+        "success": delivered_count > 0,
+        "delivered_count": delivered_count,
+        "total_admins": len(chat_ids),
+        "results": results,
+    }
+
+

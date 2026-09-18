@@ -28,10 +28,12 @@ const MESSAGE_STATE: Record<string, string> = {
 export function Orders({
   say,
   initialWaiting = false,
+  initialOrderId = null,
   onWaitingChange,
 }: {
   say: Say;
   initialWaiting?: boolean;
+  initialOrderId?: number | null;
   onWaitingChange?: (count: number) => void;
 }) {
   const [orders, setOrders] = useState<Order[] | null>(null);
@@ -44,7 +46,7 @@ export function Orders({
   const [summary, setSummary] = useState<OrderSummary | null>(null);
   const [offset, setOffset] = useState(0);
   const [search, setSearch] = useState('');
-  const [open, setOpen] = useState<number | null>(null);
+  const [open, setOpen] = useState<number | null>(initialOrderId);
   const query = useDebounced(search);
   const money = useMoney();
 

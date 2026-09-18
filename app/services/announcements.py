@@ -43,7 +43,8 @@ class AnnouncementService:
             f"🏷️ <b>Product:</b> {icon} {title}\n"
             f"➕ <b>Added:</b> <code>{added_count}</code> item(s)\n"
             f"📊 <b>Total Live Stock:</b> <code>{product['stock']}</code> units\n"
-            f"💵 <b>Price:</b> <code>{symbol}{product['price']:.2f}</code>\n"
+            f"💵 <b>Price:</b> <code>{symbol}{product['price']:.2f}</code>\n",
+            event="restock",
         )
         channel = values["announcement_channel"]
         if not channel or values["auto_restock_alerts"] == "0":

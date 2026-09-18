@@ -10,6 +10,7 @@ from aiogram.exceptions import TelegramAPIError
 from aiogram.types import CallbackQuery, Message
 
 from app.bot.keyboards import get_gate_keyboard
+from app.bot.handlers.start import gate_text
 from app.services import Services
 
 OPEN_COMMANDS = {"/start", "/menu"}
@@ -101,7 +102,7 @@ class StoreAccess(BaseMiddleware):
             if isinstance(event, CallbackQuery):
                 await event.answer("Please join the required channels first.", show_alert=True)
             await message.answer(
-                "Join the required channels, then verify your membership.", reply_markup=get_gate_keyboard(missing)
+                gate_text(missing), reply_markup=get_gate_keyboard(missing)
             )
             return None
         return await handler(event, data)

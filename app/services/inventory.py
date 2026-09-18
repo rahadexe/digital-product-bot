@@ -174,6 +174,44 @@ class InventoryService:
         return True
 
     @staticmethod
+    async def claim_seats(conn: asyncpg.Connection, product_id: int, tg_user_id: int, count: int = 1) -> list[asyncpg.Record] | None:
+        """
+        Lock the next `count` available items inside the caller's transaction.
+        If fewer than `count` items are available, returns None.
+        """
+        if count <= 0:
+            return None
+        for _ in range(CLAIM_ATTEMPTS):
+            items = await conn.fetch(
+                """
+                SELECT i.* FROM inventory_items i
+                WHERE i.product_id = $1 AND i.status = 'available' AND i.uses < i.max_uses
+                  AND (i.expires_at IS NULL OR i.expires_at > NOW())
+                ORDER BY EXISTS (SELECT 1 FROM orders o WHERE o.inventory_item_id = i.id AND o.tg_user_id = $2),
+                         i.uses, i.last_used_at NULLS FIRST, i.id
+                LIMIT $3 FOR UPDATE OF i SKIP LOCKED
+                """,
+                product_id,
+                tg_user_id,
+                count,
+            )
+            if len(items) == count:
+                return list(items)
+            # Check if there are enough items at all
+            total_available = await conn.fetchval(
+                """
+                SELECT COUNT(*) FROM inventory_items
+                WHERE product_id = $1 AND status = 'available' AND uses < max_uses
+                  AND (expires_at IS NULL OR expires_at > NOW())
+                """,
+                product_id,
+            )
+            if (total_available or 0) < count:
+                return None
+            await asyncio.sleep(CLAIM_WAIT_SECONDS)
+        return None
+
+    @staticmethod
     async def claim_seat(conn: asyncpg.Connection, product_id: int, tg_user_id: int) -> asyncpg.Record | None:
         """
         Lock the next item with a free seat inside the caller's transaction, or return None when there is none.

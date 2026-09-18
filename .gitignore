@@ -75,3 +75,4 @@ console/public/images/store-hero-v2.prompt.txt
 # ─── Local tools ────────────────────────────────────────────────
 cloudflared.exe
 *.exe
+scratch/

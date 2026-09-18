@@ -18,8 +18,9 @@ async def list_categories(services: ServicesDep):
 
 @router.post("/categories", dependencies=WRITE)
 async def create_category(payload: CategoryPayload, services: ServicesDep):
-    category_id = await services.catalog.create_category(payload.name, payload.icon, payload.sort_order)
+    category_id = await services.catalog.create_category(**payload.model_dump())
     return {"success": True, "id": category_id}
+
 
 
 @router.put("/categories/{category_id}", dependencies=WRITE)

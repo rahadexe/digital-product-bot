@@ -22,15 +22,17 @@ LISTING_SQL = (
     f"SELECT p.*, c.name AS category_name, {STOCK_SQL} AS stock FROM products p LEFT JOIN categories c ON c.id = p.category_id"
 )
 
-PRODUCT_FIELDS = ("category_id", "title", "description", "price", "icon", "duration_label", "sort_order", "is_active")
+PRODUCT_FIELDS = ("category_id", "title", "description", "price", "icon", "duration_label", "sort_order", "is_active", "delivery_type", "custom_emoji_id")
 
 
 class CatalogService:
     CACHE_SECONDS = 30.0
+    PRODUCTS_CACHE_SECONDS = 10.0
 
     def __init__(self, db: Database):
         self.db = db
         self._active_categories: tuple[float, list[dict[str, Any]]] | None = None
+        self._products_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
 
     @staticmethod
     async def _require_category(conn: asyncpg.Connection, category_id: int | None) -> None:
@@ -49,31 +51,80 @@ class CatalogService:
             self._active_categories = (now, rows)
         return [dict(row) for row in rows]
 
-    async def create_category(self, name: str, icon: str = "📦", sort_order: int = 0) -> int:
+    async def category(self, category_id: int) -> dict[str, Any] | None:
+        cats = await self.categories(active_only=False)
+        return next((c for c in cats if c["id"] == category_id), None)
+
+    async def pinned_categories(self, active_only: bool = True) -> list[dict[str, Any]]:
+        cats = await self.categories(active_only=active_only)
+        return [c for c in cats if c.get("is_pinned")]
+
+    async def unpinned_categories(self, active_only: bool = True) -> list[dict[str, Any]]:
+        cats = await self.categories(active_only=active_only)
+        return [c for c in cats if not c.get("is_pinned")]
+
+    async def create_category(
+        self,
+        name: str,
+        icon: str = "📦",
+        sort_order: int = 0,
+        is_active: int = 1,
+        is_pinned: int = 0,
+        custom_emoji_id: str | None = None,
+    ) -> int:
         async with self.db.transaction() as conn:
             category_id = await conn.fetchval(
-                "INSERT INTO categories (name, icon, sort_order) VALUES ($1, $2, $3) RETURNING id",
-                name,
-                icon,
-                sort_order,
-            )
-            await record(conn, "category_created", f"Category #{category_id}: {name}")
-        self._active_categories = None
-        return category_id
-
-    async def update_category(self, category_id: int, *, name: str, icon: str, sort_order: int, is_active: int) -> bool:
-        async with self.db.transaction() as conn:
-            status = await conn.execute(
-                "UPDATE categories SET name = $1, icon = $2, sort_order = $3, is_active = $4 WHERE id = $5",
+                """
+                INSERT INTO categories (name, icon, sort_order, is_active, is_pinned, custom_emoji_id)
+                VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
+                """,
                 name,
                 icon,
                 sort_order,
                 is_active,
+                is_pinned,
+                custom_emoji_id,
+            )
+            await record(conn, "category_created", f"Category #{category_id}: {name}")
+        self._active_categories = None
+        self._products_cache.clear()
+        return category_id
+
+    async def update_category(
+        self,
+        category_id: int,
+        *,
+        name: str | None = None,
+        icon: str | None = None,
+        sort_order: int | None = None,
+        is_active: int | None = None,
+        is_pinned: int | None = None,
+        custom_emoji_id: str | None = None,
+    ) -> bool:
+        async with self.db.transaction() as conn:
+            status = await conn.execute(
+                """
+                UPDATE categories
+                SET name = COALESCE($1, name),
+                    icon = COALESCE($2, icon),
+                    sort_order = COALESCE($3, sort_order),
+                    is_active = COALESCE($4, is_active),
+                    is_pinned = COALESCE($5, is_pinned),
+                    custom_emoji_id = COALESCE($6::text, custom_emoji_id)
+                WHERE id = $7
+                """,
+                name,
+                icon,
+                sort_order,
+                is_active,
+                is_pinned,
+                custom_emoji_id,
                 category_id,
             )
             if affected(status):
-                await record(conn, "category_updated", f"Category #{category_id}: {name}")
+                await record(conn, "category_updated", f"Category #{category_id}")
         self._active_categories = None
+        self._products_cache.clear()
         return bool(affected(status))
 
     async def delete_category(self, category_id: int) -> None:
@@ -81,6 +132,8 @@ class CatalogService:
             if affected(await conn.execute("DELETE FROM categories WHERE id = $1", category_id)):
                 await record(conn, "category_deleted", f"Category #{category_id}")
         self._active_categories = None
+        self._products_cache.clear()
+
 
     async def products(
         self,
@@ -92,19 +145,27 @@ class CatalogService:
         in_stock_first: bool = False,
     ) -> list[dict[str, Any]]:
         """Products in admin order; customer listings pass ``in_stock_first`` so buyable items lead."""
+        now = time.monotonic()
+        cache_key = f"{category_id}_{active_only}_{limit}_{offset}_{in_stock_first}"
+        cached = self._products_cache.get(cache_key)
+        if cached and now - cached[0] < self.PRODUCTS_CACHE_SECONDS:
+            return [dict(row) for row in cached[1]]
+
         where, params = "", []
         if category_id is not None:
             params.append(category_id)
             where += f" AND p.category_id = ${len(params)}"
         if active_only:
             where += " AND p.is_active = 1"
-        order = "(stock > 0) DESC, sort_order, id" if in_stock_first else "sort_order, id"
+        order = "(delivery_type = 'manual' OR stock > 0) DESC, sort_order, id" if in_stock_first else "sort_order, id"
         query = (
             f"SELECT * FROM ({LISTING_SQL} WHERE 1=1{where}) AS listing "
             f"ORDER BY {order} LIMIT ${len(params) + 1} OFFSET ${len(params) + 2}"
         )
         async with self.db.connect() as conn:
-            return [dict(row) for row in await conn.fetch(query, *params, limit, offset)]
+            rows = [dict(row) for row in await conn.fetch(query, *params, limit, offset)]
+        self._products_cache[cache_key] = (now, rows)
+        return [dict(row) for row in rows]
 
     async def product(self, product_id: int) -> dict[str, Any] | None:
         async with self.db.connect() as conn:
@@ -121,14 +182,18 @@ class CatalogService:
         duration_label: str = "",
         sort_order: int = 0,
         is_active: int = 1,
+        delivery_type: str = "stock",
+        custom_emoji_id: str | None = None,
     ) -> int:
         price = money(price, positive=True)
+        if delivery_type not in ("stock", "manual"):
+            delivery_type = "stock"
         async with self.db.transaction() as conn:
             await self._require_category(conn, category_id)
             product_id = await conn.fetchval(
                 """
-                INSERT INTO products (category_id, title, description, price, icon, duration_label, sort_order, is_active)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id
+                INSERT INTO products (category_id, title, description, price, icon, duration_label, sort_order, is_active, delivery_type, custom_emoji_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id
                 """,
                 category_id,
                 title,
@@ -138,8 +203,11 @@ class CatalogService:
                 duration_label,
                 sort_order,
                 is_active,
+                delivery_type,
+                custom_emoji_id,
             )
-            await record(conn, "product_created", f"Product #{product_id}: {title} at {price:.2f}")
+            await record(conn, "product_created", f"Product #{product_id}: {title} at {price:.2f} ({delivery_type})")
+        self._products_cache.clear()
         return product_id
 
     async def update_product(self, product_id: int, **fields: Any) -> float | None:
@@ -161,9 +229,11 @@ class CatalogService:
             if "price" in updates and updates["price"] != current["price"]:
                 details += f"; price {current['price']:.2f} -> {updates['price']:.2f}"
             await record(conn, "product_updated", details)
+        self._products_cache.clear()
         return current["price"]
 
     async def archive_product(self, product_id: int) -> None:
         async with self.db.transaction() as conn:
             if affected(await conn.execute("UPDATE products SET is_active = 0 WHERE id = $1", product_id)):
                 await record(conn, "product_archived", f"Product #{product_id}")
+        self._products_cache.clear()
