@@ -206,7 +206,8 @@ async def show_reseller_info(event: Message | CallbackQuery, state: FSMContext, 
     text = (
         f"{ICON_RESELLER} <b>Reseller Program</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n\n"
-        f"আপনি যদি আমাদের বটে রিসেলার হতে চান, তাহলে নিচের তথ্যগুলো পূরণ করে আমাদের <b>Contact Management</b> এ মেসেজ পাঠান:\n\n"
+        f"🇬🇧 If you want to become a reseller in our bot, fill out the details below and message our <b>Contact Management</b>.\n\n"
+        f"🇧🇩 আপনি যদি আমাদের বটে রিসেলার হতে চান, তাহলে নিচের তথ্যগুলো পূরণ করে আমাদের <b>Contact Management</b> এ মেসেজ পাঠান:\n\n"
         f"{ICON_NOTE} <b>Application Format:</b>\n"
         f"<code>{format_copy_text}</code>\n\n"
         f"{ICON_VIP} <b>Reseller Benefits:</b>\n"
