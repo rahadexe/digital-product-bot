@@ -138,23 +138,24 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
     ref_link = f"https://t.me/{bot_user}?start=ref_{tg_user.id}"
     store_name = (await services.settings.get("store_name")) or "Premium Haven"
 
-    if reward_enabled and reward_amount > 0:
-        reward_display = f"<code>{reward_str}</code>"
-        tagline = f"{ICON_ROCKET} <i>Share your link and earn {reward_str} per referral!</i>"
-    else:
-        reward_display = f"<code>0 {symbol}</code>"
-        tagline = f"{ICON_ROCKET} <i>Share your referral link with friends!</i>"
+    reward_unit = "TK"
+    reward_display = f"{reward_amount:g} {reward_unit}" if reward_enabled and reward_amount > 0 else f"0 {reward_unit}"
+    earned_display = f"{total_earned:g} {reward_unit}" if total_earned == int(total_earned) else f"{total_earned:.2f} {reward_unit}"
+
+    tagline = (
+        f"{ICON_ROCKET} <i>Share your link and earn {reward_display} per referral!</i>"
+        if reward_enabled and reward_amount > 0
+        else f"{ICON_ROCKET} <i>Share your referral link with friends!</i>"
+    )
 
     text = (
         f"{ICON_ORDERS} <b>REFER & EARN</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"🔗 <b>Your Referral Link:</b>\n"
-        f"<code>{ref_link}</code>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
+        f"<code>{ref_link}</code>\n\n"
         f"{ICON_ACCOUNT} <b>Total Refers:</b> <code>{total_invited}</code>\n"
-        f"{ICON_COIN} <b>Reward Per Refer:</b> {reward_display}\n"
-        f"{ICON_BALANCE} <b>Total Earned:</b> <code>{total_earned_str}</code>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
+        f"{ICON_COIN} <b>Reward Per Refer:</b> <code>{reward_display}</code>\n"
+        f"{ICON_BALANCE} <b>Total Earned:</b> <code>{earned_display}</code>\n\n"
         f"{tagline}"
     )
 
@@ -163,22 +164,17 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="📢 Share Referral Link",
+                    text="Share Referral Link",
                     url=f"https://t.me/share/url?url={ref_link}&text={share_text}",
                     icon_custom_emoji_id=Icons.CHANNEL,
                 )
             ],
             [
                 InlineKeyboardButton(
-                    text="🔄 Refresh",
-                    callback_data="open_referral",
-                    icon_custom_emoji_id=Icons.REFRESH,
-                ),
-                InlineKeyboardButton(
-                    text="❌ Close",
+                    text="Close",
                     callback_data="close_menu",
                     icon_custom_emoji_id=Icons.CLOSE,
-                ),
+                )
             ],
         ]
     )
