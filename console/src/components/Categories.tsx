@@ -413,8 +413,8 @@ export function Categories({ say }: { say: Say }) {
                   <div className="row-actions" style={{ gap: '6px' }}>
                     <button
                       type="button"
-                      className="btn mini ghost"
-                      style={{ fontSize: '11.5px', padding: '3px 10px', height: '26px' }}
+                      className="mini"
+                      style={{ fontSize: '11.5px', padding: '2px 10px', minHeight: '26px' }}
                       onClick={() =>
                         setDraft({
                           id: cat.id,
@@ -431,8 +431,8 @@ export function Categories({ say }: { say: Say }) {
                     </button>
                     <button
                       type="button"
-                      className="btn mini danger ghost"
-                      style={{ fontSize: '11.5px', padding: '3px 10px', height: '26px' }}
+                      className="mini danger"
+                      style={{ fontSize: '11.5px', padding: '2px 10px', minHeight: '26px' }}
                       onClick={() => deleteCat(cat)}
                     >
                       Delete

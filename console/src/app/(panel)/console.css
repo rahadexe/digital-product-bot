@@ -2677,32 +2677,5 @@ ul.messages p { margin-top: 6px; color: var(--text-dim); font-size: 12.5px; whit
   font-weight: 500;
 }
 
-.cat-card-chips button.mini {
-  font-size: 11px;
-  padding: 3px 8px;
-  height: 24px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  border-radius: 6px;
-  font-weight: 600;
-  box-sizing: border-box;
-}
 
-.cat-card-footer {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  padding-top: 8px;
-  border-top: 1px dashed var(--line);
-  margin-top: 2px;
-}
-
-.cat-card-footer .btn.mini {
-  font-size: 12px;
-  padding: 4px 14px;
-  height: 28px;
-  font-weight: 600;
-}
 
