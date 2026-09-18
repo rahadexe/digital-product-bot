@@ -361,28 +361,60 @@ function ProductForm({
         </select>
       </label>
 
-      <div className="field-row">
-        <label className="field">
-          <span>Price</span>
-          <input type="number" step="any" min="0" required value={form.price} onChange={(event) => set({ price: parseFloat(event.target.value) || 0 })} />
-        </label>
-        <label className="field">
-          <span>Duration / Validity</span>
-          <input type="text" placeholder="e.g. 7 Days or 30 Days" value={form.duration_label} onChange={(event) => set({ duration_label: event.target.value })} />
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
-            {['3 Days', '7 Days', '14 Days', '30 Days', '90 Days', '1 Year'].map((preset) => (
-              <button
-                key={preset}
-                type="button"
-                className={`mini ${form.duration_label === preset ? 'btn' : 'ghost'}`}
-                style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px' }}
-                onClick={() => set({ duration_label: preset })}
-              >
-                {preset}
-              </button>
-            ))}
-          </div>
-        </label>
+      <label className="field">
+        <span>Price</span>
+        <input type="number" step="any" min="0" required value={form.price} onChange={(event) => set({ price: parseFloat(event.target.value) || 0 })} />
+      </label>
+
+      <div className="field">
+        <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>Duration / Validity <small style={{ color: 'var(--muted)', fontWeight: 'normal' }}>(মেয়াদ / ভ্যালিডিটি)</small></span>
+          {form.duration_label ? (
+            <span style={{ fontSize: '12px', color: '#10b981', fontWeight: 600 }}>
+              Active: 📅 {form.duration_label}
+            </span>
+          ) : (
+            <small style={{ color: 'var(--muted)', fontWeight: 'normal' }}>Optional</small>
+          )}
+        </span>
+        <input
+          type="text"
+          placeholder="e.g. 3 Days, 7 Days, 30 Days (বা নিজে লিখুন)"
+          value={form.duration_label}
+          onChange={(event) => set({ duration_label: event.target.value })}
+        />
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
+          <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Quick Select:</span>
+          {['3 Days', '7 Days', '14 Days', '30 Days', '90 Days', '1 Year'].map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              className={`mini ${form.duration_label.trim().toLowerCase() === preset.toLowerCase() ? 'btn' : 'ghost'}`}
+              style={{
+                fontSize: '11px',
+                padding: '3px 8px',
+                borderRadius: '4px',
+              }}
+              onClick={() => set({ duration_label: preset })}
+            >
+              {preset}
+            </button>
+          ))}
+          {form.duration_label ? (
+            <button
+              type="button"
+              className="mini ghost"
+              style={{ fontSize: '11px', padding: '3px 8px', color: '#ef4444' }}
+              onClick={() => set({ duration_label: '' })}
+              title="Clear duration"
+            >
+              ✕ Clear
+            </button>
+          ) : null}
+        </div>
+        <small style={{ color: 'var(--muted)', fontSize: '11px', marginTop: '6px', lineHeight: '1.4', display: 'block' }}>
+          💡 <strong>বটে কীভাবে কাজ করে:</strong> যে ক্যাটাগরিতে ভ্যালিডিটি ফিল্টার চালু আছে (যেমন VPN), সেখানে কাস্টমার প্রথমে মেয়াদ দেখতে পাবে। আপনি এখানে যে মেয়াদ সিলেক্ট বা টাইপ করবেন (যেমন: 7 Days), টেলিগ্রাম বটে সেই মেয়াদের বাটনে ক্লিক করলেই কেবল এই প্রোডাক্টটি শো করবে।
+        </small>
       </div>
 
       <label className="field">
