@@ -143,9 +143,9 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
     earned_display = f"{total_earned:g} {reward_unit}" if total_earned == int(total_earned) else f"{total_earned:.2f} {reward_unit}"
 
     tagline = (
-        f"{ICON_ROCKET} <i>Share your link and earn {reward_display} per referral!</i>"
+        f"{ICON_ROCKET} <i>Earn {reward_display} per referral!</i>"
         if reward_enabled and reward_amount > 0
-        else f"{ICON_ROCKET} <i>Share your referral link with friends!</i>"
+        else f"{ICON_ROCKET} <i>Invite friends to join!</i>"
     )
 
     text = (
