@@ -8,7 +8,7 @@ export interface EmojiItem {
   id: string;
 }
 
-// Verified Telegram VPN Custom Emojis (clean list, no basic/generic emojis)
+// Verified Telegram VPN Custom Emojis (clean list, strictly no generic icons)
 export const PRESET_EMOJIS: EmojiItem[] = [
   { name: 'NordVPN', id: '5796345694969140339' },
   { name: 'ExpressVPN', id: '5796153709931009517' },
@@ -50,7 +50,7 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
 
   // Display text in the input box:
   // When typing: show query.
-  // When not typing: show preset name or custom ID or empty.
+  // When not typing: show preset name, or custom ID, or empty.
   const displayValue = isTyping
     ? query
     : matchedPreset
@@ -66,7 +66,7 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
     );
   }, [isTyping, query]);
 
-  // Is typed query something not in presets (e.g. custom telegram ID)
+  // Is typed query a custom ID or something not matching presets
   const isCustomQuery = useMemo(() => {
     if (!isTyping || !query.trim()) return false;
     const q = query.trim().toLowerCase();
@@ -116,120 +116,111 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
   };
 
   return (
-    <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
-      <label className="field" style={{ margin: 0 }}>
-        <span>
-          Custom Emoji <small style={{ color: 'var(--muted)', fontWeight: 'normal' }}>(Optional)</small>
-        </span>
+    <div ref={containerRef} className="emoji-combobox-wrap" style={{ position: 'relative', width: '100%', minWidth: 0 }}>
+      <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text-dim)', marginBottom: '5px', display: 'block' }}>
+        Custom Emoji <small style={{ color: 'var(--muted)', fontWeight: 'normal' }}>(Optional)</small>
+      </span>
 
-        {/* Input box styled exactly like CustomSelect in media_1789760956330.png */}
-        <div
-          onClick={() => {
+      {/* Styled Box matching CustomSelect */}
+      <div
+        className="emoji-input-box"
+        onClick={() => {
+          setIsOpen(true);
+          inputRef.current?.focus();
+        }}
+        style={{
+          width: '100%',
+          minHeight: '40px',
+          height: '40px',
+          padding: '0 10px 0 12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '8px',
+          background: '#fbfcfb',
+          border: `1px solid ${isOpen ? 'var(--accent)' : 'var(--border)'}`,
+          borderRadius: 'var(--radius-sm)',
+          cursor: 'text',
+          outline: 'none',
+          boxShadow: isOpen
+            ? '0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent)'
+            : 'none',
+          transition: 'border-color 120ms ease, box-shadow 120ms ease',
+          boxSizing: 'border-box',
+        }}
+      >
+        <input
+          ref={inputRef}
+          type="text"
+          className="emoji-combobox-field"
+          value={displayValue}
+          placeholder="Select VPN Emoji or paste custom ID..."
+          onFocus={() => {
             setIsOpen(true);
-            inputRef.current?.focus();
           }}
-          style={{
-            width: '100%',
-            minHeight: '38px',
-            height: '38px',
-            padding: '0 10px 0 12px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '8px',
-            background: 'var(--surface)',
-            border: `1px solid ${isOpen ? 'var(--accent)' : 'var(--border)'}`,
-            borderRadius: '8px',
-            cursor: 'text',
-            outline: 'none',
-            boxShadow: isOpen
-              ? '0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent)'
-              : '0 1px 2px rgba(0, 0, 0, 0.02)',
-            transition: 'all 0.15s ease',
+          onChange={(e) => {
+            setIsTyping(true);
+            setQuery(e.target.value);
+            if (!isOpen) setIsOpen(true);
           }}
-        >
-          <input
-            ref={inputRef}
-            type="text"
-            value={displayValue}
-            placeholder="Select VPN Emoji or paste custom ID..."
-            onFocus={() => {
-              setIsOpen(true);
-            }}
-            onChange={(e) => {
-              setIsTyping(true);
-              setQuery(e.target.value);
-              if (!isOpen) setIsOpen(true);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                if (query.trim()) {
-                  const match = PRESET_EMOJIS.find(
-                    (p) => p.name.toLowerCase() === query.trim().toLowerCase()
-                  );
-                  handleSelect(match ? match.id : query.trim());
-                }
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              if (query.trim()) {
+                const match = PRESET_EMOJIS.find(
+                  (p) => p.name.toLowerCase() === query.trim().toLowerCase()
+                );
+                handleSelect(match ? match.id : query.trim());
               }
-            }}
-            style={{
-              width: '100%',
-              border: 'none',
-              background: 'transparent',
-              outline: 'none',
-              fontSize: '13.5px',
-              fontWeight: 500,
-              color: 'var(--text)',
-              padding: 0,
-            }}
-          />
+            }
+          }}
+        />
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-            {trimmedValue ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleClear();
-                }}
-                title="Clear"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--muted)',
-                  cursor: 'pointer',
-                  padding: '2px',
-                  borderRadius: '4px',
-                  background: 'none',
-                  border: 'none',
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--danger)')}
-                onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--muted)')}
-              >
-                <X size={14} />
-              </button>
-            ) : null}
-
-            <ChevronDown
-              size={14}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+          {trimmedValue ? (
+            <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                setIsOpen((prev) => !prev);
+                handleClear();
               }}
+              title="Clear"
               style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
                 color: 'var(--muted)',
                 cursor: 'pointer',
-                flexShrink: 0,
-                transition: 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                transform: isOpen ? 'rotate(180deg)' : 'none',
+                padding: '2px',
+                borderRadius: '4px',
+                background: 'none',
+                border: 'none',
               }}
-            />
-          </div>
-        </div>
-      </label>
+              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--danger)')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--muted)')}
+            >
+              <X size={14} />
+            </button>
+          ) : null}
 
-      {/* Dropdown Menu - EXACTLY matching CustomSelect in media_1789760956330.png */}
+          <ChevronDown
+            size={14}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsOpen((prev) => !prev);
+            }}
+            style={{
+              color: 'var(--muted)',
+              cursor: 'pointer',
+              flexShrink: 0,
+              transition: 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+              transform: isOpen ? 'rotate(180deg)' : 'none',
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Floating Popover Menu matching CustomSelect */}
       {isOpen && (
         <div
           style={{
@@ -248,117 +239,125 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
             display: 'flex',
             flexDirection: 'column',
             boxSizing: 'border-box',
-            overflowY: 'auto',
           }}
         >
-          {/* If user typed a custom ID / text not in presets, show "Use custom ID" option */}
-          {isCustomQuery && (
-            <div
-              onClick={() => handleSelect(query.trim())}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '10px',
-                padding: '8px 12px',
-                borderRadius: '6px',
-                fontSize: '13px',
-                cursor: 'pointer',
-                fontWeight: 600,
-                color: 'var(--accent)',
-                background: 'var(--accent-soft)',
-                marginBottom: '4px',
-                border: '1px dashed var(--accent)',
-              }}
-            >
-              <span>Use custom ID: &ldquo;{query.trim()}&rdquo;</span>
-              <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 'normal' }}>
-                ↵ Enter
-              </span>
-            </div>
-          )}
-
-          {/* None option */}
-          <div
-            onClick={() => handleSelect('')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '14px',
-              padding: '8px 12px',
-              borderRadius: '6px',
-              fontSize: '13px',
-              cursor: 'pointer',
-              fontWeight: !trimmedValue ? 600 : 400,
-              color: !trimmedValue ? 'var(--accent)' : 'var(--text)',
-              background: !trimmedValue ? 'var(--accent-soft)' : 'transparent',
-              transition: 'background-color 0.12s ease',
-              whiteSpace: 'nowrap',
-            }}
-            onMouseEnter={(e) => {
-              if (trimmedValue) e.currentTarget.style.backgroundColor = 'var(--surface-2)';
-            }}
-            onMouseLeave={(e) => {
-              if (trimmedValue) e.currentTarget.style.backgroundColor = 'transparent';
-            }}
-          >
-            <span>None</span>
-            {!trimmedValue && (
-              <Check size={14} style={{ color: 'var(--accent)', strokeWidth: 2.5 }} />
-            )}
-          </div>
-
-          {/* VPN Presets list */}
-          {filteredEmojis.map((opt) => {
-            const isSelected = trimmedValue === opt.id;
-
-            return (
+          <div className="emoji-dropdown-scroll">
+            {/* If user typed a custom ID / text not in presets */}
+            {isCustomQuery && (
               <div
-                key={opt.id}
-                onClick={() => handleSelect(opt.id)}
+                onClick={() => handleSelect(query.trim())}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  gap: '14px',
+                  gap: '10px',
                   padding: '8px 12px',
                   borderRadius: '6px',
                   fontSize: '13px',
                   cursor: 'pointer',
-                  fontWeight: isSelected ? 600 : 400,
-                  color: isSelected ? 'var(--accent)' : 'var(--text)',
-                  background: isSelected ? 'var(--accent-soft)' : 'transparent',
-                  transition: 'background-color 0.12s ease',
-                  whiteSpace: 'nowrap',
-                }}
-                onMouseEnter={(e) => {
-                  if (!isSelected) e.currentTarget.style.backgroundColor = 'var(--surface-2)';
-                }}
-                onMouseLeave={(e) => {
-                  if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
+                  fontWeight: 600,
+                  color: 'var(--accent)',
+                  background: 'var(--accent-soft)',
+                  marginBottom: '4px',
+                  border: '1px dashed var(--accent)',
+                  boxSizing: 'border-box',
                 }}
               >
-                <span>{opt.name}</span>
-                {isSelected && (
-                  <Check size={14} style={{ color: 'var(--accent)', strokeWidth: 2.5 }} />
-                )}
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  Use custom ID: &ldquo;{query.trim()}&rdquo;
+                </span>
+                <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 'normal', flexShrink: 0 }}>
+                  ↵ Enter
+                </span>
               </div>
-            );
-          })}
+            )}
 
-          {filteredEmojis.length === 0 && !isCustomQuery && (
+            {/* None option */}
             <div
+              onClick={() => handleSelect('')}
               style={{
-                padding: '10px 12px',
-                fontSize: '12px',
-                color: 'var(--muted)',
-                textAlign: 'center',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '14px',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                fontSize: '13px',
+                cursor: 'pointer',
+                fontWeight: !trimmedValue ? 600 : 400,
+                color: !trimmedValue ? 'var(--accent)' : 'var(--text)',
+                background: !trimmedValue ? 'var(--accent-soft)' : 'transparent',
+                transition: 'background-color 0.12s ease',
+                whiteSpace: 'nowrap',
+                boxSizing: 'border-box',
+                userSelect: 'none',
+              }}
+              onMouseEnter={(e) => {
+                if (trimmedValue) e.currentTarget.style.backgroundColor = 'var(--surface-2)';
+              }}
+              onMouseLeave={(e) => {
+                if (trimmedValue) e.currentTarget.style.backgroundColor = 'transparent';
               }}
             >
-              No matching VPN emojis
+              <span>None</span>
+              {!trimmedValue && (
+                <Check size={14} style={{ color: 'var(--accent)', strokeWidth: 2.5, flexShrink: 0 }} />
+              )}
             </div>
-          )}
+
+            {/* VPN Presets list */}
+            {filteredEmojis.map((opt) => {
+              const isSelected = trimmedValue === opt.id;
+
+              return (
+                <div
+                  key={opt.id}
+                  onClick={() => handleSelect(opt.id)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '14px',
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    fontWeight: isSelected ? 600 : 400,
+                    color: isSelected ? 'var(--accent)' : 'var(--text)',
+                    background: isSelected ? 'var(--accent-soft)' : 'transparent',
+                    transition: 'background-color 0.12s ease',
+                    whiteSpace: 'nowrap',
+                    boxSizing: 'border-box',
+                    userSelect: 'none',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isSelected) e.currentTarget.style.backgroundColor = 'var(--surface-2)';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
+                >
+                  <span>{opt.name}</span>
+                  {isSelected && (
+                    <Check size={14} style={{ color: 'var(--accent)', strokeWidth: 2.5, flexShrink: 0 }} />
+                  )}
+                </div>
+              );
+            })}
+
+            {filteredEmojis.length === 0 && !isCustomQuery && (
+              <div
+                style={{
+                  padding: '10px 12px',
+                  fontSize: '12px',
+                  color: 'var(--muted)',
+                  textAlign: 'center',
+                }}
+              >
+                No matching VPN emojis
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
