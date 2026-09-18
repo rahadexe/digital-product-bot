@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     webhook_base_url: str = ""
     # Optional: derived from SECRET_KEY when unset.
     webhook_secret: str = ""
+    use_polling: bool = False
 
     admin_password: str = ""
     secret_key: str = Field(default_factory=lambda: secrets.token_urlsafe(48))

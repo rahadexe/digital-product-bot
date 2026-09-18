@@ -46,7 +46,10 @@ async def run(role: str, config: Settings) -> None:
         else:
             if role in ("all", "web"):
                 services.runtime.bot = "starting"
-                components.append(run_webhook(services))
+                if config.use_polling or not config.webhook_base_url:
+                    components.append(run_polling(services))
+                else:
+                    components.append(run_webhook(services))
             if role in ("all", "worker"):
                 components.append(run_worker(services))
 
@@ -102,6 +105,39 @@ def build_storage(config: Settings) -> BaseStorage:
 
         return RedisStorage.from_url(config.redis_url)
     return MemoryStorage()
+
+
+async def run_polling(services: Services) -> None:
+    bot = services.notifier.bot
+    dispatcher = services.runtime.dispatcher
+    config = services.config
+    if bot is None or dispatcher is None:
+        return
+
+    await services.notifier.configure_bot(config.webapp_url)
+
+    logger.info("Starting Telegram bot in LONG POLLING mode (no webhook/tunnel needed)...")
+    services.runtime.bot = "polling"
+    await bot.delete_webhook(drop_pending_updates=False)
+
+    try:
+        await dispatcher.start_polling(
+            bot,
+            allowed_updates=dispatcher.resolve_used_update_types(),
+            handle_signals=False,
+            close_bot_session=False,
+        )
+    finally:
+        tasks = list(services.runtime.update_tasks)
+        if tasks:
+            logger.info("Waiting for %d in-flight update task(s) to finish...", len(tasks))
+            _, pending = await asyncio.wait(tasks, timeout=5)
+            for t in pending:
+                t.cancel()
+            if pending:
+                await asyncio.gather(*pending, return_exceptions=True)
+        if dispatcher.storage is not None:
+            await dispatcher.storage.close()
 
 
 async def run_webhook(services: Services) -> None:
