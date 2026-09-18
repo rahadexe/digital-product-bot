@@ -92,7 +92,7 @@ async def show_user_profile(event: Message | CallbackQuery, state: FSMContext, s
 
     text = (
         f"{ICON_ACCOUNT} <b>My Profile</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         f"{ICON_ACCOUNT} <b>Name:</b> {user_name}\n"
         f"{ICON_ID} <b>User ID:</b> <code>{tg_user.id}</code>\n"
         f"{ICON_RESELLER} <b>Account Type:</b> <b>{account_type}</b>\n\n"
