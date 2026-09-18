@@ -195,39 +195,40 @@ async def show_reseller_info(event: Message | CallbackQuery, state: FSMContext, 
     await state.clear()
     handle = (await services.settings.get("support_username")).lstrip("@")
     store_name = (await services.settings.get("store_name")) or "Premium Haven"
-    tg_user = event.from_user
-    user_id = str(tg_user.id) if tg_user else ""
-    full_name = escape(tg_user.full_name or tg_user.first_name or "") if tg_user else ""
-    raw_username = f"@{tg_user.username}" if (tg_user and tg_user.username) else ""
-    username_str = escape(raw_username)
+
+    format_copy_text = (
+        "Name: \n"
+        "Telegram Username: \n"
+        "Mobile Number: \n"
+        "Channel Link: "
+    )
 
     text = (
         f"{ICON_RESELLER} <b>Reseller Program</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n\n"
-        f"আপনি যদি আমাদের বটে রিসেলার হতে চান, তাহলে নিচের তথ্যগুলো পূরণ করে আমাদের <b>Contact Management</b>-এ মেসেজ পাঠান:\n\n"
-        f"{ICON_NOTE} <b>Application Format:</b> <i>(ট্যাপ করে কপি করুন)</i>\n"
-        f"<code>নাম: {full_name}\n"
-        f"ইউজার আইডি: {user_id}\n"
-        f"টেলিগ্রাম ইউজারনেম: {username_str}\n"
-        f"ইমেইল: \n"
-        f"মোবাইল নাম্বার: \n"
-        f"টেলিগ্রাম চ্যানেল লিংক: </code>\n\n"
+        f"আপনি যদি আমাদের বটে রিসেলার হতে চান, তাহলে নিচের তথ্যগুলো পূরণ করে আমাদের <b>Contact Management</b> এ মেসেজ পাঠান:\n\n"
+        f"{ICON_NOTE} <b>Application Format:</b>\n"
+        f"<code>{format_copy_text}</code>\n\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"{ICON_STAR} <b>Wholesale Rates:</b> Bulk discounts on all products\n"
         f"{ICON_LIGHTNING} <b>Priority Stock:</b> Instant reservation & rapid delivery\n"
         f"{ICON_SUPPORT} <b>VIP Support:</b> Direct 24/7 management access"
     )
 
-    rows = []
+    rows = [
+        [
+            InlineKeyboardButton(
+                text="Copy Format",
+                copy_text=CopyTextButton(text=format_copy_text),
+                style="primary",
+                icon_custom_emoji_id=Icons.NOTE,
+            )
+        ]
+    ]
     if handle:
         prefill = (
             f"Hello, I would like to apply as a Reseller at {store_name}.\n\n"
-            f"নাম: {tg_user.full_name or '' if tg_user else ''}\n"
-            f"ইউজার আইডি: {user_id}\n"
-            f"টেলিগ্রাম ইউজারনেম: {raw_username}\n"
-            f"ইমেইল: \n"
-            f"মোবাইল নাম্বার: \n"
-            f"টেলিগ্রাম চ্যানেল লিংক: "
+            f"{format_copy_text}"
         )
         rows.append([
             InlineKeyboardButton(
