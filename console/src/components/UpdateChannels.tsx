@@ -147,7 +147,12 @@ function ChannelForm({ draft, say, onClose, onSaved }: { draft: Draft; say: Say;
       </label>
       <label className="field">
         <span>Order (smaller shows first)</span>
-        <input type="number" value={form.sort_order} onChange={(event) => set({ sort_order: event.target.value })} />
+        <input
+          type="number"
+          min="0"
+          value={form.sort_order}
+          onChange={(event) => set({ sort_order: String(Math.max(0, parseInt(event.target.value, 10) || 0)) })}
+        />
       </label>
       <FlagRow label="Show in the bot" on={form.is_active} onChange={(on) => set({ is_active: on })} />
     </Modal>
