@@ -159,7 +159,7 @@ export function Users({ say }: { say: Say }) {
                       <span className="pill bad">banned</span>
                     ) : (
                       <span className={`pill ${user.rank === 'Affiliate' ? 'warn' : user.rank === 'Reseller' ? 'info' : user.rank === 'VIP' ? 'vip' : 'good'}`}>
-                        {user.rank === 'Affiliate' ? 'Affiliate 🤝' : user.rank === 'Reseller' ? 'Reseller 💼' : user.rank === 'VIP' ? 'VIP 💎' : 'Active 👤'}
+                        {user.rank === 'Affiliate' ? 'Affiliate' : user.rank === 'Reseller' ? 'Reseller' : user.rank === 'VIP' ? 'VIP' : 'Active'}
                       </span>
                     )}
                   </td>
@@ -389,10 +389,10 @@ function CustomerDialog({ user, say, onClose, onChanged }: { user: User; say: Sa
                 onChange={(e) => void handleRankChange(e.target.value)}
                 title="Change customer account type"
               >
-                <option value="Standard">Normal User 👤</option>
-                <option value="Affiliate">Affiliate Partner 🤝</option>
-                <option value="Reseller">Reseller Partner 💼</option>
-                <option value="VIP">VIP Member 💎</option>
+                <option value="Standard">Normal User</option>
+                <option value="Affiliate">Affiliate Partner</option>
+                <option value="Reseller">Reseller Partner</option>
+                <option value="VIP">VIP Member</option>
               </select>
             </div>
           </div>

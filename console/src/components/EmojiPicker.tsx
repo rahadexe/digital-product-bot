@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, Search, X } from 'lucide-react';
+import { Check, ChevronDown, Search, Sparkles, X } from 'lucide-react';
 
 export interface EmojiItem {
   name: string;
@@ -141,7 +141,7 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
             </>
           ) : trimmedValue ? (
             <>
-              <span style={{ fontSize: '15px' }}>✨</span>
+              <Sparkles size={14} style={{ color: 'var(--accent)', flexShrink: 0 }} />
               <span style={{ color: 'var(--text)' }}>Custom ID: {trimmedValue}</span>
             </>
           ) : (

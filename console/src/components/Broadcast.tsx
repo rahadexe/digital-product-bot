@@ -47,7 +47,7 @@ export function Broadcast({ say }: { say: Say }) {
         </div>
       </header>
       <div className="panel-body stack">
-        <textarea rows={8} required placeholder="🔥 20% off all AI subscriptions this weekend." value={text} onChange={(event) => setText(event.target.value)} />
+        <textarea rows={8} required placeholder="Type your announcement or promotional update here..." value={text} onChange={(event) => setText(event.target.value)} />
         <div className="filters">
           <button type="submit" className="btn" disabled={sending || Boolean(progress?.pending) || !text.trim()}>
             {sending ? 'Sending…' : 'Send'}

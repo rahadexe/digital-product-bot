@@ -1,11 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { AlertCircle, CheckCircle2, Layers, Package } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock, Layers, Package, Zap } from 'lucide-react';
 import { api, type Category, type Product } from '@/lib/api';
 import { useMoney } from '@/lib/currency';
 import { EmptyRow, FlagRow, Modal, errorText, useConfirm, type Say } from './ui';
 import { EmojiPicker } from './EmojiPicker';
+import { ValidityPicker } from './ValidityPicker';
 
 // Older products kept their emoji apart from the name; the form edits them as one text.
 function editableName(name: string, icon?: string) {
@@ -165,7 +166,7 @@ export function Products({ say }: { say: Say }) {
               className="btn ghost"
               onClick={() => { window.location.hash = 'categories'; }}
             >
-              📁 Categories ({categories.length})
+              Categories ({categories.length})
             </button>
             <button
               type="button"
@@ -221,7 +222,8 @@ export function Products({ say }: { say: Say }) {
                     <td>
                       {product.delivery_type === 'manual' ? (
                         <span className="pill info" style={{ fontWeight: 600 }}>
-                          ⏱️ Manual
+                          <Clock size={12} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 4 }} />
+                          Manual
                         </span>
                       ) : (
                         <span className={`pill ${product.stock ? 'good' : 'bad'}`}>{product.stock ? product.stock : 'out'}</span>
@@ -357,7 +359,7 @@ function ProductForm({
     >
       <label className="field">
         <span>Name</span>
-        <input type="text" required placeholder="⚡ Gemini Pro" value={form.title} onChange={(event) => set({ title: event.target.value })} />
+        <input type="text" required placeholder="e.g. NordVPN 30 Days" value={form.title} onChange={(event) => set({ title: event.target.value })} />
       </label>
 
       <div className="field">
@@ -376,7 +378,7 @@ function ProductForm({
           <option value="">None (Uncategorized)</option>
           {categories.map((c) => (
             <option key={c.id} value={c.id}>
-              {c.name} {c.is_pinned ? '📌 [Pinned to Menu]' : ''}
+              {c.name} {c.is_pinned ? '[Pinned to Menu]' : ''}
             </option>
           ))}
         </select>
@@ -387,50 +389,13 @@ function ProductForm({
         <input type="number" step="any" min="0" required value={form.price} onChange={(event) => set({ price: parseFloat(event.target.value) || 0 })} />
       </label>
 
-      <label className="field">
-        <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>Validity / Duration <small style={{ color: 'var(--muted)', fontWeight: 'normal' }}>(Optional)</small></span>
-          {form.duration_label ? (
-            <button
-              type="button"
-              className="mini ghost"
-              style={{ fontSize: '11px', color: 'var(--danger)', padding: '0 4px' }}
-              onClick={() => set({ duration_label: '' })}
-            >
-              Clear
-            </button>
-          ) : null}
-        </span>
-        <input
-          type="text"
-          placeholder="e.g. 3 Days, 1 Month, 1 Year"
+      <div className="field">
+        <ValidityPicker
           value={form.duration_label}
-          onChange={(event) => set({ duration_label: event.target.value })}
+          onChange={(val) => set({ duration_label: val })}
+          presets={validityPresets}
         />
-        {validityPresets.length > 0 ? (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
-            {validityPresets.map((preset) => {
-              const isSelected = form.duration_label.trim().toLowerCase() === preset.toLowerCase();
-              return (
-                <button
-                  key={preset}
-                  type="button"
-                  className={`mini ${isSelected ? 'btn' : 'ghost'}`}
-                  style={{
-                    fontSize: '11px',
-                    padding: '3px 8px',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                  }}
-                  onClick={() => set({ duration_label: isSelected ? '' : preset })}
-                >
-                  {preset}
-                </button>
-              );
-            })}
-          </div>
-        ) : null}
-      </label>
+      </div>
 
       <div className="field">
         <span>Delivery Method</span>
@@ -441,7 +406,7 @@ function ProductForm({
             onClick={() => set({ delivery_type: 'stock' })}
           >
             <div className="delivery-method-header">
-              <span className="delivery-method-icon">⚡</span>
+              <span className="delivery-method-icon"><Zap size={16} /></span>
               <span className="delivery-method-title">Instant Stock</span>
             </div>
             <span className="delivery-method-desc">Auto-delivered from uploaded stock keys/accounts</span>
@@ -452,7 +417,7 @@ function ProductForm({
             onClick={() => set({ delivery_type: 'manual' })}
           >
             <div className="delivery-method-header">
-              <span className="delivery-method-icon">⏱️</span>
+              <span className="delivery-method-icon"><Clock size={16} /></span>
               <span className="delivery-method-title">Manual Delivery</span>
             </div>
             <span className="delivery-method-desc">Admin fulfills manually in Orders tab</span>

@@ -57,7 +57,7 @@ export function Categories({ say }: { say: Say }) {
         is_pinned: cat.is_pinned ? 0 : 1,
         custom_emoji_id: cat.custom_emoji_id,
       });
-      say(cat.is_pinned ? 'Unpinned from menu.' : '📌 Pinned to Telegram reply keyboard!');
+      say(cat.is_pinned ? 'Unpinned from menu.' : 'Pinned to Telegram reply keyboard!');
       await load();
     } catch (cause) {
       say(errorText(cause), 'bad');
@@ -184,7 +184,14 @@ export function Categories({ say }: { say: Say }) {
                       style={{ fontSize: '11px', padding: '3px 10px' }}
                       title="Click to toggle between pinned keyboard and other products"
                     >
-                      {cat.is_pinned ? '📌 Pinned to Menu' : '💎 In Other Products'}
+                      {cat.is_pinned ? (
+                        <>
+                          <Pin size={11} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 4 }} />
+                          Pinned to Menu
+                        </>
+                      ) : (
+                        'In Other Products'
+                      )}
                     </button>
                   </td>
                   <td>
@@ -319,7 +326,7 @@ function CategoryFormModal({
         <input
           type="text"
           required
-          placeholder="e.g. 🌐 Proxy Shop or 🚀 VPN Shop"
+          placeholder="e.g. VPN Services or Streaming"
           value={form.name}
           onChange={(e) => set({ name: e.target.value })}
         />

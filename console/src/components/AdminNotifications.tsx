@@ -261,8 +261,8 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
           <div className="mandatory-row">
             <div className="mandatory-info">
               <div className="mandatory-title-row">
-                <strong>⏳ Manual Delivery Orders (Waiting Fulfillment)</strong>
-                <span className="mandatory-badge warn">MANDATORY · LOCKED ON 🔒</span>
+                <strong>Manual Delivery Orders (Waiting Fulfillment)</strong>
+                <span className="mandatory-badge warn">MANDATORY · LOCKED ON</span>
               </div>
               <p className="mandatory-desc">
                 Sent instantly when a customer pays for a product marked as &quot;Manual Delivery&quot; or when an order requires manual credentials/fulfillment.
@@ -276,8 +276,8 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
           <div className="mandatory-row">
             <div className="mandatory-info">
               <div className="mandatory-title-row">
-                <strong>⚠️ Critical Payment &amp; Gateway Errors</strong>
-                <span className="mandatory-badge danger">CRITICAL · LOCKED ON 🔒</span>
+                <strong>Critical Payment &amp; Gateway Errors</strong>
+                <span className="mandatory-badge danger">CRITICAL · LOCKED ON</span>
               </div>
               <p className="mandatory-desc">
                 Sent when a payment gateway (ZiniPay/Binance) rejects an invoice, detects an amount mismatch, or experiences a verification failure.
@@ -304,35 +304,35 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
 
         <div className="rows">
           <FlagRow
-            label="🛒 Instant Stock Purchases"
+            label="Instant Stock Purchases"
             hint="Alert when a customer successfully buys an automated instant stock item from the catalog."
             on={isOn('notify_admin_orders', '1')}
             onChange={(next) => void flip('notify_admin_orders', next)}
           />
 
           <FlagRow
-            label="🔔 Manual Deposit Requests"
+            label="Manual Deposit Requests"
             hint="Alert when a customer submits a manual deposit (TrxID) for review & wallet approval."
             on={isOn('notify_admin_deposits', '1')}
             onChange={(next) => void flip('notify_admin_deposits', next)}
           />
 
           <FlagRow
-            label="💳 Automatic Gateway Deposits"
+            label="Automatic Gateway Deposits"
             hint="Alert when an online gateway (ZiniPay / Binance) successfully auto-credits a customer's wallet."
             on={isOn('notify_admin_payments', '1')}
             onChange={(next) => void flip('notify_admin_payments', next)}
           />
 
           <FlagRow
-            label="📦 Stock Added / Restock"
+            label="Stock Added / Restock"
             hint="Alert when stock units or accounts are added or restocked for a product."
             on={isOn('notify_admin_restock', '1')}
             onChange={(next) => void flip('notify_admin_restock', next)}
           />
 
           <FlagRow
-            label="👤 New Customer Registration"
+            label="New Customer Registration"
             hint="Alert when a brand new user starts the Telegram bot for the first time."
             on={isOn('notify_admin_new_user', '0')}
             onChange={(next) => void flip('notify_admin_new_user', next)}

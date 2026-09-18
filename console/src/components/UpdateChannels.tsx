@@ -18,7 +18,7 @@ export function UpdateChannels({ say }: { say: Say }) {
   }, [load]);
 
   async function remove(channel: UpdateChannel) {
-    if (!(await confirm(`Remove ${channel.title}?`, 'Its button disappears from the 📢 Channel menu.', 'Remove channel'))) return;
+    if (!(await confirm(`Remove ${channel.title}?`, 'Its button disappears from the Channel menu.', 'Remove channel'))) return;
     try {
       await api.deleteUpdateChannel(channel.id);
       say('Removed.');
