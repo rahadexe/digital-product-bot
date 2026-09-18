@@ -34,8 +34,8 @@ export function UpdateChannels({ say }: { say: Say }) {
       <section className="panel">
         <header>
           <div>
-            <h2>Channel menu</h2>
-            <p>Each channel shows as a button when customers tap 📢 Channel.</p>
+            <h2>Support & Update Channels</h2>
+            <p>Each channel appears as a button in the bot under Support and the Channel menu. Customize button labels and Telegram links/usernames.</p>
           </div>
           <button
             type="button"

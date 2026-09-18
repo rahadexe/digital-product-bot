@@ -21,19 +21,30 @@ router = Router(name="help_guide_router")
 @router.message(F.text == "🎧 Support")
 @router.message(F.text == "💬 Support")
 @router.message(F.text == "কাস্টমার সাপোর্ট")
+@router.message(F.text == "সাপোর্ট")
 @router.message(F.text.casefold() == "support")
 @router.callback_query(F.data == "open_support")
 async def show_support_info(event: Message | CallbackQuery, state: FSMContext, services: Services):
     await state.clear()
     handle = (await services.settings.get("support_username")).lstrip("@")
+    channels = await services.update_channels.channels(active_only=True)
     if handle:
         text = (
-            f"{ICON_SUPPORT} <b>Support</b>\n\n"
-            "For any questions, order assistance, or deposit issues, reach out to our support team."
+            f"{ICON_SUPPORT} <b>Customer Support | সাপোর্ট</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n\n"
+            f"For any questions, order assistance, or deposit issues, reach out to our support team.\n\n"
+            f"যেকোনো প্রশ্ন, অর্ডার সহায়তা বা ডিপোজিট সমস্যার জন্য আমাদের সাপোর্ট টিমের সাথে যোগাযোগ করুন।\n"
+            f"━━━━━━━━━━━━━━━━━━"
         )
     else:
-        text = f"{ICON_SUPPORT} <b>Support</b>\n\nOur support team will be available here shortly."
-    await respond(event, text, get_support_keyboard(handle))
+        text = (
+            f"{ICON_SUPPORT} <b>Customer Support | সাপোর্ট</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n\n"
+            f"Our support team will be available here shortly.\n\n"
+            f"আমাদের সাপোর্ট টিম শীঘ্রই এখানে উপলব্ধ হবে।\n"
+            f"━━━━━━━━━━━━━━━━━━"
+        )
+    await respond(event, text, get_support_keyboard(handle, channels))
 
 
 @router.message(F.text == "📚 Guide")

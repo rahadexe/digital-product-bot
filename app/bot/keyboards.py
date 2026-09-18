@@ -229,12 +229,43 @@ def get_account_keyboard() -> InlineKeyboardMarkup:
 
 
 
-def get_support_keyboard(support_handle: str) -> InlineKeyboardMarkup:
-    """Keyboard for Support with direct chat button."""
+def get_support_keyboard(
+    support_handle: str = "",
+    channels: List[Dict[str, Any]] | None = None,
+) -> InlineKeyboardMarkup:
+    """Keyboard for Support with direct chat button, active channels, and close button."""
     rows = []
     if support_handle:
         handle = support_handle.lstrip("@")
-        rows.append([InlineKeyboardButton(text="Contact Support", url=f"https://t.me/{handle}", style="primary", icon_custom_emoji_id=Icons.SUPPORT)])
+        rows.append([
+            InlineKeyboardButton(
+                text="Contact Support",
+                url=f"https://t.me/{handle}",
+                style="primary",
+                icon_custom_emoji_id=Icons.SUPPORT,
+            )
+        ])
+    if channels:
+        for ch in channels:
+            title = (ch.get("title") or "Channel").strip()
+            url = ch.get("url") or ""
+            if url:
+                rows.append([
+                    InlineKeyboardButton(
+                        text=title,
+                        url=url,
+                        style="success",
+                        icon_custom_emoji_id=Icons.CHANNEL,
+                    )
+                ])
+    rows.append([
+        InlineKeyboardButton(
+            text="Close",
+            callback_data="close_menu",
+            style="danger",
+            icon_custom_emoji_id=Icons.CLOSE,
+        )
+    ])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 

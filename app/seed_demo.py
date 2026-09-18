@@ -49,7 +49,9 @@ INSERT INTO deposit_methods (name, account_info, instructions, min_deposit, rate
   ('bKash', '01700000000', 'Send Money to this number, then send the TrxID.', 50, 1, 1, 'none'),
   ('Nagad', '01800000000', 'Send Money to this number, then send the TrxID.', 50, 1, 2, 'none');
 
-INSERT INTO update_channels (title, url, sort_order) VALUES ('Updates Channel', 'https://t.me/telegram', 1);
+INSERT INTO update_channels (title, url, sort_order) VALUES
+  ('Updates Channel', 'https://t.me/telegram', 1),
+  ('Official Community', 'https://t.me/telegram', 2);
 
 INSERT INTO bot_settings (key, value) VALUES
   ('store_name', 'BM Digital (Test)'), ('currency', 'BDT'), ('currency_symbol', '৳')

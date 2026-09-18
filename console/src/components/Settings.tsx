@@ -18,7 +18,7 @@ export type SettingsTab = 'store' | 'notifications' | 'notices' | 'access' | 'pa
 const TABS: { key: SettingsTab; label: string }[] = [
   { key: 'store', label: 'Store' },
   { key: 'notifications', label: 'Admin & Alerts' },
-  { key: 'notices', label: 'Notices' },
+  { key: 'notices', label: 'Channels & Notices' },
   { key: 'access', label: 'Access' },
   { key: 'payments', label: 'Payments' },
 ];
