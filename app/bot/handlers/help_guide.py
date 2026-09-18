@@ -10,7 +10,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.bot.formatting import respond, send_operator_html
-from app.bot.icons import ICON_CHANNEL, ICON_SUPPORT
+from app.bot.icons import ICON_CHANNEL, ICON_SUPPORT, Icons
 from app.bot.keyboards import get_support_keyboard, get_update_channels_keyboard
 from app.services import Services
 
@@ -53,7 +53,7 @@ async def show_guide_info(event: Message | CallbackQuery, state: FSMContext, ser
     guide = await services.settings.get("guide_text")
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🎧 Contact Support", callback_data="open_support", style="primary")],
+            [InlineKeyboardButton(text="Contact Support", callback_data="open_support", style="primary", icon_custom_emoji_id=Icons.SUPPORT)],
         ]
     )
 

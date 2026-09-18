@@ -13,7 +13,20 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.bot.formatting import callback_int, price, respond
-from app.bot.icons import ICON_CHECK, ICON_DEPOSIT, ICON_TIMER, ICON_WARNING, Icons
+from app.bot.icons import (
+    ICON_BALANCE,
+    ICON_CHECK,
+    ICON_CROSS,
+    ICON_DEPOSIT,
+    ICON_KEY,
+    ICON_LIGHTNING,
+    ICON_MONEY,
+    ICON_NOTE,
+    ICON_SPARKLES,
+    ICON_TIMER,
+    ICON_WARNING,
+    Icons,
+)
 from app.bot.handlers.navigation import is_navigation, navigate
 from app.bot.handlers.start import render_main_dashboard
 from app.bot.keyboards import (
@@ -41,7 +54,7 @@ class DepositStates(StatesGroup):
 @router.message(Command("cancel"))
 async def cmd_cancel(message: Message, state: FSMContext, services: Services):
     await state.clear()
-    await message.answer("❌ Current operation cancelled.")
+    await message.answer(f"{ICON_CROSS} Current operation cancelled.")
     await render_main_dashboard(message, services, message.from_user.id)
 
 
@@ -134,7 +147,7 @@ async def ask_instant_amount(query: CallbackQuery, state: FSMContext, services: 
     if query.message:
         with suppress(TelegramBadRequest):
             await query.message.edit_text(
-                f"⚡ <b>{escape(instant['label'])}</b>\n"
+                f"{ICON_LIGHTNING} <b>{escape(instant['label'])}</b>\n"
                 f"Minimum {price(symbol, instant['min_amount'])}\n\n"
                 "Enter amount to deposit (e.g. <code>100</code>):",
                 reply_markup=get_cancel_keyboard(),
@@ -165,12 +178,12 @@ async def create_instant_payment(message: Message, state: FSMContext, services: 
         clean_amount = raw_text.replace("৳", "").replace("$", "").replace(",", "").strip()
         invoice = await services.payments.create_invoice(message.from_user.id, clean_amount)
     except ValueError as exc:
-        await message.answer(f"⚠️ {escape(str(exc))}", reply_markup=get_cancel_keyboard())
+        await message.answer(f"{ICON_WARNING} {escape(str(exc))}", reply_markup=get_cancel_keyboard())
         return
     await state.clear()
     symbol = await services.settings.get("currency_symbol")
     await message.answer(
-        f"🧾 <b>Payment Invoice: {price(symbol, invoice['credit_amount'])}</b>\n"
+        f"{ICON_NOTE} <b>Payment Invoice: {price(symbol, invoice['credit_amount'])}</b>\n"
         f"Payable Amount: <b>{symbol}{invoice['pay_amount']:.2f}</b>\n\n"
         "Tap the Pay button below to complete payment. Your balance will be credited automatically upon confirmation.",
         reply_markup=_instant_keyboard(invoice),
@@ -194,12 +207,12 @@ async def check_instant_payment(query: CallbackQuery, state: FSMContext, service
     if invoice["status"] == "completed":
         user = await services.users.get(query.from_user.id)
         text = (
-            f"✅ <b>Payment Successful!</b>\n"
-            f"🎉 {price(symbol, invoice['credit_amount'])} has been credited to your account.\n\n"
-            f"💰 <b>Current Balance:</b> <code>{price(symbol, user['balance'] if user else 0.0)}</code>"
+            f"{ICON_CHECK} <b>Payment Successful!</b>\n"
+            f"{ICON_SPARKLES} {price(symbol, invoice['credit_amount'])} has been credited to your account.\n\n"
+            f"{ICON_BALANCE} <b>Current Balance:</b> <code>{price(symbol, user['balance'] if user else 0.0)}</code>"
         )
     else:
-        text = "⏳ <b>Payment not completed yet.</b> Please complete payment and check again."
+        text = f"{ICON_TIMER} <b>Payment not completed yet.</b> Please complete payment and check again."
     if query.message:
         with suppress(TelegramBadRequest):
             await query.message.edit_text(
@@ -322,7 +335,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
     data = await state.get_data()
     if not data.get("method_id"):
         await state.clear()
-        await message.answer("⌛ Session expired. Please tap Deposit to try again.")
+        await message.answer(f"{ICON_TIMER} Session expired. Please tap Deposit to try again.")
         return
 
     # If Binance Pay, sanitize UID (support formats like "UID: 12345678" or "12345678")
@@ -334,9 +347,9 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
     # Exact error message matching method type
     if not TRANSACTION_ID_REGEX.fullmatch(raw_text):
         err_msg = (
-            "❌ Invalid Binance UID format. Please enter a valid numeric UID."
+            f"{ICON_CROSS} Invalid Binance UID format. Please enter a valid numeric UID."
             if data.get("auto_verify") == "binance_pay"
-            else "❌ Invalid TRX ID format. Please enter a valid Transaction ID."
+            else f"{ICON_CROSS} Invalid TRX ID format. Please enter a valid Transaction ID."
         )
         await message.answer(
             err_msg,
@@ -364,11 +377,11 @@ async def claim_binance_payment(message: Message, state: FSMContext, services: S
     try:
         result = await services.binance.claim(message.from_user.id, method_id, txid)
     except DuplicateTransactionError as exc:
-        await message.answer(f"❌ {escape(str(exc))}", reply_markup=get_cancel_keyboard())
+        await message.answer(f"{ICON_CROSS} {escape(str(exc))}", reply_markup=get_cancel_keyboard())
         return
     except ValueError as exc:
         await state.clear()
-        await message.answer(f"❌ {escape(str(exc))}")
+        await message.answer(f"{ICON_CROSS} {escape(str(exc))}")
         return
 
     await state.clear()
@@ -376,12 +389,12 @@ async def claim_binance_payment(message: Message, state: FSMContext, services: S
     if result.get("credited"):
         user = await services.users.get(message.from_user.id)
         await message.answer(
-            f"✅ <b>Payment Received!</b> · {price(symbol, result.get('amount') or 0)} credited.\n"
-            f"💰 <b>Current Balance:</b> <code>{price(symbol, user['balance'] if user else 0.0)}</code>"
+            f"{ICON_CHECK} <b>Payment Received!</b> · {price(symbol, result.get('amount') or 0)} credited.\n"
+            f"{ICON_BALANCE} <b>Current Balance:</b> <code>{price(symbol, user['balance'] if user else 0.0)}</code>"
         )
     else:
         await message.answer(
-            f"⏳ <b>Searching for payment...</b>\n\n{escape(result.get('detail', ''))}\n\n"
+            f"{ICON_TIMER} <b>Searching for payment...</b>\n\n{escape(result.get('detail', ''))}\n\n"
             "Your balance will be credited automatically once confirmed."
         )
 
@@ -399,7 +412,7 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
         if amount_num <= 0:
             raise ValueError("Amount must be greater than 0.")
     except ValueError:
-        await message.answer("⚠️ Please enter a valid number (e.g. 150):", reply_markup=get_cancel_keyboard())
+        await message.answer(f"{ICON_WARNING} Please enter a valid number (e.g. 150):", reply_markup=get_cancel_keyboard())
         return
 
     data = await state.get_data()
@@ -410,7 +423,7 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
     if amount_num < min_dep:
         symbol = await services.settings.get("currency_symbol")
         await message.answer(
-            f"⚠️ Minimum deposit is {price(symbol, min_dep)}. Please enter a valid amount:",
+            f"{ICON_WARNING} Minimum deposit is {price(symbol, min_dep)}. Please enter a valid amount:",
             reply_markup=get_cancel_keyboard(),
         )
         return
@@ -425,13 +438,13 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
         )
     except DuplicateTransactionError:
         await message.answer(
-            "❌ This Transaction ID has already been submitted! Please check your receipt.",
+            f"{ICON_CROSS} This Transaction ID has already been submitted! Please check your receipt.",
             reply_markup=get_cancel_keyboard(),
         )
         return
     except ValueError as exc:
         await state.clear()
-        await message.answer(f"❌ <b>Deposit failed:</b> {escape(str(exc))}")
+        await message.answer(f"{ICON_CROSS} <b>Deposit failed:</b> {escape(str(exc))}")
         return
 
     await state.clear()
@@ -440,11 +453,11 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
     # Notify customer
     method_name = data.get("method_name", "Payment")
     await message.answer(
-        f"✅ <b>Deposit Request Submitted!</b>\n"
+        f"{ICON_CHECK} <b>Deposit Request Submitted!</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"💳 <b>Method:</b> {escape(method_name)}\n"
-        f"💰 <b>Amount:</b> <code>{price(symbol, amount_num)}</code>\n"
-        f"📝 <b>TrxID:</b> <code>{escape(txid)}</code>\n"
+        f"{ICON_DEPOSIT} <b>Method:</b> {escape(method_name)}\n"
+        f"{ICON_MONEY} <b>Amount:</b> <code>{price(symbol, amount_num)}</code>\n"
+        f"{ICON_KEY} <b>TrxID:</b> <code>{escape(txid)}</code>\n"
         f"━━━━━━━━━━━━━━━━━━\n\n"
         f"<i>Your wallet balance will be credited as soon as an admin verifies it.</i>"
     )

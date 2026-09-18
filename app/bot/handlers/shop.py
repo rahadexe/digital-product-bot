@@ -24,17 +24,20 @@ from app.bot.icons import (
     Icons,
     ICON_BALANCE,
     ICON_CART,
+    ICON_CROSS,
     ICON_CROWN,
     ICON_DEPOSIT,
     ICON_GLOBE,
     ICON_MAIL,
     ICON_MONEY,
+    ICON_NOTE,
     ICON_ORDERS,
     ICON_SHIELD,
     ICON_SHOP,
     ICON_STATS,
     ICON_TIMER,
     ICON_VIP,
+    ICON_WARNING,
     tg_icon,
 )
 from app.bot.keyboards import (
@@ -194,11 +197,11 @@ async def product_view(
 
     is_manual = product.get("delivery_type") == "manual"
     if is_manual:
-        stock_text = "<b>Available (Manual Delivery) ⏱️</b>"
+        stock_text = f"<b>Available (Manual Delivery) {ICON_TIMER}</b>"
     elif stock > 0:
         stock_text = f"<b>{stock}</b> Available"
     else:
-        stock_text = "<b>Out of Stock ❌</b>"
+        stock_text = f"<b>Out of Stock {ICON_CROSS}</b>"
 
     cat_id = product.get("category_id")
     cat = await services.catalog.category(cat_id) if cat_id else None
@@ -290,7 +293,7 @@ async def show_shop_entry(event: Message | CallbackQuery, state: FSMContext, ser
     await state.clear()
     paused_msg = await services.settings.paused_message()
     if paused_msg:
-        await respond(event, f"⚠️ <b>Shop Temporarily Closed</b>\n\n{escape(paused_msg)}")
+        await respond(event, f"{ICON_WARNING} <b>Shop Temporarily Closed</b>\n\n{escape(paused_msg)}")
         return
 
     unpinned = await services.catalog.unpinned_categories(active_only=True)
@@ -399,7 +402,7 @@ async def show_products_list(
     title = (
         f"{category_icon_display}<b>{escape(category_name)}:</b>"
         if category_name
-        else "🛍️ <b>Available Products:</b>"
+        else f"{ICON_SHOP} <b>Available Products:</b>"
     )
     await respond(event, title, keyboard)
 
@@ -504,7 +507,7 @@ async def paginate_products(query: CallbackQuery, state: FSMContext, services: S
     title = (
         f"{category_icon_display}<b>{escape(category_name)}:</b>"
         if category_name
-        else "🛍️ <b>Available Products:</b>"
+        else f"{ICON_SHOP} <b>Available Products:</b>"
     )
     if query.message:
         with suppress(TelegramBadRequest):
@@ -595,11 +598,11 @@ async def get_keypad_view_text(
         prod_icon_display = "📦"
 
     if is_manual:
-        stock_text = "<b>Available (Manual Delivery) ⏱️</b>"
+        stock_text = f"<b>Available (Manual Delivery) {ICON_TIMER}</b>"
     elif stock > 0:
         stock_text = f"<b>{stock}</b> Available"
     else:
-        stock_text = "<b>Out of Stock ❌</b>"
+        stock_text = f"<b>Out of Stock {ICON_CROSS}</b>"
 
     unit_price = float(product["price"])
     unit_price_str = f"{unit_price:g} {symbol}" if unit_price == int(unit_price) else f"{unit_price:.2f} {symbol}"
@@ -736,7 +739,7 @@ async def process_custom_quantity(message: Message, state: FSMContext, services:
     """Processes user text input for custom quantity."""
     text = (message.text or "").strip()
     if not text.isdigit() or int(text) < 1:
-        await message.answer("⚠️ Please enter a valid positive number:")
+        await message.answer(f"{ICON_WARNING} Please enter a valid positive number:")
         return
 
     qty = int(text)
@@ -746,14 +749,14 @@ async def process_custom_quantity(message: Message, state: FSMContext, services:
 
     product = await services.catalog.product(product_id) if product_id else None
     if not product or not product["is_active"]:
-        await message.answer("Product unavailable.")
+        await message.answer(f"{ICON_CROSS} Product unavailable.")
         return
 
     is_manual = product.get("delivery_type") == "manual"
     stock = product.get("stock", 0)
     if not is_manual and stock > 0 and qty > stock:
         qty = stock
-        await message.answer(f"⚠️ Quantity adjusted to available stock: {stock}")
+        await message.answer(f"{ICON_WARNING} Quantity adjusted to available stock: {stock}")
 
     view_text, keyboard = await product_view(services, product, message.from_user.id, quantity=qty)
     await message.answer(view_text, reply_markup=keyboard)

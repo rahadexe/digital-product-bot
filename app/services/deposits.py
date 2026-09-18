@@ -26,6 +26,7 @@ from app.bot.icons import (
     ICON_ACCOUNT,
     ICON_BALANCE,
     ICON_CHECK,
+    ICON_COIN,
     ICON_DEPOSIT,
     ICON_KEY,
     ICON_MONEY,
@@ -265,7 +266,7 @@ class DepositService:
     ) -> None:
         symbol = escape(await self.settings.get("currency_symbol"))
         customer = f"@{escape(username)}" if username else "No username"
-        payable = f"\n💱 <b>Customer pays:</b> {quote['pay_amount']:.2f} (rate {quote['rate']:g})" if quote["rate"] != 1 else ""
+        payable = f"\n{ICON_COIN} <b>Customer pays:</b> {quote['pay_amount']:.2f} (rate {quote['rate']:g})" if quote["rate"] != 1 else ""
 
         cfg = get_settings()
         base_url = cfg.webhook_base_url.rstrip("/") if cfg.webhook_base_url else (await self.settings.get("webapp_url") or "http://127.0.0.1:8000")

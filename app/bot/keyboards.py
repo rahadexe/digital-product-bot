@@ -402,9 +402,10 @@ def get_quantity_selector_keyboard(
     # Row 1: [-]  [ Qty ]  [+]
     row1 = [
         InlineKeyboardButton(
-            text="➖",
+            text="-",
             callback_data=f"qty_set_{product_id}_{dec_qty}",
             style="danger",
+            icon_custom_emoji_id=Icons.MINUS,
         ),
         InlineKeyboardButton(
             text=f"{quantity}",
@@ -412,9 +413,10 @@ def get_quantity_selector_keyboard(
             style="primary",
         ),
         InlineKeyboardButton(
-            text="➕",
+            text="+",
             callback_data=f"qty_set_{product_id}_{inc_qty}",
             style="success",
+            icon_custom_emoji_id=Icons.PLUS,
         ),
     ]
     buttons.append(row1)
@@ -457,8 +459,8 @@ def get_quantity_selector_keyboard(
 
     # Row 4: Back & Close
     buttons.append([
-        InlineKeyboardButton(text="🔙 Back", callback_data=back_target, style="primary"),
-        InlineKeyboardButton(text="❌ Close", callback_data="close_menu", style="danger"),
+        InlineKeyboardButton(text="Back", callback_data=back_target, style="primary", icon_custom_emoji_id=Icons.BACK),
+        InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
     ])
 
     return InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -507,7 +509,7 @@ def get_custom_quantity_keypad(product_id: int) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="Confirm", callback_data=f"qpad_{product_id}_confirm", style="success", icon_custom_emoji_id=Icons.CONFIRM),
             ],
             [
-                InlineKeyboardButton(text="🔙 Back", callback_data=f"qpad_{product_id}_back", style="danger"),
+                InlineKeyboardButton(text="Back", callback_data=f"qpad_{product_id}_back", style="danger", icon_custom_emoji_id=Icons.BACK),
             ],
         ]
     )

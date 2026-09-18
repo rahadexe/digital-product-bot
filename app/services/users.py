@@ -69,7 +69,7 @@ class UserService:
                         f"{ICON_ACCOUNT} <b>New Customer Joined</b>\n"
                         f"━━━━━━━━━━━━━━━━━━\n"
                         f"{ICON_ACCOUNT} <b>Name:</b> {full_name}\n"
-                        f"💬 <b>Username:</b> {cust}\n"
+                        f"{ICON_ACCOUNT} <b>Username:</b> {cust}\n"
                         f"{ICON_ID} <b>Telegram ID:</b> <code>{tg_user_id}</code>",
                         event="new_user",
                     )

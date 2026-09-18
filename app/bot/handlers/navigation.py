@@ -5,6 +5,7 @@ from __future__ import annotations
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
+from app.bot.icons import ICON_CROSS
 from app.services import Services
 
 NAVIGATION_TEXTS = {
@@ -106,7 +107,7 @@ async def navigate(text: str, message: Message, state: FSMContext, services: Ser
     action = NAVIGATION_TEXTS.get(text) or COMMAND_ACTIONS.get(text.split()[0].split("@")[0], "start")
     if action in ("start", "cancel"):
         if action == "cancel":
-            await message.answer("❌ Current operation cancelled.")
+            await message.answer(f"{ICON_CROSS} Current operation cancelled.")
         await start.render_main_dashboard(message, services, message.from_user.id)
         return
     handlers = {

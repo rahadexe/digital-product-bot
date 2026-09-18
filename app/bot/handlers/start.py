@@ -16,6 +16,7 @@ from app.bot.handlers.shop import product_view
 from app.bot.icons import (
     ICON_CHANNEL,
     ICON_LOCK,
+    ICON_SPARKLES,
     ICON_WARNING,
 )
 from app.bot.keyboards import (
@@ -50,7 +51,7 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
     text = build_welcome_text(store_name, support_handle, custom_welcome, paused_notice)
     if not text:
         text = (
-            f"✨ Welcome to <b>{escape(store_name)}</b>!\n"
+            f"{ICON_SPARKLES} Welcome to <b>{escape(store_name)}</b>!\n"
             f"<i>YOUR DIGITAL PREMIUM SERVICES.</i>\n\n"
             f"Please select an option from the keyboard menu below 👇"
         )

@@ -14,6 +14,7 @@ from aiogram.types import (
     InlineKeyboardMarkup,
 )
 
+from app.bot.icons import Icons
 from app.services.delivery import DeliveryService
 
 logger = logging.getLogger("app.workers.delivery")
@@ -70,7 +71,7 @@ class DeliveryWorker:
                 if order and order.get('delivered_item'):
                     reply_markup = InlineKeyboardMarkup(
                         inline_keyboard=[
-                            [InlineKeyboardButton(text="📋 Copy Credentials", copy_text=CopyTextButton(text=order['delivered_item']), style="success")]
+                            [InlineKeyboardButton(text="Copy Credentials", copy_text=CopyTextButton(text=order['delivered_item']), style="success", icon_custom_emoji_id=Icons.KEY)]
                         ]
                     )
                 await self.bot.send_message(message['tg_user_id'], message['text'], reply_markup=reply_markup)

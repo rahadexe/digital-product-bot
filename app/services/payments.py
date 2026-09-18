@@ -357,7 +357,7 @@ class PaymentService:
                 )
             self.notifier.in_background(
                 self.notifier.send_admin(
-                    f"⚠️ <b>ZiniPay refused a payment</b>\n\n{escape(str(exc))}\n\n"
+                    f"{ICON_WARNING} <b>ZiniPay refused a payment</b>\n\n{escape(str(exc))}\n\n"
                     "<i>Check the API key in Settings → Payments, and that the brand website in ZiniPay "
                     "is this shop's domain.</i>",
                     event="system_error",
@@ -437,7 +437,7 @@ class PaymentService:
         if alert:
             self.notifier.in_background(
                 self.notifier.send_admin(
-                    f"⚠️ <b>Automatic payment needs a look</b>\n\nReference <code>{escape(row['reference'])}</code>, "
+                    f"{ICON_WARNING} <b>Automatic payment needs a look</b>\n\nReference <code>{escape(row['reference'])}</code>, "
                     f"user <code>{row['tg_user_id']}</code>\n{escape(reason)}\n\n<i>Nothing was credited. Check it in ZiniPay.</i>",
                     event="system_error",
                 )
