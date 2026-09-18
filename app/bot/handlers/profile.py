@@ -137,17 +137,26 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
     ref_link = f"https://t.me/{bot_user}?start=ref_{tg_user.id}"
     store_name = (await services.settings.get("store_name")) or "Premium Haven"
 
-    reward_line = f"{ICON_COIN} <b>Reward:</b> <code>{reward_str}</code> / join\n" if (reward_enabled and reward_amount > 0) else ""
+    force_join_active = await services.settings.flag("force_join_enabled")
+    if force_join_active:
+        reward_label = f"<code>{reward_str}</code> / Verified Join"
+        note_line = "\n\n<i>💡 Bonus is added once your friend joins & verifies our channel.</i>"
+    else:
+        reward_label = f"<code>{reward_str}</code> / Successful Join"
+        note_line = "\n\n<i>💡 Bonus is added once your friend joins the bot.</i>"
+
+    reward_line = f"{ICON_COIN} <b>Reward:</b> {reward_label}\n" if (reward_enabled and reward_amount > 0) else ""
 
     text = (
         f"{ICON_ORDERS} <b>Refer & Earn</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"{reward_line}"
-        f"{ICON_ACCOUNT} <b>Total Invited:</b> <code>{total_invited}</code>\n"
+        f"{ICON_ACCOUNT} <b>Successful Invites:</b> <code>{total_invited}</code>\n"
         f"{ICON_SPENT} <b>Total Earned:</b> <code>{total_earned_str}</code>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"🔗 <b>Your Referral Link:</b> <i>(Tap to copy)</i>\n"
         f"<code>{ref_link}</code>"
+        f"{note_line}"
     )
 
     share_text = quote(f"Join {store_name} for the best digital services!")
