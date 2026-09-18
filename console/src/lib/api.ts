@@ -46,6 +46,7 @@ export interface Category {
   sort_order: number;
   is_active: number;
   is_pinned?: number;
+  has_validity_filter?: number;
   custom_emoji_id?: string;
 }
 

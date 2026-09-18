@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import time
 from typing import Any
 
@@ -71,12 +72,13 @@ class CatalogService:
         is_active: int = 1,
         is_pinned: int = 0,
         custom_emoji_id: str | None = None,
+        has_validity_filter: int = 0,
     ) -> int:
         async with self.db.transaction() as conn:
             category_id = await conn.fetchval(
                 """
-                INSERT INTO categories (name, icon, sort_order, is_active, is_pinned, custom_emoji_id)
-                VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
+                INSERT INTO categories (name, icon, sort_order, is_active, is_pinned, custom_emoji_id, has_validity_filter)
+                VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id
                 """,
                 name,
                 icon,
@@ -84,6 +86,7 @@ class CatalogService:
                 is_active,
                 is_pinned,
                 custom_emoji_id,
+                has_validity_filter,
             )
             await record(conn, "category_created", f"Category #{category_id}: {name}")
         self._active_categories = None
@@ -100,6 +103,7 @@ class CatalogService:
         is_active: int | None = None,
         is_pinned: int | None = None,
         custom_emoji_id: str | None = None,
+        has_validity_filter: int | None = None,
     ) -> bool:
         async with self.db.transaction() as conn:
             status = await conn.execute(
@@ -110,8 +114,9 @@ class CatalogService:
                     sort_order = COALESCE($3, sort_order),
                     is_active = COALESCE($4, is_active),
                     is_pinned = COALESCE($5, is_pinned),
-                    custom_emoji_id = COALESCE($6::text, custom_emoji_id)
-                WHERE id = $7
+                    custom_emoji_id = COALESCE($6::text, custom_emoji_id),
+                    has_validity_filter = COALESCE($7, has_validity_filter)
+                WHERE id = $8
                 """,
                 name,
                 icon,
@@ -119,6 +124,7 @@ class CatalogService:
                 is_active,
                 is_pinned,
                 custom_emoji_id,
+                has_validity_filter,
                 category_id,
             )
             if affected(status):
@@ -135,6 +141,35 @@ class CatalogService:
         self._products_cache.clear()
 
 
+    async def category_validities(self, category_id: int) -> list[str]:
+        """Return distinct active non-empty duration labels for products in this category, sorted chronologically."""
+        async with self.db.connect() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT DISTINCT duration_label
+                FROM products
+                WHERE category_id = $1 
+                  AND is_active = 1 
+                  AND duration_label IS NOT NULL 
+                  AND TRIM(duration_label) != ''
+                ORDER BY duration_label
+                """,
+                category_id,
+            )
+        labels = [r["duration_label"].strip() for r in rows if r["duration_label"] and r["duration_label"].strip()]
+
+        def sort_key(label: str) -> tuple[int, str]:
+            m = re.search(r"(\d+)", label)
+            num = int(m.group(1)) if m else 999999
+            lower = label.lower()
+            if "month" in lower or "mash" in lower:
+                num *= 30
+            elif "year" in lower or "bochor" in lower:
+                num *= 365
+            return (num, label.lower())
+
+        return sorted(labels, key=sort_key)
+
     async def products(
         self,
         category_id: int | str | None = None,
@@ -144,10 +179,11 @@ class CatalogService:
         *,
         in_stock_first: bool = False,
         uncategorized: bool = False,
+        duration_label: str | None = None,
     ) -> list[dict[str, Any]]:
         """Products in admin order; customer listings pass ``in_stock_first`` so buyable items lead."""
         now = time.monotonic()
-        cache_key = f"{category_id}_{active_only}_{limit}_{offset}_{in_stock_first}_{uncategorized}"
+        cache_key = f"{category_id}_{active_only}_{limit}_{offset}_{in_stock_first}_{uncategorized}_{duration_label}"
         cached = self._products_cache.get(cache_key)
         if cached and now - cached[0] < self.PRODUCTS_CACHE_SECONDS:
             return [dict(row) for row in cached[1]]
@@ -160,6 +196,9 @@ class CatalogService:
             where += f" AND p.category_id = ${len(params)}"
         if active_only:
             where += " AND p.is_active = 1"
+        if duration_label:
+            params.append(duration_label.strip())
+            where += f" AND (LOWER(TRIM(p.duration_label)) = LOWER(TRIM(${len(params)})) OR p.duration_label ILIKE '%' || ${len(params)} || '%')"
         order = "(delivery_type = 'manual' OR stock > 0) DESC, sort_order, id" if in_stock_first else "sort_order, id"
         query = (
             f"SELECT * FROM ({LISTING_SQL} WHERE 1=1{where}) AS listing "

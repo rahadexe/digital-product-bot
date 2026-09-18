@@ -367,8 +367,21 @@ function ProductForm({
           <input type="number" step="any" min="0" required value={form.price} onChange={(event) => set({ price: parseFloat(event.target.value) || 0 })} />
         </label>
         <label className="field">
-          <span>Duration</span>
-          <input type="text" placeholder="1 Month" value={form.duration_label} onChange={(event) => set({ duration_label: event.target.value })} />
+          <span>Duration / Validity</span>
+          <input type="text" placeholder="e.g. 7 Days or 30 Days" value={form.duration_label} onChange={(event) => set({ duration_label: event.target.value })} />
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
+            {['3 Days', '7 Days', '14 Days', '30 Days', '90 Days', '1 Year'].map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                className={`mini ${form.duration_label === preset ? 'btn' : 'ghost'}`}
+                style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px' }}
+                onClick={() => set({ duration_label: preset })}
+              >
+                {preset}
+              </button>
+            ))}
+          </div>
         </label>
       </div>
 

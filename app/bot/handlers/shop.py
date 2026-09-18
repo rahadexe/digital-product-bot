@@ -45,6 +45,7 @@ from app.bot.keyboards import (
     get_custom_quantity_keypad,
     get_products_keyboard,
     get_quantity_selector_keyboard,
+    get_validity_selector_keyboard,
 )
 from app.services import Services
 
@@ -100,15 +101,57 @@ class CategoryTextFilter(BaseFilter):
         return False
 
 
+async def show_category_or_validity(
+    event: Message | CallbackQuery,
+    state: FSMContext,
+    services: Services,
+    category: dict[str, Any],
+    back_target: str = "back_to_main",
+):
+    """
+    Renders validity selection if category has has_validity_filter enabled.
+    Otherwise directly shows the product list.
+    """
+    cat_id = category["id"]
+    if category.get("has_validity_filter") == 1:
+        validities = await services.catalog.category_validities(cat_id)
+        if validities:
+            cat_name = category["name"]
+            cat_emoji_id = category.get("custom_emoji_id")
+            cat_icon = category.get("icon") or "📁"
+            if cat_emoji_id and str(cat_emoji_id).strip().isdigit():
+                icon_display = f"{tg_icon(str(cat_emoji_id).strip(), cat_icon)} "
+            else:
+                icon_display = f"{cat_icon} "
+
+            kb = get_validity_selector_keyboard(
+                category_id=cat_id,
+                validities=validities,
+                show_all_option=True,
+                back_target=back_target,
+            )
+            title = f"{icon_display}<b>Select Validity:</b>"
+            await respond(event, title, kb)
+            return
+
+    await show_products_list(
+        event,
+        state,
+        services,
+        category_id=cat_id,
+        back_target=back_target,
+    )
+
+
 @router.message(CategoryTextFilter())
 async def handle_category_by_text(message: Message, state: FSMContext, services: Services, category: dict[str, Any]):
     """Dynamic handler for any category selected via reply keyboard button."""
     await state.clear()
-    await show_products_list(
+    await show_category_or_validity(
         message,
         state,
         services,
-        category_id=category["id"],
+        category=category,
         back_target="back_to_main",
     )
 
@@ -120,8 +163,9 @@ async def handle_legacy_cat_callbacks(query: CallbackQuery, state: FSMContext, s
     categories = await services.catalog.categories(active_only=True)
     slug = query.data.replace("open_cat_", "").lower()
     cat = next((c for c in categories if slug in c["name"].lower()), None)
-    cat_id = cat["id"] if cat else (categories[0]["id"] if categories else None)
-    await show_products_list(query, state, services, category_id=cat_id, back_target="back_to_main")
+    cat = cat or (categories[0] if categories else None)
+    if cat:
+        await show_category_or_validity(query, state, services, category=cat, back_target="back_to_main")
 
 
 @router.message(F.text.in_({"Other Products", "other products", "Other Product", "other product", "👑 Other Products", "💎 Other Products", "Others", "others", "Premium Products", "premium products", "👑 Premium Products", "আদার প্রোডাক্টস"}))
@@ -324,12 +368,77 @@ async def show_uncat_products(event: Message | CallbackQuery, state: FSMContext,
 
 @router.callback_query(F.data.startswith("cat_"))
 async def show_category_products(query: CallbackQuery, state: FSMContext, services: Services):
-    """Show products for a specific selected category."""
+    """Show products or validity selector for a specific selected category."""
     await state.clear()
     cat_id = callback_int(query.data, "cat_")
     if cat_id is None:
         return
-    await show_products_list(query, state, services, category_id=cat_id, back_target="open_categories")
+    cat = await services.catalog.category(cat_id)
+    if not cat:
+        return
+    is_other = not cat.get("is_pinned")
+    back_target = "open_categories" if is_other else "back_to_main"
+    await show_category_or_validity(query, state, services, category=cat, back_target=back_target)
+
+
+@router.callback_query(F.data.startswith("catval_menu_"))
+async def handle_validity_menu_back(query: CallbackQuery, state: FSMContext, services: Services):
+    """Returns to the validity selector menu for this category."""
+    await state.clear()
+    cat_id = callback_int(query.data, "catval_menu_")
+    if cat_id is None:
+        return
+    cat = await services.catalog.category(cat_id)
+    if not cat:
+        return
+    is_other = not cat.get("is_pinned")
+    back_target = "open_categories" if is_other else "back_to_main"
+    await show_category_or_validity(query, state, services, category=cat, back_target=back_target)
+
+
+@router.callback_query(F.data.startswith("catval_all_"))
+async def handle_validity_show_all(query: CallbackQuery, state: FSMContext, services: Services):
+    """Show all products under this validity-filtered category."""
+    await state.clear()
+    cat_id = callback_int(query.data, "catval_all_")
+    if cat_id is None:
+        return
+    await show_products_list(
+        query,
+        state,
+        services,
+        category_id=cat_id,
+        back_target=f"catval_menu_{cat_id}",
+    )
+
+
+@router.callback_query(F.data.startswith("catval_"))
+async def handle_validity_choice(query: CallbackQuery, state: FSMContext, services: Services):
+    """Handle clicking on a specific validity button (e.g. catval_1_0)."""
+    await state.clear()
+    parts = query.data.split("_")
+    if len(parts) < 3:
+        return
+    try:
+        cat_id = int(parts[1])
+        val_idx = int(parts[2])
+    except ValueError:
+        return
+
+    validities = await services.catalog.category_validities(cat_id)
+    if not validities or val_idx >= len(validities):
+        await show_products_list(query, state, services, category_id=cat_id, back_target=f"catval_menu_{cat_id}")
+        return
+
+    chosen_label = validities[val_idx]
+    await show_products_list(
+        query,
+        state,
+        services,
+        category_id=cat_id,
+        back_target=f"catval_menu_{cat_id}",
+        duration_label=chosen_label,
+    )
 
 
 async def show_products_list(
@@ -338,8 +447,15 @@ async def show_products_list(
     services: Services,
     category_id: int | str | None = None,
     back_target: str = "back_to_main",
+    duration_label: str | None = None,
 ):
-    products = await services.catalog.products(category_id=category_id, active_only=True, limit=100, in_stock_first=True)
+    products = await services.catalog.products(
+        category_id=category_id,
+        active_only=True,
+        limit=100,
+        in_stock_first=True,
+        duration_label=duration_label,
+    )
     symbol = await services.settings.get("currency_symbol")
 
     category_name = ""
@@ -361,36 +477,27 @@ async def show_products_list(
 
     is_other_products = (back_target == "open_categories") or (category_id is None) or (category_id == "uncategorized") or (cat is not None and not cat.get("is_pinned"))
 
+    effective_back_target = back_target if (back_target.startswith("catval_menu_") or back_target == "open_categories") else ("open_categories" if is_other_products else "back_to_main")
+
     if not products:
-        header = (
-            f"{category_icon_display}<b>{escape(category_name)}:</b>"
-            if category_name
-            else f"{ICON_SHOP} <b>Available Products:</b>"
-        )
-        msg = f"{header}\n\n{ICON_SHOP} <b>No products available right now.</b>"
-        if is_other_products:
-            kb = InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [
-                        InlineKeyboardButton(text="Back", callback_data="open_categories", style="primary", icon_custom_emoji_id=Icons.BACK),
-                        InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
-                    ],
-                ]
-            )
+        if category_name and duration_label:
+            header = f"{category_icon_display}<b>{escape(category_name)} ({escape(duration_label)}):</b>"
+        elif category_name:
+            header = f"{category_icon_display}<b>{escape(category_name)}:</b>"
         else:
-            kb = InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)],
-                ]
-            )
-        await respond(event, msg, kb)
+            header = f"{ICON_SHOP} <b>Available Products:</b>"
+        msg = f"{header}\n\n{ICON_SHOP} <b>No products available right now.</b>"
+        nav_btns = []
+        if effective_back_target not in ("back_to_main", "none"):
+            nav_btns.append(InlineKeyboardButton(text="Back", callback_data=effective_back_target, style="primary", icon_custom_emoji_id=Icons.BACK))
+        nav_btns.append(InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE))
+        await respond(event, msg, InlineKeyboardMarkup(inline_keyboard=[nav_btns]))
         return
 
     total_pages = max(1, math.ceil(len(products) / PAGE_SIZE))
     page = 1
     page_products = products[0:PAGE_SIZE]
 
-    effective_back_target = "open_categories" if is_other_products else "back_to_main"
     keyboard = get_products_keyboard(
         products=page_products,
         page=page,
@@ -399,11 +506,12 @@ async def show_products_list(
         category_id=category_id,
         back_target=effective_back_target,
     )
-    title = (
-        f"{category_icon_display}<b>{escape(category_name)}:</b>"
-        if category_name
-        else f"{ICON_SHOP} <b>Available Products:</b>"
-    )
+    if category_name and duration_label:
+        title = f"{category_icon_display}<b>{escape(category_name)} ({escape(duration_label)}):</b>"
+    elif category_name:
+        title = f"{category_icon_display}<b>{escape(category_name)}:</b>"
+    else:
+        title = f"{ICON_SHOP} <b>Available Products:</b>"
     await respond(event, title, keyboard)
 
 

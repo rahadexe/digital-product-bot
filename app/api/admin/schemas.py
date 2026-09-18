@@ -29,6 +29,7 @@ class CategoryPayload(Payload):
     sort_order: int = Field(default=0, ge=-100_000, le=100_000)
     is_active: Flag = 1
     is_pinned: Flag = 0
+    has_validity_filter: Flag = 0
     custom_emoji_id: Optional[str] = Field(default=None, max_length=64)
 
     _empty_text = field_validator("icon", "custom_emoji_id", mode="before")(_empty_if_none)

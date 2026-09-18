@@ -154,6 +154,66 @@ def get_categories_keyboard(
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
+def get_validity_selector_keyboard(
+    category_id: int,
+    validities: List[str],
+    show_all_option: bool = True,
+    back_target: str = "close_menu",
+) -> InlineKeyboardMarkup:
+    """
+    Renders validity durations (e.g. '3 Days Validity', '7 Days Validity') in a 2-column grid.
+    Followed by an 'All Products' option and navigation buttons.
+    """
+    buttons: List[List[InlineKeyboardButton]] = []
+    val_buttons: List[InlineKeyboardButton] = []
+
+    for idx, v in enumerate(validities):
+        label = v if "validity" in v.lower() else f"{v} Validity"
+        val_buttons.append(
+            InlineKeyboardButton(
+                text=label[:64],
+                callback_data=f"catval_{category_id}_{idx}",
+                style="primary",
+                icon_custom_emoji_id=Icons.TIMER,
+            )
+        )
+
+    for i in range(0, len(val_buttons), 2):
+        buttons.append(val_buttons[i : i + 2])
+
+    if show_all_option:
+        buttons.append([
+            InlineKeyboardButton(
+                text="All Products",
+                callback_data=f"catval_all_{category_id}",
+                style="success",
+                icon_custom_emoji_id=Icons.PRODUCTS,
+            )
+        ])
+
+    nav_row: List[InlineKeyboardButton] = []
+    if back_target and back_target not in ("close_menu", "back_to_main"):
+        nav_row.append(
+            InlineKeyboardButton(
+                text="Back",
+                callback_data=back_target,
+                style="primary",
+                icon_custom_emoji_id=Icons.BACK,
+            )
+        )
+    nav_row.append(
+        InlineKeyboardButton(
+            text="Close",
+            callback_data="close_menu",
+            style="danger",
+            icon_custom_emoji_id=Icons.CLOSE,
+        )
+    )
+    buttons.append(nav_row)
+
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
 def get_gate_keyboard(channels: List[Dict[str, Any]]) -> InlineKeyboardMarkup:
     """Keyboard for mandatory force-join verification with premium icons."""
     buttons = []
@@ -362,9 +422,9 @@ def get_products_keyboard(
         ]
 
     buttons.append(nav_row)
-    if back_target == "open_categories":
+    if back_target and back_target not in ("back_to_main", "none"):
         buttons.append([
-            InlineKeyboardButton(text="Back", callback_data="open_categories", style="primary", icon_custom_emoji_id=Icons.BACK),
+            InlineKeyboardButton(text="Back", callback_data=back_target, style="primary", icon_custom_emoji_id=Icons.BACK),
             InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
         ])
     else:

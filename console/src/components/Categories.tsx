@@ -11,6 +11,7 @@ type CategoryDraft = {
   sort_order: number;
   is_active: boolean;
   is_pinned: boolean;
+  has_validity_filter: boolean;
   custom_emoji_id: string;
 };
 
@@ -146,6 +147,7 @@ export function Categories({ say }: { say: Say }) {
                 sort_order: 0,
                 is_active: true,
                 is_pinned: false,
+                has_validity_filter: false,
                 custom_emoji_id: '',
               })
             }
@@ -218,6 +220,7 @@ export function Categories({ say }: { say: Say }) {
                             sort_order: cat.sort_order,
                             is_active: Boolean(cat.is_active),
                             is_pinned: Boolean(cat.is_pinned),
+                            has_validity_filter: Boolean(cat.has_validity_filter),
                             custom_emoji_id: cat.custom_emoji_id || '',
                           })
                         }
@@ -280,6 +283,7 @@ function CategoryFormModal({
       sort_order: form.sort_order,
       is_active: form.is_active ? 1 : 0,
       is_pinned: form.is_pinned ? 1 : 0,
+      has_validity_filter: form.has_validity_filter ? 1 : 0,
       custom_emoji_id: form.custom_emoji_id ? form.custom_emoji_id.trim() : '',
     };
     try {
@@ -348,6 +352,12 @@ function CategoryFormModal({
         label="Pin to Bottom Menu (Reply Keyboard)"
         on={form.is_pinned}
         onChange={(on) => set({ is_pinned: on })}
+      />
+
+      <FlagRow
+        label="📅 Enable Validity/Duration Filter (Ask user for validity duration first)"
+        on={form.has_validity_filter}
+        onChange={(on) => set({ has_validity_filter: on })}
       />
 
       <FlagRow
