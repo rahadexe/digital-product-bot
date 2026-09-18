@@ -57,7 +57,7 @@ def get_persistent_reply_keyboard(
     ])
     rows.append([
         KeyboardButton(text="My Profile", style="primary", icon_custom_emoji_id=Icons.ACCOUNT),
-        KeyboardButton(text="Support", style="primary", icon_custom_emoji_id=Icons.CALL),
+        KeyboardButton(text="Support", style="primary", icon_custom_emoji_id=Icons.SUPPORT),
     ])
     rows.append([
         KeyboardButton(text="Apply as a Reseller", style="success", icon_custom_emoji_id=Icons.RESELLER),
@@ -193,7 +193,7 @@ def get_main_inline_dashboard(channel_url: str | None = None) -> InlineKeyboardM
             ],
             [
                 InlineKeyboardButton(text="My Profile", callback_data="open_account", style="primary", icon_custom_emoji_id=Icons.ACCOUNT),
-                InlineKeyboardButton(text="Support", callback_data="open_support", style="primary", icon_custom_emoji_id=Icons.CALL),
+                InlineKeyboardButton(text="Support", callback_data="open_support", style="primary", icon_custom_emoji_id=Icons.SUPPORT),
             ],
             [
                 InlineKeyboardButton(text="Apply as a Reseller", callback_data="open_reseller", style="success", icon_custom_emoji_id=Icons.RESELLER),

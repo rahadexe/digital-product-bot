@@ -33,16 +33,14 @@ async def show_support_info(event: Message | CallbackQuery, state: FSMContext, s
             f"{ICON_SUPPORT} <b>Customer Support | সাপোর্ট</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n\n"
             f"For any questions, order assistance, or deposit issues, reach out to our support team.\n\n"
-            f"যেকোনো প্রশ্ন, অর্ডার সহায়তা বা ডিপোজিট সমস্যার জন্য আমাদের সাপোর্ট টিমের সাথে যোগাযোগ করুন।\n"
-            f"━━━━━━━━━━━━━━━━━━"
+            f"যেকোনো প্রশ্ন, অর্ডার সহায়তা বা ডিপোজিট সমস্যার জন্য আমাদের সাপোর্ট টিমের সাথে যোগাযোগ করুন।"
         )
     else:
         text = (
             f"{ICON_SUPPORT} <b>Customer Support | সাপোর্ট</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n\n"
             f"Our support team will be available here shortly.\n\n"
-            f"আমাদের সাপোর্ট টিম শীঘ্রই এখানে উপলব্ধ হবে।\n"
-            f"━━━━━━━━━━━━━━━━━━"
+            f"আমাদের সাপোর্ট টিম শীঘ্রই এখানে উপলব্ধ হবে।"
         )
     await respond(event, text, get_support_keyboard(handle, channels))
 
