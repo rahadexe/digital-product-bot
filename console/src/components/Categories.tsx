@@ -401,20 +401,22 @@ function CategoryFormModal({
       </label>
 
       <FlagRow
-        label="Pin to Bottom Menu (Reply Keyboard)"
+        label="Pin to Menu"
+        hint="Show on Telegram keyboard"
         on={form.is_pinned}
         onChange={(on) => set({ is_pinned: on })}
       />
 
       <FlagRow
         label="Filter by Validity"
-        hint="Ask user for validity duration first"
+        hint="Ask user for duration first"
         on={form.has_validity_filter}
         onChange={(on) => set({ has_validity_filter: on })}
       />
 
       <FlagRow
-        label="Active in Store"
+        label="Active"
+        hint="Visible in bot store"
         on={form.is_active}
         onChange={(on) => set({ is_active: on })}
       />

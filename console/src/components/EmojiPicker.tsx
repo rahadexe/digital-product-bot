@@ -90,7 +90,7 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
       {/* Label */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
         <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>
-          VPN Custom Emoji <small style={{ color: 'var(--muted)', fontWeight: 'normal' }}>(Optional)</small>
+          Custom Emoji <small style={{ color: 'var(--muted)', fontWeight: 'normal' }}>(Optional)</small>
         </span>
         {trimmedValue ? (
           <button
