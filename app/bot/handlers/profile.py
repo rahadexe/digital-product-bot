@@ -369,8 +369,7 @@ async def view_order_detail(query: CallbackQuery, state: FSMContext, services: S
         f"{ICON_TIMER} <b>Date:</b> {date}\n"
         f"{ICON_CHECK} <b>Status:</b> <code>{order['status'].upper()}</code>\n\n"
         f"{ICON_KEY} <b>Delivered Credentials:</b>\n"
-        f"<code>{escape(order['delivered_item'])}</code>\n\n"
-        "<i>(Tap the button below or tap the code to copy)</i>"
+        f"<code>{escape(order['delivered_item'])}</code>"
     )
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[

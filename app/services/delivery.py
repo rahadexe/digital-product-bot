@@ -70,8 +70,7 @@ def receipt(order: dict[str, Any]) -> str:
         lines.append(f"{ICON_TIMER} <b>Date:</b> {date_str}")
     lines.append(f"{ICON_CHECK} <b>Status:</b> <code>COMPLETED</code>\n")
     lines.append(f"{ICON_KEY} <b>Delivered Credentials:</b>")
-    lines.append(f"<code>{content}</code>\n")
-    lines.append("<i>(Tap the button below or tap the code to copy)</i>")
+    lines.append(f"<code>{content}</code>")
 
     return "\n".join(lines)
 
