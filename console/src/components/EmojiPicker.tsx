@@ -1,30 +1,29 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, Search, Sparkles, X } from 'lucide-react';
+import { Check, ChevronDown, Search, ShieldCheck, X } from 'lucide-react';
 
 export interface EmojiItem {
   name: string;
   id: string;
-  icon: string;
 }
 
-// Verified official VPN custom emojis from Telegram pack
+// Verified official VPN custom emojis from Telegram pack (clean names, no keyboard emojis)
 export const PRESET_EMOJIS: EmojiItem[] = [
-  { name: 'NordVPN', id: '5796345694969140339', icon: '🏔️' },
-  { name: 'ExpressVPN', id: '5796153709931009517', icon: '🔴' },
-  { name: 'Surfshark', id: '5796592771552777710', icon: '🦈' },
-  { name: 'Proton VPN', id: '5794298344188678751', icon: '🛡️' },
-  { name: 'CyberGhost', id: '5796309230696797985', icon: '👻' },
-  { name: 'HMA VPN', id: '5796595022115639741', icon: '🕶️' },
-  { name: 'Bitdefender', id: '5793973558761756143', icon: '🛡️' },
-  { name: 'Windscribe', id: '5794045349140108622', icon: '🟢' },
-  { name: 'PureVPN', id: '5794156713347126602', icon: '🟣' },
-  { name: 'Turbo VPN', id: '5796633857209931262', icon: '🟠' },
-  { name: 'PotatoVPN', id: '5796403831646458962', icon: '🟡' },
-  { name: 'PandaVPN', id: '5796561774773801876', icon: '🐼' },
-  { name: 'VyprVPN', id: '5796381996032725483', icon: '🦎' },
-  { name: 'X-VPN', id: '5794376731636798062', icon: '⬜' },
+  { name: 'NordVPN', id: '5796345694969140339' },
+  { name: 'ExpressVPN', id: '5796153709931009517' },
+  { name: 'Surfshark', id: '5796592771552777710' },
+  { name: 'Proton VPN', id: '5794298344188678751' },
+  { name: 'CyberGhost', id: '5796309230696797985' },
+  { name: 'HMA VPN', id: '5796595022115639741' },
+  { name: 'Bitdefender', id: '5793973558761756143' },
+  { name: 'Windscribe', id: '5794045349140108622' },
+  { name: 'PureVPN', id: '5794156713347126602' },
+  { name: 'Turbo VPN', id: '5796633857209931262' },
+  { name: 'PotatoVPN', id: '5796403831646458962' },
+  { name: 'PandaVPN', id: '5796561774773801876' },
+  { name: 'VyprVPN', id: '5796381996032725483' },
+  { name: 'X-VPN', id: '5794376731636798062' },
 ];
 
 interface EmojiPickerProps {
@@ -133,7 +132,7 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
           {matchedPreset ? (
             <>
-              <span style={{ fontSize: '16px', lineHeight: 1 }}>{matchedPreset.icon}</span>
+              <ShieldCheck size={15} style={{ color: 'var(--accent)', flexShrink: 0 }} />
               <strong style={{ color: 'var(--text)', fontWeight: 600 }}>{matchedPreset.name}</strong>
               <code style={{ fontSize: '11px', color: 'var(--muted)', background: 'var(--surface-2)', padding: '1px 5px', borderRadius: '4px' }}>
                 {matchedPreset.id.slice(-6)}…
@@ -141,7 +140,7 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
             </>
           ) : trimmedValue ? (
             <>
-              <Sparkles size={14} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+              <ShieldCheck size={15} style={{ color: 'var(--accent)', flexShrink: 0 }} />
               <span style={{ color: 'var(--text)' }}>Custom ID: {trimmedValue}</span>
             </>
           ) : (
@@ -233,7 +232,7 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                padding: '6px 10px',
+                padding: '7px 10px',
                 fontSize: '12px',
                 borderRadius: '6px',
                 border: 'none',
@@ -261,7 +260,7 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    padding: '6px 10px',
+                    padding: '7px 10px',
                     fontSize: '12.5px',
                     fontWeight: isSelected ? 600 : 500,
                     borderRadius: '6px',
@@ -280,7 +279,7 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '15px', lineHeight: 1 }}>{item.icon}</span>
+                    <ShieldCheck size={13} style={{ color: isSelected ? 'var(--accent)' : 'var(--muted)', flexShrink: 0 }} />
                     <span>{item.name}</span>
                   </div>
                   {isSelected ? <Check size={14} style={{ color: 'var(--accent)' }} /> : null}
