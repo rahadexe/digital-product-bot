@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Bookmark, FolderTree, Layers, Pin, Plus } from 'lucide-react';
+import { FolderTree, Pin, Plus } from 'lucide-react';
 import { api, type Category, type Product } from '@/lib/api';
 import { EmptyRow, FlagRow, Modal, errorText, useConfirm, type Say } from './ui';
 import { EmojiPicker } from './EmojiPicker';
@@ -92,12 +92,18 @@ export function Categories({ say }: { say: Say }) {
     }
   }
 
-  const pinnedCount = (categories ?? []).filter((c) => Boolean(c.is_pinned)).length;
-  const unpinnedCount = (categories ?? []).filter((c) => !c.is_pinned).length;
+  const [filter, setFilter] = useState<'all' | 'active' | 'hidden' | 'pinned'>('all');
+
+  const totalCount = categories?.length ?? 0;
   const activeCount = (categories ?? []).filter((c) => Boolean(c.is_active)).length;
+  const hiddenCount = (categories ?? []).filter((c) => !c.is_active).length;
+  const pinnedCount = (categories ?? []).filter((c) => Boolean(c.is_pinned)).length;
 
   const shown = (categories ?? []).filter((c) => {
     if (search && !c.name.toLowerCase().includes(search.toLowerCase())) return false;
+    if (filter === 'active' && !c.is_active) return false;
+    if (filter === 'hidden' && c.is_active) return false;
+    if (filter === 'pinned' && !c.is_pinned) return false;
     return true;
   });
 
@@ -105,39 +111,36 @@ export function Categories({ say }: { say: Say }) {
     <>
       {confirmDialog}
 
-      {/* Summary Stat Cards */}
-      <div className="stat-cards-grid">
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <span className="stat-card-label">Total Categories</span>
-            <FolderTree className="stat-card-icon" />
-          </div>
-          <div className="stat-card-value">{categories?.length ?? 0}</div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <span className="stat-card-label">Pinned to Bottom Keyboard</span>
-            <Pin className="stat-card-icon" />
-          </div>
-          <div className="stat-card-value">{pinnedCount}</div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <span className="stat-card-label">In Other Products</span>
-            <Bookmark className="stat-card-icon" />
-          </div>
-          <div className="stat-card-value">{unpinnedCount}</div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <span className="stat-card-label">Active</span>
-            <Layers className="stat-card-icon" />
-          </div>
-          <div className="stat-card-value">{activeCount}</div>
-        </div>
+      {/* Segmented Filter Bar */}
+      <div className="segmented" role="tablist" style={{ marginBottom: '1.25rem' }}>
+        <button
+          type="button"
+          className={filter === 'all' ? 'active' : ''}
+          onClick={() => setFilter('all')}
+        >
+          All ({totalCount})
+        </button>
+        <button
+          type="button"
+          className={filter === 'active' ? 'active' : ''}
+          onClick={() => setFilter('active')}
+        >
+          Active ({activeCount})
+        </button>
+        <button
+          type="button"
+          className={filter === 'hidden' ? 'active' : ''}
+          onClick={() => setFilter('hidden')}
+        >
+          Hidden ({hiddenCount})
+        </button>
+        <button
+          type="button"
+          className={filter === 'pinned' ? 'active' : ''}
+          onClick={() => setFilter('pinned')}
+        >
+          Pinned to Menu ({pinnedCount})
+        </button>
       </div>
 
       <section className="panel">
@@ -239,13 +242,29 @@ export function Categories({ say }: { say: Say }) {
                     <td>
                       <button
                         type="button"
-                        className="mini"
                         onClick={() => toggleActive(cat)}
-                        style={{ fontSize: '11px', padding: '2px 8px' }}
+                        className={`pill ${cat.is_active ? 'good' : 'bad'}`}
+                        style={{
+                          cursor: 'pointer',
+                          fontSize: '11.5px',
+                          padding: '3px 10px',
+                          fontWeight: 600,
+                          border: 'none',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                        }}
+                        title={cat.is_active ? 'Click to hide category' : 'Click to activate category'}
                       >
-                        <span className={`pill ${cat.is_active ? 'good' : 'bad'}`}>
-                          {cat.is_active ? 'Active' : 'Hidden'}
-                        </span>
+                        <span
+                          style={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: '50%',
+                            background: cat.is_active ? 'var(--positive)' : 'var(--danger)',
+                          }}
+                        />
+                        {cat.is_active ? 'Active' : 'Hidden'}
                       </button>
                     </td>
                     <td>
