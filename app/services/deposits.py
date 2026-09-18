@@ -13,12 +13,25 @@ from typing import Any
 
 import asyncpg
 
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+from app.core.config import get_settings
 from app.core.money import money
 from app.db import Database, affected
 from app.services.audit import record
 from app.services.errors import InvalidInputError
 from app.services.notifications import Notifier
 from app.services.settings import SettingsService
+from app.bot.icons import (
+    ICON_ACCOUNT,
+    ICON_BALANCE,
+    ICON_CHECK,
+    ICON_DEPOSIT,
+    ICON_KEY,
+    ICON_MONEY,
+    ICON_NOTE,
+    ICON_WARNING,
+)
 
 TRANSACTION_ID = re.compile(r"[A-Za-z0-9_\-]{6,80}")
 CUSTOMER_DEPOSIT_COLUMNS = (
@@ -252,14 +265,33 @@ class DepositService:
         symbol = escape(await self.settings.get("currency_symbol"))
         customer = f"@{escape(username)}" if username else "No username"
         payable = f"\n💱 <b>Customer pays:</b> {quote['pay_amount']:.2f} (rate {quote['rate']:g})" if quote["rate"] != 1 else ""
+
+        cfg = get_settings()
+        base_url = cfg.webhook_base_url.rstrip("/") if cfg.webhook_base_url else (await self.settings.get("webapp_url") or "http://127.0.0.1:8000")
+        deposit_link = f"{base_url}/#deposits"
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text=f"💳 Review Deposit #{deposit_id}",
+                        url=deposit_link,
+                    )
+                ]
+            ]
+        )
+
         await self.notifier.send_admin(
-            f"🔔 <b>New Deposit Request #{deposit_id}</b>\n\n"
-            f"👤 <b>User:</b> {customer} (<code>{tg_user_id}</code>)\n"
-            f"💳 <b>Method:</b> {escape(quote['method_name'])}\n"
-            f"💵 <b>Wallet credit:</b> {symbol}{quote['amount']:.2f}{payable}\n"
-            f"🔖 <b>Transaction ID:</b> <code>{escape(transaction_id)}</code>\n\n"
-            "<i>Verify the payment, then review it in the Admin Console.</i>",
+            f"{ICON_DEPOSIT} <b>New Deposit Request #{deposit_id}</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{ICON_ACCOUNT} <b>Customer:</b> {customer} (<code>{tg_user_id}</code>)\n"
+            f"{ICON_DEPOSIT} <b>Method:</b> {escape(quote['method_name'])}\n"
+            f"{ICON_MONEY} <b>Credit Amount:</b> <code>{quote['amount']:.2f} {symbol}</code>{payable}\n"
+            f"{ICON_KEY} <b>Transaction ID:</b> <code>{escape(transaction_id)}</code>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"<i>Verify payment in provider wallet, then review in console.</i>",
             event="deposit",
+            keyboard=keyboard,
         )
 
     async def _notify_customer(self, tg_user_id: int, text_for_symbol: Callable[[str], str]) -> None:
@@ -368,10 +400,13 @@ class DepositService:
             self._notify_customer(
                 deposit["tg_user_id"],
                 lambda symbol: (
-                    f"🎉 <b>Deposit Approved!</b>\n\n"
-                    f"Your deposit of <b>{symbol}{amount:.2f}</b> ({method_name}) has been approved.\n"
-                    f"💰 <b>Updated Balance:</b> <code>{symbol}{details['new_balance']:.2f}</code>\n\n"
-                    "<i>You can now browse the Shop and place orders.</i>"
+                    f"{ICON_CHECK} <b>Deposit Approved!</b>\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"{ICON_MONEY} <b>Amount Credited:</b> <code>{amount:.2f} {symbol}</code>\n"
+                    f"{ICON_DEPOSIT} <b>Payment Method:</b> {method_name}\n"
+                    f"{ICON_BALANCE} <b>Updated Balance:</b> <code>{details['new_balance']:.2f} {symbol}</code>\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"<i>Your wallet is ready. Browse the Shop to place orders.</i>"
                 ),
             )
         )
@@ -400,10 +435,12 @@ class DepositService:
             self._notify_customer(
                 deposit["tg_user_id"],
                 lambda symbol: (
-                    f"⚠️ <b>Deposit Rejected</b>\n\n"
-                    f"Your deposit request of <b>{symbol}{amount:.2f}</b> could not be approved.\n"
-                    f"📝 <b>Reason:</b> {escape(admin_note)}\n\n"
-                    "<i>If you believe this was an error, please contact Customer Support with payment proof.</i>"
+                    f"{ICON_WARNING} <b>Deposit Request Rejected</b>\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"{ICON_MONEY} <b>Requested Amount:</b> <code>{amount:.2f} {symbol}</code>\n"
+                    f"{ICON_NOTE} <b>Reason:</b> {escape(admin_note)}\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"<i>If you believe this is an error, please contact Support with payment proof.</i>"
                 ),
             )
         )

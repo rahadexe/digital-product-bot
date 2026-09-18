@@ -11,6 +11,17 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from app.services.catalog import CatalogService
 from app.services.notifications import Notifier
 from app.services.settings import SettingsService
+from app.bot.icons import (
+    ICON_CHECK,
+    ICON_FIRE,
+    ICON_MONEY,
+    ICON_ORDERS,
+    ICON_ROCKET,
+    ICON_SHOP,
+    ICON_SPARKLES,
+    ICON_VIP,
+    Icons,
+)
 
 logger = logging.getLogger("app.services.announcements")
 
@@ -39,11 +50,13 @@ class AnnouncementService:
         symbol = escape(values["currency_symbol"])
         icon, title = escape(product.get("icon") or "⚡"), escape(product["title"])
         await self.notifier.send_admin(
-            "📦 <b>Stock Added (Restock Alert)</b>\n\n"
-            f"🏷️ <b>Product:</b> {icon} {title}\n"
-            f"➕ <b>Added:</b> <code>{added_count}</code> item(s)\n"
-            f"📊 <b>Total Live Stock:</b> <code>{product['stock']}</code> units\n"
-            f"💵 <b>Price:</b> <code>{symbol}{product['price']:.2f}</code>\n",
+            f"{ICON_ORDERS} <b>Stock Added (Restock Alert)</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{ICON_VIP} <b>Product:</b> {icon} {title}\n"
+            f"➕ <b>Added Stock:</b> <code>{added_count}</code> item(s)\n"
+            f"📦 <b>Total Stock:</b> <code>{product['stock']}</code> units\n"
+            f"{ICON_MONEY} <b>Price:</b> <code>{product['price']:.2f} {symbol}</code>\n"
+            f"━━━━━━━━━━━━━━━━━━",
             event="restock",
         )
         channel = values["announcement_channel"]
@@ -51,12 +64,15 @@ class AnnouncementService:
             return True
         return await self.notifier.send(
             channel,
-            f"⭐ <b>{added_count} Restocked {icon} {title}</b>\n\n"
-            f"✨ <b>Fresh batch:</b> <code>{added_count} accounts</code>\n"
+            f"{ICON_ORDERS} <b>Fresh Restock Alert!</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{ICON_VIP} <b>Product:</b> {icon} <b>{title}</b>\n"
+            f"{ICON_SPARKLES} <b>Fresh Stock:</b> <code>{added_count} units</code>\n"
             f"📦 <b>Available:</b> <code>{product['stock']} accounts</code>\n"
-            f"🏷️ <b>Price:</b> <code>{symbol}{product['price']:.2f}</code>\n"
-            "⭐ <b>Delivery:</b> Instant automatic delivery\n\n"
-            "<i>❗ Fresh stock is live now! Grab yours before it runs out.</i>",
+            f"{ICON_MONEY} <b>Price:</b> <code>{product['price']:.2f} {symbol}</code>\n"
+            f"{ICON_CHECK} <b>Delivery:</b> Instant Automatic Delivery\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"<i>Fresh stock is live now! Grab yours before it runs out.</i>",
             await self._buy_button(product, f"🛒 Buy {product['title']}"),
         )
 
@@ -73,11 +89,14 @@ class AnnouncementService:
         symbol = escape(values["currency_symbol"])
         return await self.notifier.send(
             channel,
-            "📉 <b>Price Drop!</b>\n\n"
-            f"{escape(product.get('icon') or '⚡')} <b>{escape(product['title'])}</b>\n"
-            f"💸 <b>Was:</b> <s>{symbol}{old_price:.2f}</s>\n"
-            f"🆙 <b>Now:</b> <b>{symbol}{new_price:.2f}</b>\n\n"
-            "<i>⚡ Grab it before gone, buy now!</i>",
+            f"{ICON_FIRE} <b>Special Price Drop!</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{ICON_VIP} <b>Product:</b> {escape(product.get('icon') or '⚡')} <b>{escape(product['title'])}</b>\n"
+            f"💸 <b>Previous Price:</b> <s>{old_price:.2f} {symbol}</s>\n"
+            f"{ICON_MONEY} <b>Discounted Price:</b> <code>{new_price:.2f} {symbol}</code>\n"
+            f"{ICON_CHECK} <b>Delivery:</b> Instant Automatic Delivery\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"<i>Limited time discount! Order now in the bot.</i>",
             await self._buy_button(product, f"🛒 Buy {product['title']} ↗"),
         )
 
@@ -88,13 +107,16 @@ class AnnouncementService:
         if not channel or not product:
             return False
         symbol = escape(values["currency_symbol"])
+        desc = f"\n📝 {escape(product.get('description'))}\n" if product.get("description") else ""
         return await self.notifier.send(
             channel,
-            f"🔥 <b>Featured: {escape(product.get('icon') or '⚡')} {escape(product['title'])}</b>\n\n"
-            f"📝 {escape(product.get('description') or '')}\n\n"
-            f"📦 <b>In Stock:</b> <code>{product['stock']} available</code>\n"
-            f"💰 <b>Price:</b> <code>{symbol}{product['price']:.2f}</code>\n"
-            "⚡ <b>Delivery:</b> Instant automatic delivery\n\n"
-            "<i>Tap below to order directly in the bot.</i>",
+            f"{ICON_FIRE} <b>Featured Product</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{ICON_VIP} <b>Product:</b> {escape(product.get('icon') or '⚡')} <b>{escape(product['title'])}</b>{desc}\n"
+            f"📦 <b>Available Stock:</b> <code>{product['stock']} units</code>\n"
+            f"{ICON_MONEY} <b>Price:</b> <code>{product['price']:.2f} {symbol}</code>\n"
+            f"{ICON_CHECK} <b>Delivery:</b> Instant Automatic Delivery\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"<i>Tap below to order directly in the bot.</i>",
             await self._buy_button(product, f"🛒 Order {product['title']}"),
         )

@@ -25,6 +25,15 @@ from app.services.audit import record
 from app.services.errors import InvalidInputError
 from app.services.notifications import Notifier
 from app.services.settings import SettingsService
+from app.bot.icons import (
+    ICON_ACCOUNT,
+    ICON_BALANCE,
+    ICON_CHECK,
+    ICON_DEPOSIT,
+    ICON_KEY,
+    ICON_MONEY,
+    ICON_WARNING,
+)
 
 logger = logging.getLogger("app.services.payments")
 
@@ -530,14 +539,21 @@ class PaymentService:
         credit = float(row["credit_amount"])
         await self.notifier.send(
             row["tg_user_id"],
-            f"✅ <b>Payment received</b>\n\n<b>{symbol}{credit:.2f}</b> has been added to your wallet.\n"
-            f"💰 <b>Balance:</b> <code>{symbol}{float(balance or 0):.2f}</code>",
+            f"{ICON_CHECK} <b>Payment Successful!</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{ICON_MONEY} <b>Credited:</b> <code>{credit:.2f} {symbol}</code>\n"
+            f"{ICON_BALANCE} <b>New Balance:</b> <code>{float(balance or 0):.2f} {symbol}</code>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"<i>Your wallet balance has been updated automatically.</i>",
         )
         await self.notifier.send_admin(
-            f"💳 <b>Automatic deposit #{deposit_id}</b>\n\n"
-            f"👤 User <code>{row['tg_user_id']}</code>\n"
-            f"💵 Credit {symbol}{credit:.2f} · paid {float(row['pay_amount']):.2f} {LOCAL_CURRENCY}\n"
-            f"💳 {escape(row['payment_method'] or 'ZiniPay')} · TrxID <code>{escape(row['provider_transaction_id'] or '')}</code>",
+            f"{ICON_DEPOSIT} <b>Automatic Deposit #{deposit_id}</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{ICON_ACCOUNT} <b>Customer:</b> <code>{row['tg_user_id']}</code>\n"
+            f"{ICON_MONEY} <b>Credit:</b> <code>{credit:.2f} {symbol}</code> (Paid {float(row['pay_amount']):.2f} {LOCAL_CURRENCY})\n"
+            f"{ICON_DEPOSIT} <b>Gateway:</b> {escape(row['payment_method'] or 'ZiniPay')}\n"
+            f"{ICON_KEY} <b>TrxID:</b> <code>{escape(row['provider_transaction_id'] or '')}</code>\n"
+            f"━━━━━━━━━━━━━━━━━━",
             event="payment",
         )
 

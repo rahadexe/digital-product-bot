@@ -11,6 +11,16 @@ from app.services.audit import record
 from app.services.errors import InvalidInputError
 from app.services.notifications import Notifier
 from app.services.settings import SettingsService
+from app.bot.icons import (
+    ICON_ACCOUNT,
+    ICON_BALANCE,
+    ICON_COIN,
+    ICON_DEPOSIT,
+    ICON_ID,
+    ICON_NOTE,
+    ICON_ORDERS,
+    ICON_SPENT,
+)
 
 STATS_COLUMNS = ("order_count", "completed_total", "referral_count", "referral_earnings")
 
@@ -56,10 +66,12 @@ class UserService:
                 full_name = escape(" ".join(filter(None, [first_name, last_name])) or "New User")
                 self.notifier.in_background(
                     self.notifier.send_admin(
-                        f"👤 <b>New Customer Joined</b>\n\n"
-                        f"Name: {full_name}\n"
-                        f"Username: {cust}\n"
-                        f"Telegram ID: <code>{tg_user_id}</code>",
+                        f"{ICON_ACCOUNT} <b>New Customer Joined</b>\n"
+                        f"━━━━━━━━━━━━━━━━━━\n"
+                        f"{ICON_ACCOUNT} <b>Name:</b> {full_name}\n"
+                        f"💬 <b>Username:</b> {cust}\n"
+                        f"{ICON_ID} <b>Telegram ID:</b> <code>{tg_user_id}</code>\n"
+                        f"━━━━━━━━━━━━━━━━━━",
                         event="new_user",
                     )
                 )
@@ -121,11 +133,12 @@ class UserService:
         self.notifier.in_background(
             self.notifier.send(
                 referrer_id,
-                f"🎉 <b>New Referral Bonus!</b>\n\n"
-                f"👤 <b>{joined_name}</b> joined using your referral link!\n"
-                f"💰 <b>Bonus Earned:</b> <code>+{reward_str}</code> (Credited to your wallet)\n\n"
-                f"Keep sharing your link to earn more!",
-                event="referral_reward",
+                f"{ICON_ORDERS} <b>Referral Bonus Received!</b>\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"{ICON_ACCOUNT} <b>Friend:</b> {joined_name}\n"
+                f"{ICON_COIN} <b>Bonus Credited:</b> <code>+{reward_str}</code>\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"<i>Bonus has been added directly to your wallet.</i>",
             )
         )
         return {"referrer_id": referrer_id, "amount": reward_amount}
@@ -223,13 +236,15 @@ class UserService:
 
     async def _notify_adjustment(self, tg_user_id: int, delta: float, balance: float, reason: str) -> None:
         symbol = escape(await self.settings.get("currency_symbol"))
-        action = "credited to" if delta >= 0 else "deducted from"
+        action_type = "Credit Added" if delta >= 0 else "Balance Deducted"
         await self.notifier.send(
             tg_user_id,
-            f"💳 <b>Balance Adjustment</b>\n\n"
-            f"An amount of <b>{symbol}{abs(delta):.2f}</b> was {action} your wallet.\n"
-            f"💰 <b>Current Balance:</b> <code>{symbol}{balance:.2f}</code>\n"
-            f"📝 <b>Reason:</b> {escape(reason or 'Admin adjustment')}",
+            f"{ICON_DEPOSIT} <b>Wallet Balance Updated</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{ICON_COIN} <b>{action_type}:</b> <code>{delta:+.2f} {symbol}</code>\n"
+            f"{ICON_BALANCE} <b>Current Balance:</b> <code>{balance:.2f} {symbol}</code>\n"
+            f"{ICON_NOTE} <b>Reason:</b> {escape(reason or 'Admin adjustment')}\n"
+            f"━━━━━━━━━━━━━━━━━━",
         )
 
     async def set_banned(self, tg_user_id: int, banned: bool | None = None) -> bool:
