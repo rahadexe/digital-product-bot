@@ -862,7 +862,18 @@ label.mini[aria-disabled='true'] { opacity: 0.45; cursor: not-allowed; }
   .scroll tbody td { display: block; padding: 0; border: 0; }
   .scroll tbody td:first-child { flex-basis: 100%; padding: 0; }
   .scroll tbody td:last-child { margin-inline-start: auto; padding: 0; }
-  .scroll tbody td.empty { flex-basis: 100%; padding: 14px 0; }
+  .scroll tbody td.empty,
+  tr.empty-row td,
+  td.empty {
+    flex-basis: 100% !important;
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    padding: 36px 14px !important;
+    color: var(--muted) !important;
+  }
   .scroll .key { max-width: calc(100vw - 80px); }
   .split .scroll tbody td:first-child { flex-basis: auto; flex: 1 1 60%; }
 
@@ -876,21 +887,41 @@ label.mini[aria-disabled='true'] { opacity: 0.45; cursor: not-allowed; }
     gap: 8px !important;
     padding: 12px 14px !important;
   }
-  .validities-table tbody td:first-child {
+  .validities-table tbody tr.empty-row,
+  .validities-table tbody tr:has(td.empty) {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    text-align: center !important;
+    width: 100% !important;
+    padding: 36px 14px !important;
+  }
+  .validities-table tbody tr.empty-row td,
+  .validities-table tbody td.empty {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    text-align: center !important;
+    width: 100% !important;
+    flex: 1 1 100% !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+  }
+  .validities-table tbody tr:not(.empty-row) td:first-child {
     flex: 1 1 auto !important;
     flex-basis: auto !important;
     min-width: 0 !important;
     display: flex !important;
     align-items: center !important;
   }
-  .validities-table tbody td:nth-child(2) {
+  .validities-table tbody tr:not(.empty-row) td:nth-child(2) {
     flex: 0 0 auto !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
     margin: 0 !important;
   }
-  .validities-table tbody td:last-child {
+  .validities-table tbody tr:not(.empty-row) td:last-child {
     flex: 0 0 auto !important;
     margin-inline-start: 0 !important;
     display: flex !important;

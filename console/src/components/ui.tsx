@@ -146,7 +146,7 @@ export function Pager({ total, offset, size, onChange }: { total: number; offset
 /** A table row that says there is nothing, spanning every column. */
 export function EmptyRow({ columns, children }: { columns: number; children: React.ReactNode }) {
   return (
-    <tr>
+    <tr className="empty-row">
       <td className="empty" colSpan={columns}>
         {children}
       </td>
