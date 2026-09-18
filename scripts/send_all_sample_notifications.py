@@ -88,11 +88,11 @@ async def send_all():
     order_link = f"{cfg.webhook_base_url or 'http://localhost:3000'}/#orders/1043"
     kb_manual = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="📦 Deliver Order #1043", url=order_link)]
+            [InlineKeyboardButton(text="Deliver Order #1043", url=order_link, icon_custom_emoji_id=Icons.ORDERS)]
         ]
     )
     notifications.append((
-        "2️⃣ [Admin Alert] Manual Order Action Required (Direct Fulfillment Link)",
+        "2️⃣ [Admin Alert] Manual Order Action Required (Direct Fulfillment Button)",
         (
             f"{ICON_TIMER} <b>Manual Order Action Required</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
@@ -100,8 +100,7 @@ async def send_all():
             f"{ICON_ACCOUNT} <b>Customer:</b> @rahadhasanrafi (<code>{TARGET_TG_ID}</code>)\n"
             f"{ICON_VIP} <b>Product:</b> Canva Pro Lifetime (Manual Invite)\n"
             f"{ICON_MONEY} <b>Price Paid:</b> <code>250.00 ৳</code>\n"
-            f"{ICON_WARNING} <b>Delivery:</b> Manual Fulfillment Required\n\n"
-            f"🔗 <b>Direct Link:</b> <a href=\"{order_link}\">Open Order #1043 in Admin Panel</a>"
+            f"{ICON_WARNING} <b>Delivery:</b> Manual Fulfillment Required"
         ),
         kb_manual
     ))
@@ -138,7 +137,7 @@ async def send_all():
     deposit_link = f"{cfg.webhook_base_url or 'http://localhost:3000'}/#deposits"
     kb_deposit = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="💳 Review Deposit #205", url=deposit_link)]
+            [InlineKeyboardButton(text="Review Deposit #205", url=deposit_link, icon_custom_emoji_id=Icons.DEPOSIT)]
         ]
     )
     notifications.append((
@@ -149,9 +148,7 @@ async def send_all():
             f"{ICON_ACCOUNT} <b>Customer:</b> @rahadhasanrafi (<code>{TARGET_TG_ID}</code>)\n"
             f"{ICON_DEPOSIT} <b>Method:</b> bKash Personal\n"
             f"{ICON_MONEY} <b>Credit Amount:</b> <code>500.00 ৳</code>\n"
-            f"{ICON_KEY} <b>Transaction ID:</b> <code>9X87K2L1P0</code>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"<i>Verify payment in provider wallet, then review in console.</i>"
+            f"{ICON_KEY} <b>Transaction ID:</b> <code>9X87K2L1P0</code>"
         ),
         kb_deposit
     ))
@@ -164,9 +161,7 @@ async def send_all():
             f"━━━━━━━━━━━━━━━━━━\n"
             f"{ICON_MONEY} <b>Amount Credited:</b> <code>500.00 ৳</code>\n"
             f"{ICON_DEPOSIT} <b>Payment Method:</b> bKash Personal\n"
-            f"{ICON_BALANCE} <b>Updated Balance:</b> <code>4930.00 ৳</code>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"<i>Your wallet is ready. Browse the Shop to place orders.</i>"
+            f"{ICON_BALANCE} <b>Updated Balance:</b> <code>4930.00 ৳</code>"
         ),
         None
     ))
@@ -180,7 +175,7 @@ async def send_all():
             f"{ICON_MONEY} <b>Requested Amount:</b> <code>500.00 ৳</code>\n"
             f"{ICON_NOTE} <b>Reason:</b> Transaction ID could not be found in bKash statement.\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"<i>If you believe this is an error, please contact Support with payment proof.</i>"
+            f"<i>ভুল মনে হলে পেমেন্ট প্রুফসহ সাপোর্টে যোগাযোগ করুন।</i>"
         ),
         None
     ))
@@ -192,9 +187,7 @@ async def send_all():
             f"{ICON_CHECK} <b>Payment Successful!</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"{ICON_MONEY} <b>Credited:</b> <code>1000.00 ৳</code>\n"
-            f"{ICON_BALANCE} <b>New Balance:</b> <code>5430.00 ৳</code>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"<i>Your wallet balance has been updated automatically.</i>"
+            f"{ICON_BALANCE} <b>New Balance:</b> <code>5430.00 ৳</code>"
         ),
         None
     ))
@@ -208,8 +201,7 @@ async def send_all():
             f"{ICON_ACCOUNT} <b>Customer:</b> <code>{TARGET_TG_ID}</code>\n"
             f"{ICON_MONEY} <b>Credit:</b> <code>1000.00 ৳</code> (Paid 1000.00 BDT)\n"
             f"{ICON_DEPOSIT} <b>Gateway:</b> bKash Auto (ZiniPay)\n"
-            f"{ICON_KEY} <b>TrxID:</b> <code>ZINI_98471209</code>\n"
-            f"━━━━━━━━━━━━━━━━━━"
+            f"{ICON_KEY} <b>TrxID:</b> <code>ZINI_98471209</code>"
         ),
         None
     ))
@@ -222,8 +214,7 @@ async def send_all():
             f"━━━━━━━━━━━━━━━━━━\n"
             f"{ICON_ACCOUNT} <b>Name:</b> Rahad Hasan\n"
             f"💬 <b>Username:</b> @rahadhasanrafi\n"
-            f"{ICON_ID} <b>Telegram ID:</b> <code>{TARGET_TG_ID}</code>\n"
-            f"━━━━━━━━━━━━━━━━━━"
+            f"{ICON_ID} <b>Telegram ID:</b> <code>{TARGET_TG_ID}</code>"
         ),
         None
     ))
@@ -235,9 +226,7 @@ async def send_all():
             f"{ICON_ORDERS} <b>Referral Bonus Received!</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"{ICON_ACCOUNT} <b>Friend:</b> Tanvir Ahmed\n"
-            f"{ICON_COIN} <b>Bonus Credited:</b> <code>+3.00 ৳</code>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"<i>Bonus has been added directly to your wallet.</i>"
+            f"{ICON_COIN} <b>Bonus Credited:</b> <code>+3.00 ৳</code>"
         ),
         None
     ))
@@ -250,8 +239,7 @@ async def send_all():
             f"━━━━━━━━━━━━━━━━━━\n"
             f"{ICON_COIN} <b>Credit Added:</b> <code>+100.00 ৳</code>\n"
             f"{ICON_BALANCE} <b>Current Balance:</b> <code>4530.00 ৳</code>\n"
-            f"{ICON_NOTE} <b>Note:</b> Promotional Referral Cashback\n"
-            f"━━━━━━━━━━━━━━━━━━"
+            f"{ICON_NOTE} <b>Reason:</b> Promotional Referral Cashback"
         ),
         None
     ))
@@ -265,8 +253,7 @@ async def send_all():
             f"{ICON_VIP} <b>Product:</b> 💎 Spotify 1 Month Family Member\n"
             f"➕ <b>Added Stock:</b> <code>50</code> item(s)\n"
             f"📦 <b>Total Stock:</b> <code>75</code> units\n"
-            f"{ICON_MONEY} <b>Price:</b> <code>99.00 ৳</code>\n"
-            f"━━━━━━━━━━━━━━━━━━"
+            f"{ICON_MONEY} <b>Price:</b> <code>99.00 ৳</code>"
         ),
         None
     ))
@@ -274,7 +261,7 @@ async def send_all():
     # 14. Channel Post: Fresh Product Restock Alert
     kb_buy = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🛒 Buy Spotify 1 Month", url=f"https://t.me/{me.username}?start=prod_1")]
+            [InlineKeyboardButton(text="Buy Spotify 1 Month", url=f"https://t.me/{me.username}?start=prod_1", icon_custom_emoji_id=Icons.CART)]
         ]
     )
     notifications.append((
@@ -286,9 +273,7 @@ async def send_all():
             f"{ICON_SPARKLES} <b>Fresh Stock:</b> <code>50 units</code>\n"
             f"📦 <b>Available:</b> <code>75 accounts</code>\n"
             f"{ICON_MONEY} <b>Price:</b> <code>99.00 ৳</code>\n"
-            f"{ICON_CHECK} <b>Delivery:</b> Instant Automatic Delivery\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"<i>Fresh stock is live now! Grab yours before it runs out.</i>"
+            f"{ICON_CHECK} <b>Delivery:</b> Instant Automatic Delivery"
         ),
         kb_buy
     ))
@@ -302,13 +287,11 @@ async def send_all():
             f"{ICON_VIP} <b>Product:</b> ⚡ <b>ChatGPT Plus 1 Month Private</b>\n"
             f"💸 <b>Previous Price:</b> <s>2500.00 ৳</s>\n"
             f"{ICON_MONEY} <b>Discounted Price:</b> <code>2100.00 ৳</code>\n"
-            f"{ICON_CHECK} <b>Delivery:</b> Instant Automatic Delivery\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"<i>Limited time discount! Order now in the bot.</i>"
+            f"{ICON_CHECK} <b>Delivery:</b> Instant Automatic Delivery"
         ),
         InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(text="🛒 Buy ChatGPT Plus ↗", url=f"https://t.me/{me.username}?start=prod_2")]
+                [InlineKeyboardButton(text="Buy ChatGPT Plus", url=f"https://t.me/{me.username}?start=prod_2", icon_custom_emoji_id=Icons.CART)]
             ]
         )
     ))
@@ -323,35 +306,18 @@ async def send_all():
             f"📝 Ultra-fast servers in 94 countries, unlimited bandwidth, high privacy.\n"
             f"📦 <b>Available Stock:</b> <code>12 units</code>\n"
             f"{ICON_MONEY} <b>Price:</b> <code>1200.00 ৳</code>\n"
-            f"{ICON_CHECK} <b>Delivery:</b> Instant Automatic Delivery\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"<i>Tap below to order directly in the bot.</i>"
+            f"{ICON_CHECK} <b>Delivery:</b> Instant Automatic Delivery"
         ),
         InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(text="🛒 Order ExpressVPN", url=f"https://t.me/{me.username}?start=prod_3")]
+                [InlineKeyboardButton(text="Order ExpressVPN", url=f"https://t.me/{me.username}?start=prod_3", icon_custom_emoji_id=Icons.CART)]
             ]
         )
     ))
 
-    # 17. Admin Alert: System / Supplier / Payment Error
+    # 17. Customer Notice: Force Join Channel Gate
     notifications.append((
-        "1️⃣7️⃣ [Admin Alert] System / Supplier API / Gateway Error",
-        (
-            f"{ICON_WARNING} <b>Supplier Fulfillment Warning</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"{ICON_ORDERS} <b>Order ID:</b> <code>#1044</code>\n"
-            f"{ICON_VIP} <b>Product:</b> Telegram Premium 3 Months\n"
-            f"⚠️ <b>Error:</b> Supplier API balance insufficient (requires $12.50, current $3.20)\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"<i>Order was automatically converted to Manual Fulfillment. Please deliver manually or recharge supplier.</i>"
-        ),
-        None
-    ))
-
-    # 18. Customer Notice: Force Join Channel Gate
-    notifications.append((
-        "1️⃣8️⃣ [Customer Gate] Mandatory Force Join Channel Verification",
+        "1️⃣7️⃣ [Customer Gate] Mandatory Force Join Channel Verification",
         (
             f"{ICON_CHANNEL} <b>Join Our Channels to Continue</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
@@ -381,7 +347,7 @@ async def send_all():
     # Send each one with a small delay
     total = len(notifications)
     for idx, (label, text, kb) in enumerate(notifications, 1):
-        header = f"<b>📌 PREVIEW {idx}/{total}:</b> {label}\n"
+        header = f"<b>PREVIEW {idx}/{total}:</b> {label}\n"
         full_text = f"{header}\n{text}"
         try:
             await bot.send_message(
@@ -397,10 +363,12 @@ async def send_all():
     await bot.send_message(
         chat_id=TARGET_TG_ID,
         text=(
-            "✅ <b>সকল নোটিফিকেশন সফলভাবে পাঠানো সম্পন্ন হয়েছে!</b>\n"
+            "✅ <b>সকল নোটিফিকেশন সফলভাবে আপডেট করে পাঠানো সম্পন্ন হয়েছে!</b>\n"
             "━━━━━━━━━━━━━━━━━━\n"
-            "মোট ১৮ ধরনের নোটিফিকেশন (অ্যাডমিন অ্যালার্ট, কাস্টমার রিসিট, ডিপোজিট, পেমেন্ট, রেফারেল, রিস্টক, প্রমোশন, এরর এবং গেট) উপরে পাঠানো হয়েছে।\n"
-            "আপনি প্রত্যেকটি মেসেজ পর্যবেক্ষণ করে জানাতে পারেন কোনটির ডিজাইন, টেক্সট বা আইকন আরও পরিবর্তন করতে চান কিনা।"
+            "• ম্যানুয়াল অর্ডার ও ডিপোজিট নোটিফিকেশন থেকে টেক্সট লিংক রিমুভ করে সরাসরি কাস্টম ইমোজি যুক্ত বাটন দেওয়া হয়েছে।\n"
+            "• চ্যানেল রিস্টক ও অফার পোস্টগুলোতে সাধারণ কার্টের বদলে প্রিমিয়াম থ্রিডি কার্ট ইমোজি ও সরাসরি বাই ডিপলিংক যুক্ত করা হয়েছে।\n"
+            "• অপ্রয়োজনীয় টেক্সটগুলো সম্পূর্ণ রিমুভ করে কার্ডগুলোকে ক্লিন ও আধুনিক করা হয়েছে।\n"
+            "• কোনো সাপ্লায়ার নোটিফিকেশন রাখা হয়নি।"
         ),
     )
     print("Done sending all notifications!")

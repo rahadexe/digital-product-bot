@@ -70,8 +70,7 @@ class UserService:
                         f"━━━━━━━━━━━━━━━━━━\n"
                         f"{ICON_ACCOUNT} <b>Name:</b> {full_name}\n"
                         f"💬 <b>Username:</b> {cust}\n"
-                        f"{ICON_ID} <b>Telegram ID:</b> <code>{tg_user_id}</code>\n"
-                        f"━━━━━━━━━━━━━━━━━━",
+                        f"{ICON_ID} <b>Telegram ID:</b> <code>{tg_user_id}</code>",
                         event="new_user",
                     )
                 )
@@ -136,9 +135,7 @@ class UserService:
                 f"{ICON_ORDERS} <b>Referral Bonus Received!</b>\n"
                 f"━━━━━━━━━━━━━━━━━━\n"
                 f"{ICON_ACCOUNT} <b>Friend:</b> {joined_name}\n"
-                f"{ICON_COIN} <b>Bonus Credited:</b> <code>+{reward_str}</code>\n"
-                f"━━━━━━━━━━━━━━━━━━\n"
-                f"<i>Bonus has been added directly to your wallet.</i>",
+                f"{ICON_COIN} <b>Bonus Credited:</b> <code>+{reward_str}</code>",
             )
         )
         return {"referrer_id": referrer_id, "amount": reward_amount}
@@ -243,8 +240,7 @@ class UserService:
             f"━━━━━━━━━━━━━━━━━━\n"
             f"{ICON_COIN} <b>{action_type}:</b> <code>{delta:+.2f} {symbol}</code>\n"
             f"{ICON_BALANCE} <b>Current Balance:</b> <code>{balance:.2f} {symbol}</code>\n"
-            f"{ICON_NOTE} <b>Reason:</b> {escape(reason or 'Admin adjustment')}\n"
-            f"━━━━━━━━━━━━━━━━━━",
+            f"{ICON_NOTE} <b>Reason:</b> {escape(reason or 'Admin adjustment')}",
         )
 
     async def set_banned(self, tg_user_id: int, banned: bool | None = None) -> bool:

@@ -34,7 +34,17 @@ class AnnouncementService:
 
     async def _buy_button(self, product: dict[str, Any], label: str) -> InlineKeyboardMarkup:
         link = f"https://t.me/{await self.notifier.bot_username()}?start=prod_{product['id']}"
-        return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=label[:64], url=link, style="success")]])
+        return InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text=label[:64],
+                        url=link,
+                        icon_custom_emoji_id=Icons.CART,
+                    )
+                ]
+            ]
+        )
 
     async def _active_product(self, product_id: int) -> dict[str, Any] | None:
         if not self.notifier.bot:
@@ -55,8 +65,7 @@ class AnnouncementService:
             f"{ICON_VIP} <b>Product:</b> {icon} {title}\n"
             f"➕ <b>Added Stock:</b> <code>{added_count}</code> item(s)\n"
             f"📦 <b>Total Stock:</b> <code>{product['stock']}</code> units\n"
-            f"{ICON_MONEY} <b>Price:</b> <code>{product['price']:.2f} {symbol}</code>\n"
-            f"━━━━━━━━━━━━━━━━━━",
+            f"{ICON_MONEY} <b>Price:</b> <code>{product['price']:.2f} {symbol}</code>",
             event="restock",
         )
         channel = values["announcement_channel"]
@@ -70,10 +79,8 @@ class AnnouncementService:
             f"{ICON_SPARKLES} <b>Fresh Stock:</b> <code>{added_count} units</code>\n"
             f"📦 <b>Available:</b> <code>{product['stock']} accounts</code>\n"
             f"{ICON_MONEY} <b>Price:</b> <code>{product['price']:.2f} {symbol}</code>\n"
-            f"{ICON_CHECK} <b>Delivery:</b> Instant Automatic Delivery\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"<i>Fresh stock is live now! Grab yours before it runs out.</i>",
-            await self._buy_button(product, f"🛒 Buy {product['title']}"),
+            f"{ICON_CHECK} <b>Delivery:</b> Instant Automatic Delivery",
+            await self._buy_button(product, f"Buy {product['title']}"),
         )
 
     async def price_drop(self, product_id: int, old_price: float, new_price: float) -> bool:
@@ -94,10 +101,8 @@ class AnnouncementService:
             f"{ICON_VIP} <b>Product:</b> {escape(product.get('icon') or '⚡')} <b>{escape(product['title'])}</b>\n"
             f"💸 <b>Previous Price:</b> <s>{old_price:.2f} {symbol}</s>\n"
             f"{ICON_MONEY} <b>Discounted Price:</b> <code>{new_price:.2f} {symbol}</code>\n"
-            f"{ICON_CHECK} <b>Delivery:</b> Instant Automatic Delivery\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"<i>Limited time discount! Order now in the bot.</i>",
-            await self._buy_button(product, f"🛒 Buy {product['title']} ↗"),
+            f"{ICON_CHECK} <b>Delivery:</b> Instant Automatic Delivery",
+            await self._buy_button(product, f"Buy {product['title']}"),
         )
 
     async def promote(self, product_id: int) -> bool:
@@ -115,8 +120,6 @@ class AnnouncementService:
             f"{ICON_VIP} <b>Product:</b> {escape(product.get('icon') or '⚡')} <b>{escape(product['title'])}</b>{desc}\n"
             f"📦 <b>Available Stock:</b> <code>{product['stock']} units</code>\n"
             f"{ICON_MONEY} <b>Price:</b> <code>{product['price']:.2f} {symbol}</code>\n"
-            f"{ICON_CHECK} <b>Delivery:</b> Instant Automatic Delivery\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"<i>Tap below to order directly in the bot.</i>",
-            await self._buy_button(product, f"🛒 Order {product['title']}"),
+            f"{ICON_CHECK} <b>Delivery:</b> Instant Automatic Delivery",
+            await self._buy_button(product, f"Order {product['title']}"),
         )

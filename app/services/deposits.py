@@ -31,6 +31,7 @@ from app.bot.icons import (
     ICON_MONEY,
     ICON_NOTE,
     ICON_WARNING,
+    Icons,
 )
 
 TRANSACTION_ID = re.compile(r"[A-Za-z0-9_\-]{6,80}")
@@ -274,8 +275,9 @@ class DepositService:
             inline_keyboard=[
                 [
                     InlineKeyboardButton(
-                        text=f"💳 Review Deposit #{deposit_id}",
+                        text=f"Review Deposit #{deposit_id}",
                         url=deposit_link,
+                        icon_custom_emoji_id=Icons.DEPOSIT,
                     )
                 ]
             ]
@@ -287,9 +289,7 @@ class DepositService:
             f"{ICON_ACCOUNT} <b>Customer:</b> {customer} (<code>{tg_user_id}</code>)\n"
             f"{ICON_DEPOSIT} <b>Method:</b> {escape(quote['method_name'])}\n"
             f"{ICON_MONEY} <b>Credit Amount:</b> <code>{quote['amount']:.2f} {symbol}</code>{payable}\n"
-            f"{ICON_KEY} <b>Transaction ID:</b> <code>{escape(transaction_id)}</code>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"<i>Verify payment in provider wallet, then review in console.</i>",
+            f"{ICON_KEY} <b>Transaction ID:</b> <code>{escape(transaction_id)}</code>",
             event="deposit",
             keyboard=keyboard,
         )
@@ -404,9 +404,7 @@ class DepositService:
                     f"━━━━━━━━━━━━━━━━━━\n"
                     f"{ICON_MONEY} <b>Amount Credited:</b> <code>{amount:.2f} {symbol}</code>\n"
                     f"{ICON_DEPOSIT} <b>Payment Method:</b> {method_name}\n"
-                    f"{ICON_BALANCE} <b>Updated Balance:</b> <code>{details['new_balance']:.2f} {symbol}</code>\n"
-                    f"━━━━━━━━━━━━━━━━━━\n"
-                    f"<i>Your wallet is ready. Browse the Shop to place orders.</i>"
+                    f"{ICON_BALANCE} <b>Updated Balance:</b> <code>{details['new_balance']:.2f} {symbol}</code>"
                 ),
             )
         )
@@ -440,7 +438,7 @@ class DepositService:
                     f"{ICON_MONEY} <b>Requested Amount:</b> <code>{amount:.2f} {symbol}</code>\n"
                     f"{ICON_NOTE} <b>Reason:</b> {escape(admin_note)}\n"
                     f"━━━━━━━━━━━━━━━━━━\n"
-                    f"<i>If you believe this is an error, please contact Support with payment proof.</i>"
+                    f"<i>ভুল মনে হলে পেমেন্ট প্রুফসহ সাপোর্টে যোগাযোগ করুন।</i>"
                 ),
             )
         )

@@ -542,9 +542,7 @@ class PaymentService:
             f"{ICON_CHECK} <b>Payment Successful!</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"{ICON_MONEY} <b>Credited:</b> <code>{credit:.2f} {symbol}</code>\n"
-            f"{ICON_BALANCE} <b>New Balance:</b> <code>{float(balance or 0):.2f} {symbol}</code>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"<i>Your wallet balance has been updated automatically.</i>",
+            f"{ICON_BALANCE} <b>New Balance:</b> <code>{float(balance or 0):.2f} {symbol}</code>",
         )
         await self.notifier.send_admin(
             f"{ICON_DEPOSIT} <b>Automatic Deposit #{deposit_id}</b>\n"
@@ -552,8 +550,7 @@ class PaymentService:
             f"{ICON_ACCOUNT} <b>Customer:</b> <code>{row['tg_user_id']}</code>\n"
             f"{ICON_MONEY} <b>Credit:</b> <code>{credit:.2f} {symbol}</code> (Paid {float(row['pay_amount']):.2f} {LOCAL_CURRENCY})\n"
             f"{ICON_DEPOSIT} <b>Gateway:</b> {escape(row['payment_method'] or 'ZiniPay')}\n"
-            f"{ICON_KEY} <b>TrxID:</b> <code>{escape(row['provider_transaction_id'] or '')}</code>\n"
-            f"━━━━━━━━━━━━━━━━━━",
+            f"{ICON_KEY} <b>TrxID:</b> <code>{escape(row['provider_transaction_id'] or '')}</code>",
             event="payment",
         )
 

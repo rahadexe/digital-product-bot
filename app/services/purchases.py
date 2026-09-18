@@ -30,6 +30,7 @@ from app.bot.icons import (
     ICON_TIMER,
     ICON_VIP,
     ICON_WARNING,
+    Icons,
 )
 from app.core.config import get_settings
 
@@ -199,16 +200,14 @@ class PurchaseService:
         keyboard = None
         if waiting_reason:
             heading = f"{ICON_TIMER} <b>Manual Order Action Required</b>"
-            delivery = (
-                f"{ICON_WARNING} <b>Delivery:</b> Manual Fulfillment Required\n\n"
-                f"🔗 <b>Direct Link:</b> <a href=\"{order_link}\">Open Order #{order_id} in Admin Panel</a>"
-            )
+            delivery = f"{ICON_WARNING} <b>Delivery:</b> Manual Fulfillment Required"
             keyboard = InlineKeyboardMarkup(
                 inline_keyboard=[
                     [
                         InlineKeyboardButton(
-                            text=f"📦 Deliver Order #{order_id}",
+                            text=f"Deliver Order #{order_id}",
                             url=order_link,
+                            icon_custom_emoji_id=Icons.ORDERS,
                         )
                     ]
                 ]
