@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { Check, Search, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Check, ChevronDown, Search, X } from 'lucide-react';
 
 export interface EmojiItem {
   name: string;
@@ -33,11 +33,14 @@ interface EmojiPickerProps {
 }
 
 export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
+  const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const trimmedValue = value.trim();
 
-  // Find currently matched preset if any
+  // Matched preset item if any
   const matchedPreset = useMemo(() => {
     if (!trimmedValue) return null;
     return PRESET_EMOJIS.find((p) => p.id === trimmedValue);
@@ -52,155 +55,283 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
     );
   }, [search]);
 
-  return (
-    <div className="emoji-picker-container" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-      {/* Header with Title, Selected Badge & Clear Button */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>
-            VPN Custom Emoji
-          </span>
-          <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 'normal' }}>
-            (1-Click Select)
-          </span>
-        </div>
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
 
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen]);
+
+  // Focus search input when opening
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 50);
+    } else {
+      setSearch('');
+    }
+  }, [isOpen]);
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
+      {/* Label */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>
+          VPN Custom Emoji <small style={{ color: 'var(--muted)', fontWeight: 'normal' }}>(Optional)</small>
+        </span>
         {trimmedValue ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '5px',
-                fontSize: '11px',
-                padding: '2px 8px',
-                borderRadius: '999px',
-                background: 'var(--accent-soft)',
-                color: 'var(--accent)',
-                fontWeight: 600,
-                border: '1px solid rgba(15, 118, 110, 0.25)',
-              }}
-            >
-              <span>{matchedPreset ? matchedPreset.icon : '✨'}</span>
-              <span>{matchedPreset ? matchedPreset.name : 'Custom ID'}</span>
-            </span>
-            <button
-              type="button"
-              className="mini ghost"
-              style={{
-                fontSize: '11px',
-                color: 'var(--danger)',
-                padding: '2px 6px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '2px',
-              }}
-              onClick={() => onChange('')}
-              title="Clear Emoji"
-            >
-              <X size={12} /> Clear
-            </button>
-          </div>
+          <button
+            type="button"
+            className="mini ghost"
+            style={{ fontSize: '11px', color: 'var(--danger)', padding: '0 4px', display: 'inline-flex', alignItems: 'center', gap: '2px' }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onChange('');
+            }}
+          >
+            <X size={12} /> Clear
+          </button>
         ) : null}
       </div>
 
-      {/* Quick Search */}
-      <div style={{ position: 'relative', width: '100%' }}>
-        <Search
-          size={13}
-          style={{
-            position: 'absolute',
-            left: 9,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            color: 'var(--muted)',
-            pointerEvents: 'none',
-          }}
-        />
-        <input
-          type="text"
-          placeholder="Filter VPN icons (e.g. Nord, Surfshark, Proton)..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{
-            padding: '5px 8px 5px 28px',
-            fontSize: '12px',
-            borderRadius: '6px',
-            width: '100%',
-          }}
-        />
-      </div>
-
-      {/* 1-Click VPN Emoji Grid */}
-      <div
+      {/* Dropdown Trigger Button */}
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
         style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
-          gap: '6px',
-          maxHeight: '160px',
-          overflowY: 'auto',
-          padding: '6px',
-          background: 'var(--surface-2)',
-          border: '1px solid var(--border)',
-          borderRadius: '8px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          width: '100%',
+          height: '38px',
+          padding: '0 12px',
+          background: 'var(--surface)',
+          border: isOpen ? '1px solid var(--accent)' : '1px solid var(--border)',
+          borderRadius: 'var(--radius-sm)',
+          color: trimmedValue ? 'var(--text)' : 'var(--muted)',
+          fontSize: '13px',
+          cursor: 'pointer',
+          outline: 'none',
+          boxShadow: isOpen ? '0 0 0 2px var(--accent-soft)' : 'none',
+          transition: 'border-color 150ms ease, box-shadow 150ms ease',
         }}
       >
-        {filteredEmojis.map((item) => {
-          const isSelected = trimmedValue === item.id;
-          return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+          {matchedPreset ? (
+            <>
+              <span style={{ fontSize: '16px', lineHeight: 1 }}>{matchedPreset.icon}</span>
+              <strong style={{ color: 'var(--text)', fontWeight: 600 }}>{matchedPreset.name}</strong>
+              <code style={{ fontSize: '11px', color: 'var(--muted)', background: 'var(--surface-2)', padding: '1px 5px', borderRadius: '4px' }}>
+                {matchedPreset.id.slice(-6)}…
+              </code>
+            </>
+          ) : trimmedValue ? (
+            <>
+              <span style={{ fontSize: '15px' }}>✨</span>
+              <span style={{ color: 'var(--text)' }}>Custom ID: {trimmedValue}</span>
+            </>
+          ) : (
+            <span style={{ color: 'var(--muted)' }}>Select VPN Emoji…</span>
+          )}
+        </div>
+
+        <ChevronDown
+          size={16}
+          style={{
+            color: 'var(--muted)',
+            transition: 'transform 180ms ease',
+            transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+            flexShrink: 0,
+          }}
+        />
+      </button>
+
+      {/* Floating Dropdown Popover */}
+      {isOpen && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 4px)',
+            left: 0,
+            right: 0,
+            zIndex: 100,
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            boxShadow: 'var(--shadow-raised)',
+            padding: '8px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            maxHeight: '280px',
+            animation: 'rise-in 140ms ease',
+          }}
+        >
+          {/* Search Bar inside Dropdown */}
+          <div style={{ position: 'relative', width: '100%' }}>
+            <Search
+              size={13}
+              style={{
+                position: 'absolute',
+                left: 9,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: 'var(--muted)',
+                pointerEvents: 'none',
+              }}
+            />
+            <input
+              ref={searchInputRef}
+              type="text"
+              placeholder="Search VPN (Nord, Express, Surfshark)..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{
+                width: '100%',
+                height: '30px',
+                padding: '4px 8px 4px 28px',
+                fontSize: '12px',
+                borderRadius: '6px',
+                background: 'var(--surface-2)',
+                border: '1px solid var(--line-strong)',
+              }}
+            />
+          </div>
+
+          {/* Options List */}
+          <div
+            style={{
+              overflowY: 'auto',
+              maxHeight: '160px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '2px',
+            }}
+          >
+            {/* Clear / Default Option */}
             <button
-              key={item.id}
               type="button"
-              onClick={() => onChange(isSelected ? '' : item.id)}
+              onClick={() => {
+                onChange('');
+                setIsOpen(false);
+              }}
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px',
-                padding: '6px 8px',
+                justifyContent: 'space-between',
+                padding: '6px 10px',
                 fontSize: '12px',
-                fontWeight: isSelected ? 600 : 500,
-                textAlign: 'left',
                 borderRadius: '6px',
-                background: isSelected ? 'var(--accent-soft)' : 'var(--surface)',
-                color: isSelected ? 'var(--accent)' : 'var(--text)',
-                border: isSelected ? '1px solid var(--accent)' : '1px solid var(--line-strong)',
+                border: 'none',
+                background: !trimmedValue ? 'var(--accent-soft)' : 'transparent',
+                color: !trimmedValue ? 'var(--accent)' : 'var(--muted)',
                 cursor: 'pointer',
-                transition: 'all 0.15s ease',
+                textAlign: 'left',
               }}
-              title={`${item.name} (${item.id})`}
             >
-              <span style={{ fontSize: '14px', lineHeight: 1 }}>{item.icon}</span>
-              <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {item.name}
-              </span>
-              {isSelected ? <Check size={12} style={{ color: 'var(--accent)', flexShrink: 0 }} /> : null}
+              <span>None (Standard Icon)</span>
+              {!trimmedValue ? <Check size={13} /> : null}
             </button>
-          );
-        })}
 
-        {filteredEmojis.length === 0 ? (
-          <div style={{ gridColumn: '1 / -1', padding: '12px', textAlign: 'center', color: 'var(--muted)', fontSize: '12px' }}>
-            No VPN matches &quot;{search}&quot;
+            {filteredEmojis.map((item) => {
+              const isSelected = trimmedValue === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    onChange(item.id);
+                    setIsOpen(false);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '6px 10px',
+                    fontSize: '12.5px',
+                    fontWeight: isSelected ? 600 : 500,
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: isSelected ? 'var(--accent-soft)' : 'transparent',
+                    color: isSelected ? 'var(--accent)' : 'var(--text)',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'background 100ms ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isSelected) e.currentTarget.style.background = 'var(--surface-2)';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isSelected) e.currentTarget.style.background = 'transparent';
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '15px', lineHeight: 1 }}>{item.icon}</span>
+                    <span>{item.name}</span>
+                  </div>
+                  {isSelected ? <Check size={14} style={{ color: 'var(--accent)' }} /> : null}
+                </button>
+              );
+            })}
+
+            {filteredEmojis.length === 0 ? (
+              <div style={{ padding: '8px', textAlign: 'center', fontSize: '12px', color: 'var(--muted)' }}>
+                No VPN matches &quot;{search}&quot;
+              </div>
+            ) : null}
           </div>
-        ) : null}
-      </div>
 
-      {/* Manual ID Input (Fallback for any custom ID) */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <input
-          type="text"
-          placeholder="e.g. 5796345694969140339 (or paste custom Telegram Emoji ID)"
-          value={value}
-          onChange={(e) => onChange(e.target.value.trim())}
-          style={{
-            fontSize: '12px',
-            padding: '6px 10px',
-            borderRadius: '6px',
-            fontFamily: 'var(--mono)',
-            flex: 1,
-          }}
-        />
-      </div>
+          {/* Custom ID input at bottom */}
+          <div
+            style={{
+              borderTop: '1px solid var(--line)',
+              paddingTop: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <input
+              type="text"
+              placeholder="Or paste custom Telegram ID..."
+              value={trimmedValue}
+              onChange={(e) => onChange(e.target.value.trim())}
+              style={{
+                flex: 1,
+                height: '28px',
+                fontSize: '11px',
+                padding: '2px 8px',
+                borderRadius: '4px',
+                fontFamily: 'var(--mono)',
+              }}
+            />
+            {trimmedValue && !matchedPreset ? (
+              <button
+                type="button"
+                className="mini btn"
+                style={{ fontSize: '11px', height: '28px', padding: '0 8px' }}
+                onClick={() => setIsOpen(false)}
+              >
+                Done
+              </button>
+            ) : null}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

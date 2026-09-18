@@ -360,6 +360,13 @@ function ProductForm({
         <input type="text" required placeholder="⚡ Gemini Pro" value={form.title} onChange={(event) => set({ title: event.target.value })} />
       </label>
 
+      <div className="field">
+        <EmojiPicker
+          value={form.custom_emoji_id}
+          onChange={(id) => set({ custom_emoji_id: id })}
+        />
+      </div>
+
       <label className="field">
         <span>Category <small style={{ color: 'var(--muted)', fontWeight: 'normal' }}>(Optional)</small></span>
         <select
@@ -424,13 +431,6 @@ function ProductForm({
           </div>
         ) : null}
       </label>
-
-      <div className="field">
-        <EmojiPicker
-          value={form.custom_emoji_id}
-          onChange={(id) => set({ custom_emoji_id: id })}
-        />
-      </div>
 
       <div className="field">
         <span>Delivery Method</span>
