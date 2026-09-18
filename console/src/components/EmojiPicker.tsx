@@ -154,7 +154,7 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
           type="text"
           className="emoji-combobox-field"
           value={displayValue}
-          placeholder="Select VPN Emoji or paste custom ID..."
+          placeholder="Select icon or enter custom ID..."
           onFocus={() => {
             setIsOpen(true);
           }}
