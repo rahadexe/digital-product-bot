@@ -17,6 +17,7 @@ export interface CustomSelectProps {
   placeholder?: string;
   style?: React.CSSProperties;
   className?: string;
+  width?: number | string;
   minWidth?: number | string;
   maxWidth?: number | string;
   searchable?: boolean;
@@ -30,7 +31,8 @@ export function CustomSelect({
   placeholder = 'Select...',
   style,
   className = '',
-  minWidth = 170,
+  width,
+  minWidth = 180,
   maxWidth,
   searchable = false,
   align = 'left',
@@ -85,8 +87,10 @@ export function CustomSelect({
       style={{
         position: 'relative',
         display: 'inline-block',
+        width: width,
         minWidth: minWidth,
         maxWidth: maxWidth,
+        flexShrink: 0,
         userSelect: 'none',
         ...style,
       }}
@@ -102,7 +106,7 @@ export function CustomSelect({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: '8px',
+          gap: '10px',
           background: 'var(--surface)',
           border: `1px solid ${isOpen ? 'var(--accent)' : 'var(--border)'}`,
           borderRadius: '8px',
@@ -117,7 +121,7 @@ export function CustomSelect({
           transition: 'all 0.15s ease',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', minWidth: 0, flex: 1 }}>
           {selectedOption?.icon && (
             <span style={{ display: 'inline-flex', alignItems: 'center', color: 'var(--accent)', flexShrink: 0 }}>
               {selectedOption.icon}
@@ -133,7 +137,6 @@ export function CustomSelect({
           style={{
             color: 'var(--muted)',
             flexShrink: 0,
-            marginLeft: '6px',
             transition: 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
             transform: isOpen ? 'rotate(180deg)' : 'none',
           }}
@@ -146,14 +149,14 @@ export function CustomSelect({
             position: 'absolute',
             top: 'calc(100% + 5px)',
             [align === 'right' ? 'right' : 'left']: 0,
-            minWidth: 'max(100%, 220px)',
+            minWidth: '100%',
             width: 'max-content',
-            maxWidth: '340px',
-            maxHeight: '360px',
+            maxWidth: '380px',
+            maxHeight: '400px',
             background: 'var(--surface)',
             border: '1px solid var(--border)',
             borderRadius: '10px',
-            boxShadow: '0 10px 30px -4px rgba(24, 33, 30, 0.14), 0 4px 12px -2px rgba(24, 33, 30, 0.06)',
+            boxShadow: '0 12px 36px -4px rgba(0, 0, 0, 0.16), 0 4px 12px -2px rgba(0, 0, 0, 0.06)',
             padding: '5px',
             zIndex: 1000,
             display: 'flex',
@@ -197,7 +200,7 @@ export function CustomSelect({
           <div
             style={{
               overflowY: 'auto',
-              maxHeight: searchable ? '220px' : '260px',
+              maxHeight: searchable ? '280px' : '340px',
               padding: '2px 0',
             }}
           >
@@ -220,8 +223,8 @@ export function CustomSelect({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      gap: '10px',
-                      padding: '8px 10px',
+                      gap: '14px',
+                      padding: '8px 12px',
                       borderRadius: '6px',
                       fontSize: '13px',
                       cursor: 'pointer',
@@ -229,6 +232,7 @@ export function CustomSelect({
                       color: isSelected ? 'var(--accent)' : 'var(--text)',
                       background: isSelected ? 'var(--accent-soft)' : 'transparent',
                       transition: 'background-color 0.12s ease',
+                      whiteSpace: 'nowrap',
                     }}
                     onMouseEnter={(e) => {
                       if (!isSelected) e.currentTarget.style.backgroundColor = 'var(--surface-2)';
@@ -237,23 +241,23 @@ export function CustomSelect({
                       if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                       {opt.icon && (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', color: isSelected ? 'var(--accent)' : 'var(--muted)' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', color: isSelected ? 'var(--accent)' : 'var(--muted)', flexShrink: 0 }}>
                           {opt.icon}
                         </span>
                       )}
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span style={{ whiteSpace: 'nowrap' }}>
                         {opt.label}
                       </span>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                       {opt.badge !== undefined && (
                         <span
                           style={{
                             fontSize: '11px',
-                            padding: '1px 6px',
+                            padding: '1.5px 7px',
                             borderRadius: '10px',
                             background: isSelected ? 'rgba(15, 118, 110, 0.15)' : 'var(--surface-2)',
                             color: isSelected ? 'var(--accent)' : 'var(--muted)',

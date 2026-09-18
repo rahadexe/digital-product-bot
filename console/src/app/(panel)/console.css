@@ -457,6 +457,7 @@ select {
 .filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .filters input { width: 240px; }
 .filters select { width: auto; min-width: 150px; }
+.filters .custom-select-container { flex-shrink: 0; }
 
 .btn {
   display: inline-flex;
@@ -783,7 +784,7 @@ select {
   th:last-child, td:last-child { padding-inline-end: 14px; }
   table { min-width: 620px; }
   .key { max-width: 220px; }
-  .filters, .filters input, .filters select { width: 100%; }
+  .filters, .filters input, .filters select, .filters .custom-select-container { width: 100%; }
   .attention { flex-direction: column; align-items: flex-start; }
   .quick-links, .state-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .quick-link { min-height: 104px; }
