@@ -4,6 +4,7 @@ from contextlib import suppress
 from datetime import datetime
 from html import escape
 import math
+from urllib.parse import quote
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
@@ -134,29 +135,28 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
 
     bot_user = await services.notifier.bot_username()
     ref_link = f"https://t.me/{bot_user}?start=ref_{tg_user.id}"
+    store_name = (await services.settings.get("store_name")) or "Premium Haven"
+
+    reward_line = f"{ICON_COIN} <b>Reward:</b> <code>{reward_str}</code> / join\n" if (reward_enabled and reward_amount > 0) else ""
 
     text = (
-        f"{ICON_ORDERS} <b>Refer & Earn Program</b>\n"
+        f"{ICON_ORDERS} <b>Refer & Earn</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"Invite your friends to <b>Premium Haven</b> and earn instant wallet balance for every friend who joins!\n\n"
-        f"{ICON_COIN} <b>Bonus Per Referral:</b> <code>{reward_str}</code>\n"
-        f"⚡ <b>Program Status:</b> <b>{status_badge}</b>\n\n"
-        f"{ICON_STATS} <b>Your Referral Statistics:</b>\n"
-        f"• Total Friends Invited: <b>{total_invited}</b> Users\n"
-        f"• Total Referral Earnings: <code>{total_earned_str}</code>\n"
-        f"• Your Wallet Balance: <code>{balance_str}</code>\n"
+        f"{reward_line}"
+        f"{ICON_ACCOUNT} <b>Total Invited:</b> <code>{total_invited}</code>\n"
+        f"{ICON_SPENT} <b>Total Earned:</b> <code>{total_earned_str}</code>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"🔗 <b>Your Exclusive Referral Link:</b>\n"
-        f"<code>{ref_link}</code>\n\n"
-        f"<i>💡 Share your link above. When a friend joins the bot and completes channel verification, you instantly get <b>{reward_str}</b> credited to your balance!</i>"
+        f"🔗 <b>Your Referral Link:</b> <i>(Tap to copy)</i>\n"
+        f"<code>{ref_link}</code>"
     )
 
+    share_text = quote(f"Join {store_name} for the best digital services!")
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
                     text="Share Referral Link",
-                    url=f"https://t.me/share/url?url={ref_link}&text=Join%20Premium%20Haven%20for%20the%20best%20VPNs%2C%20Proxies%20%26%20Digital%20Services!",
+                    url=f"https://t.me/share/url?url={ref_link}&text={share_text}",
                     style="success",
                     icon_custom_emoji_id=Icons.CHANNEL,
                 )
@@ -175,32 +175,29 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
 async def show_reseller_info(event: Message | CallbackQuery, state: FSMContext, services: Services):
     await state.clear()
     handle = (await services.settings.get("support_username")).lstrip("@")
+    store_name = (await services.settings.get("store_name")) or "Premium Haven"
     text = (
-        f"{ICON_RESELLER} <b>Apply as a Reseller</b>\n"
+        f"{ICON_RESELLER} <b>Reseller Program</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"Start and scale your digital service business with <b>Premium Haven</b>!\n\n"
-        f"🌟 <b>Exclusive Reseller Benefits:</b>\n"
-        f"• <b>Wholesale Rates:</b> Heavy discounts on bulk VPNs, Proxies & Tools.\n"
-        f"• <b>Priority Fulfillment:</b> Instant stock reservation & rapid delivery.\n"
-        f"• <b>Dedicated Support:</b> 24/7 direct VIP access to our management team.\n"
-        f"• <b>Custom Solutions:</b> Tailored bulk orders for your shop or channel.\n\n"
-        f"📋 <b>Requirements:</b>\n"
-        f"Must have an active channel, store, or monthly order volume.\n"
+        f"🌟 <b>Wholesale Rates:</b> Bulk discounts on all products\n"
+        f"⚡ <b>Priority Stock:</b> Instant reservation & rapid delivery\n"
+        f"💬 <b>VIP Support:</b> Direct 24/7 management access\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"<i>Ready to partner with us? Tap below to send your application!</i>"
+        f"Tap below to apply with our management team."
     )
 
     rows = []
     if handle:
+        msg = quote(f"Hello, I would like to apply as a Reseller at {store_name}.")
         rows.append([
             InlineKeyboardButton(
-                text="💬 Contact Management",
-                url=f"https://t.me/{handle}?text=Hello%2C%20I%20would%20like%20to%20apply%20as%20a%20Reseller%20at%20Premium%20Haven.",
+                text="Contact Management",
+                url=f"https://t.me/{handle}?text={msg}",
                 style="success",
                 icon_custom_emoji_id=Icons.RESELLER,
             )
         ])
-    rows.append([InlineKeyboardButton(text="◀ Back", callback_data="back_to_main", style="danger")])
+    rows.append([InlineKeyboardButton(text="Back", callback_data="back_to_main", style="danger", icon_custom_emoji_id=Icons.BACK)])
     await respond(event, text, InlineKeyboardMarkup(inline_keyboard=rows))
 
 
