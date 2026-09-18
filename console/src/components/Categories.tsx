@@ -203,7 +203,7 @@ export function Categories({ say }: { say: Say }) {
                 <th style={{ width: '130px' }}>Validity Filter</th>
                 <th style={{ width: '70px', textAlign: 'center' }}>Order</th>
                 <th style={{ width: '100px', textAlign: 'center' }}>Status</th>
-                <th className="right" style={{ width: '140px' }} aria-label="Actions" />
+                <th className="right" style={{ width: '140px', whiteSpace: 'nowrap' }} aria-label="Actions" />
               </tr>
             </thead>
             <tbody>
@@ -300,8 +300,8 @@ export function Categories({ say }: { say: Say }) {
                         <span>{cat.is_active ? 'Active' : 'Hidden'}</span>
                       </button>
                     </td>
-                    <td>
-                      <div className="row-actions">
+                    <td className="right" style={{ width: '140px', whiteSpace: 'nowrap' }}>
+                      <div className="row-actions" style={{ flexWrap: 'nowrap' }}>
                         <button
                           type="button"
                           className="mini"

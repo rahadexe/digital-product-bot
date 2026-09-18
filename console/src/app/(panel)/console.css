@@ -513,7 +513,7 @@ select {
 .mini.primary { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
 .mini.primary:hover:not(:disabled) { background: var(--accent-2); }
 
-.row-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
+.row-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: nowrap; gap: 6px; white-space: nowrap; }
 
 .segmented {
   display: inline-flex;
