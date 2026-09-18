@@ -33,6 +33,7 @@ from app.bot.icons import (
     ICON_MONEY,
     ICON_NOTE,
     ICON_ORDERS,
+    ICON_REFER,
     ICON_RESELLER,
     ICON_ROCKET,
     ICON_SPENT,
@@ -154,7 +155,7 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
     )
 
     text = (
-        f"{ICON_ORDERS} <b>Refer & Earn</b>\n"
+        f"{ICON_REFER} <b>Refer & Earn</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n\n"
         f"{ICON_ACCOUNT} <b>Total Refers:</b> <code>{total_invited}</code>\n"
         f"{ICON_COIN} <b>Reward Per Refer:</b> <code>{reward_display}</code>\n"

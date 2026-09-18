@@ -53,7 +53,7 @@ def get_persistent_reply_keyboard(
     # System rows
     rows.append([
         KeyboardButton(text="Add Balance", style="primary", icon_custom_emoji_id=Icons.DEPOSIT),
-        KeyboardButton(text="Refer & Earn", style="success", icon_custom_emoji_id=Icons.ORDERS),
+        KeyboardButton(text="Refer & Earn", style="success", icon_custom_emoji_id=Icons.REFER),
     ])
     rows.append([
         KeyboardButton(text="My Profile", style="primary", icon_custom_emoji_id=Icons.ACCOUNT),
@@ -195,7 +195,7 @@ def get_main_inline_dashboard(channel_url: str | None = None) -> InlineKeyboardM
             ],
             [
                 InlineKeyboardButton(text="Add Balance", callback_data="open_deposit", style="primary", icon_custom_emoji_id=Icons.DEPOSIT),
-                InlineKeyboardButton(text="Refer & Earn", callback_data="open_referral", style="success", icon_custom_emoji_id=Icons.ORDERS),
+                InlineKeyboardButton(text="Refer & Earn", callback_data="open_referral", style="success", icon_custom_emoji_id=Icons.REFER),
             ],
             [
                 InlineKeyboardButton(text="My Profile", callback_data="open_account", style="primary", icon_custom_emoji_id=Icons.ACCOUNT),
