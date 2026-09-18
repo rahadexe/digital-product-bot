@@ -404,9 +404,6 @@ async def handle_close_menu(query: CallbackQuery):
         await query.answer()
     if query.message:
         with suppress(TelegramBadRequest):
-            await query.message.edit_reply_markup(reply_markup=None)
-        await asyncio.sleep(0.3)
-        with suppress(TelegramBadRequest):
             await query.message.delete()
 
 
