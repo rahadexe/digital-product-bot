@@ -343,20 +343,43 @@ export function Categories({ say }: { say: Say }) {
             const catProducts = (products ?? []).filter((p) => p.category_id === cat.id);
             return (
               <div key={cat.id} className="cat-mobile-card">
-                {/* Header: Title + Active/Hidden toggle */}
+                {/* Header: Title + Pinned badge (if pinned) + Active/Hidden toggle */}
                 <div className="cat-card-header">
                   <div className="cat-card-title">
                     <FolderTree size={16} color="var(--accent)" style={{ flexShrink: 0 }} />
                     <strong>{cat.name}</strong>
+                    {cat.is_pinned ? (
+                      <button
+                        type="button"
+                        onClick={() => togglePin(cat)}
+                        className="pill good"
+                        style={{
+                          cursor: 'pointer',
+                          fontSize: '10.5px',
+                          padding: '1px 6px',
+                          fontWeight: 600,
+                          border: 'none',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                          flexShrink: 0,
+                        }}
+                        title="Click to unpin from menu"
+                      >
+                        <Pin size={10} />
+                        <span>Pinned</span>
+                      </button>
+                    ) : null}
                   </div>
+
                   <button
                     type="button"
                     onClick={() => toggleActive(cat)}
                     className={`pill ${cat.is_active ? 'good' : 'bad'}`}
                     style={{
                       cursor: 'pointer',
-                      fontSize: '11.5px',
-                      padding: '3px 9px',
+                      fontSize: '11px',
+                      padding: '2.5px 8px',
                       fontWeight: 600,
                       border: 'none',
                       display: 'inline-flex',
@@ -380,82 +403,41 @@ export function Categories({ say }: { say: Say }) {
                   </button>
                 </div>
 
-                {/* Badges / Information Chips */}
-                <div className="cat-card-chips">
-                  {/* Products count */}
-                  {catProducts.length > 0 ? (
-                    <span className="pill good">
-                      <Package size={11} style={{ flexShrink: 0 }} />
-                      <span>{catProducts.length} product{catProducts.length !== 1 ? 's' : ''}</span>
-                    </span>
-                  ) : (
-                    <span className="pill neutral">
-                      <Package size={11} style={{ flexShrink: 0 }} />
-                      <span>0 products</span>
-                    </span>
-                  )}
-
-                  {/* Menu location toggle */}
-                  <button
-                    type="button"
-                    className={`mini ${cat.is_pinned ? 'btn' : 'ghost'}`}
-                    onClick={() => togglePin(cat)}
-                    title="Click to toggle between pinned keyboard and other products"
-                  >
-                    {cat.is_pinned ? (
-                      <>
-                        <Pin size={11} style={{ flexShrink: 0 }} />
-                        <span>Pinned to Menu</span>
-                      </>
-                    ) : (
-                      <span>In Other Products</span>
-                    )}
-                  </button>
-
-                  {/* Validity filter badge */}
-                  {cat.has_validity_filter ? (
-                    <span className="pill good">
-                      With Validity
-                    </span>
-                  ) : (
-                    <span className="pill neutral">
-                      Standard
-                    </span>
-                  )}
-
-                  {/* Sort order with clear label */}
-                  <span className="pill neutral">
-                    <ArrowUpDown size={10} style={{ flexShrink: 0 }} />
-                    <span>Order: {cat.sort_order}</span>
+                {/* Subtitle / Action Row: Products count on left, Actions on right */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--muted)', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                    <Package size={12} />
+                    {catProducts.length} product{catProducts.length !== 1 ? 's' : ''}
                   </span>
-                </div>
 
-                {/* Footer: Actions */}
-                <div className="cat-card-footer">
-                  <button
-                    type="button"
-                    className="btn mini ghost"
-                    onClick={() =>
-                      setDraft({
-                        id: cat.id,
-                        name: cat.name,
-                        sort_order: cat.sort_order,
-                        is_active: Boolean(cat.is_active),
-                        is_pinned: Boolean(cat.is_pinned),
-                        has_validity_filter: Boolean(cat.has_validity_filter),
-                        custom_emoji_id: cat.custom_emoji_id || '',
-                      })
-                    }
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="btn mini danger ghost"
-                    onClick={() => deleteCat(cat)}
-                  >
-                    Delete
-                  </button>
+                  <div className="row-actions" style={{ gap: '6px' }}>
+                    <button
+                      type="button"
+                      className="btn mini ghost"
+                      style={{ fontSize: '11.5px', padding: '3px 10px', height: '26px' }}
+                      onClick={() =>
+                        setDraft({
+                          id: cat.id,
+                          name: cat.name,
+                          sort_order: cat.sort_order,
+                          is_active: Boolean(cat.is_active),
+                          is_pinned: Boolean(cat.is_pinned),
+                          has_validity_filter: Boolean(cat.has_validity_filter),
+                          custom_emoji_id: cat.custom_emoji_id || '',
+                        })
+                      }
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      className="btn mini danger ghost"
+                      style={{ fontSize: '11.5px', padding: '3px 10px', height: '26px' }}
+                      onClick={() => deleteCat(cat)}
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               </div>
             );
