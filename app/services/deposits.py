@@ -307,15 +307,24 @@ class DepositService:
             )
             return dict(row) if row else None
 
-    async def history(self, tg_user_id: int, limit: int = 20) -> list[dict[str, Any]]:
+    async def history(self, tg_user_id: int, limit: int = 20, offset: int = 0) -> list[dict[str, Any]]:
         """A customer's own deposits, newest first, with what they were asked to pay and the review outcome."""
         async with self.db.connect() as conn:
             rows = await conn.fetch(
-                f"SELECT {CUSTOMER_DEPOSIT_COLUMNS} FROM deposits WHERE tg_user_id = $1 ORDER BY id DESC LIMIT $2",
+                f"SELECT {CUSTOMER_DEPOSIT_COLUMNS} FROM deposits WHERE tg_user_id = $1 ORDER BY id DESC LIMIT $2 OFFSET $3",
                 tg_user_id,
                 limit,
+                offset,
             )
         return [dict(row) for row in rows]
+
+    async def count_for_user(self, tg_user_id: int) -> int:
+        """Total deposit requests submitted by a user."""
+        async with self.db.connect() as conn:
+            return await conn.fetchval(
+                "SELECT COUNT(*) FROM deposits WHERE tg_user_id = $1",
+                tg_user_id,
+            ) or 0
 
     async def find_by_transaction(self, transaction_id: str) -> dict[str, Any] | None:
         async with self.db.connect() as conn:

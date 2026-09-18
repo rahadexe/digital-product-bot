@@ -13,7 +13,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.bot.formatting import callback_int, price, respond
-from app.bot.icons import ICON_DEPOSIT, ICON_TIMER, ICON_WARNING
+from app.bot.icons import ICON_CHECK, ICON_DEPOSIT, ICON_TIMER, ICON_WARNING, Icons
 from app.bot.handlers.navigation import is_navigation, navigate
 from app.bot.handlers.start import render_main_dashboard
 from app.bot.keyboards import (
@@ -146,12 +146,12 @@ def _instant_keyboard(invoice: dict) -> InlineKeyboardMarkup:
     rows = []
     if invoice.get("payment_url"):
         rows.append(
-            [InlineKeyboardButton(text=f"💳 Pay ৳{invoice['pay_amount']:.2f}", url=invoice["payment_url"])]
+            [InlineKeyboardButton(text=f"Pay ৳{invoice['pay_amount']:.2f}", url=invoice["payment_url"], style="success", icon_custom_emoji_id=Icons.DEPOSIT)]
         )
     rows.append(
-        [InlineKeyboardButton(text="✅ I've paid — Check", callback_data=f"inst_chk_{invoice['reference']}")]
+        [InlineKeyboardButton(text="I've Paid — Check", callback_data=f"inst_chk_{invoice['reference']}", style="primary", icon_custom_emoji_id=Icons.CHECK)]
     )
-    rows.append([InlineKeyboardButton(text="◀ Back", callback_data="open_deposit", style="danger")])
+    rows.append([InlineKeyboardButton(text="Back", callback_data="open_deposit", style="danger", icon_custom_emoji_id=Icons.BACK)])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -205,7 +205,7 @@ async def check_instant_payment(query: CallbackQuery, state: FSMContext, service
             await query.message.edit_text(
                 text,
                 reply_markup=InlineKeyboardMarkup(
-                    inline_keyboard=[[InlineKeyboardButton(text="◀ Back", callback_data="open_deposit", style="danger")]]
+                    inline_keyboard=[[InlineKeyboardButton(text="Back", callback_data="open_deposit", style="danger", icon_custom_emoji_id=Icons.BACK)]]
                 ),
             )
 

@@ -529,23 +529,41 @@ def get_deposit_methods_keyboard(
     """Wallet top-up methods: clean buttons displaying the exact configured method name."""
     buttons = []
     if instant_label:
-        buttons.append([InlineKeyboardButton(text=str(instant_label).strip(), callback_data="dep_instant", icon_custom_emoji_id=Icons.LIGHTNING)])
+        buttons.append([
+            InlineKeyboardButton(
+                text=str(instant_label).strip(),
+                callback_data="dep_instant",
+                style="success",
+                icon_custom_emoji_id=Icons.LIGHTNING,
+            )
+        ])
 
     for m in methods:
         name = m.get("name", "Method").strip()
         custom_emoji_id = m.get("custom_emoji_id")
+        auto_verify = m.get("auto_verify")
         kwargs: dict[str, Any] = {
             "text": name,
             "callback_data": f"dep_method_{m['id']}",
+            "style": "primary",
         }
         if custom_emoji_id and str(custom_emoji_id).strip().isdigit():
             kwargs["icon_custom_emoji_id"] = str(custom_emoji_id).strip()
+        elif auto_verify == "binance_pay" or "binance" in name.lower():
+            kwargs["icon_custom_emoji_id"] = Icons.COIN
         else:
             kwargs["icon_custom_emoji_id"] = Icons.DEPOSIT
         buttons.append([InlineKeyboardButton(**kwargs)])
 
     if back_target:
-        buttons.append([InlineKeyboardButton(text="◀ Back", callback_data=back_target, style="danger")])
+        buttons.append([
+            InlineKeyboardButton(
+                text="Back",
+                callback_data=back_target,
+                style="danger",
+                icon_custom_emoji_id=Icons.BACK,
+            )
+        ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
@@ -554,19 +572,39 @@ def get_manual_deposit_invoice_keyboard(account_info: str) -> InlineKeyboardMark
     destination = str(account_info or "").strip()
     buttons = []
     if destination.startswith("https://"):
-        buttons.append([InlineKeyboardButton(text="Open Payment Page", url=destination)])
+        buttons.append([
+            InlineKeyboardButton(
+                text="Open Payment Page",
+                url=destination,
+                style="primary",
+                icon_custom_emoji_id=Icons.GLOBE,
+            )
+        ])
     elif destination:
-        buttons.append(
-            [
-                InlineKeyboardButton(
-                    text="Copy Number",
-                    copy_text=CopyTextButton(text=destination[:256]),
-                    icon_custom_emoji_id=Icons.NOTE,
-                )
-            ]
+        buttons.append([
+            InlineKeyboardButton(
+                text="Copy Number",
+                copy_text=CopyTextButton(text=destination[:256]),
+                style="primary",
+                icon_custom_emoji_id=Icons.NOTE,
+            )
+        ])
+    buttons.append([
+        InlineKeyboardButton(
+            text="Payment Done",
+            callback_data="dep_confirm_paid",
+            style="success",
+            icon_custom_emoji_id=Icons.CHECK,
         )
-    buttons.append([InlineKeyboardButton(text="Payment Done", callback_data="dep_confirm_paid", icon_custom_emoji_id=Icons.CHECK)])
-    buttons.append([InlineKeyboardButton(text="◀ Back", callback_data="open_deposit", style="danger")])
+    ])
+    buttons.append([
+        InlineKeyboardButton(
+            text="Back",
+            callback_data="open_deposit",
+            style="danger",
+            icon_custom_emoji_id=Icons.BACK,
+        )
+    ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 

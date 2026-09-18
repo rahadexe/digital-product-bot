@@ -25,6 +25,8 @@ from app.bot.icons import (
     ICON_BALANCE,
     ICON_CHECK,
     ICON_COIN,
+    ICON_CROSS,
+    ICON_DEPOSIT,
     ICON_ID,
     ICON_KEY,
     ICON_MONEY,
@@ -254,26 +256,26 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
         if total_pages > 1:
             if cur_page == 1:
                 nav_row = [
-                    InlineKeyboardButton(text="🔄 Refresh", callback_data=f"orders_page_{page}", style="success"),
-                    InlineKeyboardButton(text=f"{cur_page}/{total_pages}", callback_data=f"orders_page_{page}"),
-                    InlineKeyboardButton(text="▶ Next", callback_data=f"orders_page_{page + 1}", style="primary"),
+                    InlineKeyboardButton(text="Refresh", callback_data=f"orders_page_{page}", style="success", icon_custom_emoji_id=Icons.REFRESH),
+                    InlineKeyboardButton(text=f"{cur_page}/{total_pages}", callback_data="noop"),
+                    InlineKeyboardButton(text="Next", callback_data=f"orders_page_{page + 1}", style="primary", icon_custom_emoji_id=Icons.NEXT),
                 ]
             elif cur_page == total_pages:
                 nav_row = [
-                    InlineKeyboardButton(text="◀ Prev", callback_data=f"orders_page_{page - 1}", style="primary"),
-                    InlineKeyboardButton(text=f"{cur_page}/{total_pages}", callback_data=f"orders_page_{page}"),
-                    InlineKeyboardButton(text="🔄 Refresh", callback_data=f"orders_page_{page}", style="success"),
+                    InlineKeyboardButton(text="Prev", callback_data=f"orders_page_{page - 1}", style="primary", icon_custom_emoji_id=Icons.BACK),
+                    InlineKeyboardButton(text=f"{cur_page}/{total_pages}", callback_data="noop"),
+                    InlineKeyboardButton(text="Refresh", callback_data=f"orders_page_{page}", style="success", icon_custom_emoji_id=Icons.REFRESH),
                 ]
             else:
                 nav_row = [
-                    InlineKeyboardButton(text="◀ Prev", callback_data=f"orders_page_{page - 1}", style="primary"),
-                    InlineKeyboardButton(text=f"🔄 {cur_page}/{total_pages}", callback_data=f"orders_page_{page}", style="success"),
-                    InlineKeyboardButton(text="▶ Next", callback_data=f"orders_page_{page + 1}", style="primary"),
+                    InlineKeyboardButton(text="Prev", callback_data=f"orders_page_{page - 1}", style="primary", icon_custom_emoji_id=Icons.BACK),
+                    InlineKeyboardButton(text=f"{cur_page}/{total_pages}", callback_data="noop"),
+                    InlineKeyboardButton(text="Next", callback_data=f"orders_page_{page + 1}", style="primary", icon_custom_emoji_id=Icons.NEXT),
                 ]
         elif total > 0:
             nav_row = [
-                InlineKeyboardButton(text="🔄 Refresh", callback_data="orders_page_0", style="success"),
-                InlineKeyboardButton(text="1/1", callback_data="orders_page_0"),
+                InlineKeyboardButton(text="Refresh", callback_data="orders_page_0", style="success", icon_custom_emoji_id=Icons.REFRESH),
+                InlineKeyboardButton(text="1/1", callback_data="noop"),
             ]
 
         if nav_row:
@@ -335,39 +337,96 @@ async def view_order_detail(query: CallbackQuery, state: FSMContext, services: S
         await query.message.edit_text(text, reply_markup=keyboard)
 
 
-DEPOSIT_STATUS = {"pending": "🟡 Pending review", "approved": "✅ Approved", "rejected": "❌ Rejected"}
-DEPOSIT_HISTORY_LIMIT = 10
+DEPOSITS_PAGE_SIZE = 5
+
+DEPOSIT_STATUS_BADGES = {
+    "approved": f"{ICON_CHECK} <b>Approved</b>",
+    "pending": f"{ICON_TIMER} <b>Pending Review</b>",
+    "rejected": f"{ICON_CROSS} <b>Rejected</b>",
+}
 
 
 @router.callback_query(F.data == "open_deposits")
+@router.callback_query(F.data.startswith("dep_page_"))
 async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext, services: Services):
     await state.clear()
     tg_user = event.from_user
     if not tg_user:
         return
 
-    deposits = await services.deposits.history(tg_user.id, limit=DEPOSIT_HISTORY_LIMIT)
+    page = 1
+    if isinstance(event, CallbackQuery) and event.data and event.data.startswith("dep_page_"):
+        suffix = event.data[len("dep_page_") :]
+        if suffix.isdigit():
+            page = max(1, int(suffix))
+
+    total_count = await services.deposits.count_for_user(tg_user.id)
+    total_pages = max(1, (total_count + DEPOSITS_PAGE_SIZE - 1) // DEPOSITS_PAGE_SIZE) if total_count > 0 else 1
+    page = min(page, total_pages)
+    offset = (page - 1) * DEPOSITS_PAGE_SIZE
+
+    deposits = await services.deposits.history(tg_user.id, limit=DEPOSITS_PAGE_SIZE, offset=offset)
     symbol = await services.settings.get("currency_symbol")
+
     if not deposits:
-        text = "💳 <b>Deposits:</b>\n\nYou have no deposits yet."
+        text = (
+            f"{ICON_STATS} <b>Deposit History</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n\n"
+            f"<i>You have no deposit records yet.</i>"
+        )
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="Deposit", callback_data="open_deposit_from_history", style="success", icon_custom_emoji_id=Icons.DEPOSIT)],
+                [InlineKeyboardButton(text="Back", callback_data="open_account", style="danger", icon_custom_emoji_id=Icons.BACK)],
+            ]
+        )
     else:
-        lines = [f"💳 <b>Deposits (latest {len(deposits)}):</b>"]
+        page_suffix = f" (Page {page}/{total_pages})" if total_pages > 1 else ""
+        text = (
+            f"{ICON_STATS} <b>Deposit History{page_suffix}</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+        )
+        items = []
         for deposit in deposits:
             created = deposit["created_at"]
-            date = created.strftime("%Y-%m-%d") if isinstance(created, datetime) else str(created)[:10]
-            lines.append(
-                f"\n<b>#{deposit['id']}</b> · {price(symbol, deposit['amount'])} · {escape(deposit['method_name'])}\n"
-                f"{DEPOSIT_STATUS.get(deposit['status'], deposit['status'])} · {date}"
+            date = created.strftime("%Y-%m-%d %H:%M") if isinstance(created, datetime) else str(created)[:16]
+            status_badge = DEPOSIT_STATUS_BADGES.get(deposit["status"], f"<b>{escape(str(deposit['status']).title())}</b>")
+            entry = (
+                f"\n{ICON_DEPOSIT} <b>#{deposit['id']}</b> · <code>{price(symbol, deposit['amount'])}</code> · <b>{escape(deposit['method_name'])}</b>\n"
+                f"↳ {status_badge} · <code>{date}</code>"
             )
-            if deposit["status"] == "rejected" and deposit["admin_note"]:
-                lines.append(f"<i>{escape(deposit['admin_note'])}</i>")
-        text = "\n".join(lines)
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="Deposit", callback_data="open_deposit_from_history", style="success", icon_custom_emoji_id=Icons.DEPOSIT)],
-            [InlineKeyboardButton(text="◀ Back", callback_data="open_account", style="danger")],
-        ]
-    )
+            if deposit["status"] == "rejected" and deposit.get("admin_note"):
+                entry += f"\n   <i>Note: {escape(deposit['admin_note'])}</i>"
+            items.append(entry)
+        text += "".join(items)
+
+        buttons = []
+        if total_pages > 1:
+            nav_row = []
+            if page == 1:
+                nav_row = [
+                    InlineKeyboardButton(text="Refresh", callback_data=f"dep_page_{page}", style="success", icon_custom_emoji_id=Icons.REFRESH),
+                    InlineKeyboardButton(text=f"{page}/{total_pages}", callback_data="noop"),
+                    InlineKeyboardButton(text="Next", callback_data=f"dep_page_{page + 1}", style="primary", icon_custom_emoji_id=Icons.NEXT),
+                ]
+            elif page == total_pages:
+                nav_row = [
+                    InlineKeyboardButton(text="Prev", callback_data=f"dep_page_{page - 1}", style="primary", icon_custom_emoji_id=Icons.BACK),
+                    InlineKeyboardButton(text=f"{page}/{total_pages}", callback_data="noop"),
+                    InlineKeyboardButton(text="Refresh", callback_data=f"dep_page_{page}", style="success", icon_custom_emoji_id=Icons.REFRESH),
+                ]
+            else:
+                nav_row = [
+                    InlineKeyboardButton(text="Prev", callback_data=f"dep_page_{page - 1}", style="primary", icon_custom_emoji_id=Icons.BACK),
+                    InlineKeyboardButton(text=f"{page}/{total_pages}", callback_data="noop"),
+                    InlineKeyboardButton(text="Next", callback_data=f"dep_page_{page + 1}", style="primary", icon_custom_emoji_id=Icons.NEXT),
+                ]
+            buttons.append(nav_row)
+
+        buttons.append([InlineKeyboardButton(text="Deposit", callback_data="open_deposit_from_history", style="success", icon_custom_emoji_id=Icons.DEPOSIT)])
+        buttons.append([InlineKeyboardButton(text="Back", callback_data="open_account", style="danger", icon_custom_emoji_id=Icons.BACK)])
+        keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+
     await respond(event, text, keyboard)
 
 
