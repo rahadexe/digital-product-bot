@@ -399,7 +399,7 @@ function CategoryFormModal({
           value={form.sort_order}
           onChange={(e) => set({ sort_order: Math.max(0, parseInt(e.target.value, 10) || 0) })}
         />
-        <small>Smaller number shows first in bot (0, 1, 2...)</small>
+        <small>Smaller number shows first in bot</small>
       </label>
 
       <FlagRow
