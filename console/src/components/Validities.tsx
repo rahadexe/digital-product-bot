@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { CalendarClock, Clock, FolderTree, Package, Plus, Trash2, Edit3 } from 'lucide-react';
 import { api, type Category, type Product } from '@/lib/api';
-import { EmptyRow, Modal, errorText, useConfirm, type Say } from './ui';
+import { EmptyRow, FlagRow, Modal, errorText, useConfirm, type Say } from './ui';
 
 interface EditDraft {
   mode: 'new' | 'edit';
@@ -236,23 +236,15 @@ export function Validities({ say }: { say: Say }) {
                     </td>
                     <td>
                       {categoryNames.length > 0 ? (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                          {categoryNames.map((cName) => (
-                            <span
-                              key={cName}
-                              style={{
-                                fontSize: '11px',
-                                background: 'var(--subtle)',
-                                padding: '2px 6px',
-                                borderRadius: '4px',
-                              }}
-                            >
-                              {cName}
-                            </span>
-                          ))}
-                        </div>
+                        <span
+                          className="pill info"
+                          style={{ fontSize: '11px', padding: '2px 8px', fontWeight: 600 }}
+                          title={categoryNames.join(', ')}
+                        >
+                          {categoryNames.length} {categoryNames.length === 1 ? 'category' : 'categories'}
+                        </span>
                       ) : (
-                        <span style={{ color: 'var(--muted)', fontSize: '12px' }}>—</span>
+                        <span style={{ color: 'var(--muted)', fontSize: '12px' }}>0</span>
                       )}
                     </td>
                     <td>
@@ -328,25 +320,14 @@ export function Validities({ say }: { say: Say }) {
           </label>
 
           {draft.mode === 'edit' && (
-            <label
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                marginTop: '12px',
-                fontSize: '13px',
-                cursor: 'pointer',
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={draft.updateProducts}
-                onChange={(e) =>
-                  setDraft({ ...draft, updateProducts: e.target.checked })
-                }
+            <div style={{ marginTop: '10px' }}>
+              <FlagRow
+                label="Update linked products"
+                hint="Auto-renames this duration on all products currently using it."
+                on={draft.updateProducts}
+                onChange={(on) => setDraft({ ...draft, updateProducts: on })}
               />
-              <span>Update tagged products</span>
-            </label>
+            </div>
           )}
         </Modal>
       ) : null}
