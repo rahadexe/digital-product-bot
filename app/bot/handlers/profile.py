@@ -272,8 +272,7 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
 
     if not orders:
         text = (
-            f"{ICON_ORDERS} <b>Order History</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n\n"
+            f"{ICON_ORDERS} <b>Order History</b>\n\n"
             f"<i>You have no orders yet.</i>"
         )
         keyboard = InlineKeyboardMarkup(
@@ -288,11 +287,7 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
         total_pages = max(1, math.ceil(total / ORDERS_PAGE_SIZE))
         page = min(page, total_pages)
         page_suffix = f" (Page {page}/{total_pages})" if total_pages > 1 else ""
-        text = (
-            f"{ICON_ORDERS} <b>Order History{page_suffix}</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n\n"
-            f"Tap an order below to view details & credentials:"
-        )
+        text = f"{ICON_ORDERS} <b>Order History{page_suffix}</b>"
         buttons = []
         for order in orders:
             price_val = order["price"]
