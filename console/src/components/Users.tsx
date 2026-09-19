@@ -662,9 +662,7 @@ function CustomerProfilePage({
           <header className="cust-panel-head">
             <div>
               <h3>Adjust Wallet Balance</h3>
-              <p className="cust-panel-desc">
-                Manually credit or debit customer balance with an audit reason.
-              </p>
+              <p className="cust-panel-desc">Add or deduct wallet funds.</p>
             </div>
           </header>
 
@@ -703,11 +701,11 @@ function CustomerProfilePage({
               </div>
 
               <div className="field">
-                <label htmlFor="adjust-reason">Reason / Note (Required)</label>
+                <label htmlFor="adjust-reason">Reason</label>
                 <input
                   id="adjust-reason"
                   type="text"
-                  placeholder="e.g. Deposit bonus, refund, manual correction"
+                  placeholder="e.g. Bonus, refund"
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                 />
@@ -734,7 +732,7 @@ function CustomerProfilePage({
           <header className="cust-panel-head">
             <div>
               <h3>Recent Orders</h3>
-              <p className="cust-panel-desc">Lifetime orders placed by this customer.</p>
+              <p className="cust-panel-desc">Order history for this customer.</p>
             </div>
             {orderTotal > 0 ? <span className="pill">{orderTotal}</span> : null}
           </header>
