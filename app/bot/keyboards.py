@@ -168,7 +168,7 @@ def get_validity_selector_keyboard(
     val_buttons: List[InlineKeyboardButton] = []
 
     for idx, v in enumerate(validities):
-        label = v if "validity" in v.lower() else f"{v} Validity"
+        label = v.strip()
         val_buttons.append(
             InlineKeyboardButton(
                 text=label[:64],
