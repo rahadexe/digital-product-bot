@@ -1588,8 +1588,8 @@ ul.messages p { margin-top: 6px; color: var(--text-dim); font-size: 12.5px; whit
 }
 
 .expiry-preset-btn {
-  padding: 6px 12px;
-  font-size: 12.5px;
+  padding: 5px 12px;
+  font-size: 12px;
   font-weight: 500;
   border-radius: 20px;
   border: 1px solid var(--border);
@@ -1597,6 +1597,7 @@ ul.messages p { margin-top: 6px; color: var(--text-dim); font-size: 12.5px; whit
   color: var(--muted);
   cursor: pointer;
   transition: all 120ms ease;
+  user-select: none;
 }
 
 .expiry-preset-btn:hover {

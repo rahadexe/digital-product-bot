@@ -392,134 +392,228 @@ function formatExpiryDisplay(isoString: string): string {
 }
 
 function ExpiryPicker({ value, onChange }: { value: string; onChange: (val: string) => void }) {
-  const [amount, setAmount] = useState('');
+  const [mode, setMode] = useState<'preset' | 'custom'>('preset');
+  const [customAmount, setCustomAmount] = useState('12');
   const [unit, setUnit] = useState<'hours' | 'days'>('hours');
+  const [activePreset, setActivePreset] = useState<number | null>(() => {
+    if (!value) return null;
+    const diffHours = Math.round((new Date(value).getTime() - Date.now()) / (3600 * 1000));
+    if (Math.abs(diffHours - 24) <= 1) return 24;
+    if (Math.abs(diffHours - 72) <= 2) return 72;
+    if (Math.abs(diffHours - 168) <= 4) return 168;
+    if (Math.abs(diffHours - 720) <= 8) return 720;
+    return null;
+  });
 
-  const handleAmountChange = (newAmount: string) => {
-    setAmount(newAmount);
-    if (!newAmount.trim() || isNaN(Number(newAmount)) || Number(newAmount) <= 0) {
-      onChange('');
-      return;
-    }
-    const num = Number(newAmount);
-    const hours = unit === 'hours' ? num : num * 24;
-    const target = new Date(Date.now() + hours * 3600 * 1000);
-    onChange(toLocalISOString(target));
-  };
-
-  const handleUnitChange = (newUnit: 'hours' | 'days') => {
-    setUnit(newUnit);
-    if (amount.trim() && !isNaN(Number(amount)) && Number(amount) > 0) {
-      const num = Number(amount);
-      const hours = newUnit === 'hours' ? num : num * 24;
-      const target = new Date(Date.now() + hours * 3600 * 1000);
-      onChange(toLocalISOString(target));
-    }
-  };
-
-  const applyPreset = (presetHours: number, displayAmount: string, displayUnit: 'hours' | 'days') => {
-    setAmount(displayAmount);
-    setUnit(displayUnit);
+  const applyPreset = (presetHours: number) => {
+    setMode('preset');
+    setActivePreset(presetHours);
     const target = new Date(Date.now() + presetHours * 3600 * 1000);
     onChange(toLocalISOString(target));
   };
 
   const applyNone = () => {
-    setAmount('');
+    setMode('preset');
+    setActivePreset(null);
     onChange('');
   };
 
+  const applyCustom = (numStr: string, currentUnit: 'hours' | 'days') => {
+    setMode('custom');
+    setActivePreset(null);
+    setCustomAmount(numStr);
+    setUnit(currentUnit);
+    const num = Number(numStr);
+    if (!numStr.trim() || isNaN(num) || num <= 0) {
+      onChange('');
+      return;
+    }
+    const hours = currentUnit === 'hours' ? num : num * 24;
+    const target = new Date(Date.now() + hours * 3600 * 1000);
+    onChange(toLocalISOString(target));
+  };
+
+  const isNone = !value;
+
   return (
     <div className="field">
-      <span>Auto-Expiry (Optional)</span>
-      <div className="expiry-container">
-        {/* Preset quick buttons */}
-        <div className="expiry-presets">
+      <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', display: 'block', marginBottom: '6px' }}>
+        Auto-Expiry <small style={{ color: 'var(--muted)', fontWeight: 'normal' }}>(Optional)</small>
+      </span>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        {/* Preset quick pills */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
           <button
             type="button"
-            className={`expiry-preset-btn ${!value ? 'active' : ''}`}
+            className={`expiry-preset-btn ${isNone ? 'active' : ''}`}
             onClick={applyNone}
           >
-            No Expiry
+            Never (No Expiry)
           </button>
           <button
             type="button"
-            className={`expiry-preset-btn ${value && amount === '24' && unit === 'hours' ? 'active' : ''}`}
-            onClick={() => applyPreset(24, '24', 'hours')}
+            className={`expiry-preset-btn ${mode === 'preset' && !isNone && activePreset === 24 ? 'active' : ''}`}
+            onClick={() => applyPreset(24)}
           >
             24 Hours
           </button>
           <button
             type="button"
-            className={`expiry-preset-btn ${value && amount === '3' && unit === 'days' ? 'active' : ''}`}
-            onClick={() => applyPreset(72, '3', 'days')}
+            className={`expiry-preset-btn ${mode === 'preset' && !isNone && activePreset === 72 ? 'active' : ''}`}
+            onClick={() => applyPreset(72)}
           >
             3 Days
           </button>
           <button
             type="button"
-            className={`expiry-preset-btn ${value && amount === '7' && unit === 'days' ? 'active' : ''}`}
-            onClick={() => applyPreset(168, '7', 'days')}
+            className={`expiry-preset-btn ${mode === 'preset' && !isNone && activePreset === 168 ? 'active' : ''}`}
+            onClick={() => applyPreset(168)}
           >
             7 Days
           </button>
           <button
             type="button"
-            className={`expiry-preset-btn ${value && amount === '30' && unit === 'days' ? 'active' : ''}`}
-            onClick={() => applyPreset(720, '30', 'days')}
+            className={`expiry-preset-btn ${mode === 'preset' && !isNone && activePreset === 720 ? 'active' : ''}`}
+            onClick={() => applyPreset(720)}
           >
             30 Days
           </button>
+          <button
+            type="button"
+            className={`expiry-preset-btn ${mode === 'custom' ? 'active' : ''}`}
+            onClick={() => applyCustom(customAmount, unit)}
+          >
+            Custom...
+          </button>
         </div>
 
-        {/* Custom duration row */}
-        <div className="expiry-custom-row">
-          <span className="expiry-custom-label">Expire in:</span>
-          <div className="expiry-input-wrapper">
+        {/* Custom duration input (Only shown when mode === 'custom') */}
+        {mode === 'custom' && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '6px 10px',
+              borderRadius: '8px',
+              background: 'var(--surface-2)',
+              border: '1px solid var(--border)',
+              marginTop: '2px',
+            }}
+          >
+            <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 500 }}>Expire in:</span>
             <input
               type="number"
               min="1"
               max="1000"
-              className="expiry-duration-input"
-              value={amount}
-              onChange={(e) => handleAmountChange(e.target.value)}
-              placeholder="e.g. 12 (leave empty for no expiry)"
+              value={customAmount}
+              onChange={(e) => applyCustom(e.target.value, unit)}
+              style={{
+                width: '64px',
+                height: '30px',
+                padding: '0 6px',
+                fontSize: '13px',
+                fontWeight: 600,
+                textAlign: 'center',
+                border: '1px solid var(--border)',
+                borderRadius: '5px',
+                background: 'var(--surface)',
+                color: 'var(--text)',
+                outline: 'none',
+              }}
             />
-            <select
-              className="expiry-duration-select"
-              value={unit}
-              onChange={(e) => handleUnitChange(e.target.value as 'hours' | 'days')}
+            {/* Hours / Days Segmented Switch */}
+            <div
+              style={{
+                display: 'inline-flex',
+                background: 'var(--surface)',
+                padding: '2px',
+                borderRadius: '6px',
+                border: '1px solid var(--border)',
+              }}
             >
-              <option value="hours">Hours</option>
-              <option value="days">Days</option>
-            </select>
+              <button
+                type="button"
+                onClick={() => applyCustom(customAmount, 'hours')}
+                style={{
+                  border: 'none',
+                  padding: '3px 8px',
+                  fontSize: '11.5px',
+                  fontWeight: unit === 'hours' ? 600 : 500,
+                  borderRadius: '4px',
+                  background: unit === 'hours' ? 'var(--accent)' : 'transparent',
+                  color: unit === 'hours' ? '#fff' : 'var(--muted)',
+                  cursor: 'pointer',
+                  transition: 'all 120ms ease',
+                }}
+              >
+                Hours
+              </button>
+              <button
+                type="button"
+                onClick={() => applyCustom(customAmount, 'days')}
+                style={{
+                  border: 'none',
+                  padding: '3px 8px',
+                  fontSize: '11.5px',
+                  fontWeight: unit === 'days' ? 600 : 500,
+                  borderRadius: '4px',
+                  background: unit === 'days' ? 'var(--accent)' : 'transparent',
+                  color: unit === 'days' ? '#fff' : 'var(--muted)',
+                  cursor: 'pointer',
+                  transition: 'all 120ms ease',
+                }}
+              >
+                Days
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Live Status Preview (Fixed height container to prevent modal jitter) */}
-        <div className={`expiry-status-bar ${value ? 'active' : 'idle'}`}>
-          <div className="expiry-preview-content">
-            <Clock size={14} className={value ? 'expiry-preview-icon' : 'expiry-idle-icon'} />
-            <span>
-              {value ? (
-                <>
-                  Will expire on: <strong>{formatExpiryDisplay(value)}</strong>
-                </>
-              ) : (
-                'No expiry set (stock remains active indefinitely)'
-              )}
-            </span>
-          </div>
-          {value ? (
+        {/* Live Status Badge - ONLY when an expiry date is set */}
+        {value ? (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '7px 12px',
+              borderRadius: '8px',
+              background: 'rgba(16, 185, 129, 0.08)',
+              border: '1px solid rgba(16, 185, 129, 0.25)',
+              color: 'var(--text)',
+              fontSize: '12.5px',
+              marginTop: '3px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+              <Clock size={14} style={{ color: '#059669', flexShrink: 0 }} />
+              <span>
+                Will expire on: <strong style={{ color: '#059669' }}>{formatExpiryDisplay(value)}</strong>
+              </span>
+            </div>
             <button
               type="button"
-              className="expiry-clear-btn"
               onClick={applyNone}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--danger)',
+                fontSize: '11px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '2px',
+                padding: '2px 4px',
+              }}
+              title="Clear expiry date"
             >
-              Clear Expiry
+              ✕ Clear
             </button>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );
