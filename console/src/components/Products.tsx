@@ -161,35 +161,26 @@ export function Products({ say }: { say: Say }) {
           <div className="filters">
             <input type="search" placeholder="Search products" value={search} onChange={(event) => setSearch(event.target.value)} />
           </div>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button
-              type="button"
-              className="btn ghost"
-              onClick={() => { window.location.hash = 'categories'; }}
-            >
-              Categories ({categories.length})
-            </button>
-            <button
-              type="button"
-              className="btn"
-              onClick={() =>
-                setDraft({
-                  id: null,
-                  category_id: null,
-                  title: '',
-                  description: '',
-                  price: 1,
-                  duration_label: '1 Month',
-                  sort_order: 0,
-                  is_active: true,
-                  delivery_type: 'stock',
-                  custom_emoji_id: '',
-                })
-              }
-            >
-              New product
-            </button>
-          </div>
+          <button
+            type="button"
+            className="btn"
+            onClick={() =>
+              setDraft({
+                id: null,
+                category_id: null,
+                title: '',
+                description: '',
+                price: 1,
+                duration_label: '1 Month',
+                sort_order: 0,
+                is_active: true,
+                delivery_type: 'stock',
+                custom_emoji_id: '',
+              })
+            }
+          >
+            New product
+          </button>
         </header>
         <div className="scroll">
           <table>
