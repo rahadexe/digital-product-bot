@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, Plus, Search, X } from 'lucide-react';
+import { Check, ChevronDown, Plus, X } from 'lucide-react';
 
 export interface SelectOption {
   value: string;
@@ -28,7 +28,6 @@ export interface CustomSelectProps {
   onCreateOption?: (val: string) => void;
   clearable?: boolean;
   onClear?: () => void;
-  fullWidthDropdown?: boolean;
 }
 
 export function CustomSelect({
@@ -42,45 +41,53 @@ export function CustomSelect({
   minWidth = 180,
   maxWidth,
   searchable = false,
-  searchPlaceholder,
-  align = 'left',
   creatable = false,
   customPlaceholder,
   onCreateOption,
   clearable = false,
   onClear,
-  fullWidthDropdown,
 }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [search, setSearch] = useState('');
+  const [query, setQuery] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [customVal, setCustomVal] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const customInputRef = useRef<HTMLInputElement>(null);
-
-  const isFullWidth = fullWidthDropdown ?? (minWidth === '100%' || width === '100%');
 
   const selectedOption = useMemo(
     () => options.find((opt) => String(opt.value) === String(value)),
     [options, value]
   );
 
+  const displayValue = isTyping
+    ? query
+    : selectedOption
+    ? selectedOption.label
+    : (value ? String(value) : '');
+
   const filteredOptions = useMemo(() => {
-    if (!search.trim()) return options;
-    const q = search.trim().toLowerCase();
+    if (!isTyping || !query.trim()) return options;
+    const q = query.trim().toLowerCase();
     return options.filter((opt) => opt.label.toLowerCase().includes(q));
-  }, [options, search]);
+  }, [options, isTyping, query]);
 
   useEffect(() => {
     if (!isOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsOpen(false);
+        setIsTyping(false);
+        setQuery('');
       }
     };
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsOpen(false);
+      if (e.key === 'Escape') {
+        setIsOpen(false);
+        setIsTyping(false);
+        setQuery('');
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
@@ -90,14 +97,6 @@ export function CustomSelect({
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isOpen]);
-
-  useEffect(() => {
-    if (isOpen && searchable) {
-      setTimeout(() => searchInputRef.current?.focus(), 50);
-    } else {
-      setSearch('');
-    }
-  }, [isOpen, searchable]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -112,22 +111,50 @@ export function CustomSelect({
     }
   }, [isCreating]);
 
-  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleSelect = (val: string) => {
+    onChange(val);
+    setIsOpen(false);
+    setIsTyping(false);
+    setQuery('');
+  };
+
+  const handleClear = () => {
+    if (onClear) {
+      onClear();
+    } else {
+      onChange('');
+    }
+    setQuery('');
+    setIsTyping(false);
+    setIsOpen(false);
+  };
+
+  const handleBoxClick = (e: React.MouseEvent) => {
+    if (searchable && e.target === inputRef.current) {
+      if (!isOpen) setIsOpen(true);
+      return;
+    }
+
+    setIsOpen((prev) => {
+      const next = !prev;
+      if (next && searchable) {
+        setTimeout(() => inputRef.current?.focus(), 20);
+      }
+      return next;
+    });
+  };
+
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       if (filteredOptions.length > 0) {
-        onChange(String(filteredOptions[0].value));
-        setIsOpen(false);
-        setSearch('');
+        handleSelect(String(filteredOptions[0].value));
       }
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      e.stopPropagation();
-      if (search) {
-        setSearch('');
-      } else {
-        setIsOpen(false);
-      }
+      setIsOpen(false);
+      setIsTyping(false);
+      setQuery('');
     }
   };
 
@@ -147,9 +174,8 @@ export function CustomSelect({
         ...style,
       }}
     >
-      <button
-        type="button"
-        onClick={() => setIsOpen((prev) => !prev)}
+      <div
+        onClick={handleBoxClick}
         style={{
           width: '100%',
           minHeight: '38px',
@@ -162,9 +188,6 @@ export function CustomSelect({
           background: 'var(--surface)',
           border: `1px solid ${isOpen ? 'var(--accent)' : 'var(--border)'}`,
           borderRadius: '8px',
-          color: selectedOption ? 'var(--text)' : 'var(--muted)',
-          fontSize: '13.5px',
-          fontWeight: 500,
           cursor: 'pointer',
           outline: 'none',
           boxShadow: isOpen
@@ -180,20 +203,57 @@ export function CustomSelect({
               {selectedOption.icon}
             </span>
           )}
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {selectedOption ? selectedOption.label : (value ? String(value) : placeholder)}
-          </span>
+
+          {searchable ? (
+            <input
+              ref={inputRef}
+              type="text"
+              value={displayValue}
+              placeholder={placeholder}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!isOpen) setIsOpen(true);
+              }}
+              onFocus={() => {
+                if (!isOpen) setIsOpen(true);
+              }}
+              onChange={(e) => {
+                setIsTyping(true);
+                setQuery(e.target.value);
+                if (!isOpen) setIsOpen(true);
+              }}
+              onKeyDown={handleInputKeyDown}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                outline: 'none',
+                fontSize: '13.5px',
+                fontWeight: 500,
+                color: isTyping || selectedOption ? 'var(--text)' : 'var(--muted)',
+                width: '100%',
+                cursor: 'text',
+                padding: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            />
+          ) : (
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '13.5px', fontWeight: 500, color: selectedOption ? 'var(--text)' : 'var(--muted)' }}>
+              {selectedOption ? selectedOption.label : (value ? String(value) : placeholder)}
+            </span>
+          )}
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
-          {clearable && onClear && value && value !== '0' && (
+          {clearable && selectedOption && selectedOption.value !== '0' && selectedOption.value !== '' && (
             <span
               role="button"
               onClick={(e) => {
                 e.stopPropagation();
-                onClear();
+                handleClear();
               }}
-              title="Clear"
+              title="Clear selection"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -217,80 +277,15 @@ export function CustomSelect({
               flexShrink: 0,
               transition: 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
               transform: isOpen ? 'rotate(180deg)' : 'none',
+              pointerEvents: 'none',
             }}
           />
         </div>
-      </button>
+      </div>
 
       {isOpen && (
-        <div
-          className={`custom-select-dropdown ${align === 'right' ? 'align-right' : ''} ${isFullWidth ? 'full-width' : ''}`}
-        >
-          {searchable && (
-            <div style={{ padding: '4px 6px 6px 6px', borderBottom: '1px solid var(--line)' }}>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  background: 'var(--surface-2)',
-                  borderRadius: '6px',
-                  padding: '4px 8px',
-                }}
-              >
-                <Search size={13} style={{ color: 'var(--muted)', flexShrink: 0 }} />
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  placeholder={searchPlaceholder || 'Filter...'}
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  onKeyDown={handleSearchKeyDown}
-                  style={{
-                    border: 'none',
-                    background: 'transparent',
-                    outline: 'none',
-                    fontSize: '12px',
-                    width: '100%',
-                    color: 'var(--text)',
-                    padding: 0,
-                    minWidth: 0,
-                  }}
-                />
-                {search && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSearch('');
-                      searchInputRef.current?.focus();
-                    }}
-                    style={{
-                      border: 'none',
-                      background: 'transparent',
-                      color: 'var(--muted)',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      padding: '2px',
-                      borderRadius: '4px',
-                    }}
-                    title="Clear search"
-                  >
-                    <X size={12} />
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          <div
-            className="custom-select-scroll"
-            style={{
-              maxHeight: searchable ? '280px' : '340px',
-              padding: '2px 0',
-            }}
-          >
+        <div className="custom-select-dropdown">
+          <div className="custom-select-scroll">
             {filteredOptions.length === 0 ? (
               <div style={{ padding: '10px 12px', fontSize: '12px', color: 'var(--muted)', textAlign: 'center' }}>
                 No options found
@@ -302,15 +297,12 @@ export function CustomSelect({
                 return (
                   <div
                     key={String(opt.value)}
-                    onClick={() => {
-                      onChange(String(opt.value));
-                      setIsOpen(false);
-                    }}
+                    onClick={() => handleSelect(String(opt.value))}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      gap: '12px',
+                      gap: '10px',
                       padding: '8px 10px',
                       borderRadius: '6px',
                       fontSize: '13px',

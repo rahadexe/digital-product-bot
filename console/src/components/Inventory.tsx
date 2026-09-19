@@ -104,9 +104,9 @@ export function Inventory({ say }: { say: Say }) {
                   badge: p.stock ?? 0,
                 })),
               ]}
-              minWidth={220}
+              minWidth={240}
               searchable={true}
-              searchPlaceholder="Search products..."
+              placeholder="All products"
               clearable={productId !== 0}
               onClear={() => { setProductId(0); setOffset(0); }}
             />
@@ -299,8 +299,7 @@ function AddStock({ products, initialProduct, say, onClose, onAdded }: { product
           }))}
           minWidth="100%"
           searchable={products.length > 3}
-          searchPlaceholder="Search product to add stock..."
-          fullWidthDropdown={true}
+          placeholder="Select product..."
         />
       </div>
       <label className="field">
