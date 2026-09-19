@@ -261,10 +261,12 @@ async def handle_deposit_method_select(query: CallbackQuery, state: FSMContext, 
     method_name = method["name"]
     rate = float(method["rate_to_currency"])
 
+    min_coin = 1.0
     if method.get("auto_verify") == "binance_pay":
         account_info = setting_values.get("binance_pay_id") or account_info
         rate = float(setting_values.get("binance_pay_rate") or rate) or 125.0
-        min_dep = float(setting_values.get("binance_pay_min") or min_dep)
+        min_coin = float(setting_values.get("binance_pay_min") or 1.0)
+        min_dep = round(min_coin * rate, 2)
         method_id = method["id"]
 
     await state.set_state(DepositStates.method_selected)
@@ -273,13 +275,13 @@ async def handle_deposit_method_select(query: CallbackQuery, state: FSMContext, 
         "method_name": method_name,
         "account_info": account_info,
         "min_deposit": min_dep,
+        "min_coin": min_coin,
         "rate": rate,
         "auto_verify": method.get("auto_verify", "none"),
     })
 
     if method.get("auto_verify") == "binance_pay":
         coin = setting_values.get("binance_coin", "USDT")
-        min_coin = round(min_dep / rate, 2) if rate > 0 else min_dep
         custom_inst = (setting_values.get("binance_pay_instructions") or "").strip()
         inst_body = (
             f"\n\n<b>Instructions:</b>\n{escape(custom_inst)}"
@@ -288,7 +290,8 @@ async def handle_deposit_method_select(query: CallbackQuery, state: FSMContext, 
                 "\n\n<b>How to pay:</b>\n"
                 "1. Open <b>Binance App</b> → <b>Pay</b> → <b>Send</b>\n"
                 f"2. Enter Binance UID: <code>{escape(account_info)}</code>\n"
-                f"3. Send <b>{escape(coin)}</b> and tap <b>Payment Done</b> below"
+                f"3. Send <b>{escape(coin)}</b> and tap <b>Payment Done</b> below\n\n"
+                f"<i>আপনি যত ডলার পাঠাবেন এই রেটে কনভার্ট হয়ে স্বয়ংক্রিয়ভাবে অ্যাকাউন্টে টাকা যোগ হয়ে যাবে।</i>"
             )
         )
         method_icon = get_method_icon(method)
@@ -297,9 +300,8 @@ async def handle_deposit_method_select(query: CallbackQuery, state: FSMContext, 
             f"━━━━━━━━━━━━━━━━━━\n"
             f"↳ <b>Binance UID:</b>\n"
             f"<code>{escape(account_info)}</code> <i>(Tap to copy)</i>\n\n"
-            f"↳ <b>Currency:</b> {escape(coin)} ($)\n"
-            f"↳ <b>Exchange Rate:</b> 1 {escape(coin)} = {rate:g} {symbol}\n"
-            f"↳ <b>Minimum Deposit:</b> {min_coin:g} {escape(coin)} (~{price(symbol, min_dep)})"
+            f"↳ <b>Minimum Deposit:</b> {min_coin:g} {escape(coin)} (~{price(symbol, min_dep)})\n"
+            f"↳ <b>Exchange Rate:</b> 1 {escape(coin)} = {rate:g} {symbol}"
             f"{inst_body}"
         )
         reply_kb = get_manual_deposit_invoice_keyboard(account_info, is_binance=True)
@@ -338,8 +340,8 @@ async def ask_deposit_input(query: CallbackQuery, state: FSMContext, services: S
 
     if auto_verify == "binance_pay":
         rate = data.get("rate", 125.0)
-        min_dep = data.get("min_deposit", 40.0)
-        min_coin = round(min_dep / rate, 2) if rate > 0 else min_dep
+        min_coin = data.get("min_coin", 1.0)
+        min_dep = data.get("min_deposit", min_coin * rate)
         await state.set_state(DepositStates.waiting_for_binance_amount)
         text = (
             f"{ICON_MONEY} <b>Enter Deposit Amount (USDT)</b>\n"
@@ -682,7 +684,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             )
             return
 
-        if res.get("error") in ("amount_mismatch", "already_used"):
+        if res.get("error"):
             await message.answer(
                 f"{ICON_CROSS} <b>Verification Failed</b>\n\n{escape(res.get('detail', ''))}",
                 reply_markup=get_cancel_keyboard(),

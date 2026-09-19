@@ -218,7 +218,7 @@ class ZiniPayVerificationService:
                 return {
                     "auto_verified": False,
                     "error": "not_found",
-                    "detail": "Transaction not found on device yet. If you just sent the payment, please wait 1 minute for SMS delivery or check the TrxID.",
+                    "detail": "Transaction not found on ZiniPay yet. Please ensure the TrxID and amount match your SMS receipt, or wait 1 minute for SMS sync and try again.",
                 }
             else:
                 # System error / not enabled / insufficient credits -> graceful fallback to manual review

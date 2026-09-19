@@ -118,7 +118,7 @@ const SECTIONS: Section[] = [
   {
     id: 'binance',
     tab: 'payments',
-    title: 'Binance Pay',
+    title: 'Binance',
     master: {
       key: 'binance_enabled',
     },
@@ -136,7 +136,7 @@ const SECTIONS: Section[] = [
         ],
       },
       { key: 'binance_pay_rate', label: 'Rate per 1 USDT (৳)', type: 'number', fallback: '125' },
-      { key: 'binance_pay_min', label: 'Smallest deposit (৳)', type: 'number', fallback: '100', money: true },
+      { key: 'binance_pay_min', label: 'Smallest deposit ($)', type: 'number', fallback: '1' },
       { key: 'binance_pay_instructions', label: 'Custom instructions (optional)', type: 'textarea', rows: 2, placeholder: 'Leave blank for default instructions' },
     ],
     extra: 'binance',
