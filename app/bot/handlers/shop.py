@@ -273,19 +273,33 @@ async def product_view(
     if cat_emoji_id and custom_emoji_id and str(cat_emoji_id).strip() == str(custom_emoji_id).strip():
         prod_icon_display = "📦"
 
-    unit_price = float(product["price"])
+    is_reseller = (user.get("rank") or "").strip().lower() == "reseller" if user else False
+    reseller_price = product.get("reseller_price")
+    has_reseller_rate = is_reseller and reseller_price is not None and float(reseller_price) > 0
+
+    if has_reseller_rate:
+        unit_price = float(reseller_price)
+    else:
+        unit_price = float(product["price"])
     total_price = round(unit_price * quantity, 2)
 
     unit_price_str = f"{unit_price:g} {symbol}" if unit_price == int(unit_price) else f"{unit_price:.2f} {symbol}"
     total_price_str = f"{total_price:g} {symbol}" if total_price == int(total_price) else f"{total_price:.2f} {symbol}"
     balance_str = f"{balance:g} {symbol}" if balance == int(balance) else f"{balance:.2f} {symbol}"
 
+    if has_reseller_rate:
+        reg_price = float(product["price"])
+        reg_price_str = f"{reg_price:g} {symbol}" if reg_price == int(reg_price) else f"{reg_price:.2f} {symbol}"
+        price_rate_line = f"{ICON_MONEY} <b>Price Rate:</b> <code>{unit_price_str}</code> (🔥 <i>Reseller Price</i> · <s>{reg_price_str}</s>)\n"
+    else:
+        price_rate_line = f"{ICON_MONEY} <b>Price Rate:</b> <code>{unit_price_str}</code>\n"
+
     text = (
         f"{ICON_BALANCE} <b>Your Balance:</b> <code>{balance_str}</code>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"{cat_icon_display} <b>Category:</b> {escape(category_name)}\n"
         f"{prod_icon_display} <b>Package:</b> <b>{clean_title}</b>\n"
-        f"{ICON_MONEY} <b>Price Rate:</b> <code>{unit_price_str}</code>\n"
+        f"{price_rate_line}"
         f"{ICON_STATS} <b>Available Stock:</b> {stock_text}\n"
     )
     if duration and duration.lower() not in {"instant", "none", "n/a", ""}:
@@ -507,6 +521,10 @@ async def show_products_list(
     page = 1
     page_products = products[0:PAGE_SIZE]
 
+    tg_user = event.from_user
+    user_row = await services.users.get(tg_user.id) if tg_user else None
+    is_reseller = (user_row.get("rank") or "").strip().lower() == "reseller" if user_row else False
+
     keyboard = get_products_keyboard(
         products=page_products,
         page=page,
@@ -514,6 +532,7 @@ async def show_products_list(
         currency_symbol=symbol,
         category_id=category_id,
         back_target=effective_back_target,
+        is_reseller=is_reseller,
     )
     if category_name and duration_label:
         title = f"{category_icon_display}<b>{escape(category_name)} ({escape(duration_label)}):</b>"
@@ -606,6 +625,10 @@ async def paginate_products(query: CallbackQuery, state: FSMContext, services: S
     page = min(max(requested_page, 1), total_pages)
     page_products = products[(page - 1) * PAGE_SIZE : page * PAGE_SIZE]
 
+    tg_user = query.from_user
+    user_row = await services.users.get(tg_user.id) if tg_user else None
+    is_reseller = (user_row.get("rank") or "").strip().lower() == "reseller" if user_row else False
+
     keyboard = get_products_keyboard(
         products=page_products,
         page=page,
@@ -613,6 +636,7 @@ async def paginate_products(query: CallbackQuery, state: FSMContext, services: S
         currency_symbol=symbol,
         category_id=category_id,
         back_target=back_target,
+        is_reseller=is_reseller,
     )
     title = (
         f"{category_icon_display}<b>{escape(category_name)}:</b>"
@@ -714,7 +738,12 @@ async def get_keypad_view_text(
     else:
         stock_text = f"<b>Out of Stock {ICON_CROSS}</b>"
 
-    unit_price = float(product["price"])
+    is_reseller = (user.get("rank") or "").strip().lower() == "reseller" if user else False
+    reseller_price = product.get("reseller_price")
+    if is_reseller and reseller_price is not None and float(reseller_price) > 0:
+        unit_price = float(reseller_price)
+    else:
+        unit_price = float(product["price"])
     unit_price_str = f"{unit_price:g} {symbol}" if unit_price == int(unit_price) else f"{unit_price:.2f} {symbol}"
     balance_str = f"{balance:g} {symbol}" if balance == int(balance) else f"{balance:.2f} {symbol}"
 

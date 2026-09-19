@@ -342,6 +342,7 @@ def get_products_keyboard(
     currency_symbol: str = "৳",
     category_id: int | str | None = None,
     back_target: str = "back_to_main",
+    is_reseller: bool = False,
 ) -> InlineKeyboardMarkup:
     """
     Vibrant colorful product list keyboard matching user reference:
@@ -363,6 +364,10 @@ def get_products_keyboard(
         stock = p.get("stock", 0)
         title = p["title"].strip()
         price_num = p["price"]
+        reseller_price = p.get("reseller_price")
+        if is_reseller and reseller_price is not None and float(reseller_price) > 0:
+            price_num = float(reseller_price)
+
         price_formatted = f"{price_num:g} {currency_symbol}" if price_num == int(price_num) else f"{price_num:.1f} {currency_symbol}"
 
         custom_emoji_id = p.get("custom_emoji_id")

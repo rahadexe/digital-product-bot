@@ -21,6 +21,7 @@ type Draft = {
   title: string;
   description: string;
   price: number;
+  reseller_price?: number | null;
   duration_label: string;
   sort_order: number;
   is_active: boolean;
@@ -200,6 +201,7 @@ export function Products({ say }: { say: Say }) {
                 title: '',
                 description: '',
                 price: 1,
+                reseller_price: null,
                 duration_label: '1 Month',
                 sort_order: 0,
                 is_active: true,
@@ -239,7 +241,14 @@ export function Products({ say }: { say: Say }) {
                         {product.duration_label || 'Instant'}
                       </small>
                     </td>
-                    <td className="money">{money(product.price)}</td>
+                    <td className="money">
+                      <div>{money(product.price)}</div>
+                      {product.reseller_price != null && product.reseller_price > 0 ? (
+                        <small style={{ color: 'var(--accent)', fontSize: '11px', fontWeight: 600, display: 'block' }}>
+                          Reseller: {money(product.reseller_price)}
+                        </small>
+                      ) : null}
+                    </td>
                     <td>
                       {product.delivery_type === 'manual' ? (
                         <span className="pill info" style={{ fontWeight: 600 }}>
@@ -302,6 +311,7 @@ export function Products({ say }: { say: Say }) {
                               title: editableName(product.title, product.icon),
                               description: product.description,
                               price: product.price,
+                              reseller_price: product.reseller_price ?? null,
                               duration_label: product.duration_label,
                               sort_order: product.sort_order,
                               is_active: Boolean(product.is_active),
@@ -444,6 +454,11 @@ export function Products({ say }: { say: Say }) {
                   <code style={{ background: 'var(--surface)', padding: '1px 5px', borderRadius: '4px', fontSize: '12px' }}>
                     {money(previewProduct.price)}
                   </code>
+                  {previewProduct.reseller_price != null && previewProduct.reseller_price > 0 ? (
+                    <span style={{ marginLeft: '8px', color: 'var(--accent)', fontWeight: 600, fontSize: '12px' }}>
+                      (Reseller: {money(previewProduct.reseller_price)})
+                    </span>
+                  ) : null}
                 </div>
               </div>
 
@@ -522,6 +537,7 @@ function ProductForm({
       title: form.title.trim(),
       description: (form.description || '').trim(),
       price: form.price,
+      reseller_price: form.reseller_price != null && form.reseller_price > 0 ? form.reseller_price : null,
       icon: '',
       duration_label: form.duration_label,
       sort_order: form.sort_order,
@@ -587,10 +603,23 @@ function ProductForm({
         />
       </div>
 
-      <label className="field">
-        <span>Price</span>
-        <input type="number" step="any" min="0" required value={form.price} onChange={(event) => set({ price: parseFloat(event.target.value) || 0 })} />
-      </label>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+        <label className="field" style={{ margin: 0 }}>
+          <span>Regular Price</span>
+          <input type="number" step="any" min="0" required value={form.price} onChange={(event) => set({ price: parseFloat(event.target.value) || 0 })} />
+        </label>
+        <label className="field" style={{ margin: 0 }}>
+          <span>Reseller Price <small style={{ color: 'var(--muted)', fontWeight: 'normal' }}>(Optional)</small></span>
+          <input
+            type="number"
+            step="any"
+            min="0"
+            placeholder="e.g. 450 (Leave empty for regular price)"
+            value={form.reseller_price ?? ''}
+            onChange={(event) => set({ reseller_price: event.target.value === '' ? null : (parseFloat(event.target.value) || 0) })}
+          />
+        </label>
+      </div>
 
       <div className="field">
         <ValidityPicker

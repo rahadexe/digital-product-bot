@@ -390,10 +390,15 @@ function CustomerDialog({ user, say, onClose, onChanged }: { user: User; say: Sa
                 title="Change customer account type"
               >
                 <option value="Standard">Normal User</option>
-                <option value="Affiliate">Affiliate Partner</option>
                 <option value="Reseller">Reseller Partner</option>
+                <option value="Affiliate">Affiliate Partner</option>
                 <option value="VIP">VIP Member</option>
               </select>
+              {currentRank === 'Reseller' ? (
+                <small style={{ color: '#0284c7', fontSize: '11px', display: 'block', marginTop: 4, fontWeight: 600 }}>
+                  💼 Automatically gets Reseller Prices in Bot
+                </small>
+              ) : null}
             </div>
           </div>
         </div>

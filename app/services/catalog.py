@@ -23,7 +23,7 @@ LISTING_SQL = (
     f"SELECT p.*, c.name AS category_name, {STOCK_SQL} AS stock FROM products p LEFT JOIN categories c ON c.id = p.category_id"
 )
 
-PRODUCT_FIELDS = ("category_id", "title", "description", "price", "icon", "duration_label", "sort_order", "is_active", "delivery_type", "custom_emoji_id")
+PRODUCT_FIELDS = ("category_id", "title", "description", "price", "reseller_price", "icon", "duration_label", "sort_order", "is_active", "delivery_type", "custom_emoji_id")
 
 
 class CatalogService:
@@ -220,6 +220,7 @@ class CatalogService:
         title: str,
         description: str = "",
         price: float = 0.0,
+        reseller_price: float | None = None,
         icon: str = "⚡",
         duration_label: str = "",
         sort_order: int = 0,
@@ -228,19 +229,21 @@ class CatalogService:
         custom_emoji_id: str | None = None,
     ) -> int:
         price = money(price, positive=True)
+        reseller_price = money(reseller_price, positive=True) if (reseller_price is not None and float(reseller_price) > 0) else None
         if delivery_type not in ("stock", "manual"):
             delivery_type = "stock"
         async with self.db.transaction() as conn:
             await self._require_category(conn, category_id)
             product_id = await conn.fetchval(
                 """
-                INSERT INTO products (category_id, title, description, price, icon, duration_label, sort_order, is_active, delivery_type, custom_emoji_id)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id
+                INSERT INTO products (category_id, title, description, price, reseller_price, icon, duration_label, sort_order, is_active, delivery_type, custom_emoji_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id
                 """,
                 category_id,
                 title,
                 description,
                 price,
+                reseller_price,
                 icon,
                 duration_label,
                 sort_order,
@@ -248,7 +251,11 @@ class CatalogService:
                 delivery_type,
                 custom_emoji_id,
             )
-            await record(conn, "product_created", f"Product #{product_id}: {title} at {price:.2f} ({delivery_type})")
+            details = f"Product #{product_id}: {title} at {price:.2f}"
+            if reseller_price is not None:
+                details += f" (reseller: {reseller_price:.2f})"
+            details += f" ({delivery_type})"
+            await record(conn, "product_created", details)
         self._products_cache.clear()
         return product_id
 
@@ -257,8 +264,11 @@ class CatalogService:
         updates = {key: value for key, value in fields.items() if key in PRODUCT_FIELDS}
         if "price" in updates:
             updates["price"] = money(updates["price"], positive=True)
+        if "reseller_price" in updates:
+            r_val = updates["reseller_price"]
+            updates["reseller_price"] = money(r_val, positive=True) if (r_val is not None and float(r_val) > 0) else None
         async with self.db.transaction() as conn:
-            current = await conn.fetchrow("SELECT price FROM products WHERE id = $1 FOR UPDATE", product_id)
+            current = await conn.fetchrow("SELECT price, reseller_price FROM products WHERE id = $1 FOR UPDATE", product_id)
             if not current:
                 return None
             if not updates:
@@ -270,6 +280,8 @@ class CatalogService:
             details = f"Product #{product_id}: {', '.join(sorted(updates))}"
             if "price" in updates and updates["price"] != current["price"]:
                 details += f"; price {current['price']:.2f} -> {updates['price']:.2f}"
+            if "reseller_price" in updates and updates["reseller_price"] != current["reseller_price"]:
+                details += f"; reseller_price {current['reseller_price']} -> {updates['reseller_price']}"
             await record(conn, "product_updated", details)
         self._products_cache.clear()
         return current["price"]

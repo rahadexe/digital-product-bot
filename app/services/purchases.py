@@ -109,7 +109,14 @@ class PurchaseService:
                 if not product:
                     await db.execute("ROLLBACK")
                     return False, "Product is currently unavailable.", None
-                unit_price = money(product["price"], positive=True)
+
+                is_reseller = (user.get("rank") or "").strip().lower() == "reseller"
+                reseller_price = product.get("reseller_price")
+                if is_reseller and reseller_price is not None and float(reseller_price) > 0:
+                    unit_price = money(reseller_price, positive=True)
+                else:
+                    unit_price = money(product["price"], positive=True)
+
                 total_price = round(unit_price * quantity, 4)
                 if user["balance"] < total_price:
                     await db.execute("ROLLBACK")

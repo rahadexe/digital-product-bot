@@ -74,6 +74,7 @@ export interface Product {
   title: string;
   description: string;
   price: number;
+  reseller_price?: number | null;
   icon: string;
   duration_label: string;
   sort_order: number;
