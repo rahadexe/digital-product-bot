@@ -2,44 +2,21 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
-  ArrowLeft,
   Check,
-  ChevronDown,
-  ChevronUp,
   Clock,
   Copy,
-  ExternalLink,
-  KeyRound,
   PackageCheck,
-  RotateCw,
-  Send,
   ShoppingBag,
-  Undo2,
   Wallet,
   X,
 } from 'lucide-react';
 import { api, type Order, type OrderDetail, type OrderSummary } from '@/lib/api';
 import { useMoney } from '@/lib/currency';
-import { EmptyRow, Pager, errorText, tone, useConfirm, useDebounced, when, who, type Say } from './ui';
+import { EmptyRow, Modal, Pager, errorText, tone, useConfirm, useDebounced, when, who, type Say } from './ui';
 
 const PAGE = 50;
 
 type Timeframe = 'all' | 'today' | '7d' | '30d' | 'custom';
-
-const SOURCE: Record<Order['source'], string> = {
-  stock: 'From your stock',
-  supplier: 'From the supplier',
-  manual: 'Typed by you',
-  legacy: 'Older order',
-};
-
-const MESSAGE_STATE: Record<string, string> = {
-  sent: 'sent',
-  pending: 'queued',
-  sending: 'sending',
-  failed: 'not delivered',
-  cancelled: 'cancelled',
-};
 
 function formatOrderDateTime(iso?: string | null): string {
   if (!iso) return '—';
@@ -88,13 +65,11 @@ export function Orders({
   initialWaiting = false,
   initialOrderId = null,
   onWaitingChange,
-  onNavigate,
 }: {
   say: Say;
   initialWaiting?: boolean;
   initialOrderId?: number | null;
   onWaitingChange?: (count: number) => void;
-  onNavigate?: (orderId: number | null) => void;
 }) {
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [total, setTotal] = useState(0);
@@ -106,12 +81,12 @@ export function Orders({
   const [summary, setSummary] = useState<OrderSummary | null>(null);
   const [offset, setOffset] = useState(0);
   const [search, setSearch] = useState('');
-  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(initialOrderId);
+  const [openOrderId, setOpenOrderId] = useState<number | null>(initialOrderId);
   const query = useDebounced(search);
   const money = useMoney();
 
   useEffect(() => {
-    setSelectedOrderId(initialOrderId);
+    setOpenOrderId(initialOrderId);
   }, [initialOrderId]);
 
   const load = useCallback(async () => {
@@ -150,26 +125,14 @@ export function Orders({
   };
 
   const openOrder = (id: number) => {
-    setSelectedOrderId(id);
-    onNavigate?.(id);
+    setOpenOrderId(id);
+    window.history.replaceState(null, '', `#orders/${id}`);
   };
 
   const closeOrder = () => {
-    setSelectedOrderId(null);
-    onNavigate?.(null);
+    setOpenOrderId(null);
+    window.history.replaceState(null, '', waitingOnly ? '#orders/waiting' : '#orders');
   };
-
-  // Dedicated full-page view for order detail
-  if (selectedOrderId) {
-    return (
-      <OrderDetailPage
-        orderId={selectedOrderId}
-        say={say}
-        onBack={closeOrder}
-        onChanged={() => void load()}
-      />
-    );
-  }
 
   return (
     <>
@@ -372,28 +335,32 @@ export function Orders({
         </div>
         <Pager total={total} offset={offset} size={PAGE} onChange={setOffset} />
       </section>
+
+      {/* Exact replica of the target clean modal design */}
+      {openOrderId ? (
+        <OrderDetailModal
+          orderId={openOrderId}
+          say={say}
+          onClose={closeOrder}
+          onChanged={() => void load()}
+        />
+      ) : null}
     </>
   );
 }
 
 /**
- * Dedicated, executive-grade Order Detail View matching the target clean reference design.
- * Features:
- * - Top metadata key-value grid (Order ID, Customer, Product, Variation, Amount, Payment, Created, Delivered)
- * - Distinct Delivered Credentials card with orange key icon and copy all button
- * - Clean manual fulfill card (when order is waiting)
- * - Collapsible Telegram notification logs
- * - Full confirmation dialog on refunds
+ * Clean, compact Order Details Modal matching the target reference design (media_1789824618164.png).
  */
-function OrderDetailPage({
+function OrderDetailModal({
   orderId,
   say,
-  onBack,
+  onClose,
   onChanged,
 }: {
   orderId: number;
   say: Say;
-  onBack: () => void;
+  onClose: () => void;
   onChanged: () => void;
 }) {
   const [detail, setDetail] = useState<OrderDetail | null>(null);
@@ -401,7 +368,6 @@ function OrderDetailPage({
   const [content, setContent] = useState('');
   const [busy, setBusy] = useState('');
   const [copiedField, setCopiedField] = useState<'id' | 'credentials' | null>(null);
-  const [showMessages, setShowMessages] = useState(false);
   const [confirm, confirmDialog] = useConfirm();
   const money = useMoney();
 
@@ -435,7 +401,7 @@ function OrderDetailPage({
     if (!text) return;
     void navigator.clipboard.writeText(text);
     setCopiedField(field);
-    say(field === 'id' ? 'Copied Order ID to clipboard.' : 'Copied credentials to clipboard.');
+    say(field === 'id' ? 'Copied Order ID.' : 'Copied credentials.');
     setTimeout(() => {
       setCopiedField((cur) => (cur === field ? null : cur));
     }, 2000);
@@ -443,210 +409,148 @@ function OrderDetailPage({
 
   if (loadError) {
     return (
-      <div className="order-page">
-        <div className="order-page-header">
-          <button type="button" className="order-back-btn" onClick={onBack}>
-            <ArrowLeft size={16} />
-            <span>Back to Orders</span>
-          </button>
+      <Modal title={`Order #${orderId}`} onClose={onClose} wide>
+        <div className="dialog-error" role="alert">
+          <strong>Order details unavailable</strong>
+          <p>{loadError}</p>
         </div>
-        <div className="panel" style={{ padding: '32px', textAlign: 'center' }}>
-          <p className="bad-text" style={{ fontWeight: 600, fontSize: '15px' }}>{loadError}</p>
-          <div style={{ marginTop: '16px' }}>
-            <button type="button" className="btn" onClick={() => void load()}>
-              <RotateCw size={14} />
-              <span>Try Again</span>
-            </button>
-          </div>
-        </div>
-      </div>
+      </Modal>
     );
   }
 
   if (!detail) {
     return (
-      <div className="order-page">
-        <div className="order-page-header">
-          <button type="button" className="order-back-btn" onClick={onBack}>
-            <ArrowLeft size={16} />
-            <span>Back to Orders</span>
-          </button>
-        </div>
-        <div className="panel" style={{ padding: '32px', textAlign: 'center', color: 'var(--muted)' }}>
-          <p>Loading order details…</p>
-        </div>
-      </div>
+      <Modal title={`Order #${orderId}`} onClose={onClose} wide>
+        <p className="hint" style={{ padding: '24px 0', textAlign: 'center' }}>Loading…</p>
+      </Modal>
     );
   }
 
-  const { order, stock_item: item, messages } = detail;
+  const { order } = detail;
   const waiting = order.status === 'completed' && order.fulfillment === 'waiting';
   const customerName = getCustomerDisplayName(order);
   const variation = getVariationLabel(order);
   const orderCode = order.request_id || `#${order.id}`;
 
   return (
-    <div className="order-page">
-      {confirmDialog}
-
-      {/* Top Navigation Bar & Action Buttons */}
-      <div className="order-page-header">
-        <div className="order-header-left">
-          <button type="button" className="order-back-btn" onClick={onBack}>
-            <ArrowLeft size={16} />
-            <span>Back to Orders</span>
-          </button>
-          <nav className="order-breadcrumbs" aria-label="Breadcrumbs">
-            <button type="button" className="order-crumb-link" onClick={onBack}>
-              Orders
-            </button>
-            <span className="order-crumb-sep">/</span>
-            <span className="order-crumb-active">Order #{order.id}</span>
-          </nav>
-        </div>
-
-        <div className="order-header-actions">
-          {!waiting && order.status === 'completed' && order.delivery_status === 'failed' ? (
-            <button
-              type="button"
-              className="btn ghost small"
-              disabled={Boolean(busy)}
-              onClick={() =>
-                run('retry', async () => {
-                  await api.retryDelivery(order.id);
-                  return 'Sending the message again.';
-                })
-              }
-            >
-              <RotateCw size={13} className={busy === 'retry' ? 'spin' : ''} />
-              <span>Resend Message</span>
-            </button>
-          ) : null}
-
-          {order.status === 'completed' ? (
-            <button
-              type="button"
-              className="btn danger small"
-              disabled={Boolean(busy)}
-              onClick={async () => {
-                const confirmed = await confirm(
-                  `Refund order #${order.id}?`,
-                  `${money(order.price)} will be returned directly to ${customerName}'s wallet balance.`,
-                  'Refund Order',
-                  true
-                );
-                if (!confirmed) return;
-                void run('refund', async () => (await api.refundOrder(order.id)).message || 'Refunded successfully.');
-              }}
-            >
-              <Undo2 size={13} />
-              <span>Refund {money(order.price)}</span>
-            </button>
-          ) : null}
-        </div>
-      </div>
-
-      {/* Card 1: Order Metadata Key-Value List (Matches Reference Image) */}
-      <div className="panel order-detail-card">
-        <div className="order-meta-grid">
-          <div className="order-meta-row">
-            <span className="order-meta-label">Order ID</span>
-            <div className="order-meta-value">
-              <span className="order-id-badge">{orderCode}</span>
+    <Modal
+      title={`Order #${order.id}`}
+      onClose={onClose}
+      wide
+      footer={
+        <div className="order-modal-footer">
+          <div>
+            {order.status === 'completed' ? (
               <button
                 type="button"
-                className="order-copy-chip"
-                title="Copy Order ID"
-                onClick={() => copyText(orderCode, 'id')}
+                className="btn danger small"
+                disabled={Boolean(busy)}
+                onClick={async () => {
+                  const confirmed = await confirm(
+                    `Refund order #${order.id}?`,
+                    `${money(order.price)} will go back to ${customerName}'s balance.`,
+                    'Refund Order',
+                    true
+                  );
+                  if (!confirmed) return;
+                  void run('refund', async () => (await api.refundOrder(order.id)).message || 'Refunded.');
+                }}
               >
-                {copiedField === 'id' ? <Check size={12} className="good-text" /> : <Copy size={12} />}
-                <span>{copiedField === 'id' ? 'Copied' : 'Copy'}</span>
+                Refund {money(order.price)}
               </button>
-            </div>
+            ) : null}
+
+            {!waiting && order.status === 'completed' && order.delivery_status === 'failed' ? (
+              <button
+                type="button"
+                className="btn ghost small"
+                disabled={Boolean(busy)}
+                onClick={() =>
+                  run('retry', async () => {
+                    await api.retryDelivery(order.id);
+                    return 'Sending the message again.';
+                  })
+                }
+              >
+                Resend Message
+              </button>
+            ) : null}
           </div>
 
-          <div className="order-meta-row">
-            <span className="order-meta-label">Customer</span>
-            <div className="order-meta-value">
-              <span className="order-customer-name">{customerName}</span>
-              <span className="order-customer-sub">
-                {order.username ? (
-                  <a
-                    href={`https://t.me/${order.username}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="order-tg-link"
-                    title="Open in Telegram"
-                  >
-                    @{order.username}
-                  </a>
-                ) : null}
-                <a
-                  href={`#users/${order.tg_user_id}`}
-                  className="order-user-chip"
-                  title="View customer profile"
-                >
-                  <span>ID: {order.tg_user_id}</span>
-                  <ExternalLink size={11} />
-                </a>
+          <button type="button" className="btn ghost small" onClick={onClose}>
+            Close
+          </button>
+        </div>
+      }
+    >
+      {confirmDialog}
+
+      {/* Card 1: Order Metadata Table (Exact match with target image) */}
+      <div className="order-modal-card">
+        <div className="order-modal-meta-grid">
+          <div className="order-modal-row">
+            <span className="order-modal-label">Order ID</span>
+            <div className="order-modal-val">
+              <span
+                className="order-modal-id-pill"
+                onClick={() => copyText(orderCode, 'id')}
+                title="Click to copy ID"
+              >
+                <span>{orderCode}</span>
+                {copiedField === 'id' ? <Check size={11} className="good-text" /> : <Copy size={11} />}
               </span>
             </div>
           </div>
 
-          <div className="order-meta-row">
-            <span className="order-meta-label">Product</span>
-            <div className="order-meta-value">
-              <span className="order-product-title">
-                {order.product_icon ? <span className="order-product-icon">{order.product_icon}</span> : null}
-                {order.product_title}
-              </span>
+          <div className="order-modal-row">
+            <span className="order-modal-label">Customer</span>
+            <div className="order-modal-val strong">
+              <span>{customerName}</span>
+              {order.username ? (
+                <span style={{ color: 'var(--muted)', fontWeight: 400 }}>({order.username})</span>
+              ) : null}
             </div>
           </div>
 
-          <div className="order-meta-row">
-            <span className="order-meta-label">Variation</span>
-            <div className="order-meta-value">
-              <span className="order-variation-text">{variation}</span>
+          <div className="order-modal-row">
+            <span className="order-modal-label">Product</span>
+            <div className="order-modal-val strong">
+              <span>{order.product_title}</span>
             </div>
           </div>
 
-          <div className="order-meta-row">
-            <span className="order-meta-label">Amount</span>
-            <div className="order-meta-value">
-              <span className="order-amount-text">{money(order.price)}</span>
+          <div className="order-modal-row">
+            <span className="order-modal-label">Variation</span>
+            <div className="order-modal-val strong">
+              <span>{variation}</span>
             </div>
           </div>
 
-          <div className="order-meta-row">
-            <span className="order-meta-label">Payment</span>
-            <div className="order-meta-value">
-              <span className="order-payment-text">
-                {order.source === 'manual' ? 'Manual' : 'Wallet'} /{' '}
-                {order.status === 'completed' ? (
-                  waiting ? 'waiting fulfillment' : 'paid'
-                ) : order.status === 'refunded' ? (
-                  'refunded'
-                ) : (
-                  order.status
-                )}
-              </span>
-              <span className={`pill ${order.status === 'completed' && !waiting ? 'good' : waiting ? 'warn' : 'bad'}`}>
-                {order.status === 'completed' ? (waiting ? 'waiting' : 'completed') : order.status}
-              </span>
+          <div className="order-modal-row">
+            <span className="order-modal-label">Amount</span>
+            <div className="order-modal-val strong">
+              <span>{money(order.price)}</span>
             </div>
           </div>
 
-          <div className="order-meta-row">
-            <span className="order-meta-label">Created</span>
-            <div className="order-meta-value">
-              <span className="order-time-text">{formatOrderDateTime(order.created_at)}</span>
+          <div className="order-modal-row">
+            <span className="order-modal-label">Payment</span>
+            <div className="order-modal-val">
+              <span>{order.source === 'manual' ? 'Manual' : 'Wallet'} / {order.status}</span>
             </div>
           </div>
 
-          <div className="order-meta-row">
-            <span className="order-meta-label">Delivered</span>
-            <div className="order-meta-value">
-              <span className="order-time-text">
+          <div className="order-modal-row">
+            <span className="order-modal-label">Created</span>
+            <div className="order-modal-val">
+              <span>{formatOrderDateTime(order.created_at)}</span>
+            </div>
+          </div>
+
+          <div className="order-modal-row">
+            <span className="order-modal-label">Delivered</span>
+            <div className="order-modal-val">
+              <span>
                 {waiting
                   ? 'Pending fulfillment'
                   : formatOrderDateTime(order.fulfilled_at || (order.status === 'completed' ? order.created_at : null))}
@@ -656,69 +560,55 @@ function OrderDetailPage({
         </div>
       </div>
 
-      {/* Card 2: Delivered Credentials (Matches Reference Image) */}
-      <div className="panel order-credentials-card">
-        <div className="order-credentials-header">
-          <div className="order-credentials-title-group">
-            <KeyRound size={18} className="order-key-icon" />
-            <h3 className="order-credentials-title">Delivered Credentials</h3>
-            {item && item.max_uses > 1 ? (
-              <span className="pill info" style={{ fontSize: '11px' }}>
-                Shared stock ({item.uses} of {item.max_uses} used)
-              </span>
-            ) : order.source ? (
-              <span className="order-source-badge">
-                {SOURCE[order.source] || order.source}
-              </span>
-            ) : null}
+      {/* Card 2: Delivered Credentials (Exact match with target image) */}
+      <div className="order-modal-cred-card">
+        <div className="order-modal-cred-header">
+          <div className="order-modal-cred-title">
+            <span className="order-modal-key-icon">🔑</span>
+            <span>Delivered Credentials</span>
           </div>
 
           {order.delivered_item ? (
             <button
               type="button"
-              className="order-copy-chip large"
+              className="order-modal-copy-btn"
               onClick={() => copyText(order.delivered_item, 'credentials')}
             >
-              {copiedField === 'credentials' ? <Check size={13} className="good-text" /> : <Copy size={13} />}
-              <span>{copiedField === 'credentials' ? 'Copied All' : 'Copy All'}</span>
+              {copiedField === 'credentials' ? <Check size={11} className="good-text" /> : <Copy size={11} />}
+              <span>{copiedField === 'credentials' ? 'Copied' : 'Copy'}</span>
             </button>
           ) : null}
         </div>
 
         {order.delivered_item ? (
-          <div className="order-credentials-box">
-            <pre>{order.delivered_item}</pre>
+          <div className="order-modal-cred-box">
+            {order.delivered_item}
           </div>
         ) : (
-          <div className="order-credentials-empty">
-            <p>{waiting ? 'Credentials have not been sent yet.' : 'No credentials recorded for this order.'}</p>
+          <div className="order-modal-cred-box" style={{ textAlign: 'center', color: 'var(--muted)' }}>
+            {waiting ? 'Order has not been delivered yet.' : 'No credentials recorded.'}
           </div>
         )}
       </div>
 
-      {/* Card 3: Manual Fulfillment (Only if waiting) */}
+      {/* Manual Fulfill Input (Only if waiting) */}
       {waiting ? (
-        <div className="panel order-fulfill-card">
-          <div className="order-fulfill-header">
-            <div className="order-fulfill-title-group">
-              <PackageCheck size={18} style={{ color: '#059669' }} />
-              <h3>Fulfill & Deliver to Customer</h3>
-            </div>
-            <span className="pill warn">Action Required</span>
+        <div className="order-modal-cred-card" style={{ marginTop: '14px', borderColor: 'rgba(234, 88, 12, 0.3)' }}>
+          <div className="order-modal-cred-header">
+            <strong style={{ fontSize: '14px', color: '#ea580c' }}>⚡ Fulfill & Send to Customer</strong>
           </div>
-          <p className="order-fulfill-desc">
-            The customer has completed payment and is waiting. Enter the credentials or activation details below. Once submitted, it will be instantly delivered to the customer via Telegram.
+          <p style={{ margin: '6px 0 10px', fontSize: '12px', color: 'var(--muted)' }}>
+            Enter the credentials to deliver directly to the customer in Telegram.
           </p>
-          <div className="field">
-            <textarea
-              className="mono order-fulfill-textarea"
-              rows={5}
-              placeholder={'Account / Credentials:\nEmail: customer@example.com\nPassword: password123\n\nInstructions:\nPlease login only on 1 device.'}
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-            />
-          </div>
-          <div className="order-fulfill-actions">
+          <textarea
+            className="order-modal-cred-box"
+            style={{ width: '100%', border: '1px solid var(--border)', resize: 'vertical' }}
+            rows={4}
+            placeholder={'Email: ...\nPassword: ...'}
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+          />
+          <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'flex-end' }}>
             <button
               type="button"
               className="btn primary"
@@ -731,54 +621,11 @@ function OrderDetailPage({
                 })
               }
             >
-              <Send size={14} />
-              <span>{busy === 'deliver' ? 'Sending to Customer…' : 'Send to Customer'}</span>
+              {busy === 'deliver' ? 'Sending…' : 'Send to customer'}
             </button>
           </div>
         </div>
       ) : null}
-
-      {/* Card 4: Collapsible Telegram Outbox / Notification Log */}
-      {messages && messages.length > 0 ? (
-        <div className="panel order-messages-panel">
-          <button
-            type="button"
-            className="order-messages-toggle"
-            onClick={() => setShowMessages(!showMessages)}
-          >
-            <div className="order-messages-toggle-title">
-              <Send size={15} style={{ color: 'var(--accent)' }} />
-              <span>Telegram Messages & Notifications ({messages.length})</span>
-            </div>
-            <div className="order-messages-toggle-status">
-              <span className={`pill ${messages.some((m) => m.status === 'failed') ? 'bad' : 'good'}`}>
-                {messages.some((m) => m.status === 'failed') ? 'Delivery issue' : 'Delivered'}
-              </span>
-              {showMessages ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-            </div>
-          </button>
-
-          {showMessages ? (
-            <div className="order-messages-content">
-              <ul className="order-messages-list">
-                {messages.map((message) => (
-                  <li key={message.id} className="order-message-item">
-                    <div className="order-message-top">
-                      <span className={`pill ${message.status === 'sent' ? 'good' : message.status === 'failed' ? 'bad' : 'warn'}`}>
-                        {message.is_receipt ? 'Receipt' : 'Notification'} · {MESSAGE_STATE[message.status] ?? message.status}
-                      </span>
-                      {message.error ? <span className="bad-text" style={{ fontSize: '12px' }}>{message.error}</span> : null}
-                    </div>
-                    <div className="order-message-text">
-                      {message.text.replace(/<[^>]+>/g, '')}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
+    </Modal>
   );
 }

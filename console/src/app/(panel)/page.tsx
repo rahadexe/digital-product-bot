@@ -295,7 +295,7 @@ export default function ConsolePage() {
 
       <main className="main" id="main-content" tabIndex={-1}>
         <div className="main-inner">
-          {screen.key !== 'overview' && !(screen.key === 'users' && screen.tab) && !(screen.key === 'orders' && /^\d+$/.test(screen.tab)) ? (
+          {screen.key !== 'overview' && !(screen.key === 'users' && screen.tab) ? (
             <header className="page-head hide-mobile">
               <h1>{label}</h1>
             </header>
@@ -304,15 +304,11 @@ export default function ConsolePage() {
           {screen.key === 'overview' ? <Overview say={say} onOpen={open} /> : null}
           {screen.key === 'orders' ? (
             <Orders
-              key={screen.tab}
+              key={screen.tab === 'waiting' ? 'waiting' : 'all'}
               say={say}
               initialWaiting={screen.tab === 'waiting'}
               initialOrderId={/^\d+$/.test(screen.tab) ? Number(screen.tab) : null}
               onWaitingChange={setWaitingOrders}
-              onNavigate={(orderId) => {
-                const target = orderId ? `orders/${orderId}` : 'orders';
-                window.location.hash = target;
-              }}
             />
           ) : null}
           {screen.key === 'deposits' ? <Deposits say={say} initialMode={screen.tab === 'instant' ? 'instant' : 'deposits'} onPendingChange={setPending} /> : null}
