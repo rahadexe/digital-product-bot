@@ -1,10 +1,26 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Clock, PackageCheck, ShoppingBag, Wallet, X } from 'lucide-react';
+import {
+  ArrowLeft,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  Copy,
+  ExternalLink,
+  KeyRound,
+  PackageCheck,
+  RotateCw,
+  Send,
+  ShoppingBag,
+  Undo2,
+  Wallet,
+  X,
+} from 'lucide-react';
 import { api, type Order, type OrderDetail, type OrderSummary } from '@/lib/api';
 import { useMoney } from '@/lib/currency';
-import { EmptyRow, Modal, Pager, errorText, tone, useConfirm, useDebounced, when, who, type Say } from './ui';
+import { EmptyRow, Pager, errorText, tone, useConfirm, useDebounced, when, who, type Say } from './ui';
 
 const PAGE = 50;
 
@@ -25,16 +41,60 @@ const MESSAGE_STATE: Record<string, string> = {
   cancelled: 'cancelled',
 };
 
+function formatOrderDateTime(iso?: string | null): string {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso.includes('T') || iso.includes('Z') ? iso : `${iso.replace(' ', 'T')}Z`);
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+    });
+  } catch {
+    return iso;
+  }
+}
+
+function getVariationLabel(order: Order): string {
+  if (order.duration_label && order.duration_label.trim()) {
+    return order.duration_label.trim();
+  }
+  const title = order.product_title || '';
+  const match = title.match(/(\d+\s*(?:day|days|month|months|year|years|hour|hours|week|weeks|device|devices|gb|tb))(?:\s*\(x\d+\))?/i);
+  if (match) {
+    return match[0];
+  }
+  const qtyMatch = title.match(/\(x\d+\)/i);
+  if (qtyMatch) {
+    return qtyMatch[0];
+  }
+  return 'Standard';
+}
+
+function getCustomerDisplayName(order: Order): string {
+  const parts = [order.first_name, order.last_name].filter(Boolean);
+  if (parts.length > 0) return parts.join(' ');
+  if (order.username) return `@${order.username}`;
+  return `User ${order.tg_user_id}`;
+}
+
 export function Orders({
   say,
   initialWaiting = false,
   initialOrderId = null,
   onWaitingChange,
+  onNavigate,
 }: {
   say: Say;
   initialWaiting?: boolean;
   initialOrderId?: number | null;
   onWaitingChange?: (count: number) => void;
+  onNavigate?: (orderId: number | null) => void;
 }) {
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [total, setTotal] = useState(0);
@@ -46,9 +106,13 @@ export function Orders({
   const [summary, setSummary] = useState<OrderSummary | null>(null);
   const [offset, setOffset] = useState(0);
   const [search, setSearch] = useState('');
-  const [open, setOpen] = useState<number | null>(initialOrderId);
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(initialOrderId);
   const query = useDebounced(search);
   const money = useMoney();
+
+  useEffect(() => {
+    setSelectedOrderId(initialOrderId);
+  }, [initialOrderId]);
 
   const load = useCallback(async () => {
     try {
@@ -84,6 +148,28 @@ export function Orders({
     setOrders(null);
     window.history.replaceState(null, '', onlyWaiting ? '#orders/waiting' : '#orders');
   };
+
+  const openOrder = (id: number) => {
+    setSelectedOrderId(id);
+    onNavigate?.(id);
+  };
+
+  const closeOrder = () => {
+    setSelectedOrderId(null);
+    onNavigate?.(null);
+  };
+
+  // Dedicated full-page view for order detail
+  if (selectedOrderId) {
+    return (
+      <OrderDetailPage
+        orderId={selectedOrderId}
+        say={say}
+        onBack={closeOrder}
+        onChanged={() => void load()}
+      />
+    );
+  }
 
   return (
     <>
@@ -235,7 +321,11 @@ export function Orders({
               {(orders ?? []).map((order) => {
                 const waiting = order.status === 'completed' && order.fulfillment === 'waiting';
                 return (
-                  <tr key={order.id}>
+                  <tr
+                    key={order.id}
+                    className="order-table-row"
+                    onClick={() => openOrder(order.id)}
+                  >
                     <td className="name">
                       {order.product_title}
                       <small>
@@ -258,7 +348,14 @@ export function Orders({
                     </td>
                     <td>
                       <div className="row-actions">
-                        <button type="button" className={`mini${waiting ? ' primary' : ''}`} onClick={() => setOpen(order.id)}>
+                        <button
+                          type="button"
+                          className={`mini${waiting ? ' primary' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openOrder(order.id);
+                          }}
+                        >
                           {waiting ? 'Send' : 'Details'}
                         </button>
                       </div>
@@ -275,24 +372,36 @@ export function Orders({
         </div>
         <Pager total={total} offset={offset} size={PAGE} onChange={setOffset} />
       </section>
-
-      {open ? (
-        <OrderDialog
-          orderId={open}
-          say={say}
-          onClose={() => setOpen(null)}
-          onChanged={() => void load()}
-        />
-      ) : null}
     </>
   );
 }
 
-function OrderDialog({ orderId, say, onClose, onChanged }: { orderId: number; say: Say; onClose: () => void; onChanged: () => void }) {
+/**
+ * Dedicated, executive-grade Order Detail View matching the target clean reference design.
+ * Features:
+ * - Top metadata key-value grid (Order ID, Customer, Product, Variation, Amount, Payment, Created, Delivered)
+ * - Distinct Delivered Credentials card with orange key icon and copy all button
+ * - Clean manual fulfill card (when order is waiting)
+ * - Collapsible Telegram notification logs
+ * - Full confirmation dialog on refunds
+ */
+function OrderDetailPage({
+  orderId,
+  say,
+  onBack,
+  onChanged,
+}: {
+  orderId: number;
+  say: Say;
+  onBack: () => void;
+  onChanged: () => void;
+}) {
   const [detail, setDetail] = useState<OrderDetail | null>(null);
   const [loadError, setLoadError] = useState('');
   const [content, setContent] = useState('');
   const [busy, setBusy] = useState('');
+  const [copiedField, setCopiedField] = useState<'id' | 'credentials' | null>(null);
+  const [showMessages, setShowMessages] = useState(false);
   const [confirm, confirmDialog] = useConfirm();
   const money = useMoney();
 
@@ -307,9 +416,7 @@ function OrderDialog({ orderId, say, onClose, onChanged }: { orderId: number; sa
 
   useEffect(() => {
     void load();
-    // Loaded once per opened order.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderId]);
+  }, [load]);
 
   async function run(name: string, action: () => Promise<string>) {
     setBusy(name);
@@ -324,78 +431,297 @@ function OrderDialog({ orderId, say, onClose, onChanged }: { orderId: number; sa
     }
   }
 
+  const copyText = (text: string, field: 'id' | 'credentials') => {
+    if (!text) return;
+    void navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    say(field === 'id' ? 'Copied Order ID to clipboard.' : 'Copied credentials to clipboard.');
+    setTimeout(() => {
+      setCopiedField((cur) => (cur === field ? null : cur));
+    }, 2000);
+  };
+
   if (loadError) {
     return (
-      <Modal
-        title={`Order #${orderId}`}
-        onClose={onClose}
-        footer={
-          <>
-            <button type="button" className="btn ghost" onClick={onClose}>Close</button>
-            <button type="button" className="btn" onClick={() => void load()}>Try again</button>
-          </>
-        }
-      >
-        <div className="dialog-error" role="alert">
-          <strong>Order details unavailable</strong>
-          <p>{loadError}</p>
+      <div className="order-page">
+        <div className="order-page-header">
+          <button type="button" className="order-back-btn" onClick={onBack}>
+            <ArrowLeft size={16} />
+            <span>Back to Orders</span>
+          </button>
         </div>
-      </Modal>
+        <div className="panel" style={{ padding: '32px', textAlign: 'center' }}>
+          <p className="bad-text" style={{ fontWeight: 600, fontSize: '15px' }}>{loadError}</p>
+          <div style={{ marginTop: '16px' }}>
+            <button type="button" className="btn" onClick={() => void load()}>
+              <RotateCw size={14} />
+              <span>Try Again</span>
+            </button>
+          </div>
+        </div>
+      </div>
     );
   }
 
   if (!detail) {
     return (
-      <Modal title={`Order #${orderId}`} onClose={onClose}>
-        <p className="hint">Loading…</p>
-      </Modal>
+      <div className="order-page">
+        <div className="order-page-header">
+          <button type="button" className="order-back-btn" onClick={onBack}>
+            <ArrowLeft size={16} />
+            <span>Back to Orders</span>
+          </button>
+        </div>
+        <div className="panel" style={{ padding: '32px', textAlign: 'center', color: 'var(--muted)' }}>
+          <p>Loading order details…</p>
+        </div>
+      </div>
     );
   }
 
   const { order, stock_item: item, messages } = detail;
   const waiting = order.status === 'completed' && order.fulfillment === 'waiting';
+  const customerName = getCustomerDisplayName(order);
+  const variation = getVariationLabel(order);
+  const orderCode = order.request_id || `#${order.id}`;
 
   return (
-    <Modal title={`Order #${order.id}`} wide onClose={onClose}>
+    <div className="order-page">
       {confirmDialog}
-      <dl className="facts-grid">
-        <div>
-          <dt>Product</dt>
-          <dd>{order.product_title}</dd>
-        </div>
-        <div>
-          <dt>Buyer</dt>
-          <dd>
-            {who(order)} <span className="hint">{order.tg_user_id}</span>
-          </dd>
-        </div>
-        <div>
-          <dt>Paid</dt>
-          <dd>
-            {money(order.price)} <span className="hint">{when(order.created_at)}</span>
-          </dd>
-        </div>
-        <div>
-          <dt>Status</dt>
-          <dd>
-            {waiting ? <span className="pill warn">waiting to send</span> : <span className={`pill ${tone(order.status)}`}>{order.status}</span>}
-          </dd>
-        </div>
-      </dl>
 
-      {waiting ? (
-        <div className="stack">
-          <p className="warn-text">
-            The customer has paid and was told it is being prepared. Nothing has been sent yet.
-          </p>
-          <label className="field">
-            <span>What the customer gets</span>
-            <textarea className="mono" rows={4} placeholder={'Email: …\nPassword: …'} value={content} onChange={(event) => setContent(event.target.value)} />
-          </label>
-          <div className="filters">
+      {/* Top Navigation Bar & Action Buttons */}
+      <div className="order-page-header">
+        <div className="order-header-left">
+          <button type="button" className="order-back-btn" onClick={onBack}>
+            <ArrowLeft size={16} />
+            <span>Back to Orders</span>
+          </button>
+          <nav className="order-breadcrumbs" aria-label="Breadcrumbs">
+            <button type="button" className="order-crumb-link" onClick={onBack}>
+              Orders
+            </button>
+            <span className="order-crumb-sep">/</span>
+            <span className="order-crumb-active">Order #{order.id}</span>
+          </nav>
+        </div>
+
+        <div className="order-header-actions">
+          {!waiting && order.status === 'completed' && order.delivery_status === 'failed' ? (
             <button
               type="button"
-              className="btn"
+              className="btn ghost small"
+              disabled={Boolean(busy)}
+              onClick={() =>
+                run('retry', async () => {
+                  await api.retryDelivery(order.id);
+                  return 'Sending the message again.';
+                })
+              }
+            >
+              <RotateCw size={13} className={busy === 'retry' ? 'spin' : ''} />
+              <span>Resend Message</span>
+            </button>
+          ) : null}
+
+          {order.status === 'completed' ? (
+            <button
+              type="button"
+              className="btn danger small"
+              disabled={Boolean(busy)}
+              onClick={async () => {
+                const confirmed = await confirm(
+                  `Refund order #${order.id}?`,
+                  `${money(order.price)} will be returned directly to ${customerName}'s wallet balance.`,
+                  'Refund Order',
+                  true
+                );
+                if (!confirmed) return;
+                void run('refund', async () => (await api.refundOrder(order.id)).message || 'Refunded successfully.');
+              }}
+            >
+              <Undo2 size={13} />
+              <span>Refund {money(order.price)}</span>
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      {/* Card 1: Order Metadata Key-Value List (Matches Reference Image) */}
+      <div className="panel order-detail-card">
+        <div className="order-meta-grid">
+          <div className="order-meta-row">
+            <span className="order-meta-label">Order ID</span>
+            <div className="order-meta-value">
+              <span className="order-id-badge">{orderCode}</span>
+              <button
+                type="button"
+                className="order-copy-chip"
+                title="Copy Order ID"
+                onClick={() => copyText(orderCode, 'id')}
+              >
+                {copiedField === 'id' ? <Check size={12} className="good-text" /> : <Copy size={12} />}
+                <span>{copiedField === 'id' ? 'Copied' : 'Copy'}</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="order-meta-row">
+            <span className="order-meta-label">Customer</span>
+            <div className="order-meta-value">
+              <span className="order-customer-name">{customerName}</span>
+              <span className="order-customer-sub">
+                {order.username ? (
+                  <a
+                    href={`https://t.me/${order.username}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="order-tg-link"
+                    title="Open in Telegram"
+                  >
+                    @{order.username}
+                  </a>
+                ) : null}
+                <a
+                  href={`#users/${order.tg_user_id}`}
+                  className="order-user-chip"
+                  title="View customer profile"
+                >
+                  <span>ID: {order.tg_user_id}</span>
+                  <ExternalLink size={11} />
+                </a>
+              </span>
+            </div>
+          </div>
+
+          <div className="order-meta-row">
+            <span className="order-meta-label">Product</span>
+            <div className="order-meta-value">
+              <span className="order-product-title">
+                {order.product_icon ? <span className="order-product-icon">{order.product_icon}</span> : null}
+                {order.product_title}
+              </span>
+            </div>
+          </div>
+
+          <div className="order-meta-row">
+            <span className="order-meta-label">Variation</span>
+            <div className="order-meta-value">
+              <span className="order-variation-text">{variation}</span>
+            </div>
+          </div>
+
+          <div className="order-meta-row">
+            <span className="order-meta-label">Amount</span>
+            <div className="order-meta-value">
+              <span className="order-amount-text">{money(order.price)}</span>
+            </div>
+          </div>
+
+          <div className="order-meta-row">
+            <span className="order-meta-label">Payment</span>
+            <div className="order-meta-value">
+              <span className="order-payment-text">
+                {order.source === 'manual' ? 'Manual' : 'Wallet'} /{' '}
+                {order.status === 'completed' ? (
+                  waiting ? 'waiting fulfillment' : 'paid'
+                ) : order.status === 'refunded' ? (
+                  'refunded'
+                ) : (
+                  order.status
+                )}
+              </span>
+              <span className={`pill ${order.status === 'completed' && !waiting ? 'good' : waiting ? 'warn' : 'bad'}`}>
+                {order.status === 'completed' ? (waiting ? 'waiting' : 'completed') : order.status}
+              </span>
+            </div>
+          </div>
+
+          <div className="order-meta-row">
+            <span className="order-meta-label">Created</span>
+            <div className="order-meta-value">
+              <span className="order-time-text">{formatOrderDateTime(order.created_at)}</span>
+            </div>
+          </div>
+
+          <div className="order-meta-row">
+            <span className="order-meta-label">Delivered</span>
+            <div className="order-meta-value">
+              <span className="order-time-text">
+                {waiting
+                  ? 'Pending fulfillment'
+                  : formatOrderDateTime(order.fulfilled_at || (order.status === 'completed' ? order.created_at : null))}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Card 2: Delivered Credentials (Matches Reference Image) */}
+      <div className="panel order-credentials-card">
+        <div className="order-credentials-header">
+          <div className="order-credentials-title-group">
+            <KeyRound size={18} className="order-key-icon" />
+            <h3 className="order-credentials-title">Delivered Credentials</h3>
+            {item && item.max_uses > 1 ? (
+              <span className="pill info" style={{ fontSize: '11px' }}>
+                Shared stock ({item.uses} of {item.max_uses} used)
+              </span>
+            ) : order.source ? (
+              <span className="order-source-badge">
+                {SOURCE[order.source] || order.source}
+              </span>
+            ) : null}
+          </div>
+
+          {order.delivered_item ? (
+            <button
+              type="button"
+              className="order-copy-chip large"
+              onClick={() => copyText(order.delivered_item, 'credentials')}
+            >
+              {copiedField === 'credentials' ? <Check size={13} className="good-text" /> : <Copy size={13} />}
+              <span>{copiedField === 'credentials' ? 'Copied All' : 'Copy All'}</span>
+            </button>
+          ) : null}
+        </div>
+
+        {order.delivered_item ? (
+          <div className="order-credentials-box">
+            <pre>{order.delivered_item}</pre>
+          </div>
+        ) : (
+          <div className="order-credentials-empty">
+            <p>{waiting ? 'Credentials have not been sent yet.' : 'No credentials recorded for this order.'}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Card 3: Manual Fulfillment (Only if waiting) */}
+      {waiting ? (
+        <div className="panel order-fulfill-card">
+          <div className="order-fulfill-header">
+            <div className="order-fulfill-title-group">
+              <PackageCheck size={18} style={{ color: '#059669' }} />
+              <h3>Fulfill & Deliver to Customer</h3>
+            </div>
+            <span className="pill warn">Action Required</span>
+          </div>
+          <p className="order-fulfill-desc">
+            The customer has completed payment and is waiting. Enter the credentials or activation details below. Once submitted, it will be instantly delivered to the customer via Telegram.
+          </p>
+          <div className="field">
+            <textarea
+              className="mono order-fulfill-textarea"
+              rows={5}
+              placeholder={'Account / Credentials:\nEmail: customer@example.com\nPassword: password123\n\nInstructions:\nPlease login only on 1 device.'}
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+            />
+          </div>
+          <div className="order-fulfill-actions">
+            <button
+              type="button"
+              className="btn primary"
               disabled={Boolean(busy) || !content.trim()}
               onClick={() =>
                 run('deliver', async () => {
@@ -405,72 +731,54 @@ function OrderDialog({ orderId, say, onClose, onChanged }: { orderId: number; sa
                 })
               }
             >
-              {busy === 'deliver' ? 'Sending…' : 'Send to customer'}
+              <Send size={14} />
+              <span>{busy === 'deliver' ? 'Sending to Customer…' : 'Send to Customer'}</span>
             </button>
           </div>
         </div>
-      ) : (
-        <div className="stack">
-          <div className="field">
-            <span>
-              Delivered · {SOURCE[order.source]}
-              {item && item.max_uses > 1 ? ` (shared account, ${item.uses} of ${item.max_uses} used)` : ''}
-            </span>
-            <pre className="delivered">{order.delivered_item || '—'}</pre>
-          </div>
+      ) : null}
+
+      {/* Card 4: Collapsible Telegram Outbox / Notification Log */}
+      {messages && messages.length > 0 ? (
+        <div className="panel order-messages-panel">
+          <button
+            type="button"
+            className="order-messages-toggle"
+            onClick={() => setShowMessages(!showMessages)}
+          >
+            <div className="order-messages-toggle-title">
+              <Send size={15} style={{ color: 'var(--accent)' }} />
+              <span>Telegram Messages & Notifications ({messages.length})</span>
+            </div>
+            <div className="order-messages-toggle-status">
+              <span className={`pill ${messages.some((m) => m.status === 'failed') ? 'bad' : 'good'}`}>
+                {messages.some((m) => m.status === 'failed') ? 'Delivery issue' : 'Delivered'}
+              </span>
+              {showMessages ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </div>
+          </button>
+
+          {showMessages ? (
+            <div className="order-messages-content">
+              <ul className="order-messages-list">
+                {messages.map((message) => (
+                  <li key={message.id} className="order-message-item">
+                    <div className="order-message-top">
+                      <span className={`pill ${message.status === 'sent' ? 'good' : message.status === 'failed' ? 'bad' : 'warn'}`}>
+                        {message.is_receipt ? 'Receipt' : 'Notification'} · {MESSAGE_STATE[message.status] ?? message.status}
+                      </span>
+                      {message.error ? <span className="bad-text" style={{ fontSize: '12px' }}>{message.error}</span> : null}
+                    </div>
+                    <div className="order-message-text">
+                      {message.text.replace(/<[^>]+>/g, '')}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
-      )}
-
-      <div className="field">
-        <span>Messages to the customer</span>
-        {messages.length ? (
-          <ul className="messages">
-            {messages.map((message) => (
-              <li key={message.id}>
-                <span className={`pill ${message.status === 'sent' ? 'good' : message.status === 'failed' ? 'bad' : 'warn'}`}>
-                  {message.is_receipt ? 'receipt' : 'notice'} · {MESSAGE_STATE[message.status] ?? message.status}
-                </span>
-                {message.error ? <small className="bad-text"> {message.error}</small> : null}
-                <p>{message.text.replace(/<[^>]+>/g, '')}</p>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="hint">None. Orders from before messages were recorded show nothing here.</p>
-        )}
-      </div>
-
-
-      <div className="filters">
-        {!waiting && order.status === 'completed' && order.delivery_status === 'failed' ? (
-          <button
-            type="button"
-            className="btn ghost small"
-            disabled={Boolean(busy)}
-            onClick={() =>
-              run('retry', async () => {
-                await api.retryDelivery(order.id);
-                return 'Sending the message again.';
-              })
-            }
-          >
-            Send the message again
-          </button>
-        ) : null}
-        {order.status === 'completed' ? (
-          <button
-            type="button"
-            className="btn danger small"
-            disabled={Boolean(busy)}
-            onClick={async () => {
-              if (!(await confirm(`Refund order #${order.id}?`, `${money(order.price)} will go back to the customer's balance.`, 'Refund order'))) return;
-              void run('refund', async () => (await api.refundOrder(order.id)).message || 'Refunded.');
-            }}
-          >
-            Refund {money(order.price)}
-          </button>
-        ) : null}
-      </div>
-    </Modal>
+      ) : null}
+    </div>
   );
 }

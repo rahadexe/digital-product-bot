@@ -272,8 +272,11 @@ class PurchaseService:
         """Everything about one order: what was delivered, where it came from, and every message sent about it."""
         async with self.db.connect() as conn:
             order = await conn.fetchrow(
-                "SELECT o.*, u.username, u.first_name, u.balance AS customer_balance FROM orders o "
-                "LEFT JOIN users u ON u.id = o.user_id WHERE o.id = $1",
+                "SELECT o.*, u.username, u.first_name, u.last_name, u.balance AS customer_balance, "
+                "p.duration_label, p.icon AS product_icon, p.title AS base_product_title FROM orders o "
+                "LEFT JOIN users u ON (u.id = o.user_id OR (o.user_id IS NULL AND u.tg_user_id = o.tg_user_id)) "
+                "LEFT JOIN products p ON p.id = o.product_id "
+                "WHERE o.id = $1",
                 order_id,
             )
             if not order:

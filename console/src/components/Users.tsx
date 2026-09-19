@@ -485,6 +485,7 @@ function CustomerProfilePage({
 
   return (
     <div className="cust-profile-page">
+      {confirmDialog}
       {/* 1. Header Navigation Bar */}
       <div className="cust-page-header">
         <button type="button" className="cust-back-btn" onClick={onBack}>

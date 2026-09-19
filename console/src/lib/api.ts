@@ -107,8 +107,13 @@ export interface Order {
   tg_user_id: number;
   username?: string;
   first_name?: string;
+  last_name?: string;
   product_id: number;
   product_title: string;
+  base_product_title?: string;
+  product_icon?: string;
+  duration_label?: string;
+  request_id?: string | null;
   price: number;
   delivered_item: string;
   status: string;

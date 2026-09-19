@@ -292,7 +292,7 @@ export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) =
                 const isWaiting = order.status === 'completed' && order.fulfillment === 'waiting';
 
                 return (
-                  <tr key={order.id} onClick={() => onOpen('orders')} style={{ cursor: 'pointer' }}>
+                  <tr key={order.id} onClick={() => onOpen(`orders/${order.id}`)} style={{ cursor: 'pointer' }}>
                     <td className="name">
                       <strong>#{order.id}</strong>
                       <small>{when(order.created_at)}</small>
