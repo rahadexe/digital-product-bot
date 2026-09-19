@@ -147,6 +147,15 @@ SPECS: dict[str, SettingSpec] = {
 }
 
 
+def mask_secret(value: str) -> str:
+    s = str(value or "").strip()
+    if not s:
+        return ""
+    if len(s) <= 8:
+        return "****"
+    return f"{s[:4]}{'*' * 16}{s[-4:]}"
+
+
 class SettingsService:
     CACHE_SECONDS = 30.0
 
@@ -185,7 +194,15 @@ class SettingsService:
         return dict(values)
 
     async def public(self) -> dict[str, str]:
-        return {key: value for key, value in (await self.values()).items() if not SPECS[key].secret}
+        values = await self.values()
+        res = {}
+        for key, spec in SPECS.items():
+            if spec.secret:
+                raw = values.get(key, "").strip()
+                res[key] = mask_secret(raw) if raw else ""
+            else:
+                res[key] = values.get(key, "")
+        return res
 
     async def get(self, key: str) -> str:
         return (await self.values())[key]
@@ -228,6 +245,11 @@ class SettingsService:
 
     async def update(self, changes: dict[str, str]) -> list[str]:
         """Validate every change first, then write them together. Returns the keys that changed."""
+        # Ignore masked secret values so placeholders like 81a8****************4b27 are never saved to database
+        changes = {
+            k: v for k, v in changes.items()
+            if not (k in SPECS and SPECS[k].secret and "*" in str(v))
+        }
         unknown = sorted(set(changes) - SPECS.keys())
         if unknown:
             raise InvalidInputError(f"Unknown setting: {', '.join(unknown)}.")

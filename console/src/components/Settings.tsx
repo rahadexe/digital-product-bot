@@ -11,7 +11,7 @@ import { GateChannels } from './GateChannels';
 import { PaymentMethods } from './PaymentMethods';
 import { UpdateChannels } from './UpdateChannels';
 import { FlagRow, Switch, errorText, type Say } from './ui';
-import { RotateCcw, Save } from 'lucide-react';
+import { Eye, EyeOff, RotateCcw, Save } from 'lucide-react';
 
 export type SettingsTab = 'general' | 'payments';
 
@@ -166,6 +166,7 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
   const [saved, setSaved] = useState<Record<string, string> | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [secrets, setSecrets] = useState<Record<string, string>>({});
+  const [visibleSecrets, setVisibleSecrets] = useState<Record<string, boolean>>({});
   const [savingSection, setSavingSection] = useState('');
   const [payStatus, setPayStatus] = useState<PaymentsStatus | null>(null);
   const [binance, setBinance] = useState<BinanceStatus | null>(null);
@@ -231,8 +232,19 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
     setSavingSection(section.id);
     try {
       await api.updateSettings(payload);
-      setSaved((current) => ({ ...(current ?? {}), ...Object.fromEntries(changed.filter((field) => !field.secret).map((field) => [field.key, payload[field.key]])) }));
+      const fresh = await api.settings().catch(() => null);
+      if (fresh) {
+        setSaved(fresh);
+        setValues(fresh);
+      } else {
+        setSaved((current) => ({ ...(current ?? {}), ...Object.fromEntries(changed.filter((field) => !field.secret).map((field) => [field.key, payload[field.key]])) }));
+      }
       setSecrets((current) => {
+        const next = { ...current };
+        for (const field of changed) if (field.secret) delete next[field.key];
+        return next;
+      });
+      setVisibleSecrets((current) => {
         const next = { ...current };
         for (const field of changed) if (field.secret) delete next[field.key];
         return next;
@@ -250,6 +262,11 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
   function discard(section: Section) {
     setValues((current) => ({ ...current, ...Object.fromEntries(section.fields.map((field) => [field.key, saved?.[field.key] ?? ''])) }));
     setSecrets((current) => {
+      const next = { ...current };
+      for (const field of section.fields) delete next[field.key];
+      return next;
+    });
+    setVisibleSecrets((current) => {
       const next = { ...current };
       for (const field of section.fields) delete next[field.key];
       return next;
@@ -294,18 +311,98 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
         </label>
       );
     }
-    const stored = field.secret === 'zinipay_api_key' ? payStatus?.has_api_key : field.secret ? binance?.has_credentials : false;
+    if (field.secret) {
+      const maskedVal = values[field.key] || '';
+      const isVisible = Boolean(visibleSecrets[field.key]);
+      const isEntering = Boolean(secrets[field.key]);
+
+      return (
+        <label key={field.key} className="field">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '6px' }}>
+            <span>{label}</span>
+            {maskedVal ? (
+              <span
+                style={{
+                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  color: 'var(--accent, #0f766e)',
+                  background: 'rgba(15, 118, 110, 0.08)',
+                  padding: '1px 7px',
+                  borderRadius: '4px',
+                  border: '1px solid rgba(15, 118, 110, 0.22)',
+                  letterSpacing: '0.3px',
+                  whiteSpace: 'nowrap',
+                }}
+                title="Currently saved key (masked)"
+              >
+                Saved: {maskedVal}
+              </span>
+            ) : (
+              <span style={{ fontSize: '11px', color: 'var(--muted, #888)', whiteSpace: 'nowrap' }}>Not set</span>
+            )}
+          </div>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '100%' }}>
+            <input
+              type={isVisible ? 'text' : 'password'}
+              maxLength={field.maxLength}
+              autoComplete="off"
+              style={{
+                width: '100%',
+                paddingRight: isEntering ? '36px' : '12px',
+                fontFamily: isEntering ? 'inherit' : 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+              }}
+              placeholder={maskedVal ? maskedVal : 'Enter key...'}
+              value={secrets[field.key] ?? ''}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  const targetSection = SECTIONS.find((s) => s.fields.some((f) => f.key === field.key));
+                  if (targetSection) void save(targetSection);
+                }
+              }}
+              onChange={(event) =>
+                setSecrets((current) => ({ ...current, [field.key]: event.target.value }))
+              }
+            />
+            {isEntering && (
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => setVisibleSecrets((cur) => ({ ...cur, [field.key]: !cur[field.key] }))}
+                style={{
+                  position: 'absolute',
+                  right: '8px',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--muted)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '4px',
+                }}
+                title={isVisible ? 'Hide key' : 'Show key'}
+              >
+                {isVisible ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            )}
+          </div>
+          {field.hint ? <small>{field.hint}</small> : null}
+        </label>
+      );
+    }
+
     return (
       <label key={field.key} className="field">
         <span>{label}</span>
         <input
-          type={field.type === 'password' ? 'password' : field.type === 'number' ? 'number' : 'text'}
+          type={field.type === 'number' ? 'number' : 'text'}
           step={field.type === 'number' ? 'any' : undefined}
           min={field.type === 'number' ? '0' : undefined}
           maxLength={field.maxLength}
           autoComplete="off"
-          placeholder={field.secret ? (stored ? 'Saved · type to replace' : 'Not set') : field.placeholder}
-          value={field.secret ? secrets[field.key] ?? '' : valueOf(field)}
+          placeholder={field.placeholder}
+          value={valueOf(field)}
           onKeyDown={(event) => {
             if (event.key === 'Enter') {
               event.preventDefault();
@@ -313,11 +410,7 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
               if (targetSection) void save(targetSection);
             }
           }}
-          onChange={(event) =>
-            field.secret
-              ? setSecrets((current) => ({ ...current, [field.key]: event.target.value }))
-              : setValues((current) => ({ ...current, [field.key]: event.target.value }))
-          }
+          onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))}
         />
         {field.hint ? <small>{field.hint}</small> : null}
       </label>
