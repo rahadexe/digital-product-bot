@@ -72,6 +72,14 @@ export function Products({ say }: { say: Say }) {
   }
 
   async function announce(product: Product) {
+    if (
+      !(await confirm(
+        `Post "${product.title}"?`,
+        'This will broadcast an announcement message for this product to your Telegram channel.',
+        'Post to channel'
+      ))
+    )
+      return;
     try {
       await api.announceProduct(product.id);
       say('Posted to the channel.');
