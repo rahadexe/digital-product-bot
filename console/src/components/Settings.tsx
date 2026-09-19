@@ -318,30 +318,7 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
 
       return (
         <label key={field.key} className="field">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '6px' }}>
-            <span>{label}</span>
-            {maskedVal ? (
-              <span
-                style={{
-                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  color: 'var(--accent, #0f766e)',
-                  background: 'rgba(15, 118, 110, 0.08)',
-                  padding: '1px 7px',
-                  borderRadius: '4px',
-                  border: '1px solid rgba(15, 118, 110, 0.22)',
-                  letterSpacing: '0.3px',
-                  whiteSpace: 'nowrap',
-                }}
-                title="Currently saved key (masked)"
-              >
-                Saved: {maskedVal}
-              </span>
-            ) : (
-              <span style={{ fontSize: '11px', color: 'var(--muted, #888)', whiteSpace: 'nowrap' }}>Not set</span>
-            )}
-          </div>
+          <span>{label}</span>
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '100%' }}>
             <input
               type={isVisible ? 'text' : 'password'}
