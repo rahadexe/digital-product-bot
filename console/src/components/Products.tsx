@@ -27,7 +27,9 @@ type Draft = {
   delivery_type: 'stock' | 'manual';
   custom_emoji_id: string;
 };
-type ProductFilter = 'all' | 'in_stock' | 'out_of_stock' | 'hidden';
+type ProductFilter = 'all' | 'in_stock' | 'low_stock' | 'out_of_stock' | 'hidden';
+
+const LOW_STOCK_MAX = 3;
 
 export function Products({ say }: { say: Say }) {
   const [products, setProducts] = useState<Product[] | null>(null);
@@ -91,6 +93,7 @@ export function Products({ say }: { say: Say }) {
   }
 
   const inStockCount = (products ?? []).filter((p) => (p.stock ?? 0) > 0).length;
+  const lowStockCount = (products ?? []).filter((p) => p.delivery_type !== 'manual' && (p.stock ?? 0) > 0 && (p.stock ?? 0) <= LOW_STOCK_MAX).length;
   const outOfStockCount = (products ?? []).filter((p) => (p.stock ?? 0) === 0).length;
   const hiddenCount = (products ?? []).filter((p) => !p.is_active).length;
   const totalStockUnits = (products ?? []).reduce((sum, p) => sum + (p.stock ?? 0), 0);
@@ -98,6 +101,7 @@ export function Products({ say }: { say: Say }) {
   const shown = (products ?? []).filter((product) => {
     if (search && !product.title.toLowerCase().includes(search.toLowerCase())) return false;
     if (filter === 'in_stock') return (product.stock ?? 0) > 0;
+    if (filter === 'low_stock') return product.delivery_type !== 'manual' && (product.stock ?? 0) > 0 && (product.stock ?? 0) <= LOW_STOCK_MAX;
     if (filter === 'out_of_stock') return (product.stock ?? 0) === 0;
     if (filter === 'hidden') return !product.is_active;
     return true;
@@ -109,7 +113,7 @@ export function Products({ say }: { say: Say }) {
 
       {/* Product Metric Summary Cards */}
       <div className="stat-cards-grid">
-        <div className="stat-card">
+        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setFilter('all')}>
           <div className="stat-card-top">
             <span className="stat-card-label">Total Products</span>
             <Package className="stat-card-icon" />
@@ -117,7 +121,7 @@ export function Products({ say }: { say: Say }) {
           <div className="stat-card-value">{products?.length ?? 0}</div>
         </div>
 
-        <div className="stat-card">
+        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setFilter('in_stock')}>
           <div className="stat-card-top">
             <span className="stat-card-label">In Stock</span>
             <CheckCircle2 className="stat-card-icon" />
@@ -125,7 +129,7 @@ export function Products({ say }: { say: Say }) {
           <div className="stat-card-value">{inStockCount}</div>
         </div>
 
-        <div className="stat-card">
+        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setFilter('out_of_stock')}>
           <div className="stat-card-top">
             <span className="stat-card-label">Out of Stock</span>
             <AlertCircle className="stat-card-icon" />
@@ -157,6 +161,13 @@ export function Products({ say }: { say: Say }) {
           onClick={() => setFilter('in_stock')}
         >
           In Stock ({inStockCount})
+        </button>
+        <button
+          type="button"
+          className={filter === 'low_stock' ? 'active' : ''}
+          onClick={() => setFilter('low_stock')}
+        >
+          Low Stock ({lowStockCount})
         </button>
         <button
           type="button"
@@ -236,7 +247,12 @@ export function Products({ say }: { say: Say }) {
                           Manual
                         </span>
                       ) : (
-                        <span className={`pill ${product.stock ? 'good' : 'bad'}`}>{product.stock ? product.stock : 'out'}</span>
+                        <span
+                          className={`pill ${!product.stock ? 'bad' : product.stock <= LOW_STOCK_MAX ? 'warn' : 'good'}`}
+                          title={product.stock && product.stock <= LOW_STOCK_MAX ? `Low stock (≤ ${LOW_STOCK_MAX} remaining)` : undefined}
+                        >
+                          {product.stock ? product.stock : 'out'}
+                        </span>
                       )}
                     </td>
                     <td style={{ textAlign: 'center' }}>
@@ -304,7 +320,15 @@ export function Products({ say }: { say: Say }) {
                   </tr>
                 );
               })}
-              {products && shown.length === 0 ? <EmptyRow columns={5}>{search ? 'Nothing matches.' : 'No products yet.'}</EmptyRow> : null}
+              {products && shown.length === 0 ? (
+                <EmptyRow columns={5}>
+                  {search
+                    ? 'Nothing matches.'
+                    : filter === 'low_stock'
+                    ? 'No low stock products right now.'
+                    : 'No products yet.'}
+                </EmptyRow>
+              ) : null}
               {!products ? <EmptyRow columns={5}>Loading…</EmptyRow> : null}
             </tbody>
           </table>
