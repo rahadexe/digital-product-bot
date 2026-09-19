@@ -295,7 +295,7 @@ export default function ConsolePage() {
 
       <main className="main" id="main-content" tabIndex={-1}>
         <div className="main-inner">
-          {screen.key !== 'overview' ? (
+          {screen.key !== 'overview' && !(screen.key === 'users' && screen.tab) ? (
             <header className="page-head hide-mobile">
               <h1>{label}</h1>
             </header>
@@ -317,7 +317,17 @@ export default function ConsolePage() {
           {screen.key === 'validities' ? <Validities say={say} /> : null}
           {screen.key === 'emojis' ? <Emojis say={say} /> : null}
           {screen.key === 'inventory' ? <Inventory say={say} /> : null}
-          {screen.key === 'users' ? <Users say={say} /> : null}
+          {screen.key === 'users' ? (
+            <Users
+              key={screen.tab}
+              say={say}
+              initialUserId={/^\d+$/.test(screen.tab) ? Number(screen.tab) : null}
+              onNavigate={(userId) => {
+                const target = userId ? `users/${userId}` : 'users';
+                window.location.hash = target;
+              }}
+            />
+          ) : null}
           {screen.key === 'broadcast' ? <Broadcast say={say} /> : null}
           {screen.key === 'settings' ? (
             <Settings

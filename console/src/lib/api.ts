@@ -548,6 +548,7 @@ export const api = {
     request<{ users: User[]; total: number; summary?: UserSummary }>(
       `/api/admin/users?search=${encodeURIComponent(search)}&limit=${limit}&offset=${offset}${filter ? `&filter=${encodeURIComponent(filter)}` : ''}`
     ),
+  user: (tgUserId: number) => request<{ user: User }>(`/api/admin/users/${tgUserId}`),
   adjustBalance: (tgUserId: number, delta: number, reason: string) =>
     request<{ success: boolean; user: User }>(`/api/admin/users/${tgUserId}/adjust-balance`, {
       method: 'POST',

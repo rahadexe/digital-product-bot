@@ -2,12 +2,15 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
+  ArrowLeft,
   Ban,
   Check,
+  ChevronRight,
   Copy,
   CreditCard,
   ExternalLink,
   PackageCheck,
+  Send,
   ShoppingBag,
   UserCheck,
   Users as UsersIcon,
@@ -15,24 +18,39 @@ import {
 } from 'lucide-react';
 import { api, type Order, type User, type UserSummary } from '@/lib/api';
 import { useMoney } from '@/lib/currency';
-import { EmptyRow, Modal, Pager, errorText, tone, useConfirm, useDebounced, when, type Say } from './ui';
+import { EmptyRow, Pager, errorText, tone, useConfirm, useDebounced, when, type Say } from './ui';
 
 const PAGE = 50;
 
 type UserFilter = 'all' | 'has_balance' | 'banned';
 
-const nameOf = (user: User) => [user.first_name, user.last_name].filter(Boolean).join(' ') || (user.username ? `@${user.username}` : `User ${user.tg_user_id}`);
+const nameOf = (user: User) =>
+  [user.first_name, user.last_name].filter(Boolean).join(' ') ||
+  (user.username ? `@${user.username}` : `User ${user.tg_user_id}`);
 
-export function Users({ say }: { say: Say }) {
+export function Users({
+  say,
+  initialUserId = null,
+  onNavigate,
+}: {
+  say: Say;
+  initialUserId?: number | null;
+  onNavigate?: (userId: number | null) => void;
+}) {
   const [users, setUsers] = useState<User[] | null>(null);
   const [total, setTotal] = useState(0);
   const [summary, setSummary] = useState<UserSummary | null>(null);
   const [filter, setFilter] = useState<UserFilter>('all');
   const [offset, setOffset] = useState(0);
   const [search, setSearch] = useState('');
-  const [open, setOpen] = useState<User | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(initialUserId);
+  const [activeUser, setActiveUser] = useState<User | null>(null);
   const query = useDebounced(search);
   const money = useMoney();
+
+  useEffect(() => {
+    setSelectedId(initialUserId);
+  }, [initialUserId]);
 
   const load = useCallback(async () => {
     try {
@@ -51,6 +69,34 @@ export function Users({ say }: { say: Say }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const openProfile = (user: User) => {
+    setActiveUser(user);
+    setSelectedId(user.tg_user_id);
+    onNavigate?.(user.tg_user_id);
+  };
+
+  const closeProfile = () => {
+    setSelectedId(null);
+    setActiveUser(null);
+    onNavigate?.(null);
+  };
+
+  // If a customer is opened, render the dedicated full-page profile view
+  if (selectedId) {
+    return (
+      <CustomerProfilePage
+        userId={selectedId}
+        initialUser={activeUser}
+        say={say}
+        onBack={closeProfile}
+        onUserUpdated={(updated) => {
+          setActiveUser(updated);
+          void load();
+        }}
+      />
+    );
+  }
 
   return (
     <>
@@ -94,14 +140,20 @@ export function Users({ say }: { say: Say }) {
         <button
           type="button"
           className={filter === 'all' ? 'active' : ''}
-          onClick={() => { setFilter('all'); setOffset(0); }}
+          onClick={() => {
+            setFilter('all');
+            setOffset(0);
+          }}
         >
           All Customers
         </button>
         <button
           type="button"
           className={filter === 'has_balance' ? 'active' : ''}
-          onClick={() => { setFilter('has_balance'); setOffset(0); }}
+          onClick={() => {
+            setFilter('has_balance');
+            setOffset(0);
+          }}
         >
           With Balance
           {summary?.with_balance_count ? <span className="count">{summary.with_balance_count}</span> : null}
@@ -109,7 +161,10 @@ export function Users({ say }: { say: Say }) {
         <button
           type="button"
           className={filter === 'banned' ? 'active' : ''}
-          onClick={() => { setFilter('banned'); setOffset(0); }}
+          onClick={() => {
+            setFilter('banned');
+            setOffset(0);
+          }}
         >
           Banned
           {summary?.banned_count ? <span className="count">{summary.banned_count}</span> : null}
@@ -132,7 +187,7 @@ export function Users({ say }: { say: Say }) {
           </div>
         </header>
         <div className="scroll">
-          <table>
+          <table className="cust-table-responsive">
             <thead>
               <tr>
                 <th>Customer</th>
@@ -143,61 +198,111 @@ export function Users({ say }: { say: Say }) {
               </tr>
             </thead>
             <tbody>
-              {(users ?? []).map((user) => (
-                <tr key={user.id}>
-                  <td className="name">
-                    {nameOf(user)}
-                    <small>
-                      {user.username ? `@${user.username} · ` : ''}
-                      {user.tg_user_id} · joined {when(user.created_at)}
-                    </small>
-                  </td>
-                  <td className="money">{money(user.balance)}</td>
-                  <td className="money">{money(user.total_spent)}</td>
-                  <td>
-                    {user.is_banned ? (
-                      <span className="pill bad">banned</span>
-                    ) : (
-                      <span className={`pill ${user.rank === 'Affiliate' ? 'warn' : user.rank === 'Reseller' ? 'info' : user.rank === 'VIP' ? 'vip' : 'good'}`}>
-                        {user.rank === 'Affiliate' ? 'Affiliate' : user.rank === 'Reseller' ? 'Reseller' : user.rank === 'VIP' ? 'VIP' : 'Active'}
-                      </span>
-                    )}
-                  </td>
-                  <td>
-                    <div className="row-actions">
-                      <button type="button" className="mini" onClick={() => setOpen(user)}>
-                        Open
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {users && users.length === 0 ? <EmptyRow columns={5}>{query ? 'Nothing matches.' : 'No customers yet.'}</EmptyRow> : null}
+              {(users ?? []).map((user) => {
+                const initials =
+                  nameOf(user)
+                    .replace(/[^a-zA-Z0-9]/g, '')
+                    .slice(0, 2)
+                    .toUpperCase() || 'U';
+                return (
+                  <tr
+                    key={user.id}
+                    onClick={() => openProfile(user)}
+                    className="cust-table-row"
+                    title="Click to view customer profile"
+                  >
+                    <td className="name" data-label="Customer">
+                      <div className="cust-table-user-cell">
+                        <div className="cust-table-avatar">{initials}</div>
+                        <div className="cust-table-user-meta">
+                          <span className="cust-table-name">{nameOf(user)}</span>
+                          <small>
+                            {user.username ? `@${user.username} · ` : ''}
+                            {user.tg_user_id} · joined {when(user.created_at)}
+                          </small>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="money" data-label="Balance">
+                      <span className="cust-money-badge">{money(user.balance)}</span>
+                    </td>
+                    <td className="money" data-label="Spent">
+                      {money(user.total_spent)}
+                    </td>
+                    <td data-label="Status / Rank">
+                      <div className="cust-status-stack">
+                        {user.is_banned ? (
+                          <span className="pill bad">banned</span>
+                        ) : (
+                          <span
+                            className={`pill ${
+                              user.rank === 'Affiliate'
+                                ? 'warn'
+                                : user.rank === 'Reseller'
+                                ? 'info'
+                                : user.rank === 'VIP'
+                                ? 'vip'
+                                : 'good'
+                            }`}
+                          >
+                            {user.rank === 'Affiliate'
+                              ? 'Affiliate'
+                              : user.rank === 'Reseller'
+                              ? 'Reseller'
+                              : user.rank === 'VIP'
+                              ? 'VIP'
+                              : 'Active'}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="right" data-label="Action">
+                      <div className="row-actions">
+                        <button
+                          type="button"
+                          className="mini cust-view-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openProfile(user);
+                          }}
+                        >
+                          <span>Open</span>
+                          <ChevronRight size={13} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {users && users.length === 0 ? (
+                <EmptyRow columns={5}>{query ? 'Nothing matches.' : 'No customers yet.'}</EmptyRow>
+              ) : null}
               {!users ? <EmptyRow columns={5}>Loading…</EmptyRow> : null}
             </tbody>
           </table>
         </div>
         <Pager total={total} offset={offset} size={PAGE} onChange={setOffset} />
       </section>
-
-      {open ? (
-        <CustomerDialog
-          user={open}
-          say={say}
-          onClose={() => setOpen(null)}
-          onChanged={async () => {
-            const fresh = await load();
-            const updated = fresh?.find((row) => row.tg_user_id === open.tg_user_id);
-            if (updated) setOpen(updated);
-          }}
-        />
-      ) : null}
     </>
   );
 }
 
-/** Everything about one customer in one place: their wallet, their orders, and whether they may use the store. */
-function CustomerDialog({ user, say, onClose, onChanged }: { user: User; say: Say; onClose: () => void; onChanged: () => Promise<void> }) {
+/** Dedicated, executive-grade, fully responsive customer profile page */
+function CustomerProfilePage({
+  userId,
+  initialUser,
+  say,
+  onBack,
+  onUserUpdated,
+}: {
+  userId: number;
+  initialUser?: User | null;
+  say: Say;
+  onBack: () => void;
+  onUserUpdated: (user: User) => void;
+}) {
+  const [user, setUser] = useState<User | null>(initialUser ?? null);
+  const [loading, setLoading] = useState<boolean>(!initialUser);
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [orderTotal, setOrderTotal] = useState(0);
   const [amount, setAmount] = useState('');
@@ -205,24 +310,72 @@ function CustomerDialog({ user, say, onClose, onChanged }: { user: User; say: Sa
   const [adjustType, setAdjustType] = useState<'add' | 'take'>('add');
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [confirm, confirmDialog] = useConfirm();
-  const [currentRank, setCurrentRank] = useState(user.rank || 'Standard');
+  const [currentRank, setCurrentRank] = useState(initialUser?.rank || 'Standard');
   const [rankBusy, setRankBusy] = useState(false);
+  const [confirm, confirmDialog] = useConfirm();
   const money = useMoney();
+
+  // Load user data if not passed or when userId changes
+  useEffect(() => {
+    let mounted = true;
+    if (!initialUser || initialUser.tg_user_id !== userId) {
+      setLoading(true);
+      api
+        .user(userId)
+        .then((res) => {
+          if (mounted && res.user) {
+            setUser(res.user);
+            setCurrentRank(res.user.rank || 'Standard');
+          }
+        })
+        .catch((err) => {
+          if (mounted) say(errorText(err), 'bad');
+        })
+        .finally(() => {
+          if (mounted) setLoading(false);
+        });
+    } else {
+      setUser(initialUser);
+      setCurrentRank(initialUser.rank || 'Standard');
+      setLoading(false);
+    }
+    return () => {
+      mounted = false;
+    };
+  }, [userId, initialUser, say]);
+
+  // Load customer orders
+  useEffect(() => {
+    let mounted = true;
+    api
+      .orders('', 50, 0, false, userId)
+      .then((result) => {
+        if (mounted) {
+          setOrders(result.orders);
+          setOrderTotal(result.total);
+        }
+      })
+      .catch((cause) => {
+        if (mounted) say(errorText(cause), 'bad');
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [userId, say]);
+
   const value = Number(amount);
   const valid = Number.isFinite(value) && value > 0 && Boolean(reason.trim());
 
-  useEffect(() => {
-    setCurrentRank(user.rank || 'Standard');
-  }, [user.rank]);
-
   async function handleRankChange(newRank: string) {
+    if (!user) return;
     setCurrentRank(newRank);
     setRankBusy(true);
     try {
       await api.setUserRank(user.tg_user_id, newRank);
       say(`Account type updated to ${newRank}.`);
-      await onChanged();
+      const updated = { ...user, rank: newRank };
+      setUser(updated);
+      onUserUpdated(updated);
     } catch (cause) {
       say(errorText(cause), 'bad');
       setCurrentRank(user.rank || 'Standard');
@@ -231,25 +384,18 @@ function CustomerDialog({ user, say, onClose, onChanged }: { user: User; say: Sa
     }
   }
 
-  useEffect(() => {
-    api
-      .orders('', 50, 0, false, user.tg_user_id)
-      .then((result) => {
-        setOrders(result.orders);
-        setOrderTotal(result.total);
-      })
-      .catch((cause) => say(errorText(cause), 'bad'));
-  }, [user.tg_user_id, say]);
-
   async function adjust(sign: 1 | -1) {
-    if (!valid) return;
+    if (!user || !valid) return;
     setBusy(true);
     try {
-      await api.adjustBalance(user.tg_user_id, sign * value, reason.trim());
+      const res = await api.adjustBalance(user.tg_user_id, sign * value, reason.trim());
       say(`${sign > 0 ? 'Added' : 'Deducted'} ${money(value)}.`);
       setAmount('');
       setReason('');
-      await onChanged();
+      if (res.user) {
+        setUser(res.user);
+        onUserUpdated(res.user);
+      }
     } catch (cause) {
       say(errorText(cause), 'bad');
     } finally {
@@ -258,185 +404,307 @@ function CustomerDialog({ user, say, onClose, onChanged }: { user: User; say: Sa
   }
 
   async function toggleBan() {
-    if (!user.is_banned && !(await confirm(`Ban ${nameOf(user)}?`, 'They will not be able to use the bot or the Mini App until unbanned.', 'Ban customer'))) return;
+    if (!user) return;
+    if (
+      !user.is_banned &&
+      !(await confirm(
+        `Ban ${nameOf(user)}?`,
+        'They will not be able to use the bot or the Mini App until unbanned.',
+        'Ban customer'
+      ))
+    ) {
+      return;
+    }
     try {
       const result = await api.toggleBan(user.tg_user_id);
-      say(result.is_banned ? 'Banned.' : 'Unbanned.');
-      await onChanged();
+      say(result.is_banned ? 'Customer banned.' : 'Customer unbanned.');
+      const updated = { ...user, is_banned: result.is_banned ? 1 : 0 };
+      setUser(updated);
+      onUserUpdated(updated);
     } catch (cause) {
       say(errorText(cause), 'bad');
     }
   }
 
-  const initials = nameOf(user).replace(/[^a-zA-Z0-9]/g, '').slice(0, 2).toUpperCase() || 'U';
+  const copyId = () => {
+    if (!user) return;
+    void navigator.clipboard.writeText(String(user.tg_user_id));
+    setCopied(true);
+    say('Copied Telegram ID to clipboard.');
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  if (loading && !user) {
+    return (
+      <div className="cust-profile-page">
+        <div className="cust-page-header">
+          <button type="button" className="cust-back-btn" onClick={onBack}>
+            <ArrowLeft size={16} />
+            <span>Back to Customers</span>
+          </button>
+        </div>
+        <div className="panel cust-loading-card">
+          <p>Loading customer profile…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="cust-profile-page">
+        <div className="cust-page-header">
+          <button type="button" className="cust-back-btn" onClick={onBack}>
+            <ArrowLeft size={16} />
+            <span>Back to Customers</span>
+          </button>
+        </div>
+        <div className="panel cust-loading-card">
+          <p>Customer not found or failed to load.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const initials =
+    nameOf(user)
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .slice(0, 2)
+      .toUpperCase() || 'U';
 
   return (
-    <Modal
-      title="Customer Profile"
-      wide
-      onClose={onClose}
-      footer={
-        <>
-          <button
-            type="button"
-            className={`btn small ${user.is_banned ? 'ghost' : 'danger'}`}
-            onClick={() => void toggleBan()}
-          >
-            {user.is_banned ? (
-              <>
-                <UserCheck size={14} /> Unban Customer
-              </>
-            ) : (
-              <>
-                <Ban size={14} /> Ban Customer
-              </>
-            )}
+    <div className="cust-profile-page">
+      {/* 1. Header Navigation Bar */}
+      <div className="cust-page-header">
+        <button type="button" className="cust-back-btn" onClick={onBack}>
+          <ArrowLeft size={16} />
+          <span>Back to Customers</span>
+        </button>
+        <nav className="cust-breadcrumbs" aria-label="Breadcrumbs">
+          <button type="button" className="cust-crumb-link" onClick={onBack}>
+            Customers
           </button>
-          <button type="button" className="btn ghost small" onClick={onClose}>
-            Close
-          </button>
-        </>
-      }
-    >
-      <div className="cust-dialog-content">
-        {/* 1. Identity Hero Header Card */}
-        <div className="cust-hero-card">
-          <div className="cust-hero-left">
-            <div className="cust-avatar">{initials}</div>
-            <div className="cust-hero-info">
-              <div className="cust-hero-name-row">
-                <h3 className="cust-hero-name">{nameOf(user)}</h3>
-                <span className={`pill ${user.is_banned ? 'bad' : 'good'}`}>
-                  {user.is_banned ? 'Banned' : 'Active'}
-                </span>
-              </div>
-              <div className="cust-hero-sub">
-                {user.username ? (
-                  <a
-                    href={`https://t.me/${user.username}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="cust-tg-link"
-                    title="Open Telegram Chat"
-                  >
-                    <span>@{user.username}</span>
-                    <ExternalLink size={12} />
-                  </a>
-                ) : (
-                  <span>No username</span>
-                )}
-                <span className="cust-dot">·</span>
-                <button
-                  type="button"
-                  className="cust-copy-id-btn"
-                  onClick={() => {
-                    void navigator.clipboard.writeText(String(user.tg_user_id));
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 2000);
-                  }}
-                  title="Click to copy Telegram ID"
+          <span className="cust-crumb-sep">/</span>
+          <span className="cust-crumb-active">{nameOf(user)}</span>
+        </nav>
+      </div>
+
+      {/* 2. Hero Profile Banner Card */}
+      <div className="cust-profile-hero">
+        <div className="cust-hero-main">
+          <div className="cust-avatar-large">{initials}</div>
+          <div className="cust-hero-details">
+            <div className="cust-hero-title-row">
+              <h2 className="cust-hero-title">{nameOf(user)}</h2>
+              <span className={`pill ${user.is_banned ? 'bad' : 'good'}`}>
+                {user.is_banned ? 'Banned' : 'Active'}
+              </span>
+              {user.rank && user.rank !== 'Standard' ? (
+                <span
+                  className={`pill ${
+                    user.rank === 'Reseller'
+                      ? 'info'
+                      : user.rank === 'VIP'
+                      ? 'vip'
+                      : 'warn'
+                  }`}
                 >
-                  <span>ID: {user.tg_user_id}</span>
-                  {copied ? <Check size={11} style={{ color: '#059669' }} /> : <Copy size={11} />}
-                </button>
-                {user.created_at ? (
-                  <>
-                    <span className="cust-dot">·</span>
-                    <span>Joined {when(user.created_at)}</span>
-                  </>
-                ) : null}
-              </div>
+                  {user.rank === 'Reseller'
+                    ? 'Reseller Partner'
+                    : user.rank === 'VIP'
+                    ? 'VIP Member'
+                    : user.rank}
+                </span>
+              ) : null}
             </div>
-          </div>
-        </div>
 
-        {/* 2. Balanced 4-Metric Grid */}
-        <div className="cust-stats-grid">
-          <div className="cust-stat-card">
-            <div className="cust-stat-top">
-              <span className="cust-stat-label">Balance</span>
-              <Wallet size={15} style={{ color: '#059669' }} />
-            </div>
-            <div className="cust-stat-value green">{money(user.balance)}</div>
-          </div>
+            <div className="cust-hero-meta-row">
+              {user.username ? (
+                <a
+                  href={`https://t.me/${user.username}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="cust-tg-chip"
+                  title="Open Telegram Chat"
+                >
+                  <Send size={12} />
+                  <span>@{user.username}</span>
+                  <ExternalLink size={11} style={{ opacity: 0.7 }} />
+                </a>
+              ) : (
+                <span className="cust-meta-text">No username</span>
+              )}
 
-          <div className="cust-stat-card">
-            <div className="cust-stat-top">
-              <span className="cust-stat-label">Total Spent</span>
-              <ShoppingBag size={15} style={{ color: '#0284c7' }} />
-            </div>
-            <div className="cust-stat-value">{money(user.total_spent)}</div>
-          </div>
+              <span className="cust-meta-sep">·</span>
 
-          <div className="cust-stat-card">
-            <div className="cust-stat-top">
-              <span className="cust-stat-label">Orders</span>
-              <PackageCheck size={15} style={{ color: '#8b5cf6' }} />
-            </div>
-            <div className="cust-stat-value">{orderTotal}</div>
-          </div>
-
-          <div className="cust-stat-card">
-            <div className="cust-stat-top">
-              <span className="cust-stat-label">Account Type</span>
-              <UserCheck size={15} style={{ color: '#d97706' }} />
-            </div>
-            <div className="cust-stat-value" style={{ marginTop: 4 }}>
-              <select
-                className="cust-rank-select"
-                value={currentRank}
-                disabled={rankBusy}
-                onChange={(e) => void handleRankChange(e.target.value)}
-                title="Change customer account type"
+              <button
+                type="button"
+                className="cust-copy-chip"
+                onClick={copyId}
+                title="Click to copy Telegram ID"
               >
-                <option value="Standard">Normal User</option>
-                <option value="Reseller">Reseller Partner</option>
-                <option value="Affiliate">Affiliate Partner</option>
-                <option value="VIP">VIP Member</option>
-              </select>
-              {currentRank === 'Reseller' ? (
-                <small style={{ color: '#0284c7', fontSize: '11px', display: 'block', marginTop: 4, fontWeight: 600 }}>
-                  💼 Automatically gets Reseller Prices in Bot
-                </small>
+                <span>ID: {user.tg_user_id}</span>
+                {copied ? <Check size={12} style={{ color: '#059669' }} /> : <Copy size={12} />}
+              </button>
+
+              {user.created_at ? (
+                <>
+                  <span className="cust-meta-sep">·</span>
+                  <span className="cust-meta-text">Joined {when(user.created_at)}</span>
+                </>
               ) : null}
             </div>
           </div>
         </div>
 
-        {/* 3. Wallet Adjustment Panel */}
-        <div className="cust-balance-section">
-          <div className="cust-section-header">
-            <span className="cust-section-title">
-              <Wallet size={14} /> Adjust Balance
-            </span>
-            <div className="cust-adjust-type-toggle">
+        {/* Hero Actions on the right */}
+        <div className="cust-hero-actions">
+          {user.username ? (
+            <a
+              href={`https://t.me/${user.username}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn small ghost cust-hero-btn"
+            >
+              <Send size={14} />
+              <span>Telegram Chat</span>
+            </a>
+          ) : null}
+
+          <button
+            type="button"
+            className={`btn small ${user.is_banned ? 'ghost' : 'danger'} cust-hero-btn`}
+            onClick={() => void toggleBan()}
+          >
+            {user.is_banned ? (
+              <>
+                <UserCheck size={14} />
+                <span>Unban Customer</span>
+              </>
+            ) : (
+              <>
+                <Ban size={14} />
+                <span>Ban Customer</span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* 3. 4-Metric Highlight Grid */}
+      <div className="cust-metrics-grid">
+        <div className="cust-metric-card">
+          <div className="cust-metric-top">
+            <span className="cust-metric-label">Available Balance</span>
+            <div
+              className="cust-metric-icon-wrap"
+              style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#059669' }}
+            >
+              <Wallet size={16} />
+            </div>
+          </div>
+          <div className="cust-metric-val green">{money(user.balance)}</div>
+        </div>
+
+        <div className="cust-metric-card">
+          <div className="cust-metric-top">
+            <span className="cust-metric-label">Total Spent</span>
+            <div
+              className="cust-metric-icon-wrap"
+              style={{ background: 'rgba(2, 132, 199, 0.12)', color: '#0284c7' }}
+            >
+              <ShoppingBag size={16} />
+            </div>
+          </div>
+          <div className="cust-metric-val">{money(user.total_spent)}</div>
+        </div>
+
+        <div className="cust-metric-card">
+          <div className="cust-metric-top">
+            <span className="cust-metric-label">Total Orders</span>
+            <div
+              className="cust-metric-icon-wrap"
+              style={{ background: 'rgba(139, 92, 246, 0.12)', color: '#8b5cf6' }}
+            >
+              <PackageCheck size={16} />
+            </div>
+          </div>
+          <div className="cust-metric-val">{orderTotal}</div>
+        </div>
+
+        <div className="cust-metric-card">
+          <div className="cust-metric-top">
+            <span className="cust-metric-label">Account Tier</span>
+            <div
+              className="cust-metric-icon-wrap"
+              style={{ background: 'rgba(217, 119, 6, 0.12)', color: '#d97706' }}
+            >
+              <UserCheck size={16} />
+            </div>
+          </div>
+          <div className="cust-tier-select-wrap">
+            <select
+              className="cust-tier-select"
+              value={currentRank}
+              disabled={rankBusy}
+              onChange={(e) => void handleRankChange(e.target.value)}
+              title="Change customer account tier"
+            >
+              <option value="Standard">Normal User</option>
+              <option value="Reseller">Reseller Partner</option>
+              <option value="Affiliate">Affiliate Partner</option>
+              <option value="VIP">VIP Member</option>
+            </select>
+            {currentRank === 'Reseller' ? (
+              <div className="cust-tier-hint info">
+                💼 Reseller Prices automatically applied in Bot
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      {/* 4. Two-Column Workspace Grid */}
+      <div className="cust-workspace-grid">
+        {/* Left Column: Wallet Management Card */}
+        <div className="panel cust-workspace-panel">
+          <header className="cust-panel-head">
+            <div>
+              <h3>Adjust Wallet Balance</h3>
+              <p className="cust-panel-desc">
+                Manually credit or debit customer balance with an audit reason.
+              </p>
+            </div>
+          </header>
+
+          <div className="cust-panel-body">
+            {/* Toggle add/take */}
+            <div className="cust-adjust-switch">
               <button
                 type="button"
-                className={`cust-adjust-tab ${adjustType === 'add' ? 'active add' : ''}`}
+                className={`cust-switch-tab ${adjustType === 'add' ? 'active-add' : ''}`}
                 onClick={() => setAdjustType('add')}
               >
                 + Add Balance
               </button>
               <button
                 type="button"
-                className={`cust-adjust-tab ${adjustType === 'take' ? 'active take' : ''}`}
+                className={`cust-switch-tab ${adjustType === 'take' ? 'active-take' : ''}`}
                 onClick={() => setAdjustType('take')}
               >
                 - Deduct Balance
               </button>
             </div>
-          </div>
 
-          <div className="cust-adjust-box">
-            {/* Quick Presets */}
+            {/* Quick Amount Chips */}
             {adjustType === 'add' ? (
-              <div className="cust-quick-amounts">
-                <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 600 }}>Quick:</span>
+              <div className="cust-chips-row">
+                <span className="cust-chips-label">Quick:</span>
                 {[50, 100, 200, 500, 1000].map((preset) => (
                   <button
                     key={preset}
                     type="button"
-                    className="cust-quick-amt-btn"
+                    className="cust-chip-btn"
                     onClick={() => setAmount(String(preset))}
                   >
                     +{preset}
@@ -445,10 +713,12 @@ function CustomerDialog({ user, say, onClose, onChanged }: { user: User; say: Sa
               </div>
             ) : null}
 
-            <div className="cust-adjust-inputs">
-              <div className="cust-input-group">
-                <label>Amount</label>
+            {/* Form Inputs */}
+            <div className="cust-form-grid">
+              <div className="field">
+                <label htmlFor="adjust-amount">Amount (৳)</label>
                 <input
+                  id="adjust-amount"
                   type="number"
                   step="any"
                   min="0"
@@ -458,76 +728,93 @@ function CustomerDialog({ user, say, onClose, onChanged }: { user: User; say: Sa
                 />
               </div>
 
-              <div className="cust-input-group">
-                <label>Reason / Note</label>
+              <div className="field">
+                <label htmlFor="adjust-reason">Reason / Note (Required)</label>
                 <input
+                  id="adjust-reason"
                   type="text"
-                  placeholder="e.g. Deposit bonus, refund, correction"
+                  placeholder="e.g. Deposit bonus, refund, manual correction"
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                 />
               </div>
-
-              <button
-                type="button"
-                className={`btn small ${adjustType === 'add' ? 'cust-btn-add' : 'danger'}`}
-                style={{ minHeight: 38 }}
-                disabled={busy || !valid || (adjustType === 'take' && value > user.balance)}
-                onClick={() => void adjust(adjustType === 'add' ? 1 : -1)}
-              >
-                {busy
-                  ? 'Saving…'
-                  : adjustType === 'add'
-                  ? `Add ${value > 0 ? money(value) : ''}`
-                  : `Deduct ${value > 0 ? money(value) : ''}`}
-              </button>
             </div>
+
+            <button
+              type="button"
+              className={`btn ${adjustType === 'add' ? 'cust-action-save-add' : 'danger'} cust-full-action-btn`}
+              disabled={busy || !valid || (adjustType === 'take' && value > user.balance)}
+              onClick={() => void adjust(adjustType === 'add' ? 1 : -1)}
+            >
+              {busy
+                ? 'Processing…'
+                : adjustType === 'add'
+                ? `+ Add ${value > 0 ? money(value) : ''} to Balance`
+                : `- Deduct ${value > 0 ? money(value) : ''} from Balance`}
+            </button>
+
+            <p className="cust-notice-hint">
+              ⚡ Changes are recorded in the audit log and the customer receives an instant notification in Telegram.
+            </p>
           </div>
         </div>
 
-        {/* 4. Order History */}
-        <div className="cust-orders-section">
-          <div className="cust-section-header">
-            <span className="cust-section-title">
-              <ShoppingBag size={14} /> Recent Orders {orderTotal > 0 ? `(${orderTotal})` : ''}
-            </span>
-          </div>
-
-          {!orders ? (
-            <div className="cust-orders-loading">Loading order history…</div>
-          ) : orders.length === 0 ? (
-            <div className="cust-orders-empty">
-              <PackageCheck size={28} style={{ opacity: 0.35, margin: '0 auto 6px', display: 'block' }} />
-              <p style={{ margin: 0 }}>No orders placed by this customer yet.</p>
+        {/* Right Column: Order History Card */}
+        <div className="panel cust-workspace-panel">
+          <header className="cust-panel-head">
+            <div>
+              <h3>Recent Orders</h3>
+              <p className="cust-panel-desc">Lifetime orders placed by this customer.</p>
             </div>
-          ) : (
-            <div className="cust-orders-list">
-              {orders.map((order) => {
-                const isWaiting = order.status === 'completed' && order.fulfillment === 'waiting';
-                return (
-                  <div key={order.id} className="cust-order-row">
-                    <div className="cust-order-left">
-                      <span className={`pill ${isWaiting ? 'warn' : tone(order.status)}`}>
-                        {isWaiting ? 'waiting' : order.status}
-                      </span>
-                      <div className="cust-order-info">
-                        <span className="cust-order-title">{order.product_title}</span>
-                        <span className="cust-order-meta">
-                          Order #{order.id} · {when(order.created_at)}
+            {orderTotal > 0 ? <span className="pill">{orderTotal}</span> : null}
+          </header>
+
+          <div className="cust-panel-body">
+            {!orders ? (
+              <div className="cust-state-box">Loading order history…</div>
+            ) : orders.length === 0 ? (
+              <div className="cust-state-box empty">
+                <PackageCheck size={32} className="cust-empty-icon" />
+                <p>No orders placed by this customer yet.</p>
+              </div>
+            ) : (
+              <div className="cust-orders-scrollable">
+                {orders.map((order) => {
+                  const isWaiting = order.status === 'completed' && order.fulfillment === 'waiting';
+                  return (
+                    <div key={order.id} className="cust-order-item">
+                      <div className="cust-order-item-left">
+                        <span className={`pill ${isWaiting ? 'warn' : tone(order.status)}`}>
+                          {isWaiting ? 'waiting' : order.status}
                         </span>
+                        <div className="cust-order-meta">
+                          <strong className="cust-order-product">{order.product_title}</strong>
+                          <span className="cust-order-sub">
+                            Order #{order.id} · {when(order.created_at)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="cust-order-item-right">
+                        <span className="cust-order-amount">{money(order.price)}</span>
+                        <a
+                          href={`#orders/${order.id}`}
+                          className="cust-order-link"
+                          title="View order in Orders screen"
+                        >
+                          <span>View</span>
+                          <ChevronRight size={13} />
+                        </a>
                       </div>
                     </div>
-                    <div className="cust-order-right">
-                      <span className="cust-order-price">{money(order.price)}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </div>
+
       {confirmDialog}
-    </Modal>
+    </div>
   );
 }
