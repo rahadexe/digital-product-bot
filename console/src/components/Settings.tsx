@@ -3,15 +3,14 @@
 // Settings as a list of panels. Each panel owns its fields and saves them itself; a switch saves the moment
 // it flips. To add a control, add a field to a section below.
 
-import { Fragment, useEffect, useRef, useState } from 'react';
-import { UploadCloud } from 'lucide-react';
+import { Fragment, useEffect, useState } from 'react';
 import { api, type BinanceStatus, type PaymentsStatus } from '@/lib/api';
 import { resetCurrencySymbol } from '@/lib/currency';
 import { AdminNotifications } from './AdminNotifications';
 import { GateChannels } from './GateChannels';
 import { PaymentMethods } from './PaymentMethods';
 import { UpdateChannels } from './UpdateChannels';
-import { FlagRow, Modal, Switch, errorText, useConfirm, type Say } from './ui';
+import { FlagRow, Switch, errorText, type Say } from './ui';
 
 export type SettingsTab = 'store' | 'notifications' | 'notices' | 'access' | 'payments';
 
@@ -90,8 +89,8 @@ const SECTIONS: Section[] = [
         label: 'Welcome Message (Optional)',
         type: 'textarea',
         rows: 4,
-        placeholder: 'Enter custom welcome message, or leave blank to only show banner and buttons...',
-        hint: 'If left blank, no extra welcome text will be sent to the customer.',
+        placeholder: 'Enter custom welcome message, or leave blank to show default welcome text...',
+        hint: 'If left blank, default welcome text will be sent to the customer.',
       },
     ],
   },
@@ -365,16 +364,6 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
                   {section.master ? <Switch label={section.title} on={on} onChange={(next) => void flip(section.master!.key, next)} /> : null}
                 </div>
               </header>
-              {section.id === 'notice' ? (
-                <WelcomeBannerField
-                  bannerUrl={values.notice_banner || ''}
-                  onBannerChange={(newUrl) => {
-                    setValues((current) => ({ ...current, notice_banner: newUrl }));
-                    setSaved((current) => ({ ...(current ?? {}), notice_banner: newUrl }));
-                  }}
-                  say={say}
-                />
-              ) : null}
               {inputs.length ? <div className="field-grid">{inputs.map(renderInput)}</div> : null}
               {toggles.map((field) => (
                 <FlagRow key={field.key} label={field.label} hint={field.hint} on={isOn(field.key)} onChange={(next) => void flip(field.key, next)} />
@@ -498,186 +487,5 @@ function BinanceExtra({ status, say }: { status: BinanceStatus | null; say: Say 
   );
 }
 
-function WelcomeBannerField({
-  bannerUrl,
-  onBannerChange,
-  say,
-}: {
-  bannerUrl: string;
-  onBannerChange: (url: string) => void;
-  say: Say;
-}) {
-  const [loading, setLoading] = useState(false);
-  const [meta, setMeta] = useState<{
-    has_banner: boolean;
-    url?: string | null;
-    width?: number | null;
-    height?: number | null;
-    size?: number | null;
-    content_type?: string | null;
-  } | null>(null);
-  const [dragOver, setDragOver] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [confirm, confirmModal] = useConfirm();
-
-  useEffect(() => {
-    api
-      .getWelcomeBanner()
-      .then((data) => {
-        if (data && data.has_banner) {
-          setMeta(data);
-        } else {
-          setMeta(null);
-        }
-      })
-      .catch(() => setMeta(null));
-  }, [bannerUrl]);
-
-  async function handleUpload(file: File) {
-    const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
-    if (!validTypes.includes(file.type)) {
-      say('Please upload a valid JPG, PNG, or WebP image.', 'bad');
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      say('File exceeds 5 MB limit. Please choose a smaller image.', 'bad');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const res = await api.uploadWelcomeBanner(file);
-      onBannerChange(res.banner.url);
-      setMeta({
-        has_banner: true,
-        url: res.banner.url,
-        width: res.banner.width,
-        height: res.banner.height,
-        size: res.banner.size,
-        content_type: res.banner.content_type,
-      });
-      say('Welcome banner uploaded successfully.');
-    } catch (cause) {
-      say(errorText(cause, 'Could not upload banner.'), 'bad');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleRemove() {
-    const confirmed = await confirm('Remove Welcome Banner', 'Are you sure you want to remove the bot welcome banner?', 'Remove');
-    if (!confirmed) return;
-    setLoading(true);
-    try {
-      await api.deleteWelcomeBanner();
-      onBannerChange('');
-      setMeta(null);
-      say('Welcome banner removed.');
-    } catch (cause) {
-      say(errorText(cause, 'Could not remove banner.'), 'bad');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const activeUrl = meta?.url || bannerUrl;
-  const hasActiveBanner = Boolean(activeUrl);
-
-
-  return (
-    <div className="welcome-banner-wrapper">
-      <div className="welcome-banner-header">
-        <label className="field-title">Bot Welcome Banner</label>
-        <div className="banner-specs-pill">
-          <span>Recommended: 1280 × 720 px (16:9) or 1200 × 600 px · Max 5 MB</span>
-        </div>
-      </div>
-
-      {hasActiveBanner ? (
-        <div className="banner-preview-card">
-          <div className="banner-image-box">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={activeUrl} alt="Welcome Banner Preview" />
-          </div>
-          <div className="banner-card-meta">
-            <div className="banner-status-info">
-              <span className="badge-active">● Active Banner</span>
-              {meta?.width && meta?.height ? (
-                <span className="banner-dim-info">
-                  {meta.width} × {meta.height} px
-                  {meta.size ? ` · ${(meta.size / 1024).toFixed(0)} KB` : ''}
-                  {meta.content_type ? ` · ${meta.content_type.replace('image/', '').toUpperCase()}` : ''}
-                </span>
-              ) : (
-                <span className="banner-dim-info">External Image / Telegram File</span>
-              )}
-            </div>
-            <div className="banner-card-actions">
-              <button
-                type="button"
-                className="btn small"
-                disabled={loading}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                {loading ? 'Uploading…' : 'Change Image'}
-              </button>
-              <button
-                type="button"
-                className="btn danger small ghost"
-                disabled={loading}
-                onClick={handleRemove}
-              >
-                Remove
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div
-          className={`banner-dropzone ${dragOver ? 'drag-over' : ''} ${loading ? 'busy' : ''}`}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragOver(true);
-          }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDragOver(false);
-            const file = e.dataTransfer.files?.[0];
-            if (file) void handleUpload(file);
-          }}
-          onClick={() => {
-            if (!loading) fileInputRef.current?.click();
-          }}
-        >
-          <div className="dropzone-icon">
-            <UploadCloud size={32} />
-          </div>
-          <div className="dropzone-text">
-            <strong>{loading ? 'Uploading banner…' : 'Click to upload welcome banner or drag & drop'}</strong>
-            <p>JPG, PNG, or WebP up to 5 MB</p>
-          </div>
-          <button type="button" className="btn small" disabled={loading}>
-            Browse Image
-          </button>
-        </div>
-      )}
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/jpeg,image/png,image/webp"
-        style={{ display: 'none' }}
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) void handleUpload(file);
-          e.target.value = '';
-        }}
-      />
-
-      {confirmModal}
-    </div>
-  );
-}
 
 
