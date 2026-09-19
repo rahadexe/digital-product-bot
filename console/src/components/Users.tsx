@@ -1,10 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Ban,
+  Briefcase,
   Check,
+  ChevronDown,
   ChevronRight,
   Copy,
   CreditCard,
@@ -12,6 +14,7 @@ import {
   PackageCheck,
   Send,
   ShoppingBag,
+  User as UserIcon,
   UserCheck,
   Users as UsersIcon,
   Wallet,
@@ -508,7 +511,9 @@ function CustomerProfilePage({
                 {user.is_banned ? 'Banned' : 'Active'}
               </span>
               {user.rank === 'Reseller' ? (
-                <span className="pill info">Reseller Partner</span>
+                <span className="pill cust-reseller-pill">
+                  <Briefcase size={12} /> Reseller Partner
+                </span>
               ) : null}
             </div>
 
@@ -626,27 +631,26 @@ function CustomerProfilePage({
           <div className="cust-metric-val">{orderTotal}</div>
         </div>
 
-        <div className="cust-metric-card">
+        <div className={`cust-metric-card ${currentRank === 'Reseller' ? 'reseller-card' : ''}`}>
           <div className="cust-metric-top">
             <span className="cust-metric-label">Account Tier</span>
             <div
               className="cust-metric-icon-wrap"
-              style={{ background: 'rgba(217, 119, 6, 0.12)', color: '#d97706' }}
+              style={
+                currentRank === 'Reseller'
+                  ? { background: 'rgba(2, 132, 199, 0.16)', color: '#0284c7' }
+                  : { background: 'rgba(217, 119, 6, 0.12)', color: '#d97706' }
+              }
             >
-              <UserCheck size={16} />
+              {currentRank === 'Reseller' ? <Briefcase size={16} /> : <UserCheck size={16} />}
             </div>
           </div>
           <div className="cust-tier-select-wrap">
-            <select
-              className="cust-tier-select"
-              value={currentRank === 'Reseller' ? 'Reseller' : 'Standard'}
+            <TierDropdown
+              value={currentRank}
               disabled={rankBusy}
-              onChange={(e) => void handleRankChange(e.target.value)}
-              title="Change customer account tier"
-            >
-              <option value="Standard">Normal User</option>
-              <option value="Reseller">Reseller Partner</option>
-            </select>
+              onChange={(newRank) => void handleRankChange(newRank)}
+            />
           </div>
         </div>
       </div>
@@ -781,6 +785,96 @@ function CustomerProfilePage({
       </div>
 
       {confirmDialog}
+    </div>
+  );
+}
+
+/** Custom, modern Account Tier dropdown with rich options and icons */
+function TierDropdown({
+  value,
+  onChange,
+  disabled = false,
+}: {
+  value: string;
+  onChange: (newRank: string) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isReseller = value === 'Reseller';
+
+  useEffect(() => {
+    if (!open) return;
+    const clickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', clickOutside);
+    return () => document.removeEventListener('mousedown', clickOutside);
+  }, [open]);
+
+  return (
+    <div className="tier-dropdown-container" ref={containerRef}>
+      <button
+        type="button"
+        className={`tier-dropdown-trigger ${isReseller ? 'reseller-trigger' : ''}`}
+        disabled={disabled}
+        onClick={() => setOpen((prev) => !prev)}
+        aria-expanded={open}
+      >
+        <div className="tier-trigger-left">
+          {isReseller ? (
+            <Briefcase size={15} className="tier-icon-reseller" />
+          ) : (
+            <UserIcon size={15} className="tier-icon-normal" />
+          )}
+          <span className="tier-trigger-label">
+            {isReseller ? 'Reseller Partner' : 'Normal User'}
+          </span>
+        </div>
+        <ChevronDown size={14} className={`tier-chevron ${open ? 'rotated' : ''}`} />
+      </button>
+
+      {open ? (
+        <div className="tier-dropdown-menu">
+          <button
+            type="button"
+            className={`tier-menu-item ${!isReseller ? 'active' : ''}`}
+            onClick={() => {
+              setOpen(false);
+              onChange('Standard');
+            }}
+          >
+            <div className="tier-item-info">
+              <div className="tier-item-row">
+                <UserIcon size={14} />
+                <strong>Normal User</strong>
+              </div>
+              <small>Standard customer pricing</small>
+            </div>
+            {!isReseller ? <Check size={14} className="tier-check" /> : null}
+          </button>
+
+          <button
+            type="button"
+            className={`tier-menu-item reseller-item ${isReseller ? 'active' : ''}`}
+            onClick={() => {
+              setOpen(false);
+              onChange('Reseller');
+            }}
+          >
+            <div className="tier-item-info">
+              <div className="tier-item-row">
+                <Briefcase size={14} />
+                <strong>Reseller Partner</strong>
+              </div>
+              <small>Discounted reseller prices in Bot</small>
+            </div>
+            {isReseller ? <Check size={14} className="tier-check" /> : null}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -739,7 +739,7 @@ select {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: 9999;
   display: grid;
   place-items: center;
   padding: 16px;
@@ -2334,39 +2334,186 @@ ul.messages p { margin-top: 6px; color: var(--text-dim); font-size: 12.5px; whit
   color: #059669;
 }
 
+/* Tier Dropdown & Reseller Highlight */
 .cust-tier-select-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
+  position: relative;
+  width: 100%;
 }
 
-.cust-tier-select {
+.tier-dropdown-container {
+  position: relative;
   width: 100%;
-  padding: 5px 8px;
+}
+
+.tier-dropdown-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: all 120ms ease;
+  font-family: inherit;
+}
+
+.tier-dropdown-trigger:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--surface-2);
+}
+
+.tier-dropdown-trigger:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.tier-dropdown-trigger.reseller-trigger {
+  border-color: rgba(2, 132, 199, 0.4);
+  background: rgba(2, 132, 199, 0.06);
+}
+
+.tier-dropdown-trigger.reseller-trigger:hover:not(:disabled) {
+  border-color: #0284c7;
+  background: rgba(2, 132, 199, 0.12);
+}
+
+.tier-trigger-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tier-icon-reseller {
+  color: #0284c7;
+  flex-shrink: 0;
+}
+
+.tier-icon-normal {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.tier-trigger-label {
   font-size: 13px;
   font-weight: 600;
-  border-radius: 6px;
-  background: var(--surface);
-  border: 1px solid var(--line-strong);
   color: var(--text);
-  cursor: pointer;
-  outline: none;
-  transition: border-color 120ms;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.cust-tier-select:hover,
-.cust-tier-select:focus {
-  border-color: var(--accent);
-}
-
-.cust-tier-hint.info {
-  font-size: 11px;
-  font-weight: 600;
+.tier-dropdown-trigger.reseller-trigger .tier-trigger-label {
   color: #0284c7;
-  padding: 4px 8px;
-  background: rgba(2, 132, 199, 0.08);
+  font-weight: 700;
+}
+
+.tier-chevron {
+  color: var(--muted);
+  transition: transform 150ms ease;
+  flex-shrink: 0;
+}
+
+.tier-chevron.rotated {
+  transform: rotate(180deg);
+}
+
+.tier-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.14), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
+  padding: 5px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  animation: rise-in 120ms ease;
+}
+
+.tier-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
   border-radius: 6px;
-  border: 1px solid rgba(2, 132, 199, 0.2);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 100ms ease;
+  text-align: left;
+  font-family: inherit;
+}
+
+.tier-menu-item:hover {
+  background: var(--surface-2);
+}
+
+.tier-menu-item.active {
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.tier-menu-item.reseller-item.active {
+  background: rgba(2, 132, 199, 0.1);
+}
+
+.tier-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tier-item-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.tier-menu-item.reseller-item .tier-item-row {
+  color: #0284c7;
+}
+
+.tier-item-info small {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.tier-check {
+  color: #059669;
+  flex-shrink: 0;
+}
+
+.tier-menu-item.reseller-item .tier-check {
+  color: #0284c7;
+}
+
+/* Card highlight for Reseller */
+.cust-metric-card.reseller-card {
+  border: 1.5px solid rgba(2, 132, 199, 0.4);
+  background: linear-gradient(135deg, var(--surface) 0%, rgba(2, 132, 199, 0.06) 100%);
+  box-shadow: 0 4px 14px rgba(2, 132, 199, 0.12);
+}
+
+.cust-reseller-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
+  color: #fff !important;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.35);
+  border: none;
 }
 
 /* 4. Two-Column Workspace Grid */
