@@ -27,6 +27,7 @@ from app.bot.icons import (
     ICON_TIMER,
     ICON_WARNING,
     Icons,
+    get_method_icon,
 )
 from app.bot.handlers.navigation import is_navigation, navigate
 from app.bot.handlers.start import render_main_dashboard
@@ -290,8 +291,9 @@ async def handle_deposit_method_select(query: CallbackQuery, state: FSMContext, 
                 f"3. Send <b>{escape(coin)}</b> and tap <b>Payment Done</b> below"
             )
         )
+        method_icon = get_method_icon(method)
         text = (
-            f"{ICON_BINANCE} <b>Binance Pay Deposit</b>\n"
+            f"{method_icon} <b>{escape(method_name)}</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"↳ <b>Binance UID:</b>\n"
             f"<code>{escape(account_info)}</code> <i>(Tap to copy)</i>\n\n"
@@ -302,8 +304,9 @@ async def handle_deposit_method_select(query: CallbackQuery, state: FSMContext, 
         )
         reply_kb = get_manual_deposit_invoice_keyboard(account_info, is_binance=True)
     else:
+        method_icon = get_method_icon(method)
         text = (
-            f"<b>{escape(method_name)} Deposit</b>\n"
+            f"{method_icon} <b>{escape(method_name)}</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"↳ <b>Account Number:</b>\n"
             f"<code>{escape(account_info)}</code> <i>(Tap to copy)</i>\n\n"
