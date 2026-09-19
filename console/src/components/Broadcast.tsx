@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Bot, Check, CheckCircle2, Clock, Eye, Info, Link2, MessageSquare, RefreshCw, Send, Users, X } from 'lucide-react';
+import { Bold, Bot, Check, Code, Copy, Eye, EyeOff, Italic, Link2, RefreshCw, Send, Users } from 'lucide-react';
 import { api } from '@/lib/api';
 import { errorText, useConfirm, when, type Say } from './ui';
 
@@ -24,6 +24,7 @@ export function Broadcast({ say }: { say: Say }) {
   const [recent, setRecent] = useState<RecentBroadcast[]>([]);
   const [loadingInfo, setLoadingInfo] = useState(false);
   const [showPreview, setShowPreview] = useState(true);
+  const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
   const [confirm, confirmDialog] = useConfirm();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -79,7 +80,7 @@ export function Broadcast({ say }: { say: Say }) {
     if (!el) return;
     const start = el.selectionStart;
     const end = el.selectionEnd;
-    const selected = text.slice(start, end) || 'link text';
+    const selected = text.slice(start, end) || 'link';
     const replacement = `<a href="${url}">${selected}</a>`;
     const newText = text.slice(0, start) + replacement + text.slice(end);
     setText(newText);
@@ -88,15 +89,21 @@ export function Broadcast({ say }: { say: Say }) {
     }, 10);
   }
 
+  function copyCommand(cmd: string) {
+    void navigator.clipboard.writeText(cmd);
+    setCopiedCmd(cmd);
+    setTimeout(() => setCopiedCmd(null), 1500);
+  }
+
   async function send(event: React.FormEvent) {
     event.preventDefault();
     if (!text.trim()) return;
 
-    const countDesc = recipientCount !== null ? `to all ${recipientCount} active customers` : 'to every customer';
+    const countDesc = recipientCount !== null ? `to ${recipientCount} customers` : 'to all customers';
     const confirmed = await confirm(
-      'Send broadcast message?',
-      `This announcement will be delivered ${countDesc}. Are you sure you want to proceed?`,
-      'Send Broadcast Now',
+      'Send broadcast?',
+      `Deliver this message ${countDesc}?`,
+      'Send Now',
     );
     if (!confirmed) return;
 
@@ -117,22 +124,20 @@ export function Broadcast({ say }: { say: Say }) {
   // Basic safe preview transformer for Telegram HTML
   function renderSafeTelegramHtml(raw: string) {
     if (!raw.trim()) {
-      return '<span style="color: #8e8e93; font-style: italic;">Preview will appear here as you type...</span>';
+      return '<span style="color: var(--muted); font-style: italic;">Message preview...</span>';
     }
-    // Replace newlines with <br>
     let formatted = raw
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
 
-    // Re-enable supported telegram tags
     formatted = formatted
       .replace(/&lt;b&gt;(.*?)&lt;\/b&gt;/gi, '<b>$1</b>')
       .replace(/&lt;strong&gt;(.*?)&lt;\/strong&gt;/gi, '<strong>$1</strong>')
       .replace(/&lt;i&gt;(.*?)&lt;\/i&gt;/gi, '<i>$1</i>')
       .replace(/&lt;em&gt;(.*?)&lt;\/em&gt;/gi, '<em>$1</em>')
-      .replace(/&lt;code&gt;(.*?)&lt;\/code&gt;/gi, '<code style="background: rgba(0,0,0,0.06); padding: 1px 4px; border-radius: 4px; font-family: monospace;">$1</code>')
-      .replace(/&lt;pre&gt;(.*?)&lt;\/pre&gt;/gi, '<pre style="background: rgba(0,0,0,0.06); padding: 6px; border-radius: 4px; font-family: monospace; overflow-x: auto;">$1</pre>')
+      .replace(/&lt;code&gt;(.*?)&lt;\/code&gt;/gi, '<code style="background: rgba(0,0,0,0.06); padding: 1px 4px; border-radius: 4px; font-family: var(--mono); font-size: 12.5px;">$1</code>')
+      .replace(/&lt;pre&gt;(.*?)&lt;\/pre&gt;/gi, '<pre style="background: rgba(0,0,0,0.06); padding: 6px 8px; border-radius: 4px; font-family: var(--mono); font-size: 12px; overflow-x: auto;">$1</pre>')
       .replace(/&lt;a href=&quot;(.*?)&quot;&gt;(.*?)&lt;\/a&gt;/gi, '<a href="$1" target="_blank" rel="noopener noreferrer" style="color: #2481cc; text-decoration: underline;">$2</a>')
       .replace(/\n/g, '<br/>');
 
@@ -147,57 +152,102 @@ export function Broadcast({ say }: { say: Say }) {
     <>
       {confirmDialog}
 
-      {/* Header Metric & Info */}
-      <div className="stat-cards-grid" style={{ marginBottom: '16px' }}>
+      {/* Header Metric & Quick Info */}
+      <div className="stat-cards-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', marginBottom: '16px' }}>
         <div className="stat-card">
-          <span className="stat-card-title">
-            <Users size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: '4px' }} />
-            Active Recipients
-          </span>
-          <span className="stat-card-value">
-            {recipientCount !== null ? recipientCount : '...'}
-          </span>
-          <span className="stat-card-sub">
-            All registered unbanned Telegram bot customers
-          </span>
+          <div className="stat-card-top">
+            <span className="stat-card-label">Active Recipients</span>
+            <Users className="stat-card-icon" />
+          </div>
+          <div className="stat-card-value">
+            {recipientCount !== null ? recipientCount : '—'}
+          </div>
         </div>
 
         <div className="stat-card">
-          <span className="stat-card-title">
-            <Bot size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: '4px' }} />
-            Telegram Admin Commands
-          </span>
-          <span className="stat-card-value" style={{ fontSize: '18px', fontWeight: 600, color: 'var(--accent)' }}>
-            /broadcast &nbsp;or&nbsp; /bc
-          </span>
-          <span className="stat-card-sub">
-            Admins can broadcast directly inside Telegram bot
-          </span>
+          <div className="stat-card-top">
+            <span className="stat-card-label">Bot Command</span>
+            <Bot className="stat-card-icon" />
+          </div>
+          <div className="stat-card-value" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => copyCommand('/broadcast')}
+              title="Click to copy /broadcast"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'var(--surface-2)',
+                border: '1px solid var(--border)',
+                borderRadius: '6px',
+                padding: '4px 10px',
+                fontSize: '13px',
+                fontFamily: 'var(--mono)',
+                color: 'var(--accent)',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              /broadcast
+              {copiedCmd === '/broadcast' ? (
+                <Check size={12} style={{ color: '#059669' }} />
+              ) : (
+                <Copy size={12} style={{ color: 'var(--muted)' }} />
+              )}
+            </button>
+            <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 500 }}>or</span>
+            <button
+              type="button"
+              onClick={() => copyCommand('/bc')}
+              title="Click to copy /bc"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'var(--surface-2)',
+                border: '1px solid var(--border)',
+                borderRadius: '6px',
+                padding: '4px 10px',
+                fontSize: '13px',
+                fontFamily: 'var(--mono)',
+                color: 'var(--accent)',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              /bc
+              {copiedCmd === '/bc' ? (
+                <Check size={12} style={{ color: '#059669' }} />
+              ) : (
+                <Copy size={12} style={{ color: 'var(--muted)' }} />
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
       <form className="panel" onSubmit={send}>
-        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+        <header>
           <div>
-            <h2>Message Every Customer</h2>
-            <p style={{ margin: 0 }}>Send announcements, promotions, or store updates directly to customer Telegram inboxes.</p>
+            <h2>New Broadcast</h2>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="actions">
             <button
               type="button"
               className="mini ghost"
               onClick={() => setShowPreview((p) => !p)}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}
             >
-              <Eye size={13} />
-              {showPreview ? 'Hide Preview' : 'Show Preview'}
+              {showPreview ? <EyeOff size={13} /> : <Eye size={13} />}
+              <span>{showPreview ? 'Hide preview' : 'Preview'}</span>
             </button>
             <button
               type="button"
               className="mini ghost"
               onClick={() => void loadInfo()}
               disabled={loadingInfo}
-              title="Refresh recipients and history"
+              title="Refresh"
             >
               <RefreshCw size={13} className={loadingInfo ? 'spin' : ''} />
             </button>
@@ -205,7 +255,7 @@ export function Broadcast({ say }: { say: Say }) {
         </header>
 
         <div className="panel-body stack" style={{ gap: '16px' }}>
-          {/* Active Sending Progress Bar */}
+          {/* Active Sending Progress */}
           {progress && (
             <div
               style={{
@@ -217,7 +267,7 @@ export function Broadcast({ say }: { say: Say }) {
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>
-                  {progress.pending > 0 ? '🚀 Delivering Broadcast...' : '✅ Broadcast Delivered'}
+                  {progress.pending > 0 ? 'Sending broadcast...' : 'Broadcast delivered'}
                 </span>
                 <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted)' }}>
                   {progress.success + progress.failed} / {progress.total} ({completionPercent}%)
@@ -233,111 +283,223 @@ export function Broadcast({ say }: { say: Say }) {
                   }}
                 />
               </div>
-              <div style={{ display: 'flex', gap: '16px', marginTop: '8px', fontSize: '12px', color: 'var(--muted)' }}>
-                <span style={{ color: '#059669' }}>✓ {progress.success} Sent</span>
-                {progress.failed > 0 && <span style={{ color: 'var(--danger)' }}>✕ {progress.failed} Failed / Blocked</span>}
-                {progress.pending > 0 && <span>⏳ {progress.pending} Pending</span>}
+              <div style={{ display: 'flex', gap: '14px', marginTop: '8px', fontSize: '12px', color: 'var(--muted)' }}>
+                <span style={{ color: '#059669', fontWeight: 500 }}>✓ {progress.success} sent</span>
+                {progress.failed > 0 && <span style={{ color: 'var(--danger)', fontWeight: 500 }}>✕ {progress.failed} failed</span>}
+                {progress.pending > 0 && <span>⏳ {progress.pending} pending</span>}
               </div>
             </div>
           )}
 
           {/* Two-Column Editor & Preview */}
-          <div style={{ display: 'grid', gridTemplateColumns: showPreview ? 'repeat(auto-fit, minmax(300px, 1fr))' : '1fr', gap: '16px', alignItems: 'start' }}>
-            {/* Compose Column */}
-            <div>
-              {/* Quick formatting toolbar */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
-                <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 600, marginRight: '4px' }}>FORMAT:</span>
-                <button type="button" className="mini ghost" onClick={() => insertTag('<b>', '</b>')} style={{ fontWeight: 700 }}>
-                  B
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: showPreview ? 'repeat(auto-fit, minmax(320px, 1fr))' : '1fr',
+              gap: '16px',
+              alignItems: 'stretch',
+            }}
+          >
+            {/* Unified Composer Box */}
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                border: '1px solid var(--border)',
+                borderRadius: '10px',
+                background: 'var(--surface)',
+                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)',
+                overflow: 'hidden',
+              }}
+            >
+              {/* Toolbar */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '6px 10px',
+                  background: 'var(--surface-2)',
+                  borderBottom: '1px solid var(--line)',
+                }}
+              >
+                <button
+                  type="button"
+                  className="mini ghost"
+                  onClick={() => insertTag('<b>', '</b>')}
+                  title="Bold"
+                  style={{ minWidth: '28px', height: '28px', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <Bold size={13} />
                 </button>
-                <button type="button" className="mini ghost" onClick={() => insertTag('<i>', '</i>')} style={{ fontStyle: 'italic' }}>
-                  I
+                <button
+                  type="button"
+                  className="mini ghost"
+                  onClick={() => insertTag('<i>', '</i>')}
+                  title="Italic"
+                  style={{ minWidth: '28px', height: '28px', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <Italic size={13} />
                 </button>
-                <button type="button" className="mini ghost" onClick={() => insertTag('<code>', '</code>')} style={{ fontFamily: 'monospace' }}>
-                  &lt;/&gt;
+                <button
+                  type="button"
+                  className="mini ghost"
+                  onClick={() => insertTag('<code>', '</code>')}
+                  title="Code"
+                  style={{ minWidth: '28px', height: '28px', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <Code size={13} />
                 </button>
-                <button type="button" className="mini ghost" onClick={insertLink} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                  <Link2 size={12} /> Link
+                <button
+                  type="button"
+                  className="mini ghost"
+                  onClick={insertLink}
+                  title="Link"
+                  style={{ height: '28px', padding: '0 8px', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px' }}
+                >
+                  <Link2 size={12} />
+                  <span>Link</span>
                 </button>
               </div>
 
+              {/* Textarea */}
               <textarea
                 ref={textareaRef}
-                rows={9}
+                rows={8}
                 required
-                placeholder="Type your announcement or update here... (HTML tags <b>, <i>, <code>, <a href='...'> supported)"
+                placeholder="Write your message here..."
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                style={{ width: '100%', boxSizing: 'border-box' }}
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  flex: 1,
+                  border: 'none',
+                  borderRadius: 0,
+                  background: 'transparent',
+                  padding: '12px 14px',
+                  fontSize: '14px',
+                  lineHeight: '1.55',
+                  resize: 'vertical',
+                  minHeight: '150px',
+                  outline: 'none',
+                  boxShadow: 'none',
+                }}
               />
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '12px' }}>
+              {/* Composer Footer */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '8px 12px 10px',
+                  borderTop: '1px solid var(--line)',
+                  background: 'var(--surface)',
+                }}
+              >
+                <span style={{ fontSize: '12px', color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' }}>
+                  {text.length} chars
+                </span>
+
                 <button
                   type="submit"
                   className="btn"
                   disabled={sending || Boolean(progress?.pending) || !text.trim()}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '7px 16px', fontSize: '13px' }}
                 >
-                  <Send size={14} />
+                  <Send size={13} />
                   {sending ? 'Sending…' : 'Send Broadcast'}
                 </button>
-
-                <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
-                  {text.length} characters
-                </span>
               </div>
             </div>
 
-            {/* Live Telegram Bubble Preview Column */}
+            {/* Telegram Preview */}
             {showPreview && (
               <div
                 style={{
+                  display: 'flex',
+                  flexDirection: 'column',
                   border: '1px solid var(--border)',
                   borderRadius: '10px',
                   background: 'var(--surface-2)',
-                  padding: '14px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '10px',
+                  overflow: 'hidden',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Bot size={14} style={{ color: 'var(--accent)' }} />
-                    Telegram Message Live Preview
-                  </span>
-                  <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Customer View</span>
-                </div>
-
-                {/* Simulated Telegram Chat Bubble */}
                 <div
                   style={{
-                    background: '#ffffff',
-                    border: '1px solid rgba(0, 0, 0, 0.08)',
-                    borderRadius: '12px 12px 12px 4px',
-                    padding: '12px 14px',
-                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
-                    color: '#000000',
-                    fontSize: '13.5px',
-                    lineHeight: '1.5',
-                    wordBreak: 'break-word',
-                    minHeight: '80px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '8px 12px',
+                    borderBottom: '1px solid var(--line)',
+                    background: 'var(--surface)',
                   }}
-                  dangerouslySetInnerHTML={{ __html: renderSafeTelegramHtml(text) }}
-                />
+                >
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <Bot size={13} style={{ color: 'var(--accent)' }} />
+                    Preview
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Telegram</span>
+                </div>
+
+                <div
+                  style={{
+                    padding: '14px',
+                    flex: 1,
+                    minHeight: '180px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'flex-start',
+                  }}
+                >
+                  <div
+                    style={{
+                      alignSelf: 'flex-start',
+                      maxWidth: '92%',
+                      background: '#ffffff',
+                      border: '1px solid rgba(0, 0, 0, 0.08)',
+                      borderRadius: '12px 12px 12px 3px',
+                      padding: '10px 12px 6px',
+                      boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)',
+                      color: '#111827',
+                      fontSize: '13.5px',
+                      lineHeight: '1.5',
+                      wordBreak: 'break-word',
+                    }}
+                  >
+                    <div
+                      dangerouslySetInnerHTML={{ __html: renderSafeTelegramHtml(text) }}
+                      style={{ minHeight: '28px' }}
+                    />
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'flex-end',
+                        gap: '3px',
+                        marginTop: '2px',
+                        fontSize: '10.5px',
+                        color: '#8e8e93',
+                        userSelect: 'none',
+                      }}
+                    >
+                      <span>12:00</span>
+                      <span style={{ color: '#059669', fontSize: '10px', fontWeight: 700 }}>✓✓</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </div>
         </div>
       </form>
 
-      {/* Recent Broadcasts History */}
+      {/* Recent Broadcasts */}
       <section className="panel" style={{ marginTop: '20px' }}>
         <header>
           <div>
-            <h2>Recent Broadcasts History</h2>
-            <p>Past broadcast deliveries and reports</p>
+            <h2>Recent Broadcasts</h2>
           </div>
         </header>
         <div className="scroll">
@@ -347,14 +509,14 @@ export function Broadcast({ say }: { say: Say }) {
                 <th>Broadcast</th>
                 <th>Status</th>
                 <th>Delivered</th>
-                <th>Sent Date</th>
+                <th>Date</th>
               </tr>
             </thead>
             <tbody>
               {recent.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="empty" style={{ textAlign: 'center', padding: '24px', color: 'var(--muted)' }}>
-                    No previous broadcasts yet. Send your first broadcast above or via Telegram with <code>/broadcast</code>.
+                    No broadcasts sent yet.
                   </td>
                 </tr>
               ) : (
@@ -377,7 +539,7 @@ export function Broadcast({ say }: { say: Say }) {
                             marginTop: '2px',
                           }}
                         >
-                          {b.text || '(No text stored)'}
+                          {b.text || '—'}
                         </div>
                       </td>
                       <td>
@@ -393,7 +555,7 @@ export function Broadcast({ say }: { say: Say }) {
                         </span>
                         {b.failed > 0 ? (
                           <small style={{ display: 'block', color: 'var(--danger)', fontSize: '11px' }}>
-                            {b.failed} failed/blocked
+                            {b.failed} failed
                           </small>
                         ) : null}
                       </td>
