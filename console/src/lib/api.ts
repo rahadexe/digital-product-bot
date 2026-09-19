@@ -595,6 +595,8 @@ export const api = {
         pending: number;
       }>;
     }>('/api/admin/broadcast'),
+  deleteBroadcast: (id: number) =>
+    request<{ success: boolean }>(`/api/admin/broadcast/${id}`, { method: 'DELETE' }),
 
   // Settings
   settings: () => request<Record<string, string>>('/api/admin/settings'),

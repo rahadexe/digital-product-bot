@@ -113,14 +113,29 @@ class DeliveryService:
 
     async def enqueue_broadcast(self, text: str) -> dict[str, int]:
         async with self.db.transaction() as conn:
-            job_id = await conn.fetchval("INSERT INTO broadcasts DEFAULT VALUES RETURNING id")
+            job_id = await conn.fetchval("INSERT INTO broadcasts (text) VALUES ($1) RETURNING id", text)
             await conn.execute(
                 "INSERT INTO outbox (tg_user_id, text, broadcast_id) SELECT tg_user_id, $1, $2 FROM users WHERE is_banned = 0",
                 text,
                 job_id,
             )
             await record(conn, "broadcast_queued", f"Broadcast #{job_id} ({len(text)} characters)")
+            # Auto-prune old broadcasts exceeding the retention limit (30)
+            await conn.execute(
+                """
+                DELETE FROM broadcasts
+                WHERE id NOT IN (
+                    SELECT id FROM broadcasts ORDER BY id DESC LIMIT 30
+                )
+                """
+            )
         return await self.broadcast_status(job_id)
+
+    async def delete_broadcast(self, job_id: int) -> bool:
+        async with self.db.transaction() as conn:
+            result = await conn.execute("DELETE FROM broadcasts WHERE id = $1", job_id)
+            await record(conn, "broadcast_deleted", f"Broadcast #{job_id} deleted")
+        return result.endswith("1")
 
     async def broadcast_status(self, job_id: int) -> dict[str, int]:
         async with self.db.connect() as conn:
@@ -138,19 +153,19 @@ class DeliveryService:
         async with self.db.connect() as conn:
             return await conn.fetchval("SELECT COUNT(*) FROM users WHERE is_banned = 0") or 0
 
-    async def recent_broadcasts(self, limit: int = 15) -> list[dict]:
+    async def recent_broadcasts(self, limit: int = 30) -> list[dict]:
         async with self.db.connect() as conn:
             rows = await conn.fetch(
                 """
                 SELECT b.id, b.created_at,
-                       COALESCE((SELECT o.text FROM outbox o WHERE o.broadcast_id = b.id LIMIT 1), '') AS text,
+                       COALESCE(NULLIF(b.text, ''), (SELECT o.text FROM outbox o WHERE o.broadcast_id = b.id LIMIT 1), '') AS text,
                        COUNT(o.id) AS total,
                        COUNT(o.id) FILTER (WHERE o.status = 'sent') AS success,
                        COUNT(o.id) FILTER (WHERE o.status = 'failed') AS failed,
                        COUNT(o.id) FILTER (WHERE o.status IN ('pending', 'sending')) AS pending
                 FROM broadcasts b
                 LEFT JOIN outbox o ON o.broadcast_id = b.id
-                GROUP BY b.id, b.created_at
+                GROUP BY b.id, b.created_at, b.text
                 ORDER BY b.id DESC
                 LIMIT $1
                 """,

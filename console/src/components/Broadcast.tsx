@@ -1,9 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Bold, Bot, Check, Code, Copy, Eye, EyeOff, Italic, Link2, RefreshCw, Send, Users } from 'lucide-react';
+import { Bold, Bot, Check, Code, Copy, Eye, EyeOff, Italic, Link2, RefreshCw, RotateCcw, Send, Trash2, Users } from 'lucide-react';
 import { api } from '@/lib/api';
-import { errorText, useConfirm, when, type Say } from './ui';
+import { errorText, Modal, useConfirm, when, type Say } from './ui';
 
 type Progress = { id: number; success: number; failed: number; pending: number; total: number };
 type RecentBroadcast = {
@@ -25,6 +25,7 @@ export function Broadcast({ say }: { say: Say }) {
   const [loadingInfo, setLoadingInfo] = useState(false);
   const [showPreview, setShowPreview] = useState(true);
   const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
+  const [selectedBroadcast, setSelectedBroadcast] = useState<RecentBroadcast | null>(null);
   const [confirm, confirmDialog] = useConfirm();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -118,6 +119,27 @@ export function Broadcast({ say }: { say: Say }) {
       say(errorText(cause), 'bad');
     } finally {
       setSending(false);
+    }
+  }
+
+  async function deleteItem(id: number) {
+    const confirmed = await confirm(
+      `Delete Broadcast #${id}?`,
+      'This will remove this broadcast and all associated delivery records from history.',
+      'Delete',
+      true,
+    );
+    if (!confirmed) return;
+
+    try {
+      await api.deleteBroadcast(id);
+      say(`Broadcast #${id} deleted.`);
+      if (selectedBroadcast?.id === id) {
+        setSelectedBroadcast(null);
+      }
+      void loadInfo();
+    } catch (cause) {
+      say(errorText(cause), 'bad');
     }
   }
 
@@ -497,10 +519,13 @@ export function Broadcast({ say }: { say: Say }) {
 
       {/* Recent Broadcasts */}
       <section className="panel" style={{ marginTop: '20px' }}>
-        <header>
+        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
           <div>
             <h2>Recent Broadcasts</h2>
           </div>
+          <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
+            Latest 30 kept · auto-pruned
+          </span>
         </header>
         <div className="scroll">
           <table>
@@ -510,12 +535,13 @@ export function Broadcast({ say }: { say: Say }) {
                 <th>Status</th>
                 <th>Delivered</th>
                 <th>Date</th>
+                <th style={{ textAlign: 'right', width: '90px' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {recent.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="empty" style={{ textAlign: 'center', padding: '24px', color: 'var(--muted)' }}>
+                  <td colSpan={5} className="empty" style={{ textAlign: 'center', padding: '24px', color: 'var(--muted)' }}>
                     No broadcasts sent yet.
                   </td>
                 </tr>
@@ -523,7 +549,12 @@ export function Broadcast({ say }: { say: Say }) {
                 recent.map((b) => {
                   const isDone = b.pending === 0;
                   return (
-                    <tr key={b.id}>
+                    <tr
+                      key={b.id}
+                      onClick={() => setSelectedBroadcast(b)}
+                      style={{ cursor: 'pointer' }}
+                      title="Click to view full broadcast details"
+                    >
                       <td style={{ maxWidth: '350px' }}>
                         <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text)' }}>
                           Broadcast #{b.id}
@@ -562,6 +593,26 @@ export function Broadcast({ say }: { say: Say }) {
                       <td>
                         <small>{when(b.created_at)}</small>
                       </td>
+                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          className="mini ghost"
+                          onClick={() => setSelectedBroadcast(b)}
+                          title="View full broadcast details"
+                          style={{ padding: '4px 6px' }}
+                        >
+                          <Eye size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          className="mini ghost"
+                          onClick={() => void deleteItem(b.id)}
+                          title="Delete broadcast"
+                          style={{ padding: '4px 6px', color: 'var(--danger)' }}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </td>
                     </tr>
                   );
                 })
@@ -570,6 +621,124 @@ export function Broadcast({ say }: { say: Say }) {
           </table>
         </div>
       </section>
+
+      {/* Full Broadcast Message Modal */}
+      {selectedBroadcast && (
+        <Modal
+          title={`Broadcast #${selectedBroadcast.id}`}
+          onClose={() => setSelectedBroadcast(null)}
+          wide
+          footer={
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '10px' }}>
+              <button
+                type="button"
+                className="btn bad mini"
+                onClick={() => void deleteItem(selectedBroadcast.id)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+              >
+                <Trash2 size={12} />
+                Delete
+              </button>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="btn secondary mini"
+                  onClick={() => {
+                    if (selectedBroadcast.text) {
+                      void navigator.clipboard.writeText(selectedBroadcast.text);
+                      say('Message copied to clipboard.');
+                    }
+                  }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                >
+                  <Copy size={12} />
+                  Copy
+                </button>
+                <button
+                  type="button"
+                  className="btn mini"
+                  onClick={() => {
+                    if (selectedBroadcast.text) {
+                      setText(selectedBroadcast.text);
+                      setSelectedBroadcast(null);
+                      say('Loaded into composer.');
+                      textareaRef.current?.focus();
+                    }
+                  }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                >
+                  <RotateCcw size={12} />
+                  Load in Composer
+                </button>
+              </div>
+            </div>
+          }
+        >
+          <div className="stack" style={{ gap: '14px' }}>
+            {/* Delivery Stats Header */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
+                gap: '10px',
+                padding: '12px 14px',
+                borderRadius: '8px',
+                background: 'var(--surface-2)',
+                border: '1px solid var(--border)',
+              }}
+            >
+              <div>
+                <span style={{ fontSize: '10.5px', color: 'var(--muted)', display: 'block', textTransform: 'uppercase', fontWeight: 600 }}>Status</span>
+                <span className={`pill ${selectedBroadcast.pending === 0 ? 'good' : 'warn'}`} style={{ marginTop: '4px' }}>
+                  {selectedBroadcast.pending === 0 ? 'Completed' : 'Sending...'}
+                </span>
+              </div>
+              <div>
+                <span style={{ fontSize: '10.5px', color: 'var(--muted)', display: 'block', textTransform: 'uppercase', fontWeight: 600 }}>Delivered</span>
+                <span style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--text)', marginTop: '4px', display: 'block' }}>
+                  {selectedBroadcast.success} / {selectedBroadcast.total}
+                </span>
+              </div>
+              <div>
+                <span style={{ fontSize: '10.5px', color: 'var(--muted)', display: 'block', textTransform: 'uppercase', fontWeight: 600 }}>Failed</span>
+                <span style={{ fontSize: '13.5px', fontWeight: 700, color: selectedBroadcast.failed > 0 ? 'var(--danger)' : 'var(--muted)', marginTop: '4px', display: 'block' }}>
+                  {selectedBroadcast.failed}
+                </span>
+              </div>
+              <div>
+                <span style={{ fontSize: '10.5px', color: 'var(--muted)', display: 'block', textTransform: 'uppercase', fontWeight: 600 }}>Date Sent</span>
+                <span style={{ fontSize: '12.5px', color: 'var(--text-dim)', marginTop: '4px', display: 'block' }}>
+                  {when(selectedBroadcast.created_at)}
+                </span>
+              </div>
+            </div>
+
+            {/* Formatted Message Bubble Preview */}
+            <div>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: '8px' }}>
+                Full Message Content
+              </span>
+              <div
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid rgba(0, 0, 0, 0.08)',
+                  borderRadius: '12px 12px 12px 3px',
+                  padding: '12px 14px',
+                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+                  color: '#111827',
+                  fontSize: '14px',
+                  lineHeight: '1.6',
+                  wordBreak: 'break-word',
+                  maxHeight: '300px',
+                  overflowY: 'auto',
+                }}
+                dangerouslySetInnerHTML={{ __html: renderSafeTelegramHtml(selectedBroadcast.text) }}
+              />
+            </div>
+          </div>
+        </Modal>
+      )}
     </>
   );
 }

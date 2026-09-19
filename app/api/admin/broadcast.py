@@ -26,3 +26,9 @@ async def broadcast_message(payload: BroadcastPayload, services: ServicesDep):
 @router.get("/broadcast/{job_id}")
 async def broadcast_progress(job_id: int, services: ServicesDep):
     return await services.delivery.broadcast_status(job_id)
+
+
+@router.delete("/broadcast/{job_id}", dependencies=WRITE)
+async def delete_broadcast(job_id: int, services: ServicesDep):
+    success = await services.delivery.delete_broadcast(job_id)
+    return {"success": success}
