@@ -187,7 +187,7 @@ class ZiniPayVerificationService:
         if not has_key:
             # Fallback: create regular pending deposit request for manual admin review
             dep_id = await self.deposits.create_request(
-                tg_user_id, method_id, amount, clean_tx, quoted_rate=quoted_rate
+                tg_user_id, method_id, amount, clean_tx, quoted_rate=quoted_rate, admin_note="ZiniPay API key is not configured"
             )
             return {
                 "auto_verified": False,
@@ -223,8 +223,9 @@ class ZiniPayVerificationService:
                 }
             else:
                 # System error / not enabled / insufficient credits -> graceful fallback to manual review
+                note = f"ZiniPay: {msg}" if msg else "Verification unavailable"
                 dep_id = await self.deposits.create_request(
-                    tg_user_id, method_id, amount, clean_tx, quoted_rate=quoted_rate
+                    tg_user_id, method_id, amount, clean_tx, quoted_rate=quoted_rate, admin_note=note
                 )
                 return {
                     "auto_verified": False,
@@ -238,14 +239,15 @@ class ZiniPayVerificationService:
         confirm_res = await self.confirm(amount, clean_tx, verify_id)
         if not confirm_res.get("ok"):
             # Fallback to manual review if confirmation failed
+            confirm_msg = confirm_res.get("message") or "Confirm failed"
             dep_id = await self.deposits.create_request(
-                tg_user_id, method_id, amount, clean_tx, quoted_rate=quoted_rate
+                tg_user_id, method_id, amount, clean_tx, quoted_rate=quoted_rate, admin_note=f"ZiniPay Confirm Error: {confirm_msg}"
             )
             return {
                 "auto_verified": False,
                 "fallback_manual": True,
                 "deposit_id": dep_id,
-                "detail": f"Verification confirmed with note: {confirm_res.get('message')}. Submitted for admin review.",
+                "detail": f"Verification confirmed with note: {confirm_msg}. Submitted for admin review.",
             }
 
         # 5. Success! Create and instantly approve the deposit

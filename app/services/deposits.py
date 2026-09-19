@@ -223,7 +223,14 @@ class DepositService:
         return await self._quote(method, amount)
 
     async def create_request(
-        self, tg_user_id: int, method_id: int, amount: float, transaction_id: str, *, quoted_rate: float | None = None
+        self,
+        tg_user_id: int,
+        method_id: int,
+        amount: float,
+        transaction_id: str,
+        *,
+        quoted_rate: float | None = None,
+        admin_note: str = "",
     ) -> int:
         paused = await self.settings.paused_message()
         if paused:
@@ -246,8 +253,8 @@ class DepositService:
                 deposit_id = await conn.fetchval(
                     """
                     INSERT INTO deposits (user_id, tg_user_id, method_id, method_name, amount, transaction_id,
-                                          status, rate_to_currency, pay_amount)
-                    VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $8) RETURNING id
+                                          status, rate_to_currency, pay_amount, admin_note)
+                    VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $8, $9) RETURNING id
                     """,
                     user["id"],
                     tg_user_id,
@@ -257,21 +264,29 @@ class DepositService:
                     clean_tx,
                     quote["rate"],
                     quote["pay_amount"],
+                    admin_note or "",
                 )
         except asyncpg.UniqueViolationError as exc:
             if exc.constraint_name == "deposit_one_pending":
                 raise PendingDepositError("You already have a deposit waiting for review.") from exc
             raise DuplicateTransactionError("This transaction ID has already been submitted.") from exc
 
-        self.notifier.in_background(self._notify_new_request(deposit_id, tg_user_id, user["username"], quote, clean_tx))
+        self.notifier.in_background(self._notify_new_request(deposit_id, tg_user_id, user["username"], quote, clean_tx, admin_note=admin_note))
         return deposit_id
 
     async def _notify_new_request(
-        self, deposit_id: int, tg_user_id: int, username: str | None, quote: dict[str, Any], transaction_id: str
+        self,
+        deposit_id: int,
+        tg_user_id: int,
+        username: str | None,
+        quote: dict[str, Any],
+        transaction_id: str,
+        admin_note: str = "",
     ) -> None:
         symbol = escape(await self.settings.get("currency_symbol"))
         customer = f"@{escape(username)}" if username else "No username"
         payable = f"\n{ICON_COIN} <b>Customer pays:</b> {quote['pay_amount']:.2f} (rate {quote['rate']:g})" if quote["rate"] != 1 else ""
+        note_line = f"\n⚠️ <b>Note:</b> <i>{escape(admin_note)}</i>" if admin_note else ""
 
         cfg = get_settings()
         base_url = cfg.webhook_base_url.rstrip("/") if cfg.webhook_base_url else (await self.settings.get("webapp_url") or "http://127.0.0.1:8000")
@@ -295,7 +310,8 @@ class DepositService:
             f"{ICON_ACCOUNT} <b>Customer:</b> {customer} (<code>{tg_user_id}</code>)\n"
             f"{ICON_DEPOSIT} <b>Method:</b> {escape(quote['method_name'])}\n"
             f"{ICON_MONEY} <b>Credit Amount:</b> <code>{quote['amount']:.2f} {symbol}</code>{payable}\n"
-            f"{ICON_KEY} <b>Transaction ID:</b> <code>{escape(transaction_id)}</code>",
+            f"{ICON_KEY} <b>Transaction ID:</b> <code>{escape(transaction_id)}</code>"
+            f"{note_line}",
             event="deposit",
             keyboard=keyboard,
         )
