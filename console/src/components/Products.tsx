@@ -614,7 +614,7 @@ function ProductForm({
             type="number"
             step="any"
             min="0"
-            placeholder="e.g. 450 (Leave empty for regular price)"
+            placeholder="0.00"
             value={form.reseller_price ?? ''}
             onChange={(event) => set({ reseller_price: event.target.value === '' ? null : (parseFloat(event.target.value) || 0) })}
           />
