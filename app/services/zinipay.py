@@ -7,6 +7,7 @@ Implements the official 2-step Transaction Verification API:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -65,6 +66,7 @@ class ZiniPayVerificationService:
         clean_tx = str(transaction_id).strip()
         url = f"{ZINIPAY_TRX_API}/verify"
         headers = {
+            "zini-api-key": api_key,
             "zinipay-api-key": api_key,
             "Content-Type": "application/json",
             "Accept": "application/json",
@@ -87,15 +89,16 @@ class ZiniPayVerificationService:
             return {"ok": False, "reason": "connection_error", "message": f"Connection error: {exc}"}
 
         # Handle successful verification
-        if status == 200 and data.get("success"):
+        is_success = bool(data.get("success") is True or data.get("status") is True or (status == 200 and data.get("data") and not data.get("error") and not data.get("code")))
+        if status == 200 and is_success:
             trx_data = data.get("data") or {}
             return {
                 "ok": True,
                 "id": trx_data.get("id"),
-                "trx_id": trx_data.get("trxID") or clean_tx,
-                "amount": trx_data.get("amount") or amount,
-                "provider": trx_data.get("provider") or "Unknown",
-                "sender": trx_data.get("sender") or "",
+                "trx_id": trx_data.get("trxID") or trx_data.get("transactionId") or clean_tx,
+                "amount": float(trx_data.get("amount") or amount),
+                "provider": trx_data.get("provider") or trx_data.get("method") or "bKash/Nagad",
+                "sender": trx_data.get("sender") or trx_data.get("senderNumber") or trx_data.get("masked_sender") or "",
                 "status": trx_data.get("status"),
                 "raw": trx_data,
             }
@@ -126,6 +129,7 @@ class ZiniPayVerificationService:
         clean_tx = str(transaction_id).strip()
         url = f"{ZINIPAY_TRX_API}/confirm"
         headers = {
+            "zini-api-key": api_key,
             "zinipay-api-key": api_key,
             "Content-Type": "application/json",
             "Accept": "application/json",
@@ -148,13 +152,14 @@ class ZiniPayVerificationService:
             logger.warning("ZiniPay confirm connection error: %s", exc)
             return {"ok": False, "message": f"Connection error: {exc}"}
 
-        if status == 200 and data.get("success"):
+        is_success = bool(data.get("success") is True or data.get("status") is True or (status == 200 and data.get("data") and not data.get("error") and not data.get("code")))
+        if status == 200 and is_success:
             confirm_data = data.get("data") or {}
             return {
                 "ok": True,
-                "provider": confirm_data.get("provider"),
-                "sender_number": confirm_data.get("senderNumber"),
-                "amount": confirm_data.get("amount") or amount,
+                "provider": confirm_data.get("provider") or confirm_data.get("method") or "bKash/Nagad",
+                "sender_number": confirm_data.get("senderNumber") or confirm_data.get("sender") or "",
+                "amount": float(confirm_data.get("amount") or amount),
                 "transaction_id": confirm_data.get("transactionId") or clean_tx,
                 "raw": confirm_data,
             }
@@ -199,6 +204,11 @@ class ZiniPayVerificationService:
         # 3. Step 1: Verify via ZiniPay
         verify_res = await self.verify(amount, clean_tx)
         logger.info("ZiniPay verify response for tx %s (amount %s): %s", clean_tx, amount, verify_res)
+        if not verify_res.get("ok") and verify_res.get("reason") == "not_found":
+            logger.info("Trx %s not found on first attempt. Waiting 3s for SMS sync retry...", clean_tx)
+            await asyncio.sleep(3.0)
+            verify_res = await self.verify(amount, clean_tx)
+            logger.info("ZiniPay retry response for tx %s: %s", clean_tx, verify_res)
         if not verify_res.get("ok"):
             reason = verify_res.get("reason")
             msg = verify_res.get("message") or ""
