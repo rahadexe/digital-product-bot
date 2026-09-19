@@ -289,12 +289,11 @@ async def handle_deposit_method_select(query: CallbackQuery, state: FSMContext, 
             f"\n\n<b>Instructions:</b>\n{escape(custom_inst)}"
             if custom_inst
             else (
-                "\n\n<b>কিভাবে পেমেন্ট করবেন:</b>\n"
-                "1. <b>Binance App</b> → <b>Assets</b> → <b>Send</b>\n"
-                f"2. <b>{escape(coin)}</b> সিলেক্ট করুন → <b>Send to Binance User</b>\n"
-                f"3. Binance UID দিন: <code>{escape(account_info)}</code>\n"
-                f"4. <b>{escape(coin)}</b> পাঠান এবং নিচে <b>Payment Done</b> ট্যাপ করুন\n\n"
-                f"<i>আপনি যত ডলার পাঠাবেন এই রেটে কনভার্ট হয়ে স্বয়ংক্রিয়ভাবে অ্যাকাউন্টে টাকা যোগ হয়ে যাবে।</i>"
+                "\n\n<b>How to pay:</b>\n"
+                "1. Open <b>Binance App</b> → <b>Assets</b> → <b>Send</b>\n"
+                f"2. Select <b>{escape(coin)}</b> → <b>Send to Binance User</b>\n"
+                f"3. Enter Binance UID: <code>{escape(account_info)}</code>\n"
+                f"4. Send <b>{escape(coin)}</b> and tap <b>Payment Done</b> below"
             )
         )
         method_icon = get_method_icon(method)
@@ -359,9 +358,9 @@ async def ask_deposit_input(query: CallbackQuery, state: FSMContext, services: S
             f"↳ <b>Minimum Deposit:</b> {min_coin:g} USDT (~{price(symbol, min_dep)})\n"
             f"↳ <b>Exchange Rate:</b> 1 USDT = {rate:g} {symbol}\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"💬 <b>USDT পরিমাণ লিখুন:</b>\n"
-            f"আপনি কত USDT পাঠিয়েছেন তা লিখুন\n\n"
-            f"<i>নিচে পরিমাণ লিখুন (যেমন: <code>10</code> বা <code>25.5</code>):</i>"
+            f"💬 <b>Enter Deposit Amount (USDT):</b>\n"
+            f"How much <b>USDT</b> did you send?\n\n"
+            f"<i>Type the amount below (e.g. <code>10</code> or <code>25.5</code>):</i>"
         )
         reply_kb = get_deposit_amount_keyboard(account_info, method_id, is_binance=True)
     else:
@@ -426,15 +425,15 @@ async def process_binance_amount(message: Message, state: FSMContext, services: 
             raise ValueError()
     except (TypeError, ValueError):
         await message.answer(
-            f"{ICON_WARNING} সঠিক USDT পরিমাণ লিখুন (যেমন: <code>10</code> বা <code>25.5</code>):",
+            f"{ICON_WARNING} Please enter a valid USDT amount (e.g. <code>10</code> or <code>25.5</code>):",
             reply_markup=get_deposit_amount_keyboard(account_info, method_id, is_binance=True),
         )
         return
 
     if amount_num < min_coin:
         await message.answer(
-            f"{ICON_WARNING} সর্বনিম্ন ডিপোজিট <b>{min_coin:g} USDT</b> (~{price(symbol, min_dep)})।\n"
-            f"অন্তত <b>{min_coin:g} USDT</b> লিখুন:",
+            f"{ICON_WARNING} Minimum deposit is <b>{min_coin:g} USDT</b> (~{price(symbol, min_dep)}).\n"
+            f"Please enter at least <b>{min_coin:g} USDT</b>:",
             reply_markup=get_deposit_amount_keyboard(account_info, method_id, is_binance=True),
         )
         return
@@ -444,14 +443,14 @@ async def process_binance_amount(message: Message, state: FSMContext, services: 
 
     bdt_approx = round(amount_num * rate, 2)
     await message.answer(
-        f"{ICON_NOTE} <b>পেমেন্ট রেফারেন্স</b>\n"
+        f"{ICON_NOTE} <b>Payment Reference</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"↳ <b>পরিমাণ:</b> <b>{amount_num:g} USDT</b> (~{price(symbol, bdt_approx)})\n"
+        f"↳ <b>Amount:</b> <b>{amount_num:g} USDT</b> (~{price(symbol, bdt_approx)})\n"
         f"↳ <b>Binance UID:</b> <code>{escape(account_info)}</code>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"আপনার <b>Binance Pay Order ID</b> অথবা আপনার <b>Binance UID</b> দিন\n\n"
-        f"↳ <b>Order ID:</b> <code>454711565717520384</code> (Pay রিসিট থেকে)\n"
-        f"↳ <b>অথবা Sender UID:</b> <code>580150694</code> (আপনার Binance UID)",
+        f"Enter your <b>Binance Pay Order ID</b> or your <b>Binance UID</b>:\n\n"
+        f"↳ <b>Order ID:</b> <code>454711565717520384</code> (from Pay receipt)\n"
+        f"↳ <b>Or Sender UID:</b> <code>580150694</code> (your Binance UID)",
         reply_markup=get_deposit_txid_keyboard(),
     )
 
@@ -468,8 +467,8 @@ async def process_binance_ref(message: Message, state: FSMContext, services: Ser
 
     if not TRANSACTION_ID_REGEX.fullmatch(clean_ref):
         await message.answer(
-            f"{ICON_CROSS} ভুল রেফারেন্স ফরম্যাট। সঠিক Binance Pay Order ID অথবা Sender Binance UID দিন:\n\n"
-            f"<i>যেমন: <code>454711565717520384</code> অথবা <code>580150694</code></i>",
+            f"{ICON_CROSS} Invalid reference format. Please enter a valid Binance Pay Order ID or sender Binance UID:\n\n"
+            f"<i>Example: <code>454711565717520384</code> or <code>580150694</code></i>",
             reply_markup=get_deposit_txid_keyboard(),
         )
         return
@@ -480,7 +479,7 @@ async def process_binance_ref(message: Message, state: FSMContext, services: Ser
 
     if not method_id:
         await state.clear()
-        await message.answer(f"{ICON_TIMER} সেশন মেয়াদোত্তীর্ণ। আবার ডিপোজিট করতে Deposit এ ট্যাপ করুন।")
+        await message.answer(f"{ICON_TIMER} Session expired. Please tap Deposit to try again.")
         return
 
     await claim_binance_payment(message, state, services, method_id, clean_ref, expected_usdt=expected_usdt)
@@ -502,11 +501,11 @@ async def claim_binance_payment(
     expected_usdt: float | None = None,
 ):
     status_msg = await message.answer(
-        f"{ICON_TIMER} <b>Binance পেমেন্ট যাচাই করা হচ্ছে...</b>\n"
+        f"{ICON_TIMER} <b>Verifying Binance payment...</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"↳ <b>রেফারেন্স:</b> <code>{escape(ref)}</code>\n"
+        f"↳ <b>Reference:</b> <code>{escape(ref)}</code>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"<i>Binance Pay রেকর্ড চেক করা হচ্ছে, অপেক্ষা করুন...</i>"
+        f"<i>Checking Binance Pay records, please wait...</i>"
     )
     try:
         result = await services.binance.claim(message.from_user.id, method_id, ref, expected_usdt=expected_usdt)
@@ -514,9 +513,9 @@ async def claim_binance_payment(
         await _safe_edit_or_answer(
             status_msg,
             message,
-            f"{ICON_CROSS} <b>পেমেন্ট ইতোমধ্যে প্রসেস হয়েছে</b>\n\n"
-            f"এই রেফারেন্স (<code>{escape(ref)}</code>) আগেই জমা দেওয়া হয়েছে।\n"
-            f"সাহায্য প্রয়োজন হলে সাপোর্টে যোগাযোগ করুন।",
+            f"{ICON_CROSS} <b>Payment Already Processed</b>\n\n"
+            f"This transaction reference (<code>{escape(ref)}</code>) has already been submitted or credited.\n"
+            f"If you need help, please contact support.",
             reply_markup=get_deposit_txid_keyboard(),
         )
         return
@@ -525,9 +524,9 @@ async def claim_binance_payment(
         await _safe_edit_or_answer(
             status_msg,
             message,
-            f"{ICON_TIMER} <b>পেন্ডিং ডিপোজিট আছে</b>\n\n"
-            f"আপনার একটি ডিপোজিট রিকোয়েস্ট রিভিউ এর জন্য অপেক্ষায় আছে।\n"
-            f"নতুন রিকোয়েস্ট পাঠানোর আগে সেটি কনফার্ম হওয়া পর্যন্ত অপেক্ষা করুন।",
+            f"{ICON_TIMER} <b>Pending Deposit Exists</b>\n\n"
+            f"You already have a deposit request waiting for review.\n"
+            f"Please wait for it to be confirmed before submitting a new one.",
             reply_markup=InlineKeyboardMarkup(
                 inline_keyboard=[
                     [InlineKeyboardButton(text="Deposit History", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER)],
@@ -563,14 +562,14 @@ async def claim_binance_payment(
         await _safe_edit_or_answer(
             status_msg,
             message,
-            f"{ICON_CHECK} <b>Binance ডিপোজিট সফল!</b>\n"
+            f"{ICON_CHECK} <b>Binance Deposit Successful!</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"{ICON_BINANCE} <b>পেয়েছি:</b> <code>{received_coin:g} {escape(coin)}</code>\n"
-            f"{ICON_MONEY} <b>জমা হয়েছে:</b> <code>{price(symbol, credited_amount)}</code>\n"
-            f"{ICON_BALANCE} <b>ব্যালেন্স:</b> <code>{price(symbol, user_balance)}</code>\n"
-            f"{ICON_KEY} <b>রেফারেন্স:</b> <code>{escape(ref)}</code>\n"
+            f"{ICON_BINANCE} <b>Received:</b> <code>{received_coin:g} {escape(coin)}</code>\n"
+            f"{ICON_MONEY} <b>Credited:</b> <code>{price(symbol, credited_amount)}</code>\n"
+            f"{ICON_BALANCE} <b>Balance:</b> <code>{price(symbol, user_balance)}</code>\n"
+            f"{ICON_KEY} <b>Reference:</b> <code>{escape(ref)}</code>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"<i>আপনার ওয়ালেটে স্বয়ংক্রিয়ভাবে টাকা যোগ হয়েছে। ধন্যবাদ!</i>",
+            f"<i>Your wallet has been credited automatically. Thank you!</i>",
             reply_markup=keyboard,
         )
     else:
@@ -582,17 +581,17 @@ async def claim_binance_payment(
                 ]
             ]
         )
-        expected_text = f"↳ <b>প্রত্যাশিত:</b> <code>{expected_usdt:g} USDT</code>\n" if expected_usdt else ""
+        expected_text = f"↳ <b>Expected:</b> <code>{expected_usdt:g} USDT</code>\n" if expected_usdt else ""
         await _safe_edit_or_answer(
             status_msg,
             message,
-            f"{ICON_TIMER} <b>পেমেন্ট যাচাই চলছে...</b>\n"
+            f"{ICON_TIMER} <b>Payment Verification in Progress...</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"↳ <b>রেফারেন্স:</b> <code>{escape(ref)}</code>\n"
+            f"↳ <b>Reference:</b> <code>{escape(ref)}</code>\n"
             f"{expected_text}"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"Binance থেকে আপনার ট্রান্সফার খোঁজা হচ্ছে। সদ্য পাঠালে ১-২ মিনিট অপেক্ষা করুন।\n\n"
-            f"<i>সিস্টেম ব্যাকগ্রাউন্ডে চেক করছে। কনফার্ম হলে স্বয়ংক্রিয়ভাবে ব্যালেন্স যোগ হবে!</i>",
+            f"Searching Binance for your transfer. If you just sent it, please allow 1–2 minutes.\n\n"
+            f"<i>Your balance will be credited automatically once confirmed.</i>",
             reply_markup=keyboard,
         )
 
