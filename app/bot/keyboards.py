@@ -766,8 +766,8 @@ def get_deposit_amount_keyboard(account_info: str, method_id: int, is_binance: b
 
 def get_deposit_txid_keyboard(is_bangla: bool = False) -> InlineKeyboardMarkup:
     """Buttons on the Enter TrxID screen: Back to change amount, Cancel."""
-    change_text = "টাকার পরিমাণ পরিবর্তন" if is_bangla else "Change Amount"
-    cancel_text = "বাতিল" if is_bangla else "Cancel"
+    change_text = "Change Amount"
+    cancel_text = "Cancel"
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [

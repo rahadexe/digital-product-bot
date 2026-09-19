@@ -211,10 +211,11 @@ class DeliveryService:
         now = time.time()
         async with self.db.connect() as conn:
             # SKIP LOCKED lets concurrent workers claim different rows.
+            # Order receipts are prioritised over broadcasts so a bulk send never delays a purchase delivery.
             row = await conn.fetchrow(
                 "UPDATE outbox SET status = 'sending', next_attempt = $1, attempts = attempts + 1 "
                 "WHERE id = (SELECT id FROM outbox WHERE status IN ('pending', 'sending') AND next_attempt <= $2 "
-                "ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED) RETURNING *",
+                "ORDER BY CASE WHEN order_id IS NOT NULL THEN 0 ELSE 1 END, id LIMIT 1 FOR UPDATE SKIP LOCKED) RETURNING *",
                 now + LEASE_SECONDS,
                 now,
             )

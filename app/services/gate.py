@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from collections import OrderedDict
@@ -95,14 +96,18 @@ class GateService:
             return True, []
 
         missing = []
-        for channel in channels:
+        async def _check_one(channel: dict[str, Any]) -> bool:
             target = channel.get("chat_id") or channel.get("channel_username")
             try:
                 if not target or not await self.notifier.is_member(target, tg_user_id):
-                    missing.append(channel)
+                    return False
+                return True
             except Exception as exc:
                 logger.warning("Gate verification unavailable for %s: %s", target, type(exc).__name__)
-                missing.append(channel)
+                return False
+
+        results = await asyncio.gather(*(_check_one(ch) for ch in channels))
+        missing = [ch for ch, ok in zip(channels, results) if not ok]
 
         if missing:
             self._verified.pop(tg_user_id, None)

@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8000
     database_url: str = ""
-    db_pool_size: int = Field(default=10, ge=1, le=100)
+    db_pool_size: int = Field(default=25, ge=1, le=100)
     # Prepared statements save one database round trip per query. Set 0 only for a
     # connection pooler that does not support prepared statements (Neon's pooler does).
     db_statement_cache_size: int = Field(default=100, ge=0)

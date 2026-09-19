@@ -52,7 +52,7 @@ def visitor_ip(scope) -> str:
 def _is_internal(address: str) -> bool:
     ip = _ip(address)
     return ip is not None and (ip.is_loopback or ip.is_private)
-MAX_BODY_BYTES = 1024 * 1024
+MAX_BODY_BYTES = 10 * 1024 * 1024
 BODY_TIMEOUT_SECONDS = 15
 TRACKED_CLIENTS = 10000
 

@@ -693,10 +693,10 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         rem_min = max(1, (remaining_sec + 59) // 60)
         await state.clear()
         support_user = await services.settings.get("support_contact")
-        kb = [[InlineKeyboardButton(text="Main Menu" if is_binance else "🏠 মেইন মেনু", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)]]
+        kb = [[InlineKeyboardButton(text="🏠 Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)]]
         if support_user:
             clean_sup = support_user.lstrip("@")
-            kb.insert(0, [InlineKeyboardButton(text="Contact Support" if is_binance else "সাপোর্টে যোগাযোগ করুন", url=f"https://t.me/{clean_sup}", icon_custom_emoji_id=Icons.SUPPORT)])
+            kb.insert(0, [InlineKeyboardButton(text="Contact Support", url=f"https://t.me/{clean_sup}", icon_custom_emoji_id=Icons.SUPPORT)])
         if is_binance:
             await message.answer(
                 f"{ICON_CROSS} <b>Verification Paused!</b>\n"
@@ -770,10 +770,10 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             if remaining_attempts <= 0:
                 await state.clear()
                 support_user = await services.settings.get("support_contact")
-                kb = [[InlineKeyboardButton(text="Main Menu" if is_binance else "🏠 মেইন মেনু", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)]]
+                kb = [[InlineKeyboardButton(text="🏠 Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)]]
                 if support_user:
                     clean_sup = support_user.lstrip("@")
-                    kb.insert(0, [InlineKeyboardButton(text="Contact Support" if is_binance else "সাপোর্টে যোগাযোগ করুন", url=f"https://t.me/{clean_sup}", icon_custom_emoji_id=Icons.SUPPORT)])
+                    kb.insert(0, [InlineKeyboardButton(text="Contact Support", url=f"https://t.me/{clean_sup}", icon_custom_emoji_id=Icons.SUPPORT)])
                 if is_binance:
                     text = (
                         f"{ICON_CROSS} <b>Payment Already Processed ({MAX_VERIFY_ATTEMPTS}/{MAX_VERIFY_ATTEMPTS})</b>\n"
@@ -816,8 +816,8 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         except PendingDepositError:
             await state.clear()
             kb = [
-                [InlineKeyboardButton(text="Deposit History" if is_binance else "📜 ডিপোজিট হিস্ট্রি", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER)],
-                [InlineKeyboardButton(text="Main Menu" if is_binance else "🏠 মেইন মেনু", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)],
+                [InlineKeyboardButton(text="📜 Deposit History", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER)],
+                [InlineKeyboardButton(text="🏠 Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)],
             ]
             if is_binance:
                 text = (
@@ -852,8 +852,8 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             keyboard = InlineKeyboardMarkup(
                 inline_keyboard=[
                     [
-                        InlineKeyboardButton(text="Products Hub" if is_binance else "🛍️ কেনাকাটা করুন", callback_data="open_shop", style="success", icon_custom_emoji_id=Icons.PRODUCTS),
-                        InlineKeyboardButton(text="Main Menu" if is_binance else "🏠 মেইন মেনু", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK),
+                        InlineKeyboardButton(text="🛍️ Products Hub", callback_data="open_shop", style="success", icon_custom_emoji_id=Icons.PRODUCTS),
+                        InlineKeyboardButton(text="🏠 Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK),
                     ]
                 ]
             )
@@ -915,13 +915,13 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                         inline_keyboard=[
                             [
                                 InlineKeyboardButton(
-                                    text="Deposit History" if is_binance else "📜 ডিপোজিট হিস্ট্রি",
+                                    text="📜 Deposit History",
                                     callback_data="open_deposits",
                                     style="primary",
                                     icon_custom_emoji_id=Icons.TIMER,
                                 ),
                                 InlineKeyboardButton(
-                                    text="Main Menu" if is_binance else "🏠 মেইন মেনু",
+                                    text="🏠 Main Menu",
                                     callback_data="back_to_main",
                                     style="primary",
                                     icon_custom_emoji_id=Icons.BACK,
@@ -956,10 +956,10 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                     return
                 except DuplicateTransactionError:
                     support_user = await services.settings.get("support_contact")
-                    kb = [[InlineKeyboardButton(text="Main Menu" if is_binance else "🏠 মেইন মেনু", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)]]
+                    kb = [[InlineKeyboardButton(text="🏠 Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)]]
                     if support_user:
                         clean_sup = support_user.lstrip("@")
-                        kb.insert(0, [InlineKeyboardButton(text="Contact Support" if is_binance else "সাপোর্টে যোগাযোগ করুন", url=f"https://t.me/{clean_sup}", icon_custom_emoji_id=Icons.SUPPORT)])
+                        kb.insert(0, [InlineKeyboardButton(text="Contact Support", url=f"https://t.me/{clean_sup}", icon_custom_emoji_id=Icons.SUPPORT)])
                     await _safe_edit_or_answer(
                         status_msg,
                         message,
@@ -978,8 +978,8 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                         f"আপনার একটি ডিপোজিট রিকোয়েস্ট ইতোমধ্যে রিভিউ এর জন্য অপেক্ষায় আছে। পূর্বের রিকোয়েস্ট কনফার্ম হওয়া পর্যন্ত অপেক্ষা করুন।",
                         reply_markup=InlineKeyboardMarkup(
                             inline_keyboard=[
-                                [InlineKeyboardButton(text="Deposit History" if is_binance else "📜 ডিপোজিট হিস্ট্রি", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER)],
-                                [InlineKeyboardButton(text="Main Menu" if is_binance else "🏠 মেইন মেনু", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)],
+                                [InlineKeyboardButton(text="📜 Deposit History", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER)],
+                                [InlineKeyboardButton(text="🏠 Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)],
                             ]
                         ),
                     )
@@ -1058,8 +1058,8 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             keyboard = InlineKeyboardMarkup(
                 inline_keyboard=[
                     [
-                        InlineKeyboardButton(text="Deposit History" if is_binance else "📜 ডিপোজিট হিস্ট্রি", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER),
-                        InlineKeyboardButton(text="Main Menu" if is_binance else "🏠 মেইন মেনু", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK),
+                        InlineKeyboardButton(text="📜 Deposit History", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER),
+                        InlineKeyboardButton(text="🏠 Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK),
                     ]
                 ]
             )
@@ -1123,8 +1123,8 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             f"নতুন রিকোয়েস্ট পাঠানোর আগে পূর্বের রিকোয়েস্ট কনফার্ম হওয়া পর্যন্ত অপেক্ষা করুন।",
             reply_markup=InlineKeyboardMarkup(
                 inline_keyboard=[
-                    [InlineKeyboardButton(text="Deposit History" if is_binance else "📜 ডিপোজিট হিস্ট্রি", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER)],
-                    [InlineKeyboardButton(text="Main Menu" if is_binance else "🏠 মেইন মেনু", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)],
+                    [InlineKeyboardButton(text="📜 Deposit History", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER)],
+                    [InlineKeyboardButton(text="🏠 Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)],
                 ]
             ),
         )
@@ -1138,8 +1138,8 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="Deposit History" if is_binance else "📜 ডিপোজিট হিস্ট্রি", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER),
-                InlineKeyboardButton(text="Main Menu" if is_binance else "🏠 মেইন মেনু", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK),
+                InlineKeyboardButton(text="📜 Deposit History", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER),
+                InlineKeyboardButton(text="🏠 Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK),
             ]
         ]
     )

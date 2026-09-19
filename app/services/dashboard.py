@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 
 from app.db import Database
@@ -53,18 +52,13 @@ class DashboardService:
     def __init__(self, db: Database):
         self.db = db
 
-    async def _fetch(self, query: str) -> list[dict[str, Any]]:
-        async with self.db.connect() as conn:
-            return [dict(row) for row in await conn.fetch(query)]
-
     async def stats(self) -> dict[str, Any]:
-        # Four independent reads on separate pooled connections, so they overlap in time.
-        totals, recent_orders, stock_summary, chart_data = await asyncio.gather(
-            self._fetch(TOTALS_SQL),
-            self._fetch(RECENT_ORDERS_SQL),
-            self._fetch(LOW_STOCK_SQL),
-            self._fetch(CHART_SQL),
-        )
+        # All four reads share one connection so the dashboard never saturates the pool.
+        async with self.db.connect() as conn:
+            totals = [dict(r) for r in await conn.fetch(TOTALS_SQL)]
+            recent_orders = [dict(r) for r in await conn.fetch(RECENT_ORDERS_SQL)]
+            stock_summary = [dict(r) for r in await conn.fetch(LOW_STOCK_SQL)]
+            chart_data = [dict(r) for r in await conn.fetch(CHART_SQL)]
         return {
             **totals[0],
             "total_revenue": round(totals[0]["total_revenue"], 2),
