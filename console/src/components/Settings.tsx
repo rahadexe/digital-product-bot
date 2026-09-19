@@ -13,13 +13,10 @@ import { UpdateChannels } from './UpdateChannels';
 import { FlagRow, Switch, errorText, type Say } from './ui';
 import { RotateCcw, Save } from 'lucide-react';
 
-export type SettingsTab = 'store' | 'notifications' | 'notices' | 'access' | 'payments';
+export type SettingsTab = 'general' | 'payments';
 
 const TABS: { key: SettingsTab; label: string }[] = [
-  { key: 'store', label: 'Store' },
-  { key: 'notifications', label: 'Admin & Alerts' },
-  { key: 'notices', label: 'Channels & Notices' },
-  { key: 'access', label: 'Access' },
+  { key: 'general', label: 'General' },
   { key: 'payments', label: 'Payments' },
 ];
 
@@ -52,21 +49,50 @@ type Section = {
 };
 
 const SECTIONS: Section[] = [
+  // ── General Tab ──────────────────────────────────────────
   {
     id: 'store',
-    tab: 'store',
+    tab: 'general',
     title: 'Bot & Store Profile',
     fields: [
       { key: 'store_name', label: 'Bot / Store Name', placeholder: 'PremiumOne' },
       { key: 'support_username', label: 'Telegram Support Username', placeholder: '@username' },
-      { key: 'admin_tg_id', label: 'Primary Admin Telegram ID', placeholder: '123456789', hint: 'Manage all admin accounts & alert rules in the Admin & Alerts tab.' },
       { key: 'currency_symbol', label: 'Currency Symbol', placeholder: '৳' },
       { key: 'currency', label: 'Currency Code', placeholder: 'BDT' },
     ],
   },
   {
+    id: 'channels',
+    tab: 'general',
+    title: 'Welcome & Channels',
+    fields: [
+      {
+        key: 'welcome_text',
+        label: 'Welcome Message (Optional)',
+        type: 'textarea',
+        rows: 3,
+        placeholder: 'Enter custom welcome message, or leave blank for default...',
+        hint: 'If left blank, default welcome text will be sent to the customer.',
+      },
+      { key: 'announcement_channel', label: 'Announcement Channel', placeholder: '@YourChannel or -100…' },
+      { key: 'auto_restock_alerts', label: 'Post when stock is added', type: 'toggle' },
+      { key: 'auto_price_drop_alerts', label: 'Post when a price drops', type: 'toggle' },
+    ],
+  },
+  {
+    id: 'access',
+    tab: 'general',
+    title: 'Access & Limits',
+    fields: [
+      { key: 'store_paused', label: 'Pause new purchases and deposits', type: 'toggle' },
+      { key: 'maintenance_message', label: 'Maintenance message', placeholder: 'Store maintenance is in progress. Please try again soon.' },
+      { key: 'max_deposit_limit', label: 'Largest single deposit', type: 'number', fallback: '500', money: true },
+      { key: 'force_join_enabled', label: 'Customers must join the channels below', type: 'toggle' },
+    ],
+  },
+  {
     id: 'referral',
-    tab: 'store',
+    tab: 'general',
     title: 'Refer & Earn Program',
     master: { key: 'referral_enabled' },
     fields: [
@@ -80,68 +106,7 @@ const SECTIONS: Section[] = [
       },
     ],
   },
-  {
-    id: 'notice',
-    tab: 'notices',
-    title: 'Bot Welcome',
-    fields: [
-      {
-        key: 'welcome_text',
-        label: 'Welcome Message (Optional)',
-        type: 'textarea',
-        rows: 4,
-        placeholder: 'Enter custom welcome message, or leave blank to show default welcome text...',
-        hint: 'If left blank, default welcome text will be sent to the customer.',
-      },
-    ],
-  },
-  {
-    id: 'channel',
-    tab: 'notices',
-    title: 'Channel posts',
-    fields: [
-      { key: 'announcement_channel', label: 'Channel', placeholder: '@YourChannel or -100…' },
-      { key: 'auto_restock_alerts', label: 'Post when stock is added', type: 'toggle' },
-      { key: 'auto_price_drop_alerts', label: 'Post when a price drops', type: 'toggle' },
-    ],
-  },
-  {
-    id: 'access',
-    tab: 'access',
-    title: 'Limits',
-    fields: [
-      { key: 'store_paused', label: 'Pause new purchases and deposits', type: 'toggle' },
-      { key: 'maintenance_message', label: 'Maintenance message', placeholder: 'Store maintenance is in progress. Please try again soon.' },
-      { key: 'max_deposit_limit', label: 'Largest single deposit', type: 'number', fallback: '500', money: true },
-      { key: 'force_join_enabled', label: 'Customers must join the channels below', type: 'toggle' },
-    ],
-  },
-  {
-    id: 'binance',
-    tab: 'payments',
-    title: 'Binance',
-    master: {
-      key: 'binance_enabled',
-    },
-    fields: [
-      { key: 'binance_pay_id', label: 'Binance UID', placeholder: '750176717' },
-      { key: 'binance_api_key', label: 'API Key (Read-only)', type: 'password', secret: 'binance_api_key' },
-      { key: 'binance_api_secret', label: 'API Secret', type: 'password', secret: 'binance_api_secret' },
-      {
-        key: 'binance_coin',
-        label: 'Coin',
-        type: 'select',
-        fallback: 'USDT',
-        options: [
-          { value: 'USDT', label: 'USDT' },
-        ],
-      },
-      { key: 'binance_pay_rate', label: 'Rate per 1 USDT (৳)', type: 'number', fallback: '125' },
-      { key: 'binance_pay_min', label: 'Smallest deposit ($)', type: 'number', fallback: '1' },
-      { key: 'binance_pay_instructions', label: 'Custom instructions (optional)', type: 'textarea', rows: 2, placeholder: 'Leave blank for default instructions' },
-    ],
-    extra: 'binance',
-  },
+  // ── Payments Tab ─────────────────────────────────────────
   {
     id: 'zinipay_autoverify',
     tab: 'payments',
@@ -172,10 +137,36 @@ const SECTIONS: Section[] = [
     ],
     extra: 'zinipay',
   },
+  {
+    id: 'binance',
+    tab: 'payments',
+    title: 'Binance',
+    master: {
+      key: 'binance_enabled',
+    },
+    fields: [
+      { key: 'binance_pay_id', label: 'Binance UID', placeholder: '750176717' },
+      { key: 'binance_api_key', label: 'API Key (Read-only)', type: 'password', secret: 'binance_api_key' },
+      { key: 'binance_api_secret', label: 'API Secret', type: 'password', secret: 'binance_api_secret' },
+      {
+        key: 'binance_coin',
+        label: 'Coin',
+        type: 'select',
+        fallback: 'USDT',
+        options: [
+          { value: 'USDT', label: 'USDT' },
+        ],
+      },
+      { key: 'binance_pay_rate', label: 'Rate per 1 USDT (৳)', type: 'number', fallback: '125' },
+      { key: 'binance_pay_min', label: 'Smallest deposit ($)', type: 'number', fallback: '1' },
+      { key: 'binance_pay_instructions', label: 'Custom instructions (optional)', type: 'textarea', rows: 2, placeholder: 'Leave blank for default instructions' },
+    ],
+    extra: 'binance',
+  },
 ];
 
 export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTab?: SettingsTab; onTabChange?: (tab: SettingsTab) => void }) {
-  const [tab, setTab] = useState<SettingsTab>(TABS.some((item) => item.key === initialTab) ? (initialTab as SettingsTab) : 'store');
+  const [tab, setTab] = useState<SettingsTab>(TABS.some((item) => item.key === initialTab) ? (initialTab as SettingsTab) : 'general');
   const [saved, setSaved] = useState<Record<string, string> | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [secrets, setSecrets] = useState<Record<string, string>>({});
@@ -424,22 +415,22 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
                 </div>
               ) : null}
             </form>
+            {/* Sub-components rendered after their related sections */}
+            {section.id === 'store' ? (
+              <AdminNotifications
+                say={say}
+                values={values}
+                setValues={setValues}
+                setSaved={setSaved}
+                flip={flip}
+              />
+            ) : null}
+            {section.id === 'channels' ? <UpdateChannels say={say} /> : null}
+            {section.id === 'access' ? <GateChannels say={say} /> : null}
             {section.id === 'zinipay_autoverify' ? <PaymentMethods say={say} symbol={symbol} zinipayActive={isOn('zinipay_enabled')} /> : null}
           </Fragment>
         );
       })}
-
-      {tab === 'notifications' ? (
-        <AdminNotifications
-          say={say}
-          values={values}
-          setValues={setValues}
-          setSaved={setSaved}
-          flip={flip}
-        />
-      ) : null}
-      {tab === 'notices' ? <UpdateChannels say={say} /> : null}
-      {tab === 'access' ? <GateChannels say={say} /> : null}
     </>
   );
 }
