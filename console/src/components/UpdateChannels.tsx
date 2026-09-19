@@ -31,12 +31,12 @@ export function UpdateChannels({ say }: { say: Say }) {
   return (
     <>
       {confirmDialog}
-      <section className="panel">
-        <header>
-          <div>
-            <h2>Support & Update Channels</h2>
-            <p>Each channel appears as a button in the bot under Support and the Channel menu. Customize button labels and Telegram links/usernames.</p>
-          </div>
+      <div className="panel-subhead">
+        <div>
+          <h3>Support &amp; Update Channel Buttons</h3>
+          <p>Each channel appears as a button in the bot under Support and the Channel menu. Customize button labels and Telegram links/usernames.</p>
+        </div>
+        <div className="actions">
           <button
             type="button"
             className="btn small"
@@ -44,47 +44,47 @@ export function UpdateChannels({ say }: { say: Say }) {
           >
             Add channel
           </button>
-        </header>
-        {channels && channels.length === 0 ? <p className="note">No channels. Customers are told none has been added yet.</p> : null}
-        <div className="rows">
-          {(channels ?? []).map((channel) => (
-            <div key={channel.id} className={`row${channel.is_active ? '' : ' off'}`}>
-              <div className="text">
-                <strong>
-                  {channel.title}
-                  {channel.is_active ? '' : ' · off'}
-                </strong>
-                <small>
-                  #{channel.sort_order} ·{' '}
-                  <a href={channel.url} target="_blank" rel="noreferrer">
-                    {channel.url.replace('https://', '')}
-                  </a>
-                </small>
-              </div>
-              <div className="row-actions">
-                <button
-                  type="button"
-                  className="mini"
-                  onClick={() =>
-                    setDraft({
-                      id: channel.id,
-                      title: channel.title,
-                      url: channel.url,
-                      sort_order: String(channel.sort_order),
-                      is_active: Boolean(channel.is_active),
-                    })
-                  }
-                >
-                  Edit
-                </button>
-                <button type="button" className="mini danger" onClick={() => remove(channel)}>
-                  Remove
-                </button>
-              </div>
-            </div>
-          ))}
         </div>
-      </section>
+      </div>
+      {channels && channels.length === 0 ? <p className="note" style={{ padding: '14px 18px', margin: 0 }}>No channel buttons configured. Customers are told none has been added yet.</p> : null}
+      <div className="rows">
+        {(channels ?? []).map((channel) => (
+          <div key={channel.id} className={`row${channel.is_active ? '' : ' off'}`}>
+            <div className="text">
+              <strong>
+                {channel.title}
+                {channel.is_active ? '' : ' · off'}
+              </strong>
+              <small>
+                #{channel.sort_order} ·{' '}
+                <a href={channel.url} target="_blank" rel="noreferrer">
+                  {channel.url.replace('https://', '')}
+                </a>
+              </small>
+            </div>
+            <div className="row-actions">
+              <button
+                type="button"
+                className="mini"
+                onClick={() =>
+                  setDraft({
+                    id: channel.id,
+                    title: channel.title,
+                    url: channel.url,
+                    sort_order: String(channel.sort_order),
+                    is_active: Boolean(channel.is_active),
+                  })
+                }
+              >
+                Edit
+              </button>
+              <button type="button" className="mini danger" onClick={() => remove(channel)}>
+                Remove
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
 
       {draft ? (
         <ChannelForm

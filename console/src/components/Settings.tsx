@@ -42,6 +42,8 @@ type Section = {
   id: string;
   tab: SettingsTab;
   title: string;
+  description?: string;
+  subhead?: string;
   /** The switch the whole panel hangs from, with what it means in each position. */
   master?: { key: string; on?: string; off?: string };
   fields: Field[];
@@ -53,7 +55,9 @@ const SECTIONS: Section[] = [
   {
     id: 'store',
     tab: 'general',
-    title: 'Bot & Store Profile',
+    title: 'Bot Profile & Admin Settings',
+    description: 'Core bot identity, support contact, store currency, and admin notification recipients.',
+    subhead: 'Bot & Store Identity',
     fields: [
       { key: 'store_name', label: 'Bot / Store Name', placeholder: 'PremiumOne' },
       { key: 'support_username', label: 'Telegram Support Username', placeholder: '@username' },
@@ -65,6 +69,8 @@ const SECTIONS: Section[] = [
     id: 'channels',
     tab: 'general',
     title: 'Welcome & Channels',
+    description: 'Customer greeting message, automated stock restock broadcasts, and bot channel buttons.',
+    subhead: 'Welcome Greeting & Channel Posts',
     fields: [
       {
         key: 'welcome_text',
@@ -82,11 +88,13 @@ const SECTIONS: Section[] = [
   {
     id: 'access',
     tab: 'general',
-    title: 'Access & Limits',
+    title: 'Store Access & Force-Join Gate',
+    description: 'Maintenance mode controls, single deposit limits, and required channel memberships.',
+    subhead: 'Operations & Limits',
     fields: [
-      { key: 'store_paused', label: 'Pause new purchases and deposits', type: 'toggle' },
       { key: 'maintenance_message', label: 'Maintenance message', placeholder: 'Store maintenance is in progress. Please try again soon.' },
       { key: 'max_deposit_limit', label: 'Largest single deposit', type: 'number', fallback: '500', money: true },
+      { key: 'store_paused', label: 'Pause new purchases and deposits', type: 'toggle' },
       { key: 'force_join_enabled', label: 'Customers must join the channels below', type: 'toggle' },
     ],
   },
@@ -94,6 +102,8 @@ const SECTIONS: Section[] = [
     id: 'referral',
     tab: 'general',
     title: 'Refer & Earn Program',
+    description: 'Cash bonus rewards credited to customer wallets when invited friends join and verify channel membership.',
+    subhead: 'Referral Rewards',
     master: { key: 'referral_enabled' },
     fields: [
       {
@@ -310,6 +320,13 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
           autoComplete="off"
           placeholder={field.secret ? (stored ? 'Saved · type to replace' : 'Not set') : field.placeholder}
           value={field.secret ? secrets[field.key] ?? '' : valueOf(field)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              const targetSection = SECTIONS.find((s) => s.fields.some((f) => f.key === field.key));
+              if (targetSection) void save(targetSection);
+            }
+          }}
           onChange={(event) =>
             field.secret
               ? setSecrets((current) => ({ ...current, [field.key]: event.target.value }))
@@ -335,9 +352,10 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
           <span>Undo</span>
         </button>
         <button
-          type="submit"
+          type="button"
           className="btn small"
           disabled={isSaving}
+          onClick={() => void save(section)}
           style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
         >
           <Save size={14} />
@@ -374,22 +392,36 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
         const toggles = section.fields.filter((field) => field.type === 'toggle');
         return (
           <Fragment key={section.id}>
-            <form
-              className={`panel${on ? '' : ' off'}`}
-              onSubmit={(event) => {
-                event.preventDefault();
-                void save(section);
-              }}
-            >
+            <section className={`panel${on ? '' : ' off'}`}>
               <header>
                 <div>
                   <h2>{section.title}</h2>
+                  {section.description ? <p>{section.description}</p> : null}
                   {section.master && (on ? section.master.on : section.master.off) ? <p>{on ? section.master.on : section.master.off}</p> : null}
                 </div>
                 <div className="actions">
                   {section.master ? <Switch label={section.title} on={on} onChange={(next) => void flip(section.master!.key, next)} /> : null}
                 </div>
               </header>
+
+              {/* Subhead for section parameters if defined */}
+              {section.subhead ? (
+                <div className="panel-subhead">
+                  <div>
+                    <h3>{section.subhead}</h3>
+                    <p>
+                      {section.id === 'store'
+                        ? 'Basic store branding, support contact, and currency settings.'
+                        : section.id === 'channels'
+                        ? 'Customer onboarding greeting and automated inventory alerts.'
+                        : section.id === 'access'
+                        ? 'Store availability toggles and financial ceilings.'
+                        : 'Referral cash reward amounts.'}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+
               {inputs.length ? <div className="field-grid">{inputs.map(renderInput)}</div> : null}
               {toggles.map((field) => (
                 <FlagRow key={field.key} label={field.label} hint={field.hint} on={isOn(field.key)} onChange={(next) => void flip(field.key, next)} />
@@ -414,19 +446,21 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
                   {renderSaveActions(section)}
                 </div>
               ) : null}
-            </form>
-            {/* Sub-components rendered after their related sections */}
-            {section.id === 'store' ? (
-              <AdminNotifications
-                say={say}
-                values={values}
-                setValues={setValues}
-                setSaved={setSaved}
-                flip={flip}
-              />
-            ) : null}
-            {section.id === 'channels' ? <UpdateChannels say={say} /> : null}
-            {section.id === 'access' ? <GateChannels say={say} /> : null}
+
+              {/* Embedded Sub-components inside the unified card */}
+              {section.id === 'store' ? (
+                <AdminNotifications
+                  say={say}
+                  values={values}
+                  setValues={setValues}
+                  setSaved={setSaved}
+                  flip={flip}
+                />
+              ) : null}
+              {section.id === 'channels' ? <UpdateChannels say={say} /> : null}
+              {section.id === 'access' ? <GateChannels say={say} /> : null}
+            </section>
+
             {section.id === 'zinipay_autoverify' ? <PaymentMethods say={say} symbol={symbol} zinipayActive={isOn('zinipay_enabled')} /> : null}
           </Fragment>
         );

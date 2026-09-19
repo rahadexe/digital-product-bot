@@ -31,57 +31,57 @@ export function GateChannels({ say }: { say: Say }) {
   return (
     <>
       {confirmDialog}
-      <section className="panel">
-        <header>
-          <div>
-            <h2>Channels to join</h2>
-            <p>The bot must be an admin in each one.</p>
-          </div>
+      <div className="panel-subhead">
+        <div>
+          <h3>Mandatory Channels to Join (Force Join)</h3>
+          <p>Customers must join these Telegram channels before the bot permits access. The bot must be an admin in each one.</p>
+        </div>
+        <div className="actions">
           <button type="button" className="btn small" onClick={() => setDraft({ id: null, title: '', channel_username: '', invite_link: '', chat_id: '', is_active: true })}>
             Add channel
           </button>
-        </header>
-        {channels && channels.length === 0 ? <p className="note">No channels. Anyone can use the bot.</p> : null}
-        <div className="rows">
-          {(channels ?? []).map((channel) => (
-            <div key={channel.id} className={`row${channel.is_active ? '' : ' off'}`}>
-              <div className="text">
-                <strong>
-                  {channel.title}
-                  {channel.is_active ? '' : ' · off'}
-                </strong>
-                <small>
-                  {channel.channel_username} ·{' '}
-                  <a href={channel.invite_link} target="_blank" rel="noreferrer">
-                    {channel.invite_link.replace('https://', '')}
-                  </a>
-                </small>
-              </div>
-              <div className="row-actions">
-                <button
-                  type="button"
-                  className="mini"
-                  onClick={() =>
-                    setDraft({
-                      id: channel.id,
-                      title: channel.title,
-                      channel_username: channel.channel_username,
-                      invite_link: channel.invite_link,
-                      chat_id: channel.chat_id || '',
-                      is_active: Boolean(channel.is_active),
-                    })
-                  }
-                >
-                  Edit
-                </button>
-                <button type="button" className="mini danger" onClick={() => remove(channel)}>
-                  Remove
-                </button>
-              </div>
-            </div>
-          ))}
         </div>
-      </section>
+      </div>
+      {channels && channels.length === 0 ? <p className="note" style={{ padding: '14px 18px', margin: 0 }}>No gate channels configured. Anyone can use the bot.</p> : null}
+      <div className="rows">
+        {(channels ?? []).map((channel) => (
+          <div key={channel.id} className={`row${channel.is_active ? '' : ' off'}`}>
+            <div className="text">
+              <strong>
+                {channel.title}
+                {channel.is_active ? '' : ' · off'}
+              </strong>
+              <small>
+                {channel.channel_username} ·{' '}
+                <a href={channel.invite_link} target="_blank" rel="noreferrer">
+                  {channel.invite_link.replace('https://', '')}
+                </a>
+              </small>
+            </div>
+            <div className="row-actions">
+              <button
+                type="button"
+                className="mini"
+                onClick={() =>
+                  setDraft({
+                    id: channel.id,
+                    title: channel.title,
+                    channel_username: channel.channel_username,
+                    invite_link: channel.invite_link,
+                    chat_id: channel.chat_id || '',
+                    is_active: Boolean(channel.is_active),
+                  })
+                }
+              >
+                Edit
+              </button>
+              <button type="button" className="mini danger" onClick={() => remove(channel)}>
+                Remove
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
 
       {draft ? (
         <ChannelForm
