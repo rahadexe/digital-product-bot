@@ -17,7 +17,7 @@ from app.services import Services
 
 SESSION_COOKIE_NAME = "shop_admin_session"
 CSRF_HEADER_NAME = "x-csrf-token"
-SESSION_SECONDS = 7 * 24 * 3600
+SESSION_SECONDS = 90 * 24 * 3600  # 90 days persistent admin session
 ALGORITHM = "HS256"
 
 

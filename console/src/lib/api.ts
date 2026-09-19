@@ -1,6 +1,8 @@
 export interface SessionResponse {
   signed_in: boolean;
   csrf: string;
+  token?: string | null;
+  expires_in?: number;
 }
 
 export interface OverviewStats {
@@ -254,10 +256,20 @@ const API_BASE =
 /** A path on the API server, for images the console shows (the dev server runs on another port). */
 export const apiUrl = (path: string) => `${API_BASE}${path}`;
 
-let cachedCsrf = '';
+const TOKEN_KEY = 'admin_session_token';
+const CSRF_KEY = 'admin_csrf';
+
+let cachedCsrf = typeof window !== 'undefined' ? localStorage.getItem(CSRF_KEY) || '' : '';
 
 export function setCsrf(token: string) {
   cachedCsrf = token;
+  if (typeof window !== 'undefined') {
+    if (token) {
+      localStorage.setItem(CSRF_KEY, token);
+    } else {
+      localStorage.removeItem(CSRF_KEY);
+    }
+  }
 }
 
 // Going back to a screen shows what it showed a moment ago instead of waiting on the database again.
@@ -297,8 +309,14 @@ async function requestUncached<T>(path: string, options: RequestInit = {}): Prom
     headers.set('Content-Type', 'application/json');
   }
 
-  if (cachedCsrf && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(options.method || 'GET')) {
-    headers.set('x-csrf-token', cachedCsrf);
+  const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  const csrf = cachedCsrf || (typeof window !== 'undefined' ? localStorage.getItem(CSRF_KEY) : null);
+  if (csrf && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(options.method || 'GET')) {
+    headers.set('x-csrf-token', csrf);
   }
 
   const res = await fetch(`${API_BASE}${path}`, {
@@ -307,8 +325,12 @@ async function requestUncached<T>(path: string, options: RequestInit = {}): Prom
     credentials: 'include',
   });
 
-  if (res.status === 401 && !path.endsWith('/login')) {
+  if (res.status === 401 && !path.endsWith('/login') && !path.endsWith('/session')) {
     cachedCsrf = '';
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(CSRF_KEY);
+    }
     window.dispatchEvent(new Event('session-expired'));
   }
   if (!res.ok) {
@@ -333,19 +355,38 @@ export const api = {
   session: async () => {
     const data = await request<SessionResponse>('/api/admin/session');
     if (data.csrf) setCsrf(data.csrf);
+    if (data.token && typeof window !== 'undefined') {
+      localStorage.setItem(TOKEN_KEY, data.token);
+    } else if (!data.signed_in && typeof window !== 'undefined') {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(CSRF_KEY);
+    }
     return data;
   },
 
   login: async (password: string) => {
-    const data = await request<{ success: boolean; csrf: string }>('/api/admin/login', {
+    const data = await request<{ success: boolean; csrf: string; token?: string | null; expires_in?: number }>('/api/admin/login', {
       method: 'POST',
       body: JSON.stringify({ password }),
     });
     if (data.csrf) setCsrf(data.csrf);
+    if (data.token && typeof window !== 'undefined') {
+      localStorage.setItem(TOKEN_KEY, data.token);
+    }
     return data;
   },
 
-  logout: () => request<{ success: boolean }>('/api/admin/logout', { method: 'POST' }),
+  logout: async () => {
+    try {
+      return await request<{ success: boolean }>('/api/admin/logout', { method: 'POST' });
+    } finally {
+      cachedCsrf = '';
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(CSRF_KEY);
+      }
+    }
+  },
 
   // Mini App home banners (up to five)
   banners: () => request<BannersResponse>('/api/admin/settings/banners'),

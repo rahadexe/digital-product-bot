@@ -89,7 +89,14 @@ export default function ConsolePage() {
       if (session.signed_in && session.csrf) setCsrf(session.csrf);
       setSignedIn(session.signed_in);
     } catch {
-      setSignedIn(false);
+      try {
+        await new Promise((r) => setTimeout(r, 1200));
+        const session = await api.session();
+        if (session.signed_in && session.csrf) setCsrf(session.csrf);
+        setSignedIn(session.signed_in);
+      } catch {
+        setSignedIn(false);
+      }
     } finally {
       setReady(true);
     }

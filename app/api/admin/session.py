@@ -40,17 +40,39 @@ async def login(payload: LoginPayload, request: Request, response: Response, ser
         secure=services.config.cookie_secure,
         samesite="lax",
         max_age=SESSION_SECONDS,
+        expires=SESSION_SECONDS,
         path="/",
     )
-    return {"success": True, "csrf": auth.get_csrf_token(token)}
+    return {
+        "success": True,
+        "csrf": auth.get_csrf_token(token),
+        "token": token,
+        "expires_in": SESSION_SECONDS,
+    }
 
 
 @router.get("/session")
-async def session(request: Request, services: ServicesDep, auth: AuthDep):
+async def session(request: Request, response: Response, services: ServicesDep, auth: AuthDep):
     token = request.cookies.get(SESSION_COOKIE_NAME) or bearer_token(request)
     if await session_is_active(services, auth, token):
-        return {"signed_in": True, "csrf": auth.get_csrf_token(token)}
-    return {"signed_in": False, "csrf": ""}
+        # Rolling session: refresh cookie expiry for another 90 days
+        response.set_cookie(
+            key=SESSION_COOKIE_NAME,
+            value=token,
+            httponly=True,
+            secure=services.config.cookie_secure,
+            samesite="lax",
+            max_age=SESSION_SECONDS,
+            expires=SESSION_SECONDS,
+            path="/",
+        )
+        return {
+            "signed_in": True,
+            "csrf": auth.get_csrf_token(token),
+            "token": token,
+            "expires_in": SESSION_SECONDS,
+        }
+    return {"signed_in": False, "csrf": "", "token": None}
 
 
 @router.post("/logout", dependencies=WRITE)
