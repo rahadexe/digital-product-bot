@@ -227,6 +227,7 @@ export interface DepositMethod {
   auto_verify?: 'none' | 'binance' | 'binance_pay';
   /** The only network accepted when set, e.g. TRX for TRC20 or BSC for BEP20. */
   auto_verify_network?: string;
+  custom_emoji_id?: string | null;
 }
 
 export interface User {

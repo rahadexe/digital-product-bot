@@ -53,6 +53,7 @@ async def create_deposit_method(payload: DepositMethodPayload, services: Service
         rate=payload.rate_to_currency,
         sort_order=payload.sort_order,
         is_active=payload.is_active,
+        custom_emoji_id=payload.custom_emoji_id,
     )
     return {"success": True, "id": method_id}
 

@@ -611,6 +611,7 @@ def get_deposit_methods_keyboard(
             )
         ])
 
+    method_buttons: List[InlineKeyboardButton] = []
     for m in methods:
         name = m.get("name", "Method").strip()
         custom_emoji_id = m.get("custom_emoji_id")
@@ -632,7 +633,35 @@ def get_deposit_methods_keyboard(
             kwargs["icon_custom_emoji_id"] = Icons.ROCKET
         else:
             kwargs["icon_custom_emoji_id"] = Icons.DEPOSIT
-        buttons.append([InlineKeyboardButton(**kwargs)])
+        method_buttons.append(InlineKeyboardButton(**kwargs))
+
+    total = len(method_buttons)
+    if total == 4:
+        # 2x2 grid: 2 on top row, 2 on bottom row
+        buttons.append([method_buttons[0], method_buttons[1]])
+        buttons.append([method_buttons[2], method_buttons[3]])
+    elif total == 3:
+        # 3 methods: if first is Binance, place it on top row, 2 local methods on bottom row
+        first_is_binance = (
+            methods[0].get("auto_verify") == "binance_pay"
+            or "binance" in str(methods[0].get("name", "")).lower()
+        )
+        if first_is_binance:
+            buttons.append([method_buttons[0]])
+            buttons.append([method_buttons[1], method_buttons[2]])
+        else:
+            buttons.append([method_buttons[0], method_buttons[1]])
+            buttons.append([method_buttons[2]])
+    elif total == 2:
+        # 2 side-by-side in one row
+        buttons.append([method_buttons[0], method_buttons[1]])
+    elif total == 1:
+        # 1 full width button
+        buttons.append([method_buttons[0]])
+    elif total > 4:
+        # Rows of 2
+        for i in range(0, total, 2):
+            buttons.append(method_buttons[i : i + 2])
 
     if back_target:
         buttons.append([

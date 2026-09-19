@@ -9,6 +9,7 @@ import { Smartphone, type LucideIcon } from 'lucide-react';
 import { api, type DepositMethod } from '@/lib/api';
 import { useMoney } from '@/lib/currency';
 import { FlagRow, Modal, errorText, useConfirm, type Say } from './ui';
+import { EmojiPicker } from './EmojiPicker';
 
 type KindId = 'bkash' | 'nagad' | 'rocket';
 
@@ -17,7 +18,7 @@ type Kind = {
   title: string;
   blurb: string;
   icon: LucideIcon;
-  defaults: { name: string; rate: number; auto_verify: 'none'; network: string; instructions?: string };
+  defaults: { name: string; rate: number; auto_verify: 'none'; network: string; instructions?: string; custom_emoji_id?: string };
   account: { label: string; placeholder: string; hint?: string };
 };
 
@@ -33,6 +34,7 @@ const KINDS: Kind[] = [
       auto_verify: 'none',
       network: '',
       instructions: '',
+      custom_emoji_id: '6217678000977089090',
     },
     account: { label: 'bKash Number', placeholder: '01700000000', hint: 'Your bKash account number.' },
   },
@@ -47,6 +49,7 @@ const KINDS: Kind[] = [
       auto_verify: 'none',
       network: '',
       instructions: '',
+      custom_emoji_id: '6217625168584380551',
     },
     account: { label: 'Nagad Number', placeholder: '01800000000', hint: 'Your Nagad account number.' },
   },
@@ -61,6 +64,7 @@ const KINDS: Kind[] = [
       auto_verify: 'none',
       network: '',
       instructions: '',
+      custom_emoji_id: '4911601033496494993',
     },
     account: { label: 'Rocket Number', placeholder: '01900000000', hint: 'Your Rocket account number.' },
   },
@@ -229,6 +233,7 @@ function MethodForm({
     min_deposit: method?.min_deposit ?? 50,
     instructions: method?.instructions ?? kind.defaults.instructions ?? '',
     active: method ? method.is_active === 1 : true,
+    custom_emoji_id: method?.custom_emoji_id ?? kind.defaults.custom_emoji_id ?? '',
   });
   const [busy, setBusy] = useState(false);
   const set = (patch: Partial<typeof form>) => setForm((current) => ({ ...current, ...patch }));
@@ -246,6 +251,7 @@ function MethodForm({
       is_active: form.active ? 1 : 0,
       auto_verify: 'none' as const,
       auto_verify_network: '',
+      custom_emoji_id: form.custom_emoji_id.trim() || null,
     };
     try {
       if (method) await api.updateDepositMethod(method.id, payload);
@@ -285,6 +291,16 @@ function MethodForm({
         <span>Name customers see in bot</span>
         <input type="text" required placeholder={kind.defaults.name || 'Payment method name'} value={form.name} onChange={(event) => set({ name: event.target.value })} />
       </label>
+      <div className="field">
+        <label>
+          <span style={{ userSelect: 'none' }}>Method Icon / Custom Emoji</span>
+        </label>
+        <EmojiPicker
+          value={form.custom_emoji_id}
+          onChange={(id) => set({ custom_emoji_id: id })}
+        />
+        <small style={{ userSelect: 'none' }}>Choose bKash, Nagad, Rocket icon or pick any custom emoji from your library.</small>
+      </div>
       <label className="field">
         <span>Smallest deposit ({symbol})</span>
         <input type="number" step="any" min="1" required value={form.min_deposit} onChange={(event) => set({ min_deposit: parseFloat(event.target.value) || 1 })} />

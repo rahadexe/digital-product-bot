@@ -49,6 +49,7 @@ METHOD_FIELDS = (
     "sort_order",
     "auto_verify",
     "auto_verify_network",
+    "custom_emoji_id",
 )
 
 
@@ -83,13 +84,14 @@ class DepositService:
         is_active: int = 1,
         auto_verify: str = "none",
         auto_verify_network: str = "",
+        custom_emoji_id: str | None = None,
     ) -> int:
         async with self.db.transaction() as conn:
             method_id = await conn.fetchval(
                 """
                 INSERT INTO deposit_methods (name, account_info, instructions, min_deposit, rate_to_currency,
-                                             sort_order, is_active, auto_verify, auto_verify_network)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id
+                                             sort_order, is_active, auto_verify, auto_verify_network, custom_emoji_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id
                 """,
                 name,
                 account_info,
@@ -100,6 +102,7 @@ class DepositService:
                 is_active,
                 auto_verify,
                 auto_verify_network,
+                custom_emoji_id,
             )
             await record(conn, "deposit_method_created", f"Method #{method_id}: {name}")
         return method_id
@@ -135,7 +138,8 @@ class DepositService:
                     """
                     UPDATE deposit_methods
                     SET name = 'Binance', account_info = $1, instructions = $2, min_deposit = $3, rate_to_currency = $4,
-                        is_active = $5, auto_verify = 'binance_pay', auto_verify_network = 'Binance ID'
+                        is_active = $5, auto_verify = 'binance_pay', auto_verify_network = 'Binance ID',
+                        custom_emoji_id = COALESCE(custom_emoji_id, '5348212415077064131')
                     WHERE id = $6
                     """,
                     pay_id,
@@ -151,8 +155,8 @@ class DepositService:
                 method_id = await conn.fetchval(
                     """
                     INSERT INTO deposit_methods (name, account_info, instructions, min_deposit, rate_to_currency,
-                                                 sort_order, is_active, auto_verify, auto_verify_network)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id
+                                                 sort_order, is_active, auto_verify, auto_verify_network, custom_emoji_id)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id
                     """,
                     "Binance",
                     pay_id,
@@ -163,6 +167,7 @@ class DepositService:
                     is_active,
                     "binance_pay",
                     "Binance ID",
+                    "5348212415077064131",
                 )
                 created = await conn.fetchrow("SELECT * FROM deposit_methods WHERE id = $1", method_id)
                 return dict(created)

@@ -108,8 +108,9 @@ class DepositMethodPayload(Payload):
     # Who can confirm a payment for us, and the only network accepted when one is named (e.g. TRX, BSC).
     auto_verify: Literal["none", "binance", "binance_pay"] = "none"
     auto_verify_network: str = Field(default="", pattern=r"^[A-Za-z0-9]{0,16}$")
+    custom_emoji_id: Optional[str] = Field(default=None, max_length=64)
 
-    _empty_text = field_validator("instructions", "auto_verify_network", mode="before")(_empty_if_none)
+    _empty_text = field_validator("instructions", "auto_verify_network", "custom_emoji_id", mode="before")(_empty_if_none)
 
 
 class BalanceAdjustPayload(Payload):
