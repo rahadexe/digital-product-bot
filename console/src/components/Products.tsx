@@ -35,6 +35,8 @@ export function Products({ say }: { say: Say }) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<ProductFilter>('all');
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
+  const [posting, setPosting] = useState(false);
   const [confirm, confirmDialog] = useConfirm();
   const money = useMoney();
 
@@ -56,8 +58,8 @@ export function Products({ say }: { say: Say }) {
     if (
       !(await confirm(
         `Delete "${product.title}"?`,
-        'This will permanently delete this product and its associated stock.',
-        'Delete product',
+        'Permanently delete this product?',
+        'Delete',
         true
       ))
     )
@@ -71,30 +73,11 @@ export function Products({ say }: { say: Say }) {
     }
   }
 
-  async function announce(product: Product) {
-    if (
-      !(await confirm(
-        `Post "${product.title}"?`,
-        'This will broadcast an announcement message for this product to your Telegram channel.',
-        'Post to channel'
-      ))
-    )
-      return;
-    try {
-      await api.announceProduct(product.id);
-      say('Posted to the channel.');
-    } catch (cause) {
-      say(errorText(cause), 'bad');
-    }
-  }
-
   async function toggleActive(product: Product) {
     const nextActive = !product.is_active;
-    const title = nextActive ? `Make "${product.title}" Active?` : `Hide "${product.title}"?`;
-    const message = nextActive
-      ? 'This product will become visible to customers in the store.'
-      : 'This product will be hidden from customers in the store.';
-    const actionLabel = nextActive ? 'Make Active' : 'Hide Product';
+    const title = nextActive ? `Activate "${product.title}"?` : `Hide "${product.title}"?`;
+    const message = nextActive ? 'Show in store?' : 'Hide from store?';
+    const actionLabel = nextActive ? 'Activate' : 'Hide';
 
     if (!(await confirm(title, message, actionLabel, !nextActive))) return;
 
@@ -290,7 +273,7 @@ export function Products({ say }: { say: Say }) {
                     </td>
                     <td>
                       <div className="row-actions">
-                        <button type="button" className="mini" onClick={() => announce(product)}>
+                        <button type="button" className="mini" onClick={() => setPreviewProduct(product)}>
                           Post
                         </button>
                         <button
@@ -339,6 +322,139 @@ export function Products({ say }: { say: Say }) {
             await load();
           }}
         />
+      ) : null}
+
+      {previewProduct ? (
+        <Modal
+          title="Channel Post Preview"
+          onClose={() => !posting && setPreviewProduct(null)}
+          footer={
+            <>
+              <button
+                type="button"
+                className="btn ghost"
+                disabled={posting}
+                onClick={() => setPreviewProduct(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn"
+                disabled={posting}
+                onClick={async () => {
+                  setPosting(true);
+                  try {
+                    await api.announceProduct(previewProduct.id);
+                    say('Posted to the channel.');
+                    setPreviewProduct(null);
+                  } catch (cause) {
+                    say(errorText(cause), 'bad');
+                  } finally {
+                    setPosting(false);
+                  }
+                }}
+              >
+                {posting ? 'Posting...' : 'Post to Channel'}
+              </button>
+            </>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <span style={{ fontSize: '12.5px', color: 'var(--muted)' }}>
+              How this announcement will appear in your Telegram channel:
+            </span>
+
+            {/* Telegram message card preview */}
+            <div
+              style={{
+                background: 'var(--surface-2)',
+                border: '1px solid var(--border)',
+                borderRadius: '12px',
+                padding: '14px 16px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+                fontSize: '13px',
+                lineHeight: 1.45,
+                color: 'var(--text)',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+                userSelect: 'none',
+              }}
+            >
+              <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>🔥</span>
+                <span>Featured Product</span>
+              </div>
+              <div style={{ height: '1px', background: 'var(--line)', margin: '2px 0' }} />
+
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                <span>👑</span>
+                <div>
+                  <strong>Product: </strong>
+                  <span>{previewProduct.icon ? `${previewProduct.icon} ` : '⚡ '}{previewProduct.title}</span>
+                </div>
+              </div>
+
+              {previewProduct.description ? (
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', color: 'var(--muted)' }}>
+                  <span>📝</span>
+                  <span style={{ whiteSpace: 'pre-wrap' }}>{previewProduct.description}</span>
+                </div>
+              ) : null}
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>🏪</span>
+                <div>
+                  <strong>Available Stock: </strong>
+                  <code style={{ background: 'var(--surface)', padding: '1px 5px', borderRadius: '4px', fontSize: '12px' }}>
+                    {previewProduct.delivery_type === 'manual' ? 'Manual Delivery' : `${previewProduct.stock ?? 0} units`}
+                  </code>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>💳</span>
+                <div>
+                  <strong>Price: </strong>
+                  <code style={{ background: 'var(--surface)', padding: '1px 5px', borderRadius: '4px', fontSize: '12px' }}>
+                    {money(previewProduct.price)}
+                  </code>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>✅</span>
+                <div>
+                  <strong>Delivery: </strong>
+                  <span>{previewProduct.delivery_type === 'manual' ? 'Manual Delivery' : 'Instant Automatic Delivery'}</span>
+                </div>
+              </div>
+
+              {/* Mock Telegram button */}
+              <div
+                style={{
+                  marginTop: '6px',
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  padding: '8px 12px',
+                  textAlign: 'center',
+                  fontWeight: 600,
+                  fontSize: '12.5px',
+                  color: 'var(--accent)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                }}
+              >
+                <span>🛍️</span>
+                <span>Order {previewProduct.title}</span>
+              </div>
+            </div>
+          </div>
+        </Modal>
       ) : null}
     </>
   );
