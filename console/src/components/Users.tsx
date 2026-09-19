@@ -233,26 +233,10 @@ export function Users({
                       <div className="cust-status-stack">
                         {user.is_banned ? (
                           <span className="pill bad">banned</span>
+                        ) : user.rank === 'Reseller' ? (
+                          <span className="pill info">Reseller</span>
                         ) : (
-                          <span
-                            className={`pill ${
-                              user.rank === 'Affiliate'
-                                ? 'warn'
-                                : user.rank === 'Reseller'
-                                ? 'info'
-                                : user.rank === 'VIP'
-                                ? 'vip'
-                                : 'good'
-                            }`}
-                          >
-                            {user.rank === 'Affiliate'
-                              ? 'Affiliate'
-                              : user.rank === 'Reseller'
-                              ? 'Reseller'
-                              : user.rank === 'VIP'
-                              ? 'VIP'
-                              : 'Active'}
-                          </span>
+                          <span className="pill good">Normal</span>
                         )}
                       </div>
                     </td>
@@ -499,22 +483,8 @@ function CustomerProfilePage({
               <span className={`pill ${user.is_banned ? 'bad' : 'good'}`}>
                 {user.is_banned ? 'Banned' : 'Active'}
               </span>
-              {user.rank && user.rank !== 'Standard' ? (
-                <span
-                  className={`pill ${
-                    user.rank === 'Reseller'
-                      ? 'info'
-                      : user.rank === 'VIP'
-                      ? 'vip'
-                      : 'warn'
-                  }`}
-                >
-                  {user.rank === 'Reseller'
-                    ? 'Reseller Partner'
-                    : user.rank === 'VIP'
-                    ? 'VIP Member'
-                    : user.rank}
-                </span>
+              {user.rank === 'Reseller' ? (
+                <span className="pill info">Reseller Partner</span>
               ) : null}
             </div>
 
@@ -645,15 +615,13 @@ function CustomerProfilePage({
           <div className="cust-tier-select-wrap">
             <select
               className="cust-tier-select"
-              value={currentRank}
+              value={currentRank === 'Reseller' ? 'Reseller' : 'Standard'}
               disabled={rankBusy}
               onChange={(e) => void handleRankChange(e.target.value)}
               title="Change customer account tier"
             >
               <option value="Standard">Normal User</option>
               <option value="Reseller">Reseller Partner</option>
-              <option value="Affiliate">Affiliate Partner</option>
-              <option value="VIP">VIP Member</option>
             </select>
             {currentRank === 'Reseller' ? (
               <div className="cust-tier-hint info">

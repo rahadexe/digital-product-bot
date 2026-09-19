@@ -256,8 +256,8 @@ class UserService:
             return bool(value)
 
     async def set_rank(self, tg_user_id: int, rank: str) -> str:
-        """Update customer rank/role (Standard, Affiliate, Reseller, VIP)."""
-        valid_ranks = {"Standard", "Affiliate", "Reseller", "VIP"}
+        """Update customer rank/role (Standard or Reseller)."""
+        valid_ranks = {"Standard", "Reseller"}
         clean_rank = rank.strip().title()
         if clean_rank not in valid_ranks:
             clean_rank = "Standard"
