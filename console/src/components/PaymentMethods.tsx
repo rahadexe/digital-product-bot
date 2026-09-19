@@ -19,7 +19,7 @@ type Kind = {
   blurb: string;
   icon: LucideIcon;
   defaults: { name: string; rate: number; auto_verify: 'none'; network: string; instructions?: string; custom_emoji_id?: string };
-  account: { label: string; placeholder: string; hint?: string };
+  account: { label: string; placeholder: string };
 };
 
 const KINDS: Kind[] = [
@@ -36,7 +36,7 @@ const KINDS: Kind[] = [
       instructions: '',
       custom_emoji_id: '6217678000977089090',
     },
-    account: { label: 'bKash Number', placeholder: '01700000000', hint: 'Your bKash account number.' },
+    account: { label: 'bKash Number', placeholder: '01700000000' },
   },
   {
     id: 'nagad',
@@ -51,7 +51,7 @@ const KINDS: Kind[] = [
       instructions: '',
       custom_emoji_id: '6217625168584380551',
     },
-    account: { label: 'Nagad Number', placeholder: '01800000000', hint: 'Your Nagad account number.' },
+    account: { label: 'Nagad Number', placeholder: '01800000000' },
   },
   {
     id: 'rocket',
@@ -66,7 +66,7 @@ const KINDS: Kind[] = [
       instructions: '',
       custom_emoji_id: '4911601033496494993',
     },
-    account: { label: 'Rocket Number', placeholder: '01900000000', hint: 'Your Rocket account number.' },
+    account: { label: 'Rocket Number', placeholder: '01900000000' },
   },
 ];
 
@@ -285,21 +285,16 @@ function MethodForm({
       <label className="field">
         <span>{kind.account.label}</span>
         <input type="text" required placeholder={kind.account.placeholder} value={form.account_info} onChange={(event) => set({ account_info: event.target.value })} />
-        {kind.account.hint ? <small>{kind.account.hint}</small> : null}
       </label>
       <label className="field">
         <span>Name customers see in bot</span>
         <input type="text" required placeholder={kind.defaults.name || 'Payment method name'} value={form.name} onChange={(event) => set({ name: event.target.value })} />
       </label>
       <div className="field">
-        <label>
-          <span style={{ userSelect: 'none' }}>Method Icon / Custom Emoji</span>
-        </label>
         <EmojiPicker
           value={form.custom_emoji_id}
           onChange={(id) => set({ custom_emoji_id: id })}
         />
-        <small style={{ userSelect: 'none' }}>Choose bKash, Nagad, Rocket icon or pick any custom emoji from your library.</small>
       </div>
       <label className="field">
         <span>Smallest deposit ({symbol})</span>
@@ -315,7 +310,7 @@ function MethodForm({
         />
       </label>
       <div>
-        <FlagRow label="Offer to customers in bot" on={form.active} onChange={(on) => set({ active: on })} />
+        <FlagRow label={form.active ? 'Active' : 'Inactive'} on={form.active} onChange={(on) => set({ active: on })} />
       </div>
     </Modal>
   );
