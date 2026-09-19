@@ -1,7 +1,7 @@
 """ZiniPay In-Bot Transaction Verification Service.
 
 Implements the official 2-step Transaction Verification API:
-1. POST https://api.zinipay.com/v1/trx/verify (checks amount & TrxID, deducts 1 credit, returns masked data and id)
+1. POST https://api.zinipay.com/v1/trx/verify (checks amount & TrxID against merchant statement, returns masked data and id)
 2. POST https://api.zinipay.com/v1/trx/confirm (consumes transaction permanently so it cannot be double-spent)
 """
 
