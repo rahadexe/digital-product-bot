@@ -27,7 +27,7 @@ SYSTEM_EMOJIS: list[dict[str, Any]] = [
     {"name": "Turbo VPN", "emoji_id": "5796633857209931262", "category": "VPN", "is_system": True},
     {"name": "PotatoVPN", "emoji_id": "5796403831646458962", "category": "VPN", "is_system": True},
     {"name": "PandaVPN", "emoji_id": "5796561774773801876", "category": "VPN", "is_system": True},
-    {"name": "VyprVPN", "emoji_id": "5796381996032725483", "category": "VPN", "is_system": True},
+    {"name": "IPVanish", "emoji_id": "5796381996032725483", "category": "VPN", "is_system": True},
     {"name": "X-VPN", "emoji_id": "5794376731636798062", "category": "VPN", "is_system": True},
 
     # Payment Methods

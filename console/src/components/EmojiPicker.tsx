@@ -25,7 +25,7 @@ export const PRESET_EMOJIS: EmojiItem[] = [
   { name: 'Turbo VPN', id: '5796633857209931262', category: 'VPN', is_system: true },
   { name: 'PotatoVPN', id: '5796403831646458962', category: 'VPN', is_system: true },
   { name: 'PandaVPN', id: '5796561774773801876', category: 'VPN', is_system: true },
-  { name: 'VyprVPN', id: '5796381996032725483', category: 'VPN', is_system: true },
+  { name: 'IPVanish', id: '5796381996032725483', category: 'VPN', is_system: true },
   { name: 'X-VPN', id: '5794376731636798062', category: 'VPN', is_system: true },
 
   // Payment Methods
