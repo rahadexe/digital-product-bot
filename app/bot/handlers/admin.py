@@ -48,13 +48,13 @@ def _build_preview_keyboard() -> InlineKeyboardMarkup:
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="পাঠান",
+                    text="Send Now",
                     callback_data="bc_confirm",
                     style="success",
                     icon_custom_emoji_id=Icons.ROCKET,
                 ),
                 InlineKeyboardButton(
-                    text="বাতিল",
+                    text="Cancel",
                     callback_data="bc_cancel",
                     style="danger",
                     icon_custom_emoji_id=Icons.CLOSE,
@@ -67,7 +67,7 @@ def _build_preview_keyboard() -> InlineKeyboardMarkup:
 async def _show_preview(message: Message, text: str, services: Services, state: FSMContext) -> None:
     recipients = await services.delivery.recipient_count()
     if recipients == 0:
-        await message.answer(f"{ICON_WARNING} কোনো অ্যাক্টিভ কাস্টমার নেই।")
+        await message.answer(f"{ICON_WARNING} No active recipients found.")
         await state.clear()
         return
 
@@ -75,11 +75,9 @@ async def _show_preview(message: Message, text: str, services: Services, state: 
     await state.update_data(broadcast_text=text, recipient_count=recipients)
 
     preview_body = (
-        f"{ICON_CHANNEL} <b>ব্রডকাস্ট প্রিভিউ</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"{text}\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"{ICON_ACCOUNT} প্রাপক: <code>{recipients}</code> জন"
+        f"{ICON_CHANNEL} <b>Broadcast Preview</b>\n\n"
+        f"{text}\n\n"
+        f"{ICON_ACCOUNT} Recipients: <b>{recipients}</b>"
     )
 
     await message.answer(preview_body, reply_markup=_build_preview_keyboard(), disable_web_page_preview=True)
@@ -108,8 +106,10 @@ async def cmd_broadcast(message: Message, state: FSMContext, services: Services)
 
     await state.set_state(BroadcastStates.waiting_for_message)
     await message.answer(
-        f"{ICON_NOTE} <b>ব্রডকাস্ট মেসেজটি লিখুন:</b>\n"
-        f"<i>(বাতিল করতে /cancel লিখুন)</i>"
+        f"{ICON_NOTE} <b>Send Broadcast Message</b>\n\n"
+        f"Type or forward the message you want to broadcast.\n"
+        f"<i>HTML formatting (bold, italic, links) is supported.</i>\n\n"
+        f"Send /cancel to abort."
     )
 
 
@@ -120,12 +120,12 @@ async def process_broadcast_input(message: Message, state: FSMContext, services:
 
     if message.text and message.text.strip().lower() in ("/cancel", "cancel"):
         await state.clear()
-        await message.answer(f"{ICON_CROSS} <b>ব্রডকাস্ট বাতিল করা হয়েছে</b>")
+        await message.answer(f"{ICON_CROSS} Broadcast cancelled.")
         return
 
     text = message.html_text or message.caption or message.text
     if not text or not text.strip():
-        await message.answer(f"{ICON_WARNING} টেক্সট মেসেজ পাঠান অথবা /cancel লিখুন।")
+        await message.answer(f"{ICON_WARNING} Please send a text message or type /cancel.")
         return
 
     await _show_preview(message, text.strip(), services, state)
@@ -140,14 +140,14 @@ async def handle_bc_confirm(query: CallbackQuery, state: FSMContext, services: S
     data = await state.get_data()
     broadcast_text = data.get("broadcast_text")
     if not broadcast_text:
-        await query.answer("সেশনের মেয়াদ শেষ হয়েছে।", show_alert=True)
+        await query.answer("Session expired.", show_alert=True)
         await state.clear()
         return
 
-    await query.answer("শুরু হচ্ছে...")
+    await query.answer("Processing...")
     if query.message:
         with suppress(TelegramBadRequest):
-            await query.message.edit_text(f"{ICON_TIMER} <b>ব্রডকাস্ট প্রসেস হচ্ছে...</b>")
+            await query.message.edit_text(f"{ICON_TIMER} <b>Queuing broadcast...</b>")
 
     try:
         result = await services.delivery.enqueue_broadcast(broadcast_text)
@@ -155,18 +155,17 @@ async def handle_bc_confirm(query: CallbackQuery, state: FSMContext, services: S
         if query.message:
             with suppress(TelegramBadRequest):
                 await query.message.edit_text(
-                    f"{ICON_CHECK} <b>ব্রডকাস্ট শুরু হয়েছে</b>\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"{ICON_ID} আইডি: <code>#{result['id']}</code>\n"
-                    f"{ICON_ACCOUNT} প্রাপক: <code>{result['total']}</code> জন\n\n"
-                    f"<i>প্রগ্রেস দেখতে /bcstatus লিখুন</i>"
+                    f"{ICON_CHECK} <b>Broadcast Queued</b>\n\n"
+                    f"{ICON_ID} Job ID: <code>#{result['id']}</code>\n"
+                    f"{ICON_ACCOUNT} Recipients: <b>{result['total']}</b>\n\n"
+                    f"<i>Check progress with /bcstatus</i>"
                 )
     except Exception as e:
         logger.exception("Failed to enqueue broadcast from Telegram: %s", e)
         await state.clear()
         if query.message:
             with suppress(TelegramBadRequest):
-                await query.message.edit_text(f"{ICON_CROSS} ব্যর্থ হয়েছে: {html.escape(str(e))}")
+                await query.message.edit_text(f"{ICON_CROSS} Failed: {html.escape(str(e))}")
 
 
 @router.callback_query(F.data == "bc_cancel")
@@ -176,10 +175,10 @@ async def handle_bc_cancel(query: CallbackQuery, state: FSMContext, services: Se
         return
 
     await state.clear()
-    await query.answer("বাতিল করা হয়েছে।")
+    await query.answer("Cancelled.")
     if query.message:
         with suppress(TelegramBadRequest):
-            await query.message.edit_text(f"{ICON_CROSS} <b>ব্রডকাস্ট বাতিল করা হয়েছে</b>")
+            await query.message.edit_text(f"{ICON_CROSS} Broadcast cancelled.")
 
 
 @router.message(Command("bcstatus", "broadcast_status"))
@@ -189,22 +188,22 @@ async def cmd_broadcast_status(message: Message, services: Services):
 
     recent = await services.delivery.recent_broadcasts(limit=1)
     if not recent:
-        await message.answer(f"{ICON_WARNING} কোনো ব্রডকাস্ট হিস্ট্রি নেই।")
+        await message.answer(f"{ICON_WARNING} No broadcast history found.")
         return
 
     latest = recent[0]
-    snippet = latest["text"][:100] + "..." if len(latest["text"]) > 100 else latest["text"]
+    snippet = latest["text"][:120] + "..." if len(latest["text"]) > 120 else latest["text"]
 
     is_pending = latest["pending"] > 0
     status_icon = ICON_TIMER if is_pending else ICON_CHECK
-    status_title = "চলমান" if is_pending else "সম্পন্ন"
+    status_title = "Sending" if is_pending else "Completed"
     await message.answer(
-        f"{status_icon} <b>ব্রডকাস্ট #{latest['id']} ({status_title})</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"<i>{html.escape(snippet)}</i>\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"{ICON_ACCOUNT} মোট: <code>{latest['total']}</code> | {ICON_CHECK} সফল: <code>{latest['success']}</code>\n"
-        f"{ICON_CROSS} ব্যর্থ: <code>{latest['failed']}</code> | {ICON_TIMER} বাকি: <code>{latest['pending']}</code>"
+        f"{status_icon} <b>Broadcast #{latest['id']} · {status_title}</b>\n\n"
+        f"<i>{html.escape(snippet)}</i>\n\n"
+        f"{ICON_ACCOUNT} Total: <b>{latest['total']}</b>\n"
+        f"{ICON_CHECK} Delivered: <b>{latest['success']}</b>\n"
+        f"{ICON_CROSS} Failed: <b>{latest['failed']}</b>\n"
+        f"{ICON_TIMER} Pending: <b>{latest['pending']}</b>"
     )
 
 
@@ -215,11 +214,11 @@ async def cmd_admin_help(message: Message, services: Services):
 
     recipients = await services.delivery.recipient_count()
     await message.answer(
-        f"{ICON_CROWN} <b>ব্রডকাস্ট কন্ট্রোল</b>\n"
-        f"{ICON_ACCOUNT} প্রাপক: <code>{recipients}</code> জন\n\n"
-        f"• <code>/bc &lt;মেসেজ&gt;</code> — সরাসরি পাঠান\n"
-        f"• <code>/bc</code> — মেসেজ ইনপুট দিন\n"
-        f"• মেসেজে রিপ্লাই করে <code>/bc</code> — ফরোয়ার্ড\n"
-        f"• <code>/bcstatus</code> — প্রগ্রেস রিপোর্ট\n"
-        f"• <code>/cancel</code> — বাতিল"
+        f"{ICON_CROWN} <b>Admin Commands</b>\n"
+        f"{ICON_ACCOUNT} Active Recipients: <b>{recipients}</b>\n\n"
+        f"• <code>/bc &lt;message&gt;</code> — Quick broadcast\n"
+        f"• <code>/bc</code> — Interactive composer\n"
+        f"• Reply to message with <code>/bc</code> — Forward & send\n"
+        f"• <code>/bcstatus</code> — Check latest delivery status\n"
+        f"• <code>/cancel</code> — Cancel active action"
     )
