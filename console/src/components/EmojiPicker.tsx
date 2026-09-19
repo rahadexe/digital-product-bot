@@ -1,32 +1,67 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, X } from 'lucide-react';
+import { Check, ChevronDown, Sparkles, X } from 'lucide-react';
+import { api } from '@/lib/api';
 
 export interface EmojiItem {
   name: string;
   id: string;
+  category?: string;
+  is_system?: boolean;
 }
 
-// Verified Telegram VPN Custom Emojis (clean list, strictly no generic icons)
+// Verified Telegram VPN Custom Emojis (default built-in fallback)
 export const PRESET_EMOJIS: EmojiItem[] = [
-  { name: 'NordVPN', id: '5796345694969140339' },
-  { name: 'ExpressVPN', id: '5796153709931009517' },
-  { name: 'Surfshark', id: '5796592771552777710' },
-  { name: 'Proton VPN', id: '5794298344188678751' },
-  { name: 'CyberGhost', id: '5796309230696797985' },
-  { name: 'HMA VPN', id: '5796595022115639741' },
-  { name: 'Bitdefender', id: '5793973558761756143' },
-  { name: 'Windscribe', id: '5794045349140108622' },
-  { name: 'PureVPN', id: '5794156713347126602' },
-  { name: 'Turbo VPN', id: '5796633857209931262' },
-  { name: 'PotatoVPN', id: '5796403831646458962' },
-  { name: 'PandaVPN', id: '5796561774773801876' },
-  { name: 'VyprVPN', id: '5796381996032725483' },
-  { name: 'X-VPN', id: '5794376731636798062' },
+  { name: 'NordVPN', id: '5796345694969140339', category: 'VPN', is_system: true },
+  { name: 'ExpressVPN', id: '5796153709931009517', category: 'VPN', is_system: true },
+  { name: 'Surfshark', id: '5796592771552777710', category: 'VPN', is_system: true },
+  { name: 'Proton VPN', id: '5794298344188678751', category: 'VPN', is_system: true },
+  { name: 'CyberGhost', id: '5796309230696797985', category: 'VPN', is_system: true },
+  { name: 'HMA VPN', id: '5796595022115639741', category: 'VPN', is_system: true },
+  { name: 'Bitdefender', id: '5793973558761756143', category: 'VPN', is_system: true },
+  { name: 'Windscribe', id: '5794045349140108622', category: 'VPN', is_system: true },
+  { name: 'PureVPN', id: '5794156713347126602', category: 'VPN', is_system: true },
+  { name: 'Turbo VPN', id: '5796633857209931262', category: 'VPN', is_system: true },
+  { name: 'PotatoVPN', id: '5796403831646458962', category: 'VPN', is_system: true },
+  { name: 'PandaVPN', id: '5796561774773801876', category: 'VPN', is_system: true },
+  { name: 'VyprVPN', id: '5796381996032725483', category: 'VPN', is_system: true },
+  { name: 'X-VPN', id: '5794376731636798062', category: 'VPN', is_system: true },
 ];
 
 export const VPN_EMOJIS = PRESET_EMOJIS;
+
+let cachedLibrary: EmojiItem[] | null = null;
+let fetchPromise: Promise<EmojiItem[]> | null = null;
+
+export function invalidateEmojiCache() {
+  cachedLibrary = null;
+}
+
+async function fetchLibraryEmojis(): Promise<EmojiItem[]> {
+  if (cachedLibrary) return cachedLibrary;
+  if (fetchPromise) return fetchPromise;
+
+  fetchPromise = (async () => {
+    try {
+      const res = await api.emojis();
+      const list: EmojiItem[] = (res.all || []).map((item) => ({
+        name: item.name,
+        id: item.emoji_id,
+        category: item.category,
+        is_system: item.is_system,
+      }));
+      cachedLibrary = list;
+      return list;
+    } catch {
+      return PRESET_EMOJIS;
+    } finally {
+      fetchPromise = null;
+    }
+  })();
+
+  return fetchPromise;
+}
 
 interface EmojiPickerProps {
   value?: string;
@@ -37,43 +72,57 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [emojis, setEmojis] = useState<EmojiItem[]>(cachedLibrary || PRESET_EMOJIS);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Load from API on mount
+  useEffect(() => {
+    let active = true;
+    void fetchLibraryEmojis().then((list) => {
+      if (active && list && list.length > 0) {
+        setEmojis(list);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const trimmedValue = value ? String(value).trim() : '';
 
-  // Matched preset item if any
-  const matchedPreset = useMemo(() => {
+  // Matched emoji item if any
+  const matchedEmoji = useMemo(() => {
     if (!trimmedValue) return null;
-    return PRESET_EMOJIS.find((p) => p.id === trimmedValue);
-  }, [trimmedValue]);
+    return emojis.find((p) => p.id === trimmedValue);
+  }, [emojis, trimmedValue]);
 
   // Display text in the input box:
   // When typing: show query.
-  // When not typing: show preset name, or custom ID, or empty.
+  // When not typing: show emoji name, or custom ID, or empty.
   const displayValue = isTyping
     ? query
-    : matchedPreset
-    ? matchedPreset.name
+    : matchedEmoji
+    ? matchedEmoji.name
     : trimmedValue;
 
   // Filter emojis based on query
   const filteredEmojis = useMemo(() => {
-    if (!isTyping || !query.trim()) return PRESET_EMOJIS;
+    if (!isTyping || !query.trim()) return emojis;
     const q = query.trim().toLowerCase();
-    return PRESET_EMOJIS.filter(
-      (item) => item.name.toLowerCase().includes(q) || item.id.includes(q)
+    return emojis.filter(
+      (item) => item.name.toLowerCase().includes(q) || item.id.includes(q) || (item.category && item.category.toLowerCase().includes(q))
     );
-  }, [isTyping, query]);
+  }, [emojis, isTyping, query]);
 
   // Is typed query a custom ID or something not matching presets
   const isCustomQuery = useMemo(() => {
     if (!isTyping || !query.trim()) return false;
     const q = query.trim().toLowerCase();
-    return !PRESET_EMOJIS.some(
+    return !emojis.some(
       (item) => item.name.toLowerCase() === q || item.id === query.trim()
     );
-  }, [isTyping, query]);
+  }, [emojis, isTyping, query]);
 
   // Close on outside click
   useEffect(() => {
@@ -209,7 +258,7 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
             if (e.key === 'Enter') {
               e.preventDefault();
               if (query.trim()) {
-                const match = PRESET_EMOJIS.find(
+                const match = emojis.find(
                   (p) => p.name.toLowerCase() === query.trim().toLowerCase()
                 );
                 handleSelect(match ? match.id : query.trim());
@@ -280,7 +329,7 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
             left: 0,
             right: 0,
             width: '100%',
-            maxHeight: '260px',
+            maxHeight: '280px',
             background: 'var(--surface)',
             border: '1px solid var(--border)',
             borderRadius: '10px',
@@ -292,8 +341,8 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
             boxSizing: 'border-box',
           }}
         >
-          <div className="emoji-dropdown-scroll">
-            {/* If user typed a custom ID / text not in presets */}
+          <div className="emoji-dropdown-scroll" style={{ maxHeight: '270px', overflowY: 'auto' }}>
+            {/* If user typed a custom ID / text not in list */}
             {isCustomQuery && (
               <div
                 onClick={() => handleSelect(query.trim())}
@@ -356,19 +405,20 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
               )}
             </div>
 
-            {/* VPN Presets list */}
+            {/* Emoji List */}
             {filteredEmojis.map((opt) => {
               const isSelected = trimmedValue === opt.id;
+              const isCustom = opt.category === 'Custom' || !opt.is_system;
 
               return (
                 <div
-                  key={opt.id}
+                  key={`${opt.category || 'all'}-${opt.id}`}
                   onClick={() => handleSelect(opt.id)}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    gap: '14px',
+                    gap: '10px',
                     padding: '8px 12px',
                     borderRadius: '6px',
                     fontSize: '13px',
@@ -388,7 +438,26 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
                     if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
                   }}
                 >
-                  <span>{opt.name}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, overflow: 'hidden' }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {opt.name}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: '10px',
+                        padding: '1px 6px',
+                        borderRadius: '999px',
+                        fontWeight: 600,
+                        background: isCustom
+                          ? 'color-mix(in srgb, var(--accent) 15%, transparent)'
+                          : 'var(--surface-2)',
+                        color: isCustom ? 'var(--accent)' : 'var(--muted)',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {opt.category || (isCustom ? 'Custom' : 'Preset')}
+                    </span>
+                  </div>
                   {isSelected && (
                     <Check size={14} style={{ color: 'var(--accent)', strokeWidth: 2.5, flexShrink: 0 }} />
                   )}
@@ -405,7 +474,7 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
                   textAlign: 'center',
                 }}
               >
-                No matching VPN emojis
+                No matching emojis found
               </div>
             )}
           </div>

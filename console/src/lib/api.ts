@@ -52,6 +52,21 @@ export interface Category {
   custom_emoji_id?: string;
 }
 
+export interface EmojiLibraryItem {
+  id?: number;
+  name: string;
+  emoji_id: string;
+  is_system: boolean;
+  category?: string;
+  created_at?: string;
+}
+
+export interface EmojiLibraryResponse {
+  system: EmojiLibraryItem[];
+  custom: EmojiLibraryItem[];
+  all: EmojiLibraryItem[];
+}
+
 export interface Product {
   id: number;
   category_id?: number;
@@ -597,6 +612,16 @@ export const api = {
     }>('/api/admin/broadcast'),
   deleteBroadcast: (id: number) =>
     request<{ success: boolean }>(`/api/admin/broadcast/${id}`, { method: 'DELETE' }),
+
+  // Emoji Library
+  emojis: () => request<EmojiLibraryResponse>('/api/admin/emojis'),
+  createEmoji: (data: { name: string; emoji_id: string }) =>
+    request<{ success: boolean; id: number }>('/api/admin/emojis', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  deleteEmoji: (id: string | number) =>
+    request<{ success: boolean }>(`/api/admin/emojis/${id}`, { method: 'DELETE' }),
 
   // Settings
   settings: () => request<Record<string, string>>('/api/admin/settings'),

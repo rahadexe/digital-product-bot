@@ -7,6 +7,7 @@ from app.api.admin import (
     catalog,
     channels,
     deposits,
+    emojis,
     inventory,
     orders,
     overview,
@@ -22,6 +23,6 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 router.include_router(session.router)
 
 protected = APIRouter(dependencies=[Depends(require_admin)])
-for module in (overview, catalog, inventory, orders, deposits, payments, users, channels, broadcast, settings, supplier):
+for module in (overview, catalog, inventory, orders, deposits, payments, users, channels, broadcast, settings, supplier, emojis):
     protected.include_router(module.router)
 router.include_router(protected)

@@ -17,12 +17,14 @@ import {
   X,
   FolderTree,
   Clock,
+  Sparkles,
   type LucideIcon,
 } from 'lucide-react';
 import { api, setCsrf } from '@/lib/api';
 import { Broadcast } from '@/components/Broadcast';
 import { Categories } from '@/components/Categories';
 import { Validities } from '@/components/Validities';
+import { Emojis } from '@/components/Emojis';
 import { Deposits } from '@/components/Deposits';
 import { Inventory } from '@/components/Inventory';
 import { Orders } from '@/components/Orders';
@@ -39,6 +41,7 @@ type Key =
   | 'products'
   | 'categories'
   | 'validities'
+  | 'emojis'
   | 'deposits'
   | 'users'
   | 'broadcast'
@@ -52,6 +55,7 @@ const ITEMS: { key: Key; label: string; icon: LucideIcon }[] = [
   { key: 'products', label: 'Products', icon: Package },
   { key: 'categories', label: 'Categories', icon: FolderTree },
   { key: 'validities', label: 'Validities', icon: Clock },
+  { key: 'emojis', label: 'Emoji Library', icon: Sparkles },
   { key: 'deposits', label: 'Deposits', icon: Wallet },
   { key: 'users', label: 'Customers', icon: UsersIcon },
   { key: 'broadcast', label: 'Broadcast', icon: Megaphone },
@@ -311,6 +315,7 @@ export default function ConsolePage() {
           {screen.key === 'products' ? <Products say={say} /> : null}
           {screen.key === 'categories' ? <Categories say={say} /> : null}
           {screen.key === 'validities' ? <Validities say={say} /> : null}
+          {screen.key === 'emojis' ? <Emojis say={say} /> : null}
           {screen.key === 'inventory' ? <Inventory say={say} /> : null}
           {screen.key === 'users' ? <Users say={say} /> : null}
           {screen.key === 'broadcast' ? <Broadcast say={say} /> : null}
