@@ -123,7 +123,12 @@ export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) =
           <div className="stat-card-value">{money(stats.total_revenue)}</div>
         </div>
 
-        <div className="stat-card">
+        <div
+          className="stat-card"
+          style={{ cursor: 'pointer' }}
+          onClick={() => { window.location.hash = '#orders'; }}
+          title="View orders"
+        >
           <div className="stat-card-top">
             <span className="stat-card-label">Orders</span>
             <ShoppingBag className="stat-card-icon" />
@@ -131,15 +136,25 @@ export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) =
           <div className="stat-card-value">{stats.total_orders}</div>
         </div>
 
-        <div className="stat-card">
+        <div
+          className="stat-card"
+          style={{ cursor: 'pointer' }}
+          onClick={() => { window.location.hash = '#users'; }}
+          title="View all customers"
+        >
           <div className="stat-card-top">
-            <span className="stat-card-label">Unique Customers</span>
+            <span className="stat-card-label">Total Customers</span>
             <Users className="stat-card-icon" />
           </div>
           <div className="stat-card-value">{stats.total_users}</div>
         </div>
 
-        <div className="stat-card">
+        <div
+          className="stat-card"
+          style={{ cursor: 'pointer' }}
+          onClick={() => { window.location.hash = '#orders'; }}
+          title="View delivered orders"
+        >
           <div className="stat-card-top">
             <span className="stat-card-label">Delivered</span>
             <PackageCheck className="stat-card-icon" />
