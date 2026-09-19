@@ -56,13 +56,11 @@ const SECTIONS: Section[] = [
     id: 'store',
     tab: 'general',
     title: 'Bot Profile & Admin Settings',
-    description: 'Core bot identity, support contact, store currency, and admin notification recipients.',
+    description: 'Core bot identity, support contact, and admin notification recipients.',
     subhead: 'Bot & Store Identity',
     fields: [
       { key: 'store_name', label: 'Bot / Store Name', placeholder: 'PremiumOne' },
       { key: 'support_username', label: 'Telegram Support Username', placeholder: '@username' },
-      { key: 'currency_symbol', label: 'Currency Symbol', placeholder: '৳' },
-      { key: 'currency', label: 'Currency Code', placeholder: 'BDT' },
     ],
   },
   {
@@ -212,7 +210,7 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
   const changedIn = (section: Section) =>
     section.fields.filter((field) => field.type !== 'toggle' && (field.secret ? Boolean(secrets[field.key]?.trim()) : (values[field.key] ?? '') !== (saved?.[field.key] ?? '')));
   const unsaved = SECTIONS.some((section) => changedIn(section).length > 0);
-  const symbol = values.currency_symbol || '$';
+  const symbol = values.currency_symbol || '৳';
 
   // Leaving or reloading with typed but unsaved values asks first.
   useEffect(() => {
