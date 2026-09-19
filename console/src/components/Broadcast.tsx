@@ -26,6 +26,10 @@ export function Broadcast({ say }: { say: Say }) {
   const [showPreview, setShowPreview] = useState(true);
   const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
   const [selectedBroadcast, setSelectedBroadcast] = useState<RecentBroadcast | null>(null);
+  const [linkModalOpen, setLinkModalOpen] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('https://');
+  const [linkText, setLinkText] = useState('');
+  const selectionRange = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
   const [confirm, confirmDialog] = useConfirm();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -74,20 +78,40 @@ export function Broadcast({ say }: { say: Say }) {
     }, 10);
   }
 
-  function insertLink() {
-    const url = window.prompt('Enter URL (https://...):', 'https://');
-    if (!url) return;
+  function openLinkModal() {
     const el = textareaRef.current;
-    if (!el) return;
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const selected = text.slice(start, end) || 'link';
-    const replacement = `<a href="${url}">${selected}</a>`;
+    if (el) {
+      const start = el.selectionStart;
+      const end = el.selectionEnd;
+      selectionRange.current = { start, end };
+      const selected = text.slice(start, end);
+      setLinkText(selected || '');
+    } else {
+      selectionRange.current = { start: text.length, end: text.length };
+      setLinkText('');
+    }
+    setLinkUrl('https://');
+    setLinkModalOpen(true);
+  }
+
+  function applyLink(e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    const url = linkUrl.trim();
+    if (!url) return;
+    const label = linkText.trim() || url;
+    const { start, end } = selectionRange.current;
+    const replacement = `<a href="${url}">${label}</a>`;
     const newText = text.slice(0, start) + replacement + text.slice(end);
     setText(newText);
+    setLinkModalOpen(false);
     setTimeout(() => {
-      el.focus();
-    }, 10);
+      const el = textareaRef.current;
+      if (el) {
+        el.focus();
+        const pos = start + replacement.length;
+        el.setSelectionRange(pos, pos);
+      }
+    }, 50);
   }
 
   function copyCommand(cmd: string) {
@@ -375,7 +399,7 @@ export function Broadcast({ say }: { say: Say }) {
                 <button
                   type="button"
                   className="mini ghost"
-                  onClick={insertLink}
+                  onClick={openLinkModal}
                   title="Link"
                   style={{ height: '28px', padding: '0 8px', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px' }}
                 >
@@ -736,6 +760,57 @@ export function Broadcast({ say }: { say: Say }) {
                 dangerouslySetInnerHTML={{ __html: renderSafeTelegramHtml(selectedBroadcast.text) }}
               />
             </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Add Link Modal */}
+      {linkModalOpen && (
+        <Modal
+          title="Add Link"
+          onClose={() => setLinkModalOpen(false)}
+          onSubmit={applyLink}
+          footer={
+            <>
+              <button
+                type="button"
+                className="btn ghost mini"
+                onClick={() => setLinkModalOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="btn mini"
+                disabled={!linkUrl.trim() || linkUrl.trim() === 'https://'}
+              >
+                Insert Link
+              </button>
+            </>
+          }
+        >
+          <div className="stack" style={{ gap: '14px' }}>
+            <label className="field">
+              <span>Text to display</span>
+              <input
+                type="text"
+                placeholder="e.g. Join our channel"
+                value={linkText}
+                onChange={(e) => setLinkText(e.target.value)}
+              />
+            </label>
+
+            <label className="field">
+              <span>Link URL</span>
+              <input
+                type="url"
+                autoFocus
+                required
+                placeholder="https://t.me/..."
+                value={linkUrl}
+                onChange={(e) => setLinkUrl(e.target.value)}
+              />
+            </label>
           </div>
         </Modal>
       )}
