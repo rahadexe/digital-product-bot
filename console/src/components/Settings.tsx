@@ -11,6 +11,7 @@ import { GateChannels } from './GateChannels';
 import { PaymentMethods } from './PaymentMethods';
 import { UpdateChannels } from './UpdateChannels';
 import { FlagRow, Switch, errorText, type Say } from './ui';
+import { RotateCcw, Save } from 'lucide-react';
 
 export type SettingsTab = 'store' | 'notifications' | 'notices' | 'access' | 'payments';
 
@@ -329,6 +330,32 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
     );
   }
 
+  function renderSaveActions(section: Section) {
+    const isSaving = savingSection === section.id;
+    return (
+      <div className="panel-save-actions">
+        <button
+          type="button"
+          className="btn ghost small"
+          onClick={() => discard(section)}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+        >
+          <RotateCcw size={13} />
+          <span>Undo</span>
+        </button>
+        <button
+          type="submit"
+          className="btn small"
+          disabled={isSaving}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+        >
+          <Save size={14} />
+          <span>{isSaving ? 'Saving…' : 'Save'}</span>
+        </button>
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="segmented" role="tablist" aria-label="Settings">
@@ -351,7 +378,7 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
 
       {SECTIONS.filter((section) => section.tab === tab).map((section) => {
         const on = section.master ? isOn(section.master.key) : true;
-        const changed = changedIn(section).length;
+        const changed = changedIn(section).length > 0;
         const inputs = section.fields.filter((field) => field.type !== 'toggle');
         const toggles = section.fields.filter((field) => field.type === 'toggle');
         return (
@@ -369,17 +396,6 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
                   {section.master && (on ? section.master.on : section.master.off) ? <p>{on ? section.master.on : section.master.off}</p> : null}
                 </div>
                 <div className="actions">
-                  {changed ? (
-                    <>
-                      <span className="unsaved">Unsaved</span>
-                      <button type="button" className="btn ghost small" onClick={() => discard(section)}>
-                        Undo
-                      </button>
-                      <button type="submit" className="btn small" disabled={savingSection === section.id}>
-                        {savingSection === section.id ? 'Saving…' : 'Save'}
-                      </button>
-                    </>
-                  ) : null}
                   {section.master ? <Switch label={section.title} on={on} onChange={(next) => void flip(section.master!.key, next)} /> : null}
                 </div>
               </header>
@@ -387,8 +403,26 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
               {toggles.map((field) => (
                 <FlagRow key={field.key} label={field.label} hint={field.hint} on={isOn(field.key)} onChange={(next) => void flip(field.key, next)} />
               ))}
-              {section.extra === 'zinipay' ? <ZiniPayExtra status={payStatus} setStatus={setPayStatus} say={say} /> : null}
-              {section.extra === 'binance' ? <BinanceExtra status={binance} say={say} /> : null}
+              {section.extra === 'zinipay' ? (
+                <ZiniPayExtra
+                  status={payStatus}
+                  setStatus={setPayStatus}
+                  say={say}
+                  saveActions={changed ? renderSaveActions(section) : null}
+                />
+              ) : null}
+              {section.extra === 'binance' ? (
+                <BinanceExtra
+                  status={binance}
+                  say={say}
+                  saveActions={changed ? renderSaveActions(section) : null}
+                />
+              ) : null}
+              {!section.extra && changed ? (
+                <div className="panel-actions panel-actions-save-only">
+                  {renderSaveActions(section)}
+                </div>
+              ) : null}
             </form>
             {section.id === 'zinipay_autoverify' ? <PaymentMethods say={say} symbol={symbol} zinipayActive={isOn('zinipay_enabled')} /> : null}
           </Fragment>
@@ -425,7 +459,17 @@ function useRunner(say: Say) {
   return { busy, run };
 }
 
-function ZiniPayExtra({ status, setStatus, say }: { status: PaymentsStatus | null; setStatus: (status: PaymentsStatus | null) => void; say: Say }) {
+function ZiniPayExtra({
+  status,
+  setStatus,
+  say,
+  saveActions,
+}: {
+  status: PaymentsStatus | null;
+  setStatus: (status: PaymentsStatus | null) => void;
+  say: Say;
+  saveActions?: React.ReactNode;
+}) {
   const { busy, run } = useRunner(say);
   const ready = Boolean(status?.has_api_key);
   return (
@@ -442,49 +486,60 @@ function ZiniPayExtra({ status, setStatus, say }: { status: PaymentsStatus | nul
         </div>
       ) : null}
       <div className="panel-actions">
-        <button type="button" className="mini" disabled={busy || !ready} onClick={() => run(async () => (await api.testPayments()).message)}>
-          Test connection
-        </button>
-        <button
-          type="button"
-          className="mini"
-          disabled={busy || !ready}
-          onClick={() =>
-            run(async () => {
-              const result = await api.testPaymentPage();
-              if (!result.ok) throw new Error(result.message);
-              if (result.payment_url) window.open(result.payment_url, '_blank', 'noopener');
-              return result.message;
-            })
-          }
-        >
-          Open a test payment
-        </button>
-        <button
-          type="button"
-          className="mini"
-          disabled={busy || !ready}
-          onClick={() =>
-            run(async () => {
-              const result = await api.checkPendingPayments();
-              setStatus(await api.paymentsStatus().catch(() => null));
-              return result.checked ? `Checked ${result.checked}.` : 'Nothing unpaid.';
-            })
-          }
-        >
-          Check unpaid
-        </button>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <button type="button" className="mini" disabled={busy || !ready} onClick={() => run(async () => (await api.testPayments()).message)}>
+            Test connection
+          </button>
+          <button
+            type="button"
+            className="mini"
+            disabled={busy || !ready}
+            onClick={() =>
+              run(async () => {
+                const result = await api.testPaymentPage();
+                if (!result.ok) throw new Error(result.message);
+                if (result.payment_url) window.open(result.payment_url, '_blank', 'noopener');
+                return result.message;
+              })
+            }
+          >
+            Open a test payment
+          </button>
+          <button
+            type="button"
+            className="mini"
+            disabled={busy || !ready}
+            onClick={() =>
+              run(async () => {
+                const result = await api.checkPendingPayments();
+                setStatus(await api.paymentsStatus().catch(() => null));
+                return result.checked ? `Checked ${result.checked}.` : 'Nothing unpaid.';
+              })
+            }
+          >
+            Check unpaid
+          </button>
+        </div>
+        {saveActions}
       </div>
     </>
   );
 }
 
-function BinanceExtra({ status, say }: { status: BinanceStatus | null; say: Say }) {
+function BinanceExtra({
+  status,
+  say,
+  saveActions,
+}: {
+  status: BinanceStatus | null;
+  say: Say;
+  saveActions?: React.ReactNode;
+}) {
   const { busy, run } = useRunner(say);
   const ready = Boolean(status?.has_credentials);
   return (
-    <>
-      <div className="panel-actions">
+    <div className="panel-actions">
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
         <button type="button" className="mini" disabled={busy || !ready} onClick={() => run(async () => (await api.testBinance()).message)}>
           Test connection
         </button>
@@ -502,7 +557,8 @@ function BinanceExtra({ status, say }: { status: BinanceStatus | null; say: Say 
           Check waiting
         </button>
       </div>
-    </>
+      {saveActions}
+    </div>
   );
 }
 

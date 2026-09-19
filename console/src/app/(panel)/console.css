@@ -671,7 +671,25 @@ select {
 
 .facts { display: grid; gap: 4px; padding: 12px 18px; border-top: 1px solid var(--line); color: var(--text-dim); font-size: 12.5px; }
 .facts code { padding: 1px 6px; background: var(--surface-2); border-radius: 5px; word-break: break-all; }
-.panel-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--line); }
+.panel-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--line);
+}
+.panel-actions-save-only {
+  justify-content: flex-end;
+}
+.panel-save-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  animation: fade-in 140ms ease;
+}
 
 .banners { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; padding: 16px 18px; }
 .banners figure { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-sm); }
