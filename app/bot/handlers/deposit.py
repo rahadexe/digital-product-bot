@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import time
 from contextlib import suppress
 from html import escape
 
@@ -49,7 +50,10 @@ router = Router(name="deposit_router")
 
 # Validates standard transaction IDs and numeric UIDs (bKash, Nagad, Binance, etc.)
 TRANSACTION_ID_REGEX = re.compile(r"^[A-Za-z0-9_\-]{5,80}$")
-PAYMENT_REFERENCE = re.compile(r"SM[0-9A-F]{16}")
+# Rate limiting and attempt limits for automated TrxID verification
+MAX_VERIFY_ATTEMPTS = 3
+VERIFY_COOLDOWN_SECONDS = 600  # 10 minutes lockout after 3 failed attempts
+_USER_VERIFY_FAILS: dict[int, list[float]] = {}
 
 
 class DepositStates(StatesGroup):
@@ -666,6 +670,30 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         )
         return
 
+    now = time.time()
+    user_id = message.from_user.id
+    fails = [t for t in _USER_VERIFY_FAILS.get(user_id, []) if now - t < VERIFY_COOLDOWN_SECONDS]
+    _USER_VERIFY_FAILS[user_id] = fails
+
+    if len(fails) >= MAX_VERIFY_ATTEMPTS:
+        remaining_sec = int(VERIFY_COOLDOWN_SECONDS - (now - fails[0]))
+        rem_min = max(1, (remaining_sec + 59) // 60)
+        await state.clear()
+        support_user = await services.settings.get("support_contact")
+        kb = [[InlineKeyboardButton(text="Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)]]
+        if support_user:
+            clean_sup = support_user.lstrip("@")
+            kb.insert(0, [InlineKeyboardButton(text="Contact Support", url=f"https://t.me/{clean_sup}", icon_custom_emoji_id=Icons.SUPPORT)])
+        await message.answer(
+            f"{ICON_CROSS} <b>ভেরিফিকেশন সাময়িক স্থগিত!</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"⚠️ আপনি পরপর {MAX_VERIFY_ATTEMPTS} বার ভুল Transaction ID দিয়েছেন।\n"
+            f"সার্ভারের নিরাপত্তা নিশ্চিত করতে আপনার অ্যাকাউন্ট থেকে পরবর্তী <b>{rem_min} মিনিট</b> কোনো ডিপোজিট ভেরিফাই করা যাবে না।\n\n"
+            f"আপনার পেমেন্ট ঠিক থাকলে অনুগ্রহ করে সাপোর্ট অ্যাডমিনের সাথে যোগাযোগ করুন।",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
+        )
+        return
+
     data = await state.get_data()
     method_id = data.get("method_id")
     amount_num = data.get("manual_amount")
@@ -703,11 +731,36 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             )
             logger.info("ZiniPay claim result: %s", res)
         except DuplicateTransactionError:
+            now = time.time()
+            fails = [t for t in _USER_VERIFY_FAILS.get(user_id, []) if now - t < VERIFY_COOLDOWN_SECONDS]
+            fails.append(now)
+            _USER_VERIFY_FAILS[user_id] = fails
+            remaining_attempts = MAX_VERIFY_ATTEMPTS - len(fails)
+
+            if remaining_attempts <= 0:
+                await state.clear()
+                support_user = await services.settings.get("support_contact")
+                kb = [[InlineKeyboardButton(text="Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)]]
+                if support_user:
+                    clean_sup = support_user.lstrip("@")
+                    kb.insert(0, [InlineKeyboardButton(text="Contact Support", url=f"https://t.me/{clean_sup}", icon_custom_emoji_id=Icons.SUPPORT)])
+                await _safe_edit_or_answer(
+                    status_msg,
+                    message,
+                    f"{ICON_CROSS} <b>পেমেন্ট ইতোমধ্যে প্রসেস হয়েছে ({MAX_VERIFY_ATTEMPTS}/{MAX_VERIFY_ATTEMPTS})</b>\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"এই Transaction ID (<code>{escape(clean_tx)}</code>) আগেই জমা দেওয়া হয়েছে।\n\n"
+                    f"⚠️ আপনি পরপর {MAX_VERIFY_ATTEMPTS} বার ভুল বা ব্যবহৃত TrxID দিয়েছেন। পরবর্তী <b>১০ মিনিট</b> চেষ্টা স্থগিত থাকবে।",
+                    reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
+                )
+                return
+
             await _safe_edit_or_answer(
                 status_msg,
                 message,
-                f"{ICON_CROSS} <b>পেমেন্ট ইতোমধ্যে প্রসেস হয়েছে</b>\n\n"
-                f"এই Transaction ID (<code>{escape(clean_tx)}</code>) আগেই জমা দেওয়া হয়েছে।",
+                f"{ICON_CROSS} <b>পেমেন্ট ইতোমধ্যে প্রসেস হয়েছে ({len(fails)}/{MAX_VERIFY_ATTEMPTS})</b>\n\n"
+                f"এই Transaction ID (<code>{escape(clean_tx)}</code>) আগেই জমা দেওয়া হয়েছে।\n"
+                f"⚠️ আর <b>{remaining_attempts} বার</b> চেষ্টা করতে পারবেন।",
                 reply_markup=get_deposit_txid_keyboard(),
             )
             return
@@ -733,6 +786,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             return
 
         if res.get("auto_verified") and res.get("credited"):
+            _USER_VERIFY_FAILS.pop(user_id, None)
             await state.clear()
             user = await services.users.get(message.from_user.id)
             user_balance = user["balance"] if user else 0.0
@@ -761,13 +815,44 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             return
 
         if res.get("error"):
+            now = time.time()
+            fails = [t for t in _USER_VERIFY_FAILS.get(user_id, []) if now - t < VERIFY_COOLDOWN_SECONDS]
+            fails.append(now)
+            _USER_VERIFY_FAILS[user_id] = fails
+            remaining_attempts = MAX_VERIFY_ATTEMPTS - len(fails)
+
+            if remaining_attempts <= 0:
+                await state.clear()
+                support_user = await services.settings.get("support_contact")
+                kb = [
+                    [InlineKeyboardButton(text="Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)]
+                ]
+                if support_user:
+                    clean_sup = support_user.lstrip("@")
+                    kb.insert(0, [InlineKeyboardButton(text="Contact Support", url=f"https://t.me/{clean_sup}", icon_custom_emoji_id=Icons.SUPPORT)])
+
+                await _safe_edit_or_answer(
+                    status_msg,
+                    message,
+                    f"{ICON_CROSS} <b>যাচাই ব্যর্থ ({MAX_VERIFY_ATTEMPTS}/{MAX_VERIFY_ATTEMPTS}) — সর্বোচ্চ সীমা অতিক্রম</b>\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"{escape(res.get('detail', ''))}\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"⚠️ আপনি পরপর {MAX_VERIFY_ATTEMPTS} বার ভুল Transaction ID দিয়েছেন।\n"
+                    f"নিরাপত্তার স্বার্থে পরবর্তী <b>১০ মিনিট</b> আর চেষ্টা করা যাবে না।\n\n"
+                    f"আপনার পেমেন্ট সম্পন্ন হয়ে থাকলে অনুগ্রহ করে সাপোর্ট অ্যাডমিনের সাথে যোগাযোগ করুন।",
+                    reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
+                )
+                return
+
             await _safe_edit_or_answer(
                 status_msg,
                 message,
-                f"{ICON_CROSS} <b>যাচাই ব্যর্থ</b>\n"
+                f"{ICON_CROSS} <b>যাচাই ব্যর্থ ({len(fails)}/{MAX_VERIFY_ATTEMPTS})</b>\n"
                 f"━━━━━━━━━━━━━━━━━━\n"
                 f"{escape(res.get('detail', ''))}\n"
                 f"━━━━━━━━━━━━━━━━━━\n"
+                f"⚠️ আর <b>{remaining_attempts} বার</b> চেষ্টা করতে পারবেন।\n\n"
                 f"আপনার TrxID চেক করে আবার দিন, অথবা ভুল পরিমাণ দিলে <b>Change Amount</b> এ ক্লিক করুন:",
                 reply_markup=get_deposit_txid_keyboard(),
             )
