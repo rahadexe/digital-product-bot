@@ -116,27 +116,18 @@ const SECTIONS: Section[] = [
     ],
   },
   {
-    id: 'zinipay',
-    tab: 'payments',
-    title: 'ZiniPay',
-    master: { key: 'zinipay_enabled' },
-    fields: [
-      { key: 'zinipay_api_key', label: 'API key', type: 'password', secret: 'zinipay_api_key' },
-      { key: 'zinipay_brand_url', label: 'Brand website URL', placeholder: 'https://myshop.com' },
-      { key: 'zinipay_label', label: 'Name customers see', maxLength: 40, placeholder: 'bKash / Nagad · Instant' },
-      { key: 'zinipay_min_deposit', label: 'Smallest deposit', type: 'number', fallback: '1', money: true },
-    ],
-    extra: 'zinipay',
-  },
-  {
     id: 'binance',
     tab: 'payments',
-    title: 'Binance',
-    master: { key: 'binance_enabled' },
+    title: 'Binance Pay (Crypto)',
+    master: {
+      key: 'binance_enabled',
+      on: 'Binance Pay is active in Telegram bot',
+      off: 'Binance Pay is turned off',
+    },
     fields: [
-      { key: 'binance_api_key', label: 'API key (Read-only)', type: 'password', secret: 'binance_api_key' },
+      { key: 'binance_pay_id', label: 'Our Binance UID', placeholder: '750176717', hint: 'Customers will send USDT to this Binance UID.' },
+      { key: 'binance_api_key', label: 'API key (Read-only)', type: 'password', secret: 'binance_api_key', hint: 'Read-only API key from Binance to verify incoming Pay transactions.' },
       { key: 'binance_api_secret', label: 'API secret', type: 'password', secret: 'binance_api_secret' },
-      { key: 'binance_pay_id', label: 'Our Binance UID', placeholder: '12345678' },
       {
         key: 'binance_coin',
         label: 'Coin',
@@ -146,11 +137,46 @@ const SECTIONS: Section[] = [
           { value: 'USDT', label: 'USDT' },
         ],
       },
-      { key: 'binance_pay_rate', label: 'Rate per coin', type: 'number', fallback: '125' },
-      { key: 'binance_pay_min', label: 'Smallest deposit', type: 'number', fallback: '100', money: true },
-      { key: 'binance_pay_instructions', label: 'Custom instructions (optional)', type: 'textarea', rows: 2, placeholder: 'Send USDT to our Binance UID.' },
+      { key: 'binance_pay_rate', label: 'Rate per 1 USDT (৳)', type: 'number', fallback: '125', hint: 'Exchange rate: 1 USDT = how many ৳.' },
+      { key: 'binance_pay_min', label: 'Smallest deposit (৳)', type: 'number', fallback: '100', money: true, hint: 'Minimum deposit equivalent in ৳ (e.g. 100 ৳ = ~0.8 USDT).' },
+      { key: 'binance_pay_instructions', label: 'Custom instructions (optional)', type: 'textarea', rows: 3, placeholder: 'Send USDT via Binance Pay to our UID. Enter amount and Order ID/UID to verify.' },
     ],
     extra: 'binance',
+  },
+  {
+    id: 'zinipay_autoverify',
+    tab: 'payments',
+    title: 'Local Payments Auto-Verification (ZiniPay TrxID API)',
+    master: {
+      key: 'zinipay_enabled',
+      on: 'Auto-verification active: TrxIDs entered in Telegram bot are verified in real-time via ZiniPay API.',
+      off: 'Auto-verification off: Customer deposits will wait for manual review in the Deposits tab.',
+    },
+    fields: [
+      {
+        key: 'zinipay_api_key',
+        label: 'ZiniPay API Key',
+        type: 'password',
+        secret: 'zinipay_api_key',
+        hint: 'Your API key from ZiniPay Dashboard. Used to auto-verify bKash, Nagad & Rocket transactions in the bot.',
+      },
+    ],
+  },
+  {
+    id: 'zinipay_web',
+    tab: 'payments',
+    title: 'Optional: External Web Checkout Page (Hosted ZiniPay Gateway)',
+    master: {
+      key: 'zinipay_web_gateway_enabled',
+      on: 'External web payment invoice link enabled in bot.',
+      off: 'Disabled. Customers stay 100% inside Telegram (Recommended).',
+    },
+    fields: [
+      { key: 'zinipay_brand_url', label: 'Brand website URL', placeholder: 'https://myshop.com', hint: 'Your website domain registered in ZiniPay (e.g. Cloudflare tunnel or domain).' },
+      { key: 'zinipay_label', label: 'Name customers see', maxLength: 40, placeholder: 'Instant Web Checkout' },
+      { key: 'zinipay_min_deposit', label: 'Smallest deposit', type: 'number', fallback: '10', money: true },
+    ],
+    extra: 'zinipay',
   },
 ];
 
@@ -209,7 +235,7 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
       await api.updateSettings({ [key]: value });
       setSaved((current) => ({ ...(current ?? {}), [key]: value }));
       say(on ? 'On.' : 'Off.');
-      if (key === 'zinipay_enabled' || key === 'binance_enabled') void refreshGateways();
+      if (key === 'zinipay_enabled' || key === 'zinipay_web_gateway_enabled' || key === 'binance_enabled') void refreshGateways();
     } catch (cause) {
       setValues((current) => ({ ...current, [key]: before }));
       say(errorText(cause, 'Could not change that.'), 'bad');
@@ -371,7 +397,7 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
               {section.extra === 'zinipay' ? <ZiniPayExtra status={payStatus} setStatus={setPayStatus} say={say} /> : null}
               {section.extra === 'binance' ? <BinanceExtra status={binance} say={say} /> : null}
             </form>
-            {section.id === 'binance' ? <PaymentMethods say={say} symbol={symbol} /> : null}
+            {section.id === 'zinipay_autoverify' ? <PaymentMethods say={say} symbol={symbol} zinipayActive={isOn('zinipay_enabled')} /> : null}
           </Fragment>
         );
       })}

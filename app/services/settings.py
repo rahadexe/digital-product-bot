@@ -129,6 +129,7 @@ SPECS: dict[str, SettingSpec] = {
     "supplier_api_key": SettingSpec("", secret=True),
     # ZiniPay instant payments: credited automatically after ZiniPay confirms each payment.
     "zinipay_enabled": SettingSpec("0", _flag, 1),
+    "zinipay_web_gateway_enabled": SettingSpec("0", _flag, 1),
     "zinipay_api_key": SettingSpec("", secret=True),
     "zinipay_brand_url": SettingSpec("", max_length=256),
     "zinipay_rate": SettingSpec("1.0", _number(0.0001, 1_000_000), 16),

@@ -194,7 +194,7 @@ class PaymentService:
         """Instant payment as the storefront offers it, or None when it is off or not fully configured."""
         values = await self.settings.values()
         base = self.public_base_url(values.get("zinipay_brand_url", ""))
-        if values["zinipay_enabled"] != "1" or not await self._api_key() or not base:
+        if values.get("zinipay_web_gateway_enabled") != "1" or not await self._api_key() or not base:
             return None
         return {
             "label": values["zinipay_label"],
@@ -207,6 +207,7 @@ class PaymentService:
         values = await self.settings.values()
         base = self.public_base_url(values.get("zinipay_brand_url", ""))
         has_key = bool(await self._api_key())
+        web_enabled = values.get("zinipay_web_gateway_enabled") == "1"
         async with self.db.connect() as conn:
             counts = {
                 row["status"]: row["count"]
@@ -218,11 +219,11 @@ class PaymentService:
                 "ORDER BY updated_at DESC LIMIT 1"
             )
         return {
-            "enabled": values["zinipay_enabled"] == "1",
+            "enabled": web_enabled,
             "has_api_key": has_key,
             "public_url": base,
             "webhook_url": f"{base}/api/payments/zinipay/webhook" if base else "",
-            "ready": values["zinipay_enabled"] == "1" and has_key and bool(base),
+            "ready": web_enabled and has_key and bool(base),
             "counts": counts,
             "last_error": failure["last_error"] if failure else "",
             "last_error_at": failure["updated_at"].isoformat() if failure else None,

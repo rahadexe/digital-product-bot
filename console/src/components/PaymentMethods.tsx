@@ -75,7 +75,7 @@ function kindOf(method: DepositMethod): Kind {
 
 type Draft = { kind: Kind; method: DepositMethod | null };
 
-export function PaymentMethods({ say, symbol }: { say: Say; symbol: string }) {
+export function PaymentMethods({ say, symbol, zinipayActive }: { say: Say; symbol: string; zinipayActive?: boolean }) {
   const [methods, setMethods] = useState<DepositMethod[] | null>(null);
   const [choosing, setChoosing] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -107,14 +107,21 @@ export function PaymentMethods({ say, symbol }: { say: Say; symbol: string }) {
       <section className="panel">
         <header>
           <div>
-            <h2>Custom Payment Methods (Manual)</h2>
+            <h2>Local Payment Accounts (bKash / Nagad / Rocket)</h2>
+            <p>
+              {zinipayActive
+                ? '⚡ Auto-verification active: When customers pay to these numbers and enter their TrxID in Telegram, ZiniPay verifies it automatically. If unmatched, it falls back to manual review.'
+                : 'Manual approval mode: Customers send money to these numbers, and you approve deposits in the Deposits tab.'}
+            </p>
           </div>
           <button type="button" className="btn small" onClick={() => setChoosing(true)}>
-            Add method
+            Add account
           </button>
         </header>
         {!methods ? <p className="note">Loading…</p> : null}
-        {methods && manualMethods.length === 0 ? <p className="note">No manual methods added. Only automated gateways (ZiniPay / Binance) will appear in the bot.</p> : null}
+        {methods && manualMethods.length === 0 ? (
+          <p className="note">No payment accounts added yet. Click &ldquo;Add account&rdquo; to add your bKash, Nagad, or Rocket numbers.</p>
+        ) : null}
         <div className="rows">
           {manualMethods.map((method) => (
             <div key={method.id} className={`row${method.is_active ? '' : ' off'}`}>
@@ -124,7 +131,8 @@ export function PaymentMethods({ say, symbol }: { say: Say; symbol: string }) {
                   {method.is_active ? '' : ' · off'}
                 </strong>
                 <small>
-                  You approve · from {money(method.min_deposit)}
+                  {zinipayActive ? '⚡ Auto-Verified (ZiniPay API) · ' : 'Manual review · '}
+                  from {money(method.min_deposit)}
                 </small>
                 <code className="key" title={method.account_info}>
                   {method.account_info}
