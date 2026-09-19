@@ -34,6 +34,8 @@ SYSTEM_EMOJIS: list[dict[str, Any]] = [
     {"name": "bKash", "emoji_id": "6217678000977089090", "category": "Payment", "is_system": True},
     {"name": "Nagad", "emoji_id": "6217625168584380551", "category": "Payment", "is_system": True},
     {"name": "Rocket", "emoji_id": "4911601033496494993", "category": "Payment", "is_system": True},
+    {"name": "Binance", "emoji_id": "5348212415077064131", "category": "Payment", "is_system": True},
+    {"name": "Bybit", "emoji_id": "5348372939479751825", "category": "Payment", "is_system": True},
 
     # Services & Platforms
     {"name": "ChatGPT", "emoji_id": "5453962468478962129", "category": "Services", "is_system": True},

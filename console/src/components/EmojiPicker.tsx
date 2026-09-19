@@ -32,6 +32,8 @@ export const PRESET_EMOJIS: EmojiItem[] = [
   { name: 'bKash', id: '6217678000977089090', category: 'Payment', is_system: true },
   { name: 'Nagad', id: '6217625168584380551', category: 'Payment', is_system: true },
   { name: 'Rocket', id: '4911601033496494993', category: 'Payment', is_system: true },
+  { name: 'Binance', id: '5348212415077064131', category: 'Payment', is_system: true },
+  { name: 'Bybit', id: '5348372939479751825', category: 'Payment', is_system: true },
 
   // Services & Platforms
   { name: 'ChatGPT', id: '5453962468478962129', category: 'Services', is_system: true },
