@@ -649,7 +649,7 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
         f"━━━━━━━━━━━━━━━━━━\n"
         f"আপনার {escape(method_name)} SMS / রিসিট থেকে <b>Transaction ID (TrxID)</b> দিন\n\n"
         f"<i>(যেমন: <code>BLA7X8Y9Z0</code>)</i>",
-        reply_markup=get_deposit_txid_keyboard(),
+        reply_markup=get_deposit_txid_keyboard(is_bangla=True),
     )
 
 
@@ -660,14 +660,27 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         await navigate(raw_text, message, state, services)
         return
 
+    data = await state.get_data()
+    method_id = data.get("method_id")
+    amount_num = data.get("manual_amount")
+    method_name = data.get("method_name", "Payment")
+    is_binance = "binance" in method_name.lower() or data.get("auto_verify") == "binance_pay"
+
     clean_tx = re.sub(r"^(trxid|trx\s*id|txid|ref)[\s:#=]*", "", raw_text, flags=re.IGNORECASE).strip()
     clean_tx = clean_tx.strip("<>#[](){}\"':; \t\r\n")
 
     if not TRANSACTION_ID_REGEX.fullmatch(clean_tx):
-        await message.answer(
-            f"{ICON_CROSS} ভুল Transaction ID ফরম্যাট। আপনার SMS/রিসিট থেকে সঠিক TrxID দিন।",
-            reply_markup=get_deposit_txid_keyboard(),
-        )
+        if is_binance:
+            await message.answer(
+                f"{ICON_CROSS} Invalid Transaction ID format. Please enter a valid Reference/TrxID from your receipt.",
+                reply_markup=get_deposit_txid_keyboard(is_bangla=False),
+            )
+        else:
+            await message.answer(
+                f"{ICON_CROSS} ভুল Transaction ID ফরম্যাট। আপনার SMS/রিসিট থেকে সঠিক TrxID দিন।\n\n"
+                f"<i>(উদাহরণ: <code>BLA7X8Y9Z0</code>)</i>",
+                reply_markup=get_deposit_txid_keyboard(is_bangla=True),
+            )
         return
 
     now = time.time()
@@ -680,33 +693,50 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         rem_min = max(1, (remaining_sec + 59) // 60)
         await state.clear()
         support_user = await services.settings.get("support_contact")
-        kb = [[InlineKeyboardButton(text="Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)]]
+        kb = [[InlineKeyboardButton(text="Main Menu" if is_binance else "🏠 মেইন মেনু", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)]]
         if support_user:
             clean_sup = support_user.lstrip("@")
-            kb.insert(0, [InlineKeyboardButton(text="Contact Support", url=f"https://t.me/{clean_sup}", icon_custom_emoji_id=Icons.SUPPORT)])
-        await message.answer(
-            f"{ICON_CROSS} <b>ভেরিফিকেশন সাময়িক স্থগিত!</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"⚠️ আপনি পরপর {MAX_VERIFY_ATTEMPTS} বার ভুল Transaction ID দিয়েছেন।\n"
-            f"সার্ভারের নিরাপত্তা নিশ্চিত করতে আপনার অ্যাকাউন্ট থেকে পরবর্তী <b>{rem_min} মিনিট</b> কোনো ডিপোজিট ভেরিফাই করা যাবে না।\n\n"
-            f"আপনার পেমেন্ট ঠিক থাকলে অনুগ্রহ করে সাপোর্ট অ্যাডমিনের সাথে যোগাযোগ করুন।",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
-        )
+            kb.insert(0, [InlineKeyboardButton(text="Contact Support" if is_binance else "সাপোর্টে যোগাযোগ করুন", url=f"https://t.me/{clean_sup}", icon_custom_emoji_id=Icons.SUPPORT)])
+        if is_binance:
+            await message.answer(
+                f"{ICON_CROSS} <b>Verification Paused!</b>\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"⚠️ You entered incorrect Transaction IDs {MAX_VERIFY_ATTEMPTS} times.\n"
+                f"For security, verification is paused for <b>{rem_min} minute(s)</b>.\n\n"
+                f"If you made a valid payment, please contact our support team.",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
+            )
+        else:
+            await message.answer(
+                f"{ICON_CROSS} <b>ভেরিফিকেশন সাময়িক স্থগিত!</b>\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"⚠️ আপনি পরপর {MAX_VERIFY_ATTEMPTS} বার ভুল Transaction ID দিয়েছেন।\n"
+                f"সার্ভারের নিরাপত্তা নিশ্চিত করতে আপনার অ্যাকাউন্ট থেকে পরবর্তী <b>{rem_min} মিনিট</b> কোনো ডিপোজিট ভেরিফাই করা যাবে না।\n\n"
+                f"আপনার পেমেন্ট ঠিক থাকলে অনুগ্রহ করে সাপোর্ট অ্যাডমিনের সাথে যোগাযোগ করুন।",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
+            )
         return
-
-    data = await state.get_data()
-    method_id = data.get("method_id")
-    amount_num = data.get("manual_amount")
 
     if not method_id or not amount_num:
         await state.clear()
-        await message.answer(f"{ICON_TIMER} সেশন মেয়াদোত্তীর্ণ। আবার ডিপোজিট করতে Deposit এ ট্যাপ করুন।")
+        await message.answer(
+            f"{ICON_TIMER} Session expired. Please tap Deposit to try again."
+            if is_binance
+            else f"{ICON_TIMER} সেশন মেয়াদোত্তীর্ণ। আবার ডিপোজিট করতে Deposit এ ট্যাপ করুন।"
+        )
         return
 
     symbol = await services.settings.get("currency_symbol")
-    method_name = data.get("method_name", "Payment")
 
     status_msg = await message.answer(
+        f"{ICON_TIMER} <b>Verifying transaction...</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"↳ <b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
+        f"↳ <b>Amount:</b> <code>{price(symbol, amount_num)}</code>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"<i>Checking payment gateway, please wait...</i>"
+        if is_binance
+        else
         f"{ICON_TIMER} <b>ট্রানজ্যাকশন যাচাই করা হচ্ছে...</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"↳ <b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
@@ -740,44 +770,72 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             if remaining_attempts <= 0:
                 await state.clear()
                 support_user = await services.settings.get("support_contact")
-                kb = [[InlineKeyboardButton(text="Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)]]
+                kb = [[InlineKeyboardButton(text="Main Menu" if is_binance else "🏠 মেইন মেনু", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)]]
                 if support_user:
                     clean_sup = support_user.lstrip("@")
-                    kb.insert(0, [InlineKeyboardButton(text="Contact Support", url=f"https://t.me/{clean_sup}", icon_custom_emoji_id=Icons.SUPPORT)])
-                await _safe_edit_or_answer(
-                    status_msg,
-                    message,
-                    f"{ICON_CROSS} <b>পেমেন্ট ইতোমধ্যে প্রসেস হয়েছে ({MAX_VERIFY_ATTEMPTS}/{MAX_VERIFY_ATTEMPTS})</b>\n"
-                    f"━━━━━━━━━━━━━━━━━━\n"
-                    f"এই Transaction ID (<code>{escape(clean_tx)}</code>) আগেই জমা দেওয়া হয়েছে।\n\n"
-                    f"⚠️ আপনি পরপর {MAX_VERIFY_ATTEMPTS} বার ভুল বা ব্যবহৃত TrxID দিয়েছেন। পরবর্তী <b>১০ মিনিট</b> চেষ্টা স্থগিত থাকবে।",
-                    reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
-                )
+                    kb.insert(0, [InlineKeyboardButton(text="Contact Support" if is_binance else "সাপোর্টে যোগাযোগ করুন", url=f"https://t.me/{clean_sup}", icon_custom_emoji_id=Icons.SUPPORT)])
+                if is_binance:
+                    text = (
+                        f"{ICON_CROSS} <b>Payment Already Processed ({MAX_VERIFY_ATTEMPTS}/{MAX_VERIFY_ATTEMPTS})</b>\n"
+                        f"━━━━━━━━━━━━━━━━━━\n"
+                        f"This Transaction ID (<code>{escape(clean_tx)}</code>) has already been submitted or claimed.\n\n"
+                        f"⚠️ Verification is temporarily paused for <b>10 minutes</b>. Please contact support if you need assistance."
+                    )
+                else:
+                    text = (
+                        f"{ICON_CROSS} <b>পেমেন্ট ইতোমধ্যে প্রসেস হয়েছে ({MAX_VERIFY_ATTEMPTS}/{MAX_VERIFY_ATTEMPTS})</b>\n"
+                        f"━━━━━━━━━━━━━━━━━━\n"
+                        f"এই Transaction ID (<code>{escape(clean_tx)}</code>) আগেই ব্যবহার করা হয়েছে।\n\n"
+                        f"⚠️ আপনি পরপর {MAX_VERIFY_ATTEMPTS} বার ব্যবহৃত TrxID দিয়েছেন। পরবর্তী <b>১০ মিনিট</b> চেষ্টা স্থগিত থাকবে।\n\n"
+                        f"যদি কোনো সমস্যা থাকে, অনুগ্রহ করে সাপোর্ট অ্যাডমিনের সাথে যোগাযোগ করুন।"
+                    )
+                await _safe_edit_or_answer(status_msg, message, text, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
                 return
 
+            if is_binance:
+                text = (
+                    f"{ICON_CROSS} <b>Payment Already Processed ({len(fails)}/{MAX_VERIFY_ATTEMPTS})</b>\n\n"
+                    f"This Transaction ID (<code>{escape(clean_tx)}</code>) has already been submitted.\n"
+                    f"⚠️ You have <b>{remaining_attempts} attempt(s)</b> remaining."
+                )
+            else:
+                text = (
+                    f"{ICON_CROSS} <b>TrxID ইতোমধ্যে ব্যবহৃত হয়েছে ({len(fails)}/{MAX_VERIFY_ATTEMPTS})</b>\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"এই Transaction ID (<code>{escape(clean_tx)}</code>) দিয়ে আগেই ব্যালেন্স নেওয়া হয়েছে।\n\n"
+                    f"👉 <b>আপনার করণীয়:</b> অনুগ্রহ করে SMS থেকে সঠিক ও অব্যবহৃত TrxID টি দিন।\n\n"
+                    f"⚠️ <i>আর <b>{remaining_attempts} বার</b> চেষ্টা করতে পারবেন।</i>"
+                )
             await _safe_edit_or_answer(
                 status_msg,
                 message,
-                f"{ICON_CROSS} <b>পেমেন্ট ইতোমধ্যে প্রসেস হয়েছে ({len(fails)}/{MAX_VERIFY_ATTEMPTS})</b>\n\n"
-                f"এই Transaction ID (<code>{escape(clean_tx)}</code>) আগেই জমা দেওয়া হয়েছে।\n"
-                f"⚠️ আর <b>{remaining_attempts} বার</b> চেষ্টা করতে পারবেন।",
-                reply_markup=get_deposit_txid_keyboard(),
+                text,
+                reply_markup=get_deposit_txid_keyboard(is_bangla=not is_binance),
             )
             return
         except PendingDepositError:
             await state.clear()
+            kb = [
+                [InlineKeyboardButton(text="Deposit History" if is_binance else "📜 ডিপোজিট হিস্ট্রি", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER)],
+                [InlineKeyboardButton(text="Main Menu" if is_binance else "🏠 মেইন মেনু", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)],
+            ]
+            if is_binance:
+                text = (
+                    f"{ICON_TIMER} <b>Pending Deposit Exists</b>\n\n"
+                    f"You already have a deposit request waiting for review.\n"
+                    f"Please wait for it to be processed before submitting a new one."
+                )
+            else:
+                text = (
+                    f"{ICON_TIMER} <b>পেন্ডিং ডিপোজিট আছে</b>\n\n"
+                    f"আপনার একটি ডিপোজিট রিকোয়েস্ট অলরেডি রিভিউ এর জন্য অপেক্ষায় আছে।\n"
+                    f"নতুন রিকোয়েস্ট পাঠানোর আগে পূর্বের রিকোয়েস্ট কনফার্ম হওয়া পর্যন্ত অপেক্ষা করুন।"
+                )
             await _safe_edit_or_answer(
                 status_msg,
                 message,
-                f"{ICON_TIMER} <b>পেন্ডিং ডিপোজিট আছে</b>\n\n"
-                f"আপনার একটি ডিপোজিট রিকোয়েস্ট রিভিউ এর জন্য অপেক্ষায় আছে।\n"
-                f"নতুন রিকোয়েস্ট পাঠানোর আগে সেটি কনফার্ম হওয়া পর্যন্ত অপেক্ষা করুন।",
-                reply_markup=InlineKeyboardMarkup(
-                    inline_keyboard=[
-                        [InlineKeyboardButton(text="Deposit History", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER)],
-                        [InlineKeyboardButton(text="Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)],
-                    ]
-                ),
+                text,
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
             )
             return
         except (InvalidInputError, ValueError) as exc:
@@ -794,24 +852,34 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             keyboard = InlineKeyboardMarkup(
                 inline_keyboard=[
                     [
-                        InlineKeyboardButton(text="Products Hub", callback_data="open_shop", style="success", icon_custom_emoji_id=Icons.PRODUCTS),
-                        InlineKeyboardButton(text="Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK),
+                        InlineKeyboardButton(text="Products Hub" if is_binance else "🛍️ কেনাকাটা করুন", callback_data="open_shop", style="success", icon_custom_emoji_id=Icons.PRODUCTS),
+                        InlineKeyboardButton(text="Main Menu" if is_binance else "🏠 মেইন মেনু", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK),
                     ]
                 ]
             )
-            await _safe_edit_or_answer(
-                status_msg,
-                message,
-                f"{ICON_CHECK} <b>ডিপোজিট সফল!</b>\n"
-                f"━━━━━━━━━━━━━━━━━━\n"
-                f"{ICON_DEPOSIT} <b>মেথড:</b> {escape(provider)}\n"
-                f"{ICON_MONEY} <b>জমা হয়েছে:</b> <code>{price(symbol, amount_num)}</code>\n"
-                f"{ICON_BALANCE} <b>ব্যালেন্স:</b> <code>{price(symbol, user_balance)}</code>\n"
-                f"{ICON_KEY} <b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
-                f"━━━━━━━━━━━━━━━━━━\n"
-                f"<i>আপনার ওয়ালেটে স্বয়ংক্রিয়ভাবে টাকা যোগ হয়েছে। ধন্যবাদ!</i>",
-                reply_markup=keyboard,
-            )
+            if is_binance:
+                text = (
+                    f"{ICON_CHECK} <b>Deposit Successful!</b>\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"{ICON_DEPOSIT} <b>Method:</b> {escape(provider)}\n"
+                    f"{ICON_MONEY} <b>Amount:</b> <code>{price(symbol, amount_num)}</code>\n"
+                    f"{ICON_BALANCE} <b>Balance:</b> <code>{price(symbol, user_balance)}</code>\n"
+                    f"{ICON_KEY} <b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"<i>Your balance has been credited automatically. Thank you!</i>"
+                )
+            else:
+                text = (
+                    f"{ICON_CHECK} <b>ডিপোজিট সফল!</b>\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"{ICON_DEPOSIT} <b>মেথড:</b> {escape(provider)}\n"
+                    f"{ICON_MONEY} <b>জমা হয়েছে:</b> <code>{price(symbol, amount_num)}</code>\n"
+                    f"{ICON_BALANCE} <b>বর্তমান ব্যালেন্স:</b> <code>{price(symbol, user_balance)}</code>\n"
+                    f"{ICON_KEY} <b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"<i>আপনার ওয়ালেটে স্বয়ংক্রিয়ভাবে টাকা যোগ হয়েছে। ধন্যবাদ!</i>"
+                )
+            await _safe_edit_or_answer(status_msg, message, text, reply_markup=keyboard)
             return
 
         if res.get("error"):
@@ -822,39 +890,166 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             remaining_attempts = MAX_VERIFY_ATTEMPTS - len(fails)
 
             if remaining_attempts <= 0:
+                # 3rd attempt failed -> auto-convert to manual review so customer money is safe!
+                _USER_VERIFY_FAILS.pop(user_id, None)
                 await state.clear()
-                support_user = await services.settings.get("support_contact")
-                kb = [
-                    [InlineKeyboardButton(text="Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)]
-                ]
-                if support_user:
-                    clean_sup = support_user.lstrip("@")
-                    kb.insert(0, [InlineKeyboardButton(text="Contact Support", url=f"https://t.me/{clean_sup}", icon_custom_emoji_id=Icons.SUPPORT)])
 
-                await _safe_edit_or_answer(
-                    status_msg,
-                    message,
-                    f"{ICON_CROSS} <b>যাচাই ব্যর্থ ({MAX_VERIFY_ATTEMPTS}/{MAX_VERIFY_ATTEMPTS}) — সর্বোচ্চ সীমা অতিক্রম</b>\n"
+                err_type = res.get("error", "not_found")
+                if err_type == "amount_mismatch":
+                    admin_note = "ZiniPay auto-verify failed 3x (Amount mismatch). Auto-routed to manual review."
+                elif err_type == "already_used":
+                    admin_note = "ZiniPay auto-verify failed 3x (Already used on gateway). Auto-routed to manual review."
+                else:
+                    admin_note = "ZiniPay auto-verify failed 3x (Not found - merchant SIM offline or SMS sync delay). Auto-routed to manual review."
+
+                try:
+                    dep_id = await services.deposits.create_request(
+                        message.from_user.id,
+                        method_id,
+                        amount_num,
+                        clean_tx,
+                        quoted_rate=data.get("rate", 1.0),
+                        admin_note=admin_note,
+                    )
+                    keyboard = InlineKeyboardMarkup(
+                        inline_keyboard=[
+                            [
+                                InlineKeyboardButton(
+                                    text="Deposit History" if is_binance else "📜 ডিপোজিট হিস্ট্রি",
+                                    callback_data="open_deposits",
+                                    style="primary",
+                                    icon_custom_emoji_id=Icons.TIMER,
+                                ),
+                                InlineKeyboardButton(
+                                    text="Main Menu" if is_binance else "🏠 মেইন মেনু",
+                                    callback_data="back_to_main",
+                                    style="primary",
+                                    icon_custom_emoji_id=Icons.BACK,
+                                ),
+                            ]
+                        ]
+                    )
+                    if is_binance:
+                        success_text = (
+                            f"{ICON_CHECK} <b>Deposit Request Submitted for Review!</b>\n"
+                            f"━━━━━━━━━━━━━━━━━━\n"
+                            f"{ICON_DEPOSIT} <b>Method:</b> {escape(method_name)}\n"
+                            f"{ICON_MONEY} <b>Amount:</b> <code>{price(symbol, amount_num)}</code>\n"
+                            f"{ICON_KEY} <b>Reference:</b> <code>{escape(clean_tx)}</code>\n"
+                            f"━━━━━━━━━━━━━━━━━━\n"
+                            f"⚠️ Automated gateway verification timed out.\n\n"
+                            f"✅ <b>Your funds are completely safe!</b> Your request has been forwarded to admin review. Our team will verify and credit your balance shortly."
+                        )
+                    else:
+                        success_text = (
+                            f"{ICON_CHECK} <b>ডিপোজিট রিকোয়েস্ট অ্যাডমিন রিভিউতে জমা হয়েছে!</b>\n"
+                            f"━━━━━━━━━━━━━━━━━━\n"
+                            f"{ICON_DEPOSIT} <b>মেথড:</b> {escape(method_name)}\n"
+                            f"{ICON_MONEY} <b>পরিমাণ:</b> <code>{price(symbol, amount_num)}</code>\n"
+                            f"{ICON_KEY} <b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
+                            f"━━━━━━━━━━━━━━━━━━\n"
+                            f"⚠️ আমাদের মার্চেন্ট সিম বা সার্ভারে সাময়িক বিলম্বের কারণে ট্রানজ্যাকশনটি স্বয়ংক্রিয়ভাবে ডিটেক্ট হয়নি।\n\n"
+                            f"✅ <b>চিন্তার কোনো কারণ নেই, আপনার টাকা সম্পূর্ণ নিরাপদ!</b>\n"
+                            f"আপনার ডিপোজিট রিকোয়েস্টটি আমাদের অ্যাডমিন প্যানেলে জমা হয়েছে। অ্যাডমিন ম্যানুয়ালি চেক করে খুব দ্রুত আপনার ওয়ালেটে ব্যালেন্স যুক্ত করে দেবেন।"
+                        )
+                    await _safe_edit_or_answer(status_msg, message, success_text, reply_markup=keyboard)
+                    return
+                except DuplicateTransactionError:
+                    support_user = await services.settings.get("support_contact")
+                    kb = [[InlineKeyboardButton(text="Main Menu" if is_binance else "🏠 মেইন মেনু", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)]]
+                    if support_user:
+                        clean_sup = support_user.lstrip("@")
+                        kb.insert(0, [InlineKeyboardButton(text="Contact Support" if is_binance else "সাপোর্টে যোগাযোগ করুন", url=f"https://t.me/{clean_sup}", icon_custom_emoji_id=Icons.SUPPORT)])
+                    await _safe_edit_or_answer(
+                        status_msg,
+                        message,
+                        f"{ICON_CROSS} <b>পেমেন্ট ইতোমধ্যে প্রসেস হয়েছে</b>\n"
+                        f"━━━━━━━━━━━━━━━━━━\n"
+                        f"এই Transaction ID (<code>{escape(clean_tx)}</code>) দিয়ে আগেই ব্যালেন্স নেওয়া হয়েছে।\n\n"
+                        f"যদি কোনো সমস্যা থাকে, অনুগ্রহ করে সাপোর্ট অ্যাডমিনের সাথে যোগাযোগ করুন।",
+                        reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
+                    )
+                    return
+                except PendingDepositError:
+                    await _safe_edit_or_answer(
+                        status_msg,
+                        message,
+                        f"{ICON_TIMER} <b>পেন্ডিং ডিপোজিট আছে</b>\n\n"
+                        f"আপনার একটি ডিপোজিট রিকোয়েস্ট ইতোমধ্যে রিভিউ এর জন্য অপেক্ষায় আছে। পূর্বের রিকোয়েস্ট কনফার্ম হওয়া পর্যন্ত অপেক্ষা করুন।",
+                        reply_markup=InlineKeyboardMarkup(
+                            inline_keyboard=[
+                                [InlineKeyboardButton(text="Deposit History" if is_binance else "📜 ডিপোজিট হিস্ট্রি", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER)],
+                                [InlineKeyboardButton(text="Main Menu" if is_binance else "🏠 মেইন মেনু", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)],
+                            ]
+                        ),
+                    )
+                    return
+                except (InvalidInputError, ValueError) as exc:
+                    await _safe_edit_or_answer(status_msg, message, f"{ICON_CROSS} {escape(str(exc))}")
+                    return
+
+            # Attempts 1 and 2 (remaining_attempts > 0)
+            err_type = res.get("error", "not_found")
+            if is_binance:
+                error_msg = (
+                    f"{ICON_CROSS} <b>Verification Failed ({len(fails)}/{MAX_VERIFY_ATTEMPTS})</b>\n"
                     f"━━━━━━━━━━━━━━━━━━\n"
                     f"{escape(res.get('detail', ''))}\n"
                     f"━━━━━━━━━━━━━━━━━━\n"
-                    f"⚠️ আপনি পরপর {MAX_VERIFY_ATTEMPTS} বার ভুল Transaction ID দিয়েছেন।\n"
-                    f"নিরাপত্তার স্বার্থে পরবর্তী <b>১০ মিনিট</b> আর চেষ্টা করা যাবে না।\n\n"
-                    f"আপনার পেমেন্ট সম্পন্ন হয়ে থাকলে অনুগ্রহ করে সাপোর্ট অ্যাডমিনের সাথে যোগাযোগ করুন।",
-                    reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
+                    f"⚠️ You have <b>{remaining_attempts} attempt(s)</b> remaining.\n\n"
+                    f"Please verify your Reference/TrxID and try again, or click <b>Change Amount</b>:"
                 )
-                return
+            elif err_type == "amount_mismatch":
+                error_msg = (
+                    f"{ICON_CROSS} <b>টাকার পরিমাণ মেলেনি ({len(fails)}/{MAX_VERIFY_ATTEMPTS})</b>\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"↳ <b>মেথড:</b> {escape(method_name)}\n"
+                    f"↳ <b>বোটে দেওয়া পরিমাণ:</b> <code>{price(symbol, amount_num)}</code>\n"
+                    f"↳ <b>দেওয়া TrxID:</b> <code>{escape(clean_tx)}</code>\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"🔍 <b>কেন এই সমস্যা হতে পারে?</b>\n"
+                    f"• আপনি বিকাশ/নগদ/রকেটে যে পরিমাণ টাকা পাঠিয়েছেন, বোটে তার চেয়ে ভিন্ন পরিমাণ লিখেছেন।\n\n"
+                    f"👉 <b>এখন আপনার করণীয়:</b>\n"
+                    f"১. আপনি যদি বোটে ভুল পরিমাণ দিয়ে থাকেন, নিচে <b>টাকার পরিমাণ পরিবর্তন</b> বাটনে চাপ দিয়ে সঠিক পরিমাণ লিখুন।\n"
+                    f"২. অথবা আপনার SMS রিসিট দেখে সঠিক TrxID টি পুনরায় দিন।\n\n"
+                    f"⚠️ <i>আর <b>{remaining_attempts} বার</b> চেষ্টা করতে পারবেন। ৩ বার না পেলে এটি স্বয়ংক্রিয়ভাবে অ্যাডমিন রিভিউতে জমা হবে।</i>"
+                )
+            elif err_type == "already_used":
+                error_msg = (
+                    f"{ICON_CROSS} <b>TrxID ইতোমধ্যে ব্যবহৃত হয়েছে ({len(fails)}/{MAX_VERIFY_ATTEMPTS})</b>\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"↳ <b>মেথড:</b> {escape(method_name)}\n"
+                    f"↳ <b>দেওয়া TrxID:</b> <code>{escape(clean_tx)}</code>\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"🔍 <b>কেন এই সমস্যা হতে পারে?</b>\n"
+                    f"• এই Transaction ID টি দিয়ে ইতিপূর্বে পেমেন্ট ক্লেইম করা হয়ে গেছে।\n\n"
+                    f"👉 <b>এখন আপনার করণীয়:</b>\n"
+                    f"• আপনার SMS বা রিসিট চেক করে সর্বশেষ নতুন TrxID টি দিন।\n\n"
+                    f"⚠️ <i>আর <b>{remaining_attempts} বার</b> চেষ্টা করতে পারবেন।</i>"
+                )
+            else:  # "not_found" and other errors
+                error_msg = (
+                    f"{ICON_CROSS} <b>ট্রানজ্যাকশন পাওয়া যায়নি ({len(fails)}/{MAX_VERIFY_ATTEMPTS})</b>\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"↳ <b>মেথড:</b> {escape(method_name)}\n"
+                    f"↳ <b>পরিমাণ:</b> <code>{price(symbol, amount_num)}</code>\n"
+                    f"↳ <b>দেওয়া TrxID:</b> <code>{escape(clean_tx)}</code>\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"🔍 <b>কেন এই সমস্যা হতে পারে?</b>\n"
+                    f"• বিকাশ/নগদ/রকেট থেকে টাকা পাঠানোর পর মার্চেন্ট সিমে SMS আসতে ১-২ মিনিট দেরি হতে পারে।\n"
+                    f"• অথবা TrxID লেখার সময় কোনো অক্ষর বা সংখ্যা ভুল হতে পারে।\n\n"
+                    f"👉 <b>এখন আপনার করণীয়:</b>\n"
+                    f"১. আপনার পেমেন্ট SMS বা স্টেটমেন্ট দেখে <b>সঠিক TrxID</b> টি মিলিয়ে আবার লিখুন।\n"
+                    f"২. টাকা এইমাত্র পাঠিয়ে থাকলে <b>১ মিনিট অপেক্ষা করে</b> ট্রাই করুন।\n"
+                    f"৩. টাকার পরিমাণ ভুল দিয়ে থাকলে নিচে <b>টাকার পরিমাণ পরিবর্তন</b> এ চাপুন।\n\n"
+                    f"⚠️ <i>আর <b>{remaining_attempts} বার</b> চেষ্টা করতে পারবেন। ৩ বার না পেলে এটি স্বয়ংক্রিয়ভাবে অ্যাডমিন রিভিউতে জমা হবে।</i>"
+                )
 
             await _safe_edit_or_answer(
                 status_msg,
                 message,
-                f"{ICON_CROSS} <b>যাচাই ব্যর্থ ({len(fails)}/{MAX_VERIFY_ATTEMPTS})</b>\n"
-                f"━━━━━━━━━━━━━━━━━━\n"
-                f"{escape(res.get('detail', ''))}\n"
-                f"━━━━━━━━━━━━━━━━━━\n"
-                f"⚠️ আর <b>{remaining_attempts} বার</b> চেষ্টা করতে পারবেন।\n\n"
-                f"আপনার TrxID চেক করে আবার দিন, অথবা ভুল পরিমাণ দিলে <b>Change Amount</b> এ ক্লিক করুন:",
-                reply_markup=get_deposit_txid_keyboard(),
+                error_msg,
+                reply_markup=get_deposit_txid_keyboard(is_bangla=not is_binance),
             )
             return
 
@@ -863,21 +1058,35 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             keyboard = InlineKeyboardMarkup(
                 inline_keyboard=[
                     [
-                        InlineKeyboardButton(text="Deposit History", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER),
-                        InlineKeyboardButton(text="Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK),
+                        InlineKeyboardButton(text="Deposit History" if is_binance else "📜 ডিপোজিট হিস্ট্রি", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER),
+                        InlineKeyboardButton(text="Main Menu" if is_binance else "🏠 মেইন মেনু", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK),
                     ]
                 ]
             )
+            if is_binance:
+                text = (
+                    f"{ICON_CHECK} <b>Deposit Request Submitted!</b>\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"{ICON_DEPOSIT} <b>Method:</b> {escape(method_name)}\n"
+                    f"{ICON_MONEY} <b>Amount:</b> <code>{price(symbol, amount_num)}</code>\n"
+                    f"{ICON_KEY} <b>Reference:</b> <code>{escape(clean_tx)}</code>\n"
+                    f"━━━━━━━━━━━━━━━━━━\n\n"
+                    f"<i>Your payment request has been submitted for admin review. Balance will be added once verified.</i>"
+                )
+            else:
+                text = (
+                    f"{ICON_CHECK} <b>ডিপোজিট রিকোয়েস্ট জমা হয়েছে!</b>\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"{ICON_DEPOSIT} <b>মেথড:</b> {escape(method_name)}\n"
+                    f"{ICON_MONEY} <b>পরিমাণ:</b> <code>{price(symbol, amount_num)}</code>\n"
+                    f"{ICON_KEY} <b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
+                    f"━━━━━━━━━━━━━━━━━━\n\n"
+                    f"<i>আপনার পেমেন্ট রিকোয়েস্ট অ্যাডমিন রিভিউ এর জন্য জমা হয়েছে। যাচাই হলে ব্যালেন্স যোগ হবে।</i>"
+                )
             await _safe_edit_or_answer(
                 status_msg,
                 message,
-                f"{ICON_CHECK} <b>ডিপোজিট রিকোয়েস্ট জমা হয়েছে!</b>\n"
-                f"━━━━━━━━━━━━━━━━━━\n"
-                f"{ICON_DEPOSIT} <b>মেথড:</b> {escape(method_name)}\n"
-                f"{ICON_MONEY} <b>পরিমাণ:</b> <code>{price(symbol, amount_num)}</code>\n"
-                f"{ICON_KEY} <b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
-                f"━━━━━━━━━━━━━━━━━━\n\n"
-                f"<i>আপনার পেমেন্ট রিকোয়েস্ট অ্যাডমিন রিভিউ এর জন্য জমা হয়েছে। যাচাই হলে ব্যালেন্স যোগ হবে।</i>",
+                text,
                 reply_markup=keyboard,
             )
             return
@@ -895,8 +1104,10 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         await _safe_edit_or_answer(
             status_msg,
             message,
-            f"{ICON_CROSS} এই Transaction ID আগেই জমা দেওয়া হয়েছে! আপনার রিসিট চেক করুন।",
-            reply_markup=get_deposit_txid_keyboard(),
+            f"{ICON_CROSS} This Transaction ID has already been submitted."
+            if is_binance
+            else f"{ICON_CROSS} এই Transaction ID আগেই জমা দেওয়া হয়েছে! আপনার রিসিট চেক করুন।",
+            reply_markup=get_deposit_txid_keyboard(is_bangla=not is_binance),
         )
         return
     except PendingDepositError:
@@ -904,42 +1115,60 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         await _safe_edit_or_answer(
             status_msg,
             message,
+            f"{ICON_TIMER} <b>Pending Deposit Exists</b>\n\nYou already have a deposit request waiting for review."
+            if is_binance
+            else
             f"{ICON_TIMER} <b>পেন্ডিং ডিপোজিট আছে</b>\n\n"
             f"আপনার একটি ডিপোজিট রিকোয়েস্ট রিভিউ এর জন্য অপেক্ষায় আছে।\n"
-            f"নতুন রিকোয়েস্ট পাঠানোর আগে সেটি কনফার্ম হওয়া পর্যন্ত অপেক্ষা করুন।",
+            f"নতুন রিকোয়েস্ট পাঠানোর আগে পূর্বের রিকোয়েস্ট কনফার্ম হওয়া পর্যন্ত অপেক্ষা করুন।",
             reply_markup=InlineKeyboardMarkup(
                 inline_keyboard=[
-                    [InlineKeyboardButton(text="Deposit History", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER)],
-                    [InlineKeyboardButton(text="Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)],
+                    [InlineKeyboardButton(text="Deposit History" if is_binance else "📜 ডিপোজিট হিস্ট্রি", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER)],
+                    [InlineKeyboardButton(text="Main Menu" if is_binance else "🏠 মেইন মেনু", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)],
                 ]
             ),
         )
         return
     except (InvalidInputError, ValueError) as exc:
         await state.clear()
-        await _safe_edit_or_answer(status_msg, message, f"{ICON_CROSS} <b>ডিপোজিট ব্যর্থ:</b> {escape(str(exc))}")
+        await _safe_edit_or_answer(status_msg, message, f"{ICON_CROSS} {escape(str(exc))}")
         return
 
     await state.clear()
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="Deposit History", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER),
-                InlineKeyboardButton(text="Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK),
+                InlineKeyboardButton(text="Deposit History" if is_binance else "📜 ডিপোজিট হিস্ট্রি", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER),
+                InlineKeyboardButton(text="Main Menu" if is_binance else "🏠 মেইন মেনু", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK),
             ]
         ]
     )
 
+    if is_binance:
+        text = (
+            f"{ICON_CHECK} <b>Deposit Request Submitted!</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{ICON_DEPOSIT} <b>Method:</b> {escape(method_name)}\n"
+            f"{ICON_MONEY} <b>Amount:</b> <code>{price(symbol, amount_num)}</code>\n"
+            f"{ICON_KEY} <b>Reference:</b> <code>{escape(clean_tx)}</code>\n"
+            f"━━━━━━━━━━━━━━━━━━\n\n"
+            f"<i>Balance will be added to your wallet once approved by admin.</i>"
+        )
+    else:
+        text = (
+            f"{ICON_CHECK} <b>ডিপোজিট রিকোয়েস্ট জমা হয়েছে!</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{ICON_DEPOSIT} <b>মেথড:</b> {escape(method_name)}\n"
+            f"{ICON_MONEY} <b>পরিমাণ:</b> <code>{price(symbol, amount_num)}</code>\n"
+            f"{ICON_KEY} <b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
+            f"━━━━━━━━━━━━━━━━━━\n\n"
+            f"<i>অ্যাডমিন যাচাই করলে আপনার ওয়ালেটে ব্যালেন্স যোগ হবে।</i>"
+        )
+
     await _safe_edit_or_answer(
         status_msg,
         message,
-        f"{ICON_CHECK} <b>ডিপোজিট রিকোয়েস্ট জমা হয়েছে!</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
-        f"{ICON_DEPOSIT} <b>মেথড:</b> {escape(method_name)}\n"
-        f"{ICON_MONEY} <b>পরিমাণ:</b> <code>{price(symbol, amount_num)}</code>\n"
-        f"{ICON_KEY} <b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
-        f"━━━━━━━━━━━━━━━━━━\n\n"
-        f"<i>অ্যাডমিন যাচাই করলে আপনার ওয়ালেটে ব্যালেন্স যোগ হবে।</i>",
+        text,
         reply_markup=keyboard,
     )
 
