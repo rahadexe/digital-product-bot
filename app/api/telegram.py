@@ -27,11 +27,12 @@ async def _process(dispatcher: Any, bot: Any, update: Update) -> None:
         await dispatcher.feed_update(bot, update)
     finally:
         elapsed_ms = (time.perf_counter() - started) * 1000
-        # Message dates have one-second precision; a large lag means Telegram was retrying delivery.
-        lag = ""
-        if update.message and update.message.date:
-            lag = f", delivered {(datetime.now(timezone.utc) - update.message.date).total_seconds():.0f} s after sending"
-        logger.info("Update %s (%s) handled in %.0f ms%s", update.update_id, update.event_type, elapsed_ms, lag)
+        info_extra = ""
+        if update.message:
+            info_extra = f" user={update.message.from_user.id if update.message.from_user else 'None'} text={update.message.text!r}"
+        elif update.callback_query:
+            info_extra = f" user={update.callback_query.from_user.id if update.callback_query.from_user else 'None'} data={update.callback_query.data!r}"
+        logger.info("Update %s (%s)%s handled in %.0f ms%s", update.update_id, update.event_type, info_extra, elapsed_ms, lag)
 
 
 @router.post("/telegram/webhook", include_in_schema=False)

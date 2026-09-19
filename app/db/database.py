@@ -63,9 +63,9 @@ class Database:
                         # A few connections stay open: opening one to a remote database (TLS and setup)
                         # takes far longer than a query, and asyncpg would otherwise close idle ones
                         # after five minutes, making the first taps after a quiet spell slow.
-                        min_size=min(3, self.max_size),
+                        min_size=min(1, self.max_size),
                         max_size=self.max_size,
-                        max_inactive_connection_lifetime=0,
+                        max_inactive_connection_lifetime=300.0,
                         statement_cache_size=self.statement_cache_size,
                         init=self._init_connection,
                         setup=self._use_schema if self.schema else None,
@@ -85,8 +85,11 @@ class Database:
             try:
                 yield conn
             finally:
-                if not conn.is_closed() and conn.is_in_transaction():
-                    await conn.execute("ROLLBACK")
+                try:
+                    if not conn.is_closed() and conn.is_in_transaction():
+                        await conn.execute("ROLLBACK")
+                except Exception:
+                    pass
 
     @asynccontextmanager
     async def transaction(self):

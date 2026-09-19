@@ -198,6 +198,7 @@ class ZiniPayVerificationService:
 
         # 3. Step 1: Verify via ZiniPay
         verify_res = await self.verify(amount, clean_tx)
+        logger.info("ZiniPay verify response for tx %s (amount %s): %s", clean_tx, amount, verify_res)
         if not verify_res.get("ok"):
             reason = verify_res.get("reason")
             msg = verify_res.get("message") or ""

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from contextlib import suppress
 from html import escape
+
+logger = logging.getLogger("app.bot.deposit")
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
@@ -684,8 +687,12 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         f"<i>পেমেন্ট গেটওয়ে থেকে যাচাই করা হচ্ছে, একটু অপেক্ষা করুন...</i>"
     )
 
+    logger.info("Processing TrxID '%s' for user %s, method %s, amount %s", clean_tx, message.from_user.id, method_id, amount_num)
+
     # If ZiniPay auto-verify is configured, attempt automated verification
-    if await services.zinipay.is_enabled():
+    zinipay_on = await services.zinipay.is_enabled()
+    logger.info("ZiniPay is_enabled: %s", zinipay_on)
+    if zinipay_on:
         try:
             res = await services.zinipay.claim(
                 message.from_user.id,
@@ -694,6 +701,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                 clean_tx,
                 quoted_rate=data.get("rate", 1.0),
             )
+            logger.info("ZiniPay claim result: %s", res)
         except DuplicateTransactionError:
             await _safe_edit_or_answer(
                 status_msg,

@@ -470,12 +470,15 @@ class PaymentService:
             problems = []
             answered_invoice = str(result.get("invoice_id") or result.get("invoiceId") or "")
             answered_reference = str(result.get("val_id") or result.get("valId") or "")
-            if answered_invoice and answered_invoice != row["provider_invoice_id"]:
-                problems.append("the verified invoice does not match")
-            if answered_reference and answered_reference != row["reference"]:
-                problems.append("the reference does not match")
-            if not answered_invoice and not answered_reference:
-                problems.append("the answer names no invoice")
+            ref_match = bool(answered_reference and answered_reference == row["reference"])
+            inv_match = bool(answered_invoice and (answered_invoice == row["provider_invoice_id"] or answered_invoice == row["reference"]))
+            if not ref_match and not inv_match:
+                if answered_reference and answered_reference != row["reference"]:
+                    problems.append("the reference does not match")
+                elif answered_invoice and answered_invoice != row["provider_invoice_id"]:
+                    problems.append("the verified invoice does not match")
+                else:
+                    problems.append("the answer names no invoice")
             paid = _decimal(result.get("without_fee", result.get("amount")))
             expected = _decimal(row["pay_amount"])
             if abs(paid - expected) > AMOUNT_TOLERANCE:
