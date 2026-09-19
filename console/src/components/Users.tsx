@@ -370,6 +370,15 @@ function CustomerProfilePage({
 
   async function adjust(sign: 1 | -1) {
     if (!user || !valid) return;
+    const actionWord = sign > 0 ? 'Add' : 'Deduct';
+    const confirmed = await confirm(
+      `${actionWord} ${money(value)}?`,
+      `Are you sure you want to ${actionWord.toLowerCase()} ${money(value)} ${sign > 0 ? 'to' : 'from'} ${nameOf(user)}'s wallet? Note: "${reason.trim()}".`,
+      `${actionWord} Balance`,
+      sign < 0
+    );
+    if (!confirmed) return;
+
     setBusy(true);
     try {
       const res = await api.adjustBalance(user.tg_user_id, sign * value, reason.trim());
@@ -664,23 +673,6 @@ function CustomerProfilePage({
               </button>
             </div>
 
-            {/* Quick Amount Chips */}
-            {adjustType === 'add' ? (
-              <div className="cust-chips-row">
-                <span className="cust-chips-label">Quick:</span>
-                {[50, 100, 200, 500, 1000].map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
-                    className="cust-chip-btn"
-                    onClick={() => setAmount(String(preset))}
-                  >
-                    +{preset}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-
             {/* Form Inputs */}
             <div className="cust-form-grid">
               <div className="field">
@@ -720,10 +712,6 @@ function CustomerProfilePage({
                 ? `+ Add ${value > 0 ? money(value) : ''} to Balance`
                 : `- Deduct ${value > 0 ? money(value) : ''} from Balance`}
             </button>
-
-            <p className="cust-notice-hint">
-              ⚡ Changes are recorded in the audit log and the customer receives an instant notification in Telegram.
-            </p>
           </div>
         </div>
 
