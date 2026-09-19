@@ -26,7 +26,6 @@ from app.services.delivery import DeliveryService
 from app.services.deposits import DepositService
 from app.services.gate import GateService
 from app.services.inventory import InventoryService
-from app.services.media import MediaService
 from app.services.notifications import Notifier
 from app.services.payments import PaymentService
 from app.services.purchases import PurchaseService
@@ -72,7 +71,7 @@ class Services:
     announcements: AnnouncementService
     dashboard: DashboardService
     admin_access: AdminAccessService
-    media: MediaService
+    media: Any = None
     runtime: RuntimeStatus = field(default_factory=RuntimeStatus)
 
     async def close(self) -> None:
@@ -124,5 +123,4 @@ def build_services(
         announcements=AnnouncementService(settings, catalog, notifier),
         dashboard=DashboardService(db),
         admin_access=AdminAccessService(db),
-        media=MediaService(db),
     )

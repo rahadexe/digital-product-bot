@@ -12,9 +12,9 @@ from fastapi.responses import JSONResponse
 from app.core.config import Settings
 
 RATE_LIMIT_PER_MINUTE = 180
-# Public paths that read the database or large images; the Telegram webhook is excluded because every update
+# Public paths that read the database; the Telegram webhook is excluded because every update
 # arrives from Telegram's few addresses and is already guarded by its secret.
-LIMITED_PREFIXES = ('/api/', '/media/', '/health/')
+LIMITED_PREFIXES = ('/api/', '/health/')
 # Cloudflare's published edge ranges (https://www.cloudflare.com/ips/). Only a request whose connecting peer is
 # one of these may name the visitor through CF-Connecting-IP; anyone reaching the server directly cannot.
 CLOUDFLARE_NETWORKS = tuple(
@@ -52,7 +52,7 @@ def visitor_ip(scope) -> str:
 def _is_internal(address: str) -> bool:
     ip = _ip(address)
     return ip is not None and (ip.is_loopback or ip.is_private)
-MAX_BODY_BYTES = 10 * 1024 * 1024
+MAX_BODY_BYTES = 2 * 1024 * 1024
 BODY_TIMEOUT_SECONDS = 15
 TRACKED_CLIENTS = 10000
 

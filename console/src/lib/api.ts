@@ -267,9 +267,6 @@ export interface UpdateChannel {
   is_active: number;
 }
 
-export type BannerInfo = { id: number; url: string; width: number; height: number; size: number; content_type: string; created_at: string };
-export type BannersResponse = { banners: BannerInfo[]; recommended: { width: number; height: number }; max_bytes: number; max_count: number };
-
 const API_BASE =
   typeof window !== 'undefined' && ['3000', '3001'].includes(window.location.port)
     ? `${window.location.protocol}//${window.location.hostname}:8000`
@@ -409,15 +406,6 @@ export const api = {
       }
     }
   },
-
-  // Mini App home banners (up to five)
-  banners: () => request<BannersResponse>('/api/admin/settings/banners'),
-  uploadBanner: (file: File) => {
-    const body = new FormData();
-    body.append('file', file);
-    return request<{ success: boolean; banner: BannerInfo }>('/api/admin/settings/banners', { method: 'POST', body });
-  },
-  removeBanner: (id: number) => request<{ success: boolean }>(`/api/admin/settings/banners/${id}`, { method: 'DELETE' }),
 
   overview: () => request<OverviewStats>('/api/admin/overview'),
 
@@ -646,24 +634,6 @@ export const api = {
       total_admins: number;
       results: { chat_id: number; delivered: boolean; error?: string | null }[];
     }>('/api/admin/settings/test-admin-notification', { method: 'POST' }),
-  getWelcomeBanner: () =>
-    request<{
-      has_banner: boolean;
-      url?: string | null;
-      width?: number | null;
-      height?: number | null;
-      content_type?: string | null;
-      size?: number | null;
-    }>('/api/admin/settings/welcome-banner'),
-  uploadWelcomeBanner: (file: File) => {
-    const body = new FormData();
-    body.append('file', file);
-    return request<{
-      success: boolean;
-      banner: { url: string; width: number; height: number; size: number; content_type: string };
-    }>('/api/admin/settings/welcome-banner', { method: 'POST', body });
-  },
-  deleteWelcomeBanner: () => request<{ success: boolean }>('/api/admin/settings/welcome-banner', { method: 'DELETE' }),
 
 
   // Audit

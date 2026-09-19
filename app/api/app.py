@@ -8,7 +8,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from app.api import admin, health, media, payments, telegram
+from app.api import admin, health, payments, telegram
 from app.api.admin.auth import AdminAuth
 from app.api.errors import register_error_handlers
 from app.api.middleware import SecurityBoundary
@@ -61,7 +61,6 @@ def create_app(services: Services) -> FastAPI:
     app.include_router(health.router)
     app.include_router(telegram.router)
     app.include_router(admin.router)
-    app.include_router(media.router)
     app.include_router(payments.router)
 
     # Without the slash, /panel would fall through to the catch-all mount below and show the console's 404 page.
