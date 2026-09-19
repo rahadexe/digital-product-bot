@@ -90,20 +90,25 @@ export function Broadcast({ say }: { say: Say }) {
       selectionRange.current = { start: text.length, end: text.length };
       setLinkText('');
     }
-    setLinkUrl('https://');
+    setLinkUrl('');
     setLinkModalOpen(true);
   }
 
   function applyLink(e?: React.FormEvent) {
     if (e) e.preventDefault();
-    const url = linkUrl.trim();
+    let url = linkUrl.trim();
     if (!url) return;
+    if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('tg://')) {
+      url = `https://${url}`;
+    }
     const label = linkText.trim() || url;
     const { start, end } = selectionRange.current;
     const replacement = `<a href="${url}">${label}</a>`;
     const newText = text.slice(0, start) + replacement + text.slice(end);
     setText(newText);
     setLinkModalOpen(false);
+    setLinkText('');
+    setLinkUrl('');
     setTimeout(() => {
       const el = textareaRef.current;
       if (el) {
@@ -199,7 +204,7 @@ export function Broadcast({ say }: { say: Say }) {
       {confirmDialog}
 
       {/* Header Metric & Quick Info */}
-      <div className="stat-cards-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', marginBottom: '16px' }}>
+      <div className="broadcast-stats-grid">
         <div className="stat-card">
           <div className="stat-card-top">
             <span className="stat-card-label">Active Recipients</span>
@@ -337,13 +342,13 @@ export function Broadcast({ say }: { say: Say }) {
             </div>
           )}
 
-          {/* Two-Column Editor & Preview */}
+          {/* Responsive Editor & Live Preview Grid */}
           <div
+            className={showPreview ? 'broadcast-composer-grid' : ''}
             style={{
-              display: 'grid',
-              gridTemplateColumns: showPreview ? 'repeat(auto-fit, minmax(320px, 1fr))' : '1fr',
-              gap: '16px',
-              alignItems: 'stretch',
+              display: showPreview ? undefined : 'block',
+              width: '100%',
+              minWidth: 0,
             }}
           >
             {/* Unified Composer Box */}
@@ -356,6 +361,8 @@ export function Broadcast({ say }: { say: Say }) {
                 background: 'var(--surface)',
                 boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)',
                 overflow: 'hidden',
+                width: '100%',
+                minWidth: 0,
               }}
             >
               {/* Toolbar */}
@@ -470,6 +477,8 @@ export function Broadcast({ say }: { say: Say }) {
                   borderRadius: '10px',
                   background: 'var(--surface-2)',
                   overflow: 'hidden',
+                  width: '100%',
+                  minWidth: 0,
                 }}
               >
                 <div
@@ -502,11 +511,13 @@ export function Broadcast({ say }: { say: Say }) {
                   <div
                     style={{
                       alignSelf: 'flex-start',
-                      maxWidth: '92%',
+                      width: '100%',
+                      maxWidth: '440px',
+                      boxSizing: 'border-box',
                       background: '#ffffff',
                       border: '1px solid rgba(0, 0, 0, 0.08)',
                       borderRadius: '12px 12px 12px 3px',
-                      padding: '10px 12px 6px',
+                      padding: '12px 14px 8px',
                       boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)',
                       color: '#111827',
                       fontSize: '13.5px',
@@ -653,7 +664,7 @@ export function Broadcast({ say }: { say: Say }) {
           onClose={() => setSelectedBroadcast(null)}
           wide
           footer={
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '10px', flexWrap: 'wrap' }}>
               <button
                 type="button"
                 className="btn bad mini"
@@ -664,7 +675,7 @@ export function Broadcast({ say }: { say: Say }) {
                 Delete
               </button>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                 <button
                   type="button"
                   className="btn secondary mini"
@@ -782,7 +793,7 @@ export function Broadcast({ say }: { say: Say }) {
               <button
                 type="submit"
                 className="btn mini"
-                disabled={!linkUrl.trim() || linkUrl.trim() === 'https://'}
+                disabled={!linkUrl.trim()}
               >
                 Insert Link
               </button>
@@ -806,7 +817,7 @@ export function Broadcast({ say }: { say: Say }) {
                 type="url"
                 autoFocus
                 required
-                placeholder="https://t.me/..."
+                placeholder="https://t.me/yourchannel"
                 value={linkUrl}
                 onChange={(e) => setLinkUrl(e.target.value)}
               />
