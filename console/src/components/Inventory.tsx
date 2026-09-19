@@ -297,7 +297,15 @@ function AddStock({ products, initialProduct, say, onClose, onAdded }: { product
         />
       </div>
       <label className="field">
-        <span>One item per line</span>
+        <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>One item per line</span>
+          <span
+            className={`pill ${count > 0 ? 'good' : 'bad'}`}
+            style={{ fontSize: '11px', padding: '1.5px 8px', fontWeight: 600 }}
+          >
+            {count} {count === 1 ? 'item' : 'items'}{seats > 1 && count > 0 ? ` (${count * seats} stock)` : ''}
+          </span>
+        </span>
         <textarea className="mono" rows={8} placeholder={'email@example.com:password\nKEY-1234-5678'} value={text} onChange={(event) => setText(event.target.value)} />
       </label>
       <label className="field">
@@ -317,6 +325,7 @@ function EditStock({ item, say, onClose, onSaved }: { item: InventoryItem; say: 
     item.expires_at ? new Date(new Date(item.expires_at).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''
   );
   const [busy, setBusy] = useState(false);
+  const count = content.split('\n').filter((l) => l.trim()).length;
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -353,7 +362,15 @@ function EditStock({ item, say, onClose, onSaved }: { item: InventoryItem; say: 
         {item.uses ? ` · already with ${item.uses} customer${item.uses === 1 ? '' : 's'}, who keep what they received` : ''}
       </p>
       <label className="field">
-        <span>Item</span>
+        <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>Item</span>
+          <span
+            className={`pill ${count > 0 ? 'good' : 'bad'}`}
+            style={{ fontSize: '11px', padding: '1.5px 8px', fontWeight: 600 }}
+          >
+            {count} {count === 1 ? 'item' : 'items'}
+          </span>
+        </span>
         <textarea className="mono" rows={4} required value={content} onChange={(event) => setContent(event.target.value)} />
       </label>
       <label className="field">
