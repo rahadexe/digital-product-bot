@@ -24,6 +24,7 @@ export interface CustomSelectProps {
   align?: 'left' | 'right';
   creatable?: boolean;
   customPlaceholder?: string;
+  onCreateOption?: (val: string) => void;
 }
 
 export function CustomSelect({
@@ -40,6 +41,7 @@ export function CustomSelect({
   align = 'left',
   creatable = false,
   customPlaceholder,
+  onCreateOption,
 }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -351,6 +353,7 @@ export function CustomSelect({
                       e.preventDefault();
                       const trimmed = customVal.trim();
                       if (trimmed) {
+                        if (onCreateOption) onCreateOption(trimmed);
                         onChange(trimmed);
                         setIsOpen(false);
                         setIsCreating(false);
@@ -383,6 +386,7 @@ export function CustomSelect({
                     e.stopPropagation();
                     const trimmed = customVal.trim();
                     if (trimmed) {
+                      if (onCreateOption) onCreateOption(trimmed);
                       onChange(trimmed);
                       setIsOpen(false);
                       setIsCreating(false);

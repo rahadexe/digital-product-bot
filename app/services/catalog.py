@@ -279,3 +279,14 @@ class CatalogService:
             if affected(await conn.execute("UPDATE products SET is_active = 0 WHERE id = $1", product_id)):
                 await record(conn, "product_archived", f"Product #{product_id}")
         self._products_cache.clear()
+
+    async def delete_product(self, product_id: int) -> None:
+        async with self.db.transaction() as conn:
+            # Preserve existing orders history while dropping foreign key constraint
+            await conn.execute("UPDATE orders SET product_id = NULL WHERE product_id = $1", product_id)
+            # Delete associated inventory items
+            await conn.execute("DELETE FROM inventory_items WHERE product_id = $1", product_id)
+            # Permanently delete the product
+            if affected(await conn.execute("DELETE FROM products WHERE id = $1", product_id)):
+                await record(conn, "product_deleted", f"Product #{product_id}")
+        self._products_cache.clear()

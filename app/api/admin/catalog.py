@@ -59,8 +59,8 @@ async def update_product(product_id: int, payload: ProductUpdatePayload, service
 
 
 @router.delete("/products/{product_id}", dependencies=WRITE)
-async def archive_product(product_id: int, services: ServicesDep):
-    await services.catalog.archive_product(product_id)
+async def delete_product(product_id: int, services: ServicesDep):
+    await services.catalog.delete_product(product_id)
     return {"success": True}
 
 

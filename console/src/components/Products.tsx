@@ -52,11 +52,19 @@ export function Products({ say }: { say: Say }) {
     void load();
   }, [load]);
 
-  async function archive(product: Product) {
-    if (!(await confirm(`Archive ${product.title}?`, 'Its orders and stock will be kept, but customers will no longer see it.', 'Archive product'))) return;
+  async function remove(product: Product) {
+    if (
+      !(await confirm(
+        `Delete "${product.title}"?`,
+        'This will permanently delete this product and its associated stock.',
+        'Delete product',
+        true
+      ))
+    )
+      return;
     try {
       await api.deleteProduct(product.id);
-      say('Archived.');
+      say('Product deleted.');
       await load();
     } catch (cause) {
       say(errorText(cause), 'bad');
@@ -73,8 +81,16 @@ export function Products({ say }: { say: Say }) {
   }
 
   async function toggleActive(product: Product) {
+    const nextActive = !product.is_active;
+    const title = nextActive ? `Make "${product.title}" Active?` : `Hide "${product.title}"?`;
+    const message = nextActive
+      ? 'This product will become visible to customers in the store.'
+      : 'This product will be hidden from customers in the store.';
+    const actionLabel = nextActive ? 'Make Active' : 'Hide Product';
+
+    if (!(await confirm(title, message, actionLabel, !nextActive))) return;
+
     try {
-      const nextActive = !product.is_active;
       await api.updateProduct(product.id, { is_active: nextActive ? 1 : 0 });
       say(nextActive ? `${product.title} is now Active.` : `${product.title} is now Hidden.`);
       await load();
@@ -289,8 +305,8 @@ export function Products({ say }: { say: Say }) {
                         >
                           Edit
                         </button>
-                        <button type="button" className="mini danger" onClick={() => archive(product)}>
-                          Archive
+                        <button type="button" className="mini danger" onClick={() => remove(product)}>
+                          Delete
                         </button>
                       </div>
                     </td>
@@ -433,6 +449,19 @@ function ProductForm({
           value={form.duration_label}
           onChange={(val) => set({ duration_label: val })}
           presets={validityPresets}
+          onAddPreset={async (newPreset) => {
+            const exists = validityPresets.some((p) => p.toLowerCase() === newPreset.toLowerCase());
+            if (!exists) {
+              const updated = [...validityPresets, newPreset];
+              setValidityPresets(updated);
+              try {
+                await api.updateSettings({ validity_presets: updated.join(', ') });
+                say(`"${newPreset}" added to validity presets.`);
+              } catch (e) {
+                console.error('Failed to update validity presets:', e);
+              }
+            }
+          }}
         />
       </div>
 
