@@ -119,7 +119,6 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
             <UserCheck size={15} style={{ color: 'var(--positive)', flexShrink: 0 }} />
             <span>Admin Telegram Recipients</span>
           </h3>
-          <p>Every operational alert will be broadcast concurrently to all configured admin Telegram accounts.</p>
         </div>
         <div className="actions">
           <button
@@ -162,8 +161,8 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
 
         <div className="admin-ids-list" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {adminIds.length === 0 ? (
-            <div className="empty-state" style={{ padding: '20px 0', textAlign: 'center', color: 'var(--muted)' }}>
-              No admin Telegram IDs configured. Click &quot;Add Admin ID&quot; below to add your ID.
+            <div className="empty-state" style={{ padding: '14px 0', textAlign: 'center', color: 'var(--muted)' }}>
+              No admin Telegram IDs configured. Click &quot;Add Admin ID&quot; below.
             </div>
           ) : (
             <div className="admin-chips-wrap">
@@ -193,7 +192,7 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
               <input
                 type="text"
                 autoFocus
-                placeholder="Enter Telegram User ID (e.g. 6775546602)"
+                placeholder="Telegram User ID (e.g. 6775546602)"
                 value={newAdminId}
                 onChange={(e) => setNewAdminId(e.target.value)}
                 onKeyDown={(e) => {
@@ -220,7 +219,7 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
               </div>
             </div>
           ) : (
-            <div style={{ marginTop: 8 }}>
+            <div style={{ marginTop: 4 }}>
               <button
                 type="button"
                 className="btn small ghost"
@@ -233,23 +232,6 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
             </div>
           )}
         </div>
-
-        <div className="admin-help-box">
-          <HelpCircle size={16} />
-          <div>
-            <b>How to find your Telegram ID?</b> Open Telegram, message{' '}
-            <a href="https://t.me/userinfobot" target="_blank" rel="noreferrer">
-              @userinfobot
-            </a>{' '}
-            or{' '}
-            <a href="https://t.me/raw_data_bot" target="_blank" rel="noreferrer">
-              @raw_data_bot
-            </a>
-            , and send <code>/start</code>. Copy the numeric <b>Id</b>.
-            <br />
-            <i>Note: The admin must have clicked &quot;Start&quot; on your store bot at least once so Telegram permits the bot to send messages.</i>
-          </div>
-        </div>
       </div>
 
       {/* SUB-SECTION: Operational Alerts & Notification Rules */}
@@ -259,7 +241,6 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
             <Bell size={15} style={{ color: 'var(--positive)', flexShrink: 0 }} />
             <span>Operational Notification Rules</span>
           </h3>
-          <p>Configure which store and order events alert your admin Telegram accounts.</p>
         </div>
       </div>
 
@@ -267,12 +248,9 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
         <div className="mandatory-row">
           <div className="mandatory-info">
             <div className="mandatory-title-row">
-              <strong>Manual Delivery Orders (Waiting Fulfillment)</strong>
-              <span className="mandatory-badge warn">MANDATORY · LOCKED ON</span>
+              <strong>Manual Delivery Orders</strong>
+              <span className="mandatory-badge warn">ALWAYS ON</span>
             </div>
-            <p className="mandatory-desc">
-              Sent instantly when a customer pays for a product marked as &quot;Manual Delivery&quot; or when an order requires manual credentials/fulfillment.
-            </p>
           </div>
           <div className="mandatory-switch" title="Always active. Cannot be disabled.">
             <Switch label="Manual Delivery Orders" on={true} disabled={true} onChange={() => {}} />
@@ -283,11 +261,8 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
           <div className="mandatory-info">
             <div className="mandatory-title-row">
               <strong>Critical Payment &amp; Gateway Errors</strong>
-              <span className="mandatory-badge danger">CRITICAL · LOCKED ON</span>
+              <span className="mandatory-badge danger">ALWAYS ON</span>
             </div>
-            <p className="mandatory-desc">
-              Sent when a payment gateway (ZiniPay/Binance) rejects an invoice, detects an amount mismatch, or experiences a verification failure.
-            </p>
           </div>
           <div className="mandatory-switch" title="Always active. Cannot be disabled.">
             <Switch label="Payment Errors" on={true} disabled={true} onChange={() => {}} />
@@ -296,35 +271,30 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
 
         <FlagRow
           label="Instant Stock Purchases"
-          hint="Alert when a customer successfully buys an automated instant stock item from the catalog."
           on={isOn('notify_admin_orders', '1')}
           onChange={(next) => void flip('notify_admin_orders', next)}
         />
 
         <FlagRow
           label="Manual Deposit Requests"
-          hint="Alert when a customer submits a manual deposit (TrxID) for review & wallet approval."
           on={isOn('notify_admin_deposits', '1')}
           onChange={(next) => void flip('notify_admin_deposits', next)}
         />
 
         <FlagRow
           label="Automatic Gateway Deposits"
-          hint="Alert when an online gateway (ZiniPay / Binance) successfully auto-credits a customer's wallet."
           on={isOn('notify_admin_payments', '1')}
           onChange={(next) => void flip('notify_admin_payments', next)}
         />
 
         <FlagRow
-          label="Stock Added / Restock"
-          hint="Alert when stock units or accounts are added or restocked for a product."
+          label="Stock Added / Restock Alerts"
           on={isOn('notify_admin_restock', '1')}
           onChange={(next) => void flip('notify_admin_restock', next)}
         />
 
         <FlagRow
-          label="New Customer Registration"
-          hint="Alert when a brand new user starts the Telegram bot for the first time."
+          label="New Customer Registrations"
           on={isOn('notify_admin_new_user', '0')}
           onChange={(next) => void flip('notify_admin_new_user', next)}
         />

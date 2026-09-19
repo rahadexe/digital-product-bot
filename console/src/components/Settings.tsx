@@ -42,8 +42,6 @@ type Section = {
   id: string;
   tab: SettingsTab;
   title: string;
-  description?: string;
-  subhead?: string;
   /** The switch the whole panel hangs from, with what it means in each position. */
   master?: { key: string; on?: string; off?: string };
   fields: Field[];
@@ -55,11 +53,9 @@ const SECTIONS: Section[] = [
   {
     id: 'store',
     tab: 'general',
-    title: 'Bot Profile & Admin Settings',
-    description: 'Core bot identity, support contact, and admin notification recipients.',
-    subhead: 'Bot & Store Identity',
+    title: 'Bot Profile & Admins',
     fields: [
-      { key: 'store_name', label: 'Bot / Store Name', placeholder: 'PremiumOne' },
+      { key: 'store_name', label: 'Bot / Store Name', placeholder: 'Store name' },
       { key: 'support_username', label: 'Telegram Support Username', placeholder: '@username' },
     ],
   },
@@ -67,50 +63,42 @@ const SECTIONS: Section[] = [
     id: 'channels',
     tab: 'general',
     title: 'Welcome & Channels',
-    description: 'Customer greeting message, automated stock restock broadcasts, and bot channel buttons.',
-    subhead: 'Welcome Greeting & Channel Posts',
     fields: [
       {
         key: 'welcome_text',
-        label: 'Welcome Message (Optional)',
+        label: 'Welcome Message',
         type: 'textarea',
         rows: 3,
-        placeholder: 'Enter custom welcome message, or leave blank for default...',
-        hint: 'If left blank, default welcome text will be sent to the customer.',
+        placeholder: 'Custom welcome message (optional)',
       },
       { key: 'announcement_channel', label: 'Announcement Channel', placeholder: '@YourChannel or -100…' },
-      { key: 'auto_restock_alerts', label: 'Post when stock is added', type: 'toggle' },
-      { key: 'auto_price_drop_alerts', label: 'Post when a price drops', type: 'toggle' },
+      { key: 'auto_restock_alerts', label: 'Post to channel on restock', type: 'toggle' },
+      { key: 'auto_price_drop_alerts', label: 'Post to channel on price drop', type: 'toggle' },
     ],
   },
   {
     id: 'access',
     tab: 'general',
-    title: 'Store Access & Force-Join Gate',
-    description: 'Maintenance mode controls, single deposit limits, and required channel memberships.',
-    subhead: 'Operations & Limits',
+    title: 'Access & Limits',
     fields: [
-      { key: 'maintenance_message', label: 'Maintenance message', placeholder: 'Store maintenance is in progress. Please try again soon.' },
-      { key: 'max_deposit_limit', label: 'Largest single deposit', type: 'number', fallback: '500', money: true },
-      { key: 'store_paused', label: 'Pause new purchases and deposits', type: 'toggle' },
-      { key: 'force_join_enabled', label: 'Customers must join the channels below', type: 'toggle' },
+      { key: 'maintenance_message', label: 'Maintenance Message', placeholder: 'Store maintenance is in progress...' },
+      { key: 'max_deposit_limit', label: 'Max Single Deposit', type: 'number', fallback: '500', money: true },
+      { key: 'store_paused', label: 'Pause Store (block orders & deposits)', type: 'toggle' },
+      { key: 'force_join_enabled', label: 'Force Join Gate (require channel membership)', type: 'toggle' },
     ],
   },
   {
     id: 'referral',
     tab: 'general',
-    title: 'Refer & Earn Program',
-    description: 'Cash bonus rewards credited to customer wallets when invited friends join and verify channel membership.',
-    subhead: 'Referral Rewards',
+    title: 'Refer & Earn',
     master: { key: 'referral_enabled' },
     fields: [
       {
         key: 'referral_reward_amount',
-        label: 'Bonus per Referral (Flat Cash)',
+        label: 'Bonus per Referral',
         type: 'number',
         fallback: '3',
         money: true,
-        hint: 'Cash bonus credited to referrer wallet when invited friend joins bot and verifies channel membership (Max limit: 100 ৳).',
       },
     ],
   },
@@ -394,31 +382,12 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
               <header>
                 <div>
                   <h2>{section.title}</h2>
-                  {section.description ? <p>{section.description}</p> : null}
                   {section.master && (on ? section.master.on : section.master.off) ? <p>{on ? section.master.on : section.master.off}</p> : null}
                 </div>
                 <div className="actions">
                   {section.master ? <Switch label={section.title} on={on} onChange={(next) => void flip(section.master!.key, next)} /> : null}
                 </div>
               </header>
-
-              {/* Subhead for section parameters if defined */}
-              {section.subhead ? (
-                <div className="panel-subhead">
-                  <div>
-                    <h3>{section.subhead}</h3>
-                    <p>
-                      {section.id === 'store'
-                        ? 'Basic store branding, support contact, and currency settings.'
-                        : section.id === 'channels'
-                        ? 'Customer onboarding greeting and automated inventory alerts.'
-                        : section.id === 'access'
-                        ? 'Store availability toggles and financial ceilings.'
-                        : 'Referral cash reward amounts.'}
-                    </p>
-                  </div>
-                </div>
-              ) : null}
 
               {inputs.length ? <div className="field-grid">{inputs.map(renderInput)}</div> : null}
               {toggles.map((field) => (

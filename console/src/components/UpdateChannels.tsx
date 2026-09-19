@@ -34,7 +34,6 @@ export function UpdateChannels({ say }: { say: Say }) {
       <div className="panel-subhead">
         <div>
           <h3>Support &amp; Update Channel Buttons</h3>
-          <p>Each channel appears as a button in the bot under Support and the Channel menu. Customize button labels and Telegram links/usernames.</p>
         </div>
         <div className="actions">
           <button
@@ -46,7 +45,7 @@ export function UpdateChannels({ say }: { say: Say }) {
           </button>
         </div>
       </div>
-      {channels && channels.length === 0 ? <p className="note" style={{ padding: '14px 18px', margin: 0 }}>No channel buttons configured. Customers are told none has been added yet.</p> : null}
+      {channels && channels.length === 0 ? <p className="note" style={{ padding: '12px 18px', margin: 0 }}>No channel buttons added yet.</p> : null}
       <div className="rows">
         {(channels ?? []).map((channel) => (
           <div key={channel.id} className={`row${channel.is_active ? '' : ' off'}`}>
