@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, Plus, Search } from 'lucide-react';
+import { Check, ChevronDown, Plus, Search, X } from 'lucide-react';
 
 export interface SelectOption {
   value: string;
@@ -21,10 +21,14 @@ export interface CustomSelectProps {
   minWidth?: number | string;
   maxWidth?: number | string;
   searchable?: boolean;
+  searchPlaceholder?: string;
   align?: 'left' | 'right';
   creatable?: boolean;
   customPlaceholder?: string;
   onCreateOption?: (val: string) => void;
+  clearable?: boolean;
+  onClear?: () => void;
+  fullWidthDropdown?: boolean;
 }
 
 export function CustomSelect({
@@ -38,10 +42,14 @@ export function CustomSelect({
   minWidth = 180,
   maxWidth,
   searchable = false,
+  searchPlaceholder,
   align = 'left',
   creatable = false,
   customPlaceholder,
   onCreateOption,
+  clearable = false,
+  onClear,
+  fullWidthDropdown,
 }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -50,6 +58,8 @@ export function CustomSelect({
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const customInputRef = useRef<HTMLInputElement>(null);
+
+  const isFullWidth = fullWidthDropdown ?? (minWidth === '100%' || width === '100%');
 
   const selectedOption = useMemo(
     () => options.find((opt) => String(opt.value) === String(value)),
@@ -102,6 +112,25 @@ export function CustomSelect({
     }
   }, [isCreating]);
 
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (filteredOptions.length > 0) {
+        onChange(String(filteredOptions[0].value));
+        setIsOpen(false);
+        setSearch('');
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (search) {
+        setSearch('');
+      } else {
+        setIsOpen(false);
+      }
+    }
+  };
+
   return (
     <div
       ref={containerRef}
@@ -125,11 +154,11 @@ export function CustomSelect({
           width: '100%',
           minHeight: '38px',
           height: '38px',
-          padding: '0 12px',
+          padding: '0 10px 0 12px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: '10px',
+          gap: '8px',
           background: 'var(--surface)',
           border: `1px solid ${isOpen ? 'var(--accent)' : 'var(--border)'}`,
           borderRadius: '8px',
@@ -141,7 +170,8 @@ export function CustomSelect({
           boxShadow: isOpen
             ? '0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent)'
             : '0 1px 2px rgba(0, 0, 0, 0.02)',
-          transition: 'all 0.15s ease',
+          transition: 'border-color 120ms ease, box-shadow 120ms ease',
+          boxSizing: 'border-box',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', minWidth: 0, flex: 1 }}>
@@ -155,37 +185,46 @@ export function CustomSelect({
           </span>
         </div>
 
-        <ChevronDown
-          size={14}
-          style={{
-            color: 'var(--muted)',
-            flexShrink: 0,
-            transition: 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-            transform: isOpen ? 'rotate(180deg)' : 'none',
-          }}
-        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+          {clearable && onClear && value && value !== '0' && (
+            <span
+              role="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onClear();
+              }}
+              title="Clear"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--muted)',
+                cursor: 'pointer',
+                padding: '2px',
+                borderRadius: '4px',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--danger)')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--muted)')}
+            >
+              <X size={13} />
+            </span>
+          )}
+
+          <ChevronDown
+            size={14}
+            style={{
+              color: 'var(--muted)',
+              flexShrink: 0,
+              transition: 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+              transform: isOpen ? 'rotate(180deg)' : 'none',
+            }}
+          />
+        </div>
       </button>
 
       {isOpen && (
         <div
-          style={{
-            position: 'absolute',
-            top: 'calc(100% + 5px)',
-            [align === 'right' ? 'right' : 'left']: 0,
-            minWidth: '100%',
-            width: 'max-content',
-            maxWidth: '380px',
-            maxHeight: '400px',
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: '10px',
-            boxShadow: '0 12px 36px -4px rgba(0, 0, 0, 0.16), 0 4px 12px -2px rgba(0, 0, 0, 0.06)',
-            padding: '5px',
-            zIndex: 1000,
-            display: 'flex',
-            flexDirection: 'column',
-            boxSizing: 'border-box',
-          }}
+          className={`custom-select-dropdown ${align === 'right' ? 'align-right' : ''} ${isFullWidth ? 'full-width' : ''}`}
         >
           {searchable && (
             <div style={{ padding: '4px 6px 6px 6px', borderBottom: '1px solid var(--line)' }}>
@@ -199,13 +238,14 @@ export function CustomSelect({
                   padding: '4px 8px',
                 }}
               >
-                <Search size={13} style={{ color: 'var(--muted)' }} />
+                <Search size={13} style={{ color: 'var(--muted)', flexShrink: 0 }} />
                 <input
                   ref={searchInputRef}
                   type="text"
-                  placeholder="Filter..."
+                  placeholder={searchPlaceholder || 'Filter...'}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
+                  onKeyDown={handleSearchKeyDown}
                   style={{
                     border: 'none',
                     background: 'transparent',
@@ -214,15 +254,39 @@ export function CustomSelect({
                     width: '100%',
                     color: 'var(--text)',
                     padding: 0,
+                    minWidth: 0,
                   }}
                 />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSearch('');
+                      searchInputRef.current?.focus();
+                    }}
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      color: 'var(--muted)',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      padding: '2px',
+                      borderRadius: '4px',
+                    }}
+                    title="Clear search"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
               </div>
             </div>
           )}
 
           <div
+            className="custom-select-scroll"
             style={{
-              overflowY: 'auto',
               maxHeight: searchable ? '280px' : '340px',
               padding: '2px 0',
             }}
@@ -246,8 +310,8 @@ export function CustomSelect({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      gap: '14px',
-                      padding: '8px 12px',
+                      gap: '12px',
+                      padding: '8px 10px',
                       borderRadius: '6px',
                       fontSize: '13px',
                       cursor: 'pointer',
@@ -255,7 +319,8 @@ export function CustomSelect({
                       color: isSelected ? 'var(--accent)' : 'var(--text)',
                       background: isSelected ? 'var(--accent-soft)' : 'transparent',
                       transition: 'background-color 0.12s ease',
-                      whiteSpace: 'nowrap',
+                      boxSizing: 'border-box',
+                      minWidth: 0,
                     }}
                     onMouseEnter={(e) => {
                       if (!isSelected) e.currentTarget.style.backgroundColor = 'var(--surface-2)';
@@ -264,18 +329,18 @@ export function CustomSelect({
                       if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1, overflow: 'hidden' }}>
                       {opt.icon && (
                         <span style={{ display: 'inline-flex', alignItems: 'center', color: isSelected ? 'var(--accent)' : 'var(--muted)', flexShrink: 0 }}>
                           {opt.icon}
                         </span>
                       )}
-                      <span style={{ whiteSpace: 'nowrap' }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flex: 1 }}>
                         {opt.label}
                       </span>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, marginInlineStart: 'auto' }}>
                       {opt.badge !== undefined && (
                         <span
                           style={{
@@ -285,12 +350,13 @@ export function CustomSelect({
                             background: isSelected ? 'rgba(15, 118, 110, 0.15)' : 'var(--surface-2)',
                             color: isSelected ? 'var(--accent)' : 'var(--muted)',
                             fontWeight: 600,
+                            flexShrink: 0,
                           }}
                         >
                           {opt.badge}
                         </span>
                       )}
-                      {isSelected && <Check size={14} style={{ color: 'var(--accent)', strokeWidth: 2.5 }} />}
+                      {isSelected && <Check size={14} style={{ color: 'var(--accent)', strokeWidth: 2.5, flexShrink: 0 }} />}
                     </div>
                   </div>
                 );

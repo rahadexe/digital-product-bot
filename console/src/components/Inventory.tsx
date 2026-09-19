@@ -104,8 +104,11 @@ export function Inventory({ say }: { say: Say }) {
                   badge: p.stock ?? 0,
                 })),
               ]}
-              minWidth={210}
-              searchable={products.length > 6}
+              minWidth={220}
+              searchable={true}
+              searchPlaceholder="Search products..."
+              clearable={productId !== 0}
+              onClear={() => { setProductId(0); setOffset(0); }}
             />
             <CustomSelect
               value={status}
@@ -117,6 +120,8 @@ export function Inventory({ say }: { say: Say }) {
                 { value: '', label: 'Everything' },
               ]}
               minWidth={135}
+              clearable={status !== 'available' && status !== ''}
+              onClear={() => { setStatus('available'); setOffset(0); }}
             />
           </div>
           <button type="button" className="btn" onClick={() => setAdding(true)}>
@@ -293,7 +298,9 @@ function AddStock({ products, initialProduct, say, onClose, onAdded }: { product
             badge: `${p.stock ?? 0} in stock`,
           }))}
           minWidth="100%"
-          searchable={products.length > 6}
+          searchable={products.length > 3}
+          searchPlaceholder="Search product to add stock..."
+          fullWidthDropdown={true}
         />
       </div>
       <label className="field">
