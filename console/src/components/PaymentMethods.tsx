@@ -111,12 +111,7 @@ export function PaymentMethods({ say, symbol, zinipayActive }: { say: Say; symbo
       <section className="panel">
         <header>
           <div>
-            <h2>Local Payment Accounts (bKash / Nagad / Rocket)</h2>
-            <p>
-              {zinipayActive
-                ? '⚡ Auto-verification active: When customers pay to these numbers and enter their TrxID in Telegram, ZiniPay verifies it automatically. If unmatched, it falls back to manual review.'
-                : 'Manual approval mode: Customers send money to these numbers, and you approve deposits in the Deposits tab.'}
-            </p>
+            <h2>Local Payment Accounts</h2>
           </div>
           <button type="button" className="btn small" onClick={() => setChoosing(true)}>
             Add account
@@ -124,7 +119,7 @@ export function PaymentMethods({ say, symbol, zinipayActive }: { say: Say; symbo
         </header>
         {!methods ? <p className="note">Loading…</p> : null}
         {methods && manualMethods.length === 0 ? (
-          <p className="note">No payment accounts added yet. Click &ldquo;Add account&rdquo; to add your bKash, Nagad, or Rocket numbers.</p>
+          <p className="note">No payment accounts added yet.</p>
         ) : null}
         <div className="rows">
           {manualMethods.map((method) => (
@@ -134,10 +129,7 @@ export function PaymentMethods({ say, symbol, zinipayActive }: { say: Say; symbo
                   {method.name}
                   {method.is_active ? '' : ' · off'}
                 </strong>
-                <small>
-                  {zinipayActive ? '⚡ Auto-Verified (ZiniPay API) · ' : 'Manual review · '}
-                  from {money(method.min_deposit)}
-                </small>
+                <small>from {money(method.min_deposit)}</small>
                 <code className="key" title={method.account_info}>
                   {method.account_info}
                 </code>
@@ -156,7 +148,7 @@ export function PaymentMethods({ say, symbol, zinipayActive }: { say: Say; symbo
       </section>
 
       {choosing ? (
-        <Modal title="Choose payment method to add" onClose={() => setChoosing(false)}>
+        <Modal title="Add payment account" onClose={() => setChoosing(false)}>
           <div className="kinds">
             {KINDS.map((kind) => {
               const Icon = kind.icon;
