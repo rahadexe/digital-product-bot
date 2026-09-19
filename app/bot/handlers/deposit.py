@@ -614,6 +614,101 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         await message.answer(f"{ICON_TIMER} Session expired. Please tap Deposit to try again.")
         return
 
+    symbol = await services.settings.get("currency_symbol")
+    method_name = data.get("method_name", "Payment")
+
+    # If ZiniPay auto-verify is configured, attempt automated verification
+    if await services.zinipay.is_enabled():
+        try:
+            res = await services.zinipay.claim(
+                message.from_user.id,
+                method_id,
+                amount_num,
+                clean_tx,
+                quoted_rate=data.get("rate", 1.0),
+            )
+        except DuplicateTransactionError:
+            await message.answer(
+                f"{ICON_CROSS} <b>Payment Already Processed</b>\n\n"
+                f"This Transaction ID (<code>{escape(clean_tx)}</code>) has already been submitted or credited.",
+                reply_markup=get_cancel_keyboard(),
+            )
+            return
+        except PendingDepositError:
+            await state.clear()
+            await message.answer(
+                f"{ICON_TIMER} <b>Pending Deposit Exists</b>\n\n"
+                f"You already have a deposit request waiting for review.\n"
+                f"Please wait for it to be confirmed before submitting a new one.",
+                reply_markup=InlineKeyboardMarkup(
+                    inline_keyboard=[
+                        [InlineKeyboardButton(text="Deposit History", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER)],
+                        [InlineKeyboardButton(text="Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)],
+                    ]
+                ),
+            )
+            return
+        except (InvalidInputError, ValueError) as exc:
+            await state.clear()
+            await message.answer(f"{ICON_CROSS} {escape(str(exc))}")
+            return
+
+        if res.get("auto_verified") and res.get("credited"):
+            await state.clear()
+            user = await services.users.get(message.from_user.id)
+            user_balance = user["balance"] if user else 0.0
+            provider = res.get("provider") or method_name
+            keyboard = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(text="Products Hub", callback_data="open_shop", style="success", icon_custom_emoji_id=Icons.PRODUCTS),
+                        InlineKeyboardButton(text="Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK),
+                    ]
+                ]
+            )
+            await message.answer(
+                f"{ICON_CHECK} <b>Deposit Successful!</b>\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"{ICON_DEPOSIT} <b>Method:</b> {escape(provider)}\n"
+                f"{ICON_MONEY} <b>Amount Credited:</b> <code>{price(symbol, amount_num)}</code>\n"
+                f"{ICON_BALANCE} <b>New Balance:</b> <code>{price(symbol, user_balance)}</code>\n"
+                f"{ICON_KEY} <b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"<i>Your wallet balance has been credited automatically. Thank you!</i>",
+                reply_markup=keyboard,
+            )
+            return
+
+        if res.get("error") in ("amount_mismatch", "already_used"):
+            await message.answer(
+                f"{ICON_CROSS} <b>Verification Failed</b>\n\n{escape(res.get('detail', ''))}",
+                reply_markup=get_cancel_keyboard(),
+            )
+            return
+
+        if res.get("fallback_manual"):
+            await state.clear()
+            keyboard = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(text="Deposit History", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER),
+                        InlineKeyboardButton(text="Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK),
+                    ]
+                ]
+            )
+            await message.answer(
+                f"{ICON_CHECK} <b>Deposit Request Submitted!</b>\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"{ICON_DEPOSIT} <b>Method:</b> {escape(method_name)}\n"
+                f"{ICON_MONEY} <b>Amount:</b> <code>{price(symbol, amount_num)}</code>\n"
+                f"{ICON_KEY} <b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
+                f"━━━━━━━━━━━━━━━━━━\n\n"
+                f"<i>Your payment request has been submitted for admin review. Balance will be added once verified.</i>",
+                reply_markup=keyboard,
+            )
+            return
+
+    # Standard fallback when ZiniPay verification is not enabled
     try:
         await services.deposits.create_request(
             message.from_user.id,
@@ -648,9 +743,6 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         return
 
     await state.clear()
-    symbol = await services.settings.get("currency_symbol")
-    method_name = data.get("method_name", "Payment")
-
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [

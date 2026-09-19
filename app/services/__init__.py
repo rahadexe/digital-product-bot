@@ -34,6 +34,7 @@ from app.services.settings import SettingsService
 from app.services.supplier import SupplierService
 from app.services.update_channels import UpdateChannelService
 from app.services.users import UserService
+from app.services.zinipay import ZiniPayVerificationService
 
 
 @dataclass
@@ -65,6 +66,7 @@ class Services:
     deposits: DepositService
     payments: PaymentService
     binance: BinanceDepositService
+    zinipay: ZiniPayVerificationService
     gate: GateService
     update_channels: UpdateChannelService
     announcements: AnnouncementService
@@ -116,6 +118,7 @@ def build_services(
         deposits=deposits,
         payments=PaymentService(db, settings, notifier, config),
         binance=BinanceDepositService(db, settings, deposits, notifier, config),
+        zinipay=ZiniPayVerificationService(db, settings, deposits, notifier, config),
         gate=GateService(db, settings, notifier),
         update_channels=UpdateChannelService(db),
         announcements=AnnouncementService(settings, catalog, notifier),
