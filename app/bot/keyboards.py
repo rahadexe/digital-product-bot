@@ -623,7 +623,13 @@ def get_deposit_methods_keyboard(
         if custom_emoji_id and str(custom_emoji_id).strip().isdigit():
             kwargs["icon_custom_emoji_id"] = str(custom_emoji_id).strip()
         elif auto_verify == "binance_pay" or "binance" in name.lower():
-            kwargs["icon_custom_emoji_id"] = Icons.COIN
+            kwargs["icon_custom_emoji_id"] = Icons.BINANCE
+        elif "bkash" in name.lower():
+            kwargs["icon_custom_emoji_id"] = Icons.BKASH
+        elif "nagad" in name.lower():
+            kwargs["icon_custom_emoji_id"] = Icons.NAGAD
+        elif "rocket" in name.lower():
+            kwargs["icon_custom_emoji_id"] = Icons.ROCKET
         else:
             kwargs["icon_custom_emoji_id"] = Icons.DEPOSIT
         buttons.append([InlineKeyboardButton(**kwargs)])
@@ -640,8 +646,8 @@ def get_deposit_methods_keyboard(
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def get_manual_deposit_invoice_keyboard(account_info: str) -> InlineKeyboardMarkup:
-    """Actions shown for a deposit method: copy number, I've paid, change method."""
+def get_manual_deposit_invoice_keyboard(account_info: str, is_binance: bool = False) -> InlineKeyboardMarkup:
+    """Actions shown for a deposit method: copy number/UID, I've paid, change method."""
     destination = str(account_info or "").strip()
     buttons = []
     if destination.startswith("https://"):
@@ -654,12 +660,14 @@ def get_manual_deposit_invoice_keyboard(account_info: str) -> InlineKeyboardMark
             )
         ])
     elif destination:
+        btn_label = "Copy Binance UID" if is_binance else "Copy Number"
+        btn_icon = Icons.BINANCE if is_binance else Icons.NOTE
         buttons.append([
             InlineKeyboardButton(
-                text="Copy Number",
+                text=btn_label,
                 copy_text=CopyTextButton(text=destination[:256]),
                 style="primary",
-                icon_custom_emoji_id=Icons.NOTE,
+                icon_custom_emoji_id=btn_icon,
             )
         ])
     buttons.append([

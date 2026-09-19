@@ -35,7 +35,7 @@ from app.bot.icons import (
     Icons,
 )
 
-TRANSACTION_ID = re.compile(r"[A-Za-z0-9_\-]{6,80}")
+TRANSACTION_ID = re.compile(r"[A-Za-z0-9_\-]{5,80}")
 CUSTOMER_DEPOSIT_COLUMNS = (
     "id, method_name, amount, pay_amount, rate_to_currency, transaction_id, status, admin_note, created_at, reviewed_at"
 )
@@ -370,7 +370,9 @@ class DepositService:
         }
         return [dict(row) for row in rows], total, summary
 
-    async def approve(self, deposit_id: int, admin_note: str = "") -> tuple[bool, str, dict[str, Any] | None]:
+    async def approve(
+        self, deposit_id: int, admin_note: str = "", notify_customer: bool = True
+    ) -> tuple[bool, str, dict[str, Any] | None]:
         async with self.db.transaction() as conn:
             deposit = await conn.fetchrow("SELECT * FROM deposits WHERE id = $1 FOR UPDATE", deposit_id)
             if not deposit:
@@ -406,18 +408,19 @@ class DepositService:
             "method_name": deposit["method_name"],
         }
         method_name = escape(deposit["method_name"])
-        self.notifier.in_background(
-            self._notify_customer(
-                deposit["tg_user_id"],
-                lambda symbol: (
-                    f"{ICON_CHECK} <b>Deposit Approved!</b>\n"
-                    f"━━━━━━━━━━━━━━━━━━\n"
-                    f"{ICON_MONEY} <b>Amount Credited:</b> <code>{amount:.2f} {symbol}</code>\n"
-                    f"{ICON_DEPOSIT} <b>Payment Method:</b> {method_name}\n"
-                    f"{ICON_BALANCE} <b>Updated Balance:</b> <code>{details['new_balance']:.2f} {symbol}</code>"
-                ),
+        if notify_customer:
+            self.notifier.in_background(
+                self._notify_customer(
+                    deposit["tg_user_id"],
+                    lambda symbol: (
+                        f"{ICON_CHECK} <b>Deposit Approved!</b>\n"
+                        f"━━━━━━━━━━━━━━━━━━\n"
+                        f"{ICON_MONEY} <b>Amount Credited:</b> <code>{amount:.2f} {symbol}</code>\n"
+                        f"{ICON_DEPOSIT} <b>Payment Method:</b> {method_name}\n"
+                        f"{ICON_BALANCE} <b>Updated Balance:</b> <code>{details['new_balance']:.2f} {symbol}</code>"
+                    ),
+                )
             )
-        )
         return True, "Deposit approved and user credited.", details
 
     async def reject(

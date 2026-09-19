@@ -57,6 +57,11 @@ class Icons:
     CLEAR = "6206108815075579644"          # 🗑 (Earning_ON_World_by_TgEmojis_bot)
     QUESTION = "6206306186002698906"       # ❓ (Earning_ON_World_by_TgEmojis_bot)
     CONFIRM = "6206185428702206246"        # ✅ (Earning_ON_World_by_TgEmojis_bot)
+    BINANCE = "5348212415077064131"        # 🟡 Binance (http_dxauniverse_by_fStikBot)
+    BYBIT = "5348372939479751825"          # ⚫ Bybit (http_dxauniverse_by_fStikBot)
+    BKASH = "6217678000977089090"          # 🌸 bKash
+    NAGAD = "6217625168584380551"          # 🔴 Nagad
+    ROCKET = "4911601033496494993"         # 🟣 Rocket
 
 
 def tg_icon(emoji_id: str, fallback: str) -> str:
@@ -104,4 +109,9 @@ ICON_MINUS = tg_icon(Icons.MINUS, "➖")
 ICON_BACK = tg_icon(Icons.BACK, "🔙")
 ICON_NEXT = tg_icon(Icons.NEXT, "➡️")
 ICON_CLOSE = tg_icon(Icons.CLOSE, "❌")
+ICON_BINANCE = tg_icon(Icons.BINANCE, "🟡")
+ICON_BYBIT = tg_icon(Icons.BYBIT, "⚫")
+ICON_BKASH = tg_icon(Icons.BKASH, "🌸")
+ICON_NAGAD = tg_icon(Icons.NAGAD, "🔴")
+
 ICON_CONFIRM = tg_icon(Icons.CONFIRM, "✅")

@@ -54,19 +54,40 @@ class BinanceError(Exception):
 
 
 class BinanceClient:
-    """The one read-only call this integration needs. Keys are never logged."""
+    """The read-only call this integration needs with automatic server time synchronization."""
+
+    _time_offset: int = 0
+    _last_time_sync: float = 0.0
 
     def __init__(self, api_key: str, api_secret: str, timeout: float = 20.0):
         self.api_key = api_key
         self.api_secret = api_secret
         self.timeout = timeout
 
+    @classmethod
+    async def sync_server_time(cls, force: bool = False) -> None:
+        now = time.monotonic()
+        if not force and (now - cls._last_time_sync < 300):
+            return
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                res = await client.get(f"{BINANCE_API}/api/v3/time")
+                if res.status_code == 200:
+                    server_time = res.json().get("serverTime")
+                    if server_time:
+                        cls._time_offset = int(server_time) - int(time.time() * 1000)
+                        cls._last_time_sync = now
+        except Exception:
+            pass
+
     def _sign(self, params: dict[str, Any]) -> str:
-        query = urlencode({**params, "timestamp": int(time.time() * 1000), "recvWindow": 10_000})
+        adjusted_ts = int(time.time() * 1000) + BinanceClient._time_offset - 300
+        query = urlencode({**params, "timestamp": adjusted_ts, "recvWindow": 60_000})
         signature = hmac.new(self.api_secret.encode(), query.encode(), hashlib.sha256).hexdigest()
         return f"{query}&signature={signature}"
 
     async def _signed_get(self, path: str, params: dict[str, Any]) -> Any:
+        await self.sync_server_time()
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.get(
@@ -79,6 +100,23 @@ class BinanceClient:
             body = response.json()
         except ValueError:
             body = None
+
+        if response.status_code == 400 and isinstance(body, dict) and body.get("code") == -1021:
+            # Timestamp drift: force resync and retry once
+            await self.sync_server_time(force=True)
+            try:
+                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                    response = await client.get(
+                        f"{BINANCE_API}{path}?{self._sign(params)}",
+                        headers={"X-MBX-APIKEY": self.api_key, "Accept": "application/json"},
+                    )
+                    try:
+                        body = response.json()
+                    except ValueError:
+                        body = None
+            except Exception:
+                pass
+
         if response.status_code != 200:
             message = ""
             if isinstance(body, dict):
@@ -215,7 +253,7 @@ class BinanceDepositService:
         async with self.db.connect() as conn:
             return [dict(row) for row in await conn.fetch(query, *params)]
 
-    async def check(self, deposit_id: int) -> dict[str, Any]:
+    async def check(self, deposit_id: int, notify_customer: bool = True) -> dict[str, Any]:
         """Check one pending deposit against Binance. Returns what happened, without raising."""
         pending = await self._pending(deposit_id)
         if not pending:
@@ -225,7 +263,7 @@ class BinanceDepositService:
             return {"checked": False, "credited": False, "detail": "Binance checking is switched off."}
         coin = (await self.settings.values())["binance_coin"]
         try:
-            return await self._match(pending[0], self.client(key, secret), coin)
+            return await self._match(pending[0], self.client(key, secret), coin, notify_customer=notify_customer)
         except BinanceError as exc:
             logger.warning("Binance check for deposit #%s failed: %s", deposit_id, exc)
             return {"checked": False, "credited": False, "detail": str(exc)}
@@ -243,14 +281,14 @@ class BinanceDepositService:
         checked = 0
         for deposit in pending[:MAX_CHECKS_PER_RUN]:
             try:
-                await self._match(deposit, client, coin)
+                await self._match(deposit, client, coin, notify_customer=True)
             except BinanceError as exc:
                 logger.warning("Binance check for deposit #%s failed: %s", deposit["id"], exc)
                 break
             checked += 1
         return checked
 
-    async def claim(self, tg_user_id: int, method_id: int, reference: str) -> dict[str, Any]:
+    async def claim(self, tg_user_id: int, method_id: int, reference: str, expected_usdt: float | None = None) -> dict[str, Any]:
         """A customer says they have paid. What they sent decides the amount, so none is asked for."""
         async with self.db.connect() as conn:
             method = await conn.fetchrow(
@@ -260,29 +298,34 @@ class BinanceDepositService:
             )
         if not method:
             raise InvalidInputError("Payment method is no longer available.")
-        # The amount stands in until the payment is found; every confirmation sets it from the payment itself.
-        deposit_id = await self.deposits.create_request(tg_user_id, method_id, float(method["min_deposit"]), reference)
+        rate = float(method["rate_to_currency"] or 1) or 1
+        min_dep = float(method["min_deposit"])
+        base_amount = float(expected_usdt * rate) if (expected_usdt and expected_usdt > 0) else min_dep
+
+        deposit_id = await self.deposits.create_request(tg_user_id, method_id, base_amount, reference, quoted_rate=rate)
         async with self.db.transaction() as conn:
             await conn.execute(
                 "UPDATE deposits SET admin_note = $1 WHERE id = $2 AND status = 'pending'",
-                "Waiting for Binance; the amount is taken from the payment itself.",
+                f"Waiting for Binance auto-verification (expected {expected_usdt:g} USDT)..." if expected_usdt else "Waiting for Binance auto-verification...",
                 deposit_id,
             )
-        result = await self.check(deposit_id)
+        result = await self.check(deposit_id, notify_customer=False)
         return {"deposit_id": deposit_id, **result}
 
-    async def _already_credited(self, transaction_id: str) -> bool:
+    async def _already_credited(self, transaction_id: str, exclude_deposit_id: int | None = None) -> bool:
+        query = "SELECT 1 FROM deposits WHERE lower(btrim(transaction_id)) = lower(btrim($1)) AND status = 'approved'"
+        params: list[Any] = [transaction_id]
+        if exclude_deposit_id is not None:
+            query += " AND id <> $2"
+            params.append(exclude_deposit_id)
         async with self.db.connect() as conn:
-            return bool(
-                await conn.fetchval(
-                    "SELECT 1 FROM deposits WHERE lower(btrim(transaction_id)) = lower(btrim($1)) AND status <> 'rejected'",
-                    transaction_id,
-                )
-            )
+            return bool(await conn.fetchval(query, *params))
 
-    async def _match(self, deposit: dict[str, Any], client: BinanceClient, coin: str) -> dict[str, Any]:
+    async def _match(
+        self, deposit: dict[str, Any], client: BinanceClient, coin: str, notify_customer: bool = True
+    ) -> dict[str, Any]:
         if deposit.get("auto_verify") == PAY_PROVIDER:
-            return await self._match_pay(deposit, client, coin)
+            return await self._match_pay(deposit, client, coin, notify_customer=notify_customer)
         transaction_id = str(deposit["transaction_id"]).strip()
         records = await client.deposit_history(coin=coin, tx_id=transaction_id)
         if not records:
@@ -319,7 +362,7 @@ class BinanceDepositService:
         received = money(record_row.get("amount") or 0)
         # Filed under Binance's own spelling of the hash, so "0xABC" and "abc" cannot be credited twice.
         canonical = str(record_row.get("txId") or transaction_id).strip()
-        if canonical.lower() != transaction_id.lower() and await self._already_credited(canonical):
+        if canonical.lower() != transaction_id.lower() and await self._already_credited(canonical, exclude_deposit_id=deposit["id"]):
             return await self._flag(deposit, f"payment {canonical} has already been credited")
         return await self._credit(
             deposit,
@@ -327,41 +370,68 @@ class BinanceDepositService:
             coin=coin,
             transaction_id=canonical,
             note=f"Confirmed on Binance: {received:g} {coin} ({NETWORKS.get(network.upper(), network)}), TrxID {transaction_id}",
+            notify_customer=notify_customer,
         )
 
-    async def _match_pay(self, deposit: dict[str, Any], client: BinanceClient, coin: str) -> dict[str, Any]:
-        """Binance Pay: the customer names themselves by their Binance ID, and the transfer carries it."""
-        payer = str(deposit["transaction_id"]).strip()
+    async def _match_pay(
+        self, deposit: dict[str, Any], client: BinanceClient, coin: str, notify_customer: bool = True
+    ) -> dict[str, Any]:
+        """Binance Pay: matching by Binance UID, Counterparty ID, Order ID, or Transaction ID."""
+        reference = str(deposit["transaction_id"]).strip().lower()
         arrivals = [
             row
             for row in await client.pay_transactions(start_time=self._since())
             if str(row.get("orderType") or "").upper() in PAY_INCOMING
             and money(row.get("amount") or 0) > 0
             and str(row.get("currency") or "").upper() == coin.upper()
-            and _payer_id(row).strip() == payer
             and self._arrived_in_time(deposit, row.get("transactionTime"))
         ]
-        arrivals.sort(key=lambda row: int(row.get("transactionTime") or 0), reverse=True)
+
+        matched_rows = []
         for row in arrivals:
+            payer_uid = _payer_id(row).strip().lower()
+            counterparty = str(row.get("counterpartyId") or "").strip().lower()
+            order_id = str(row.get("orderId") or "").strip().lower()
+            tx_id = str(row.get("transactionId") or "").strip().lower()
+            candidates = {c for c in (payer_uid, counterparty, order_id, tx_id) if c}
+            if reference in candidates:
+                matched_rows.append(row)
+
+        matched_rows.sort(key=lambda row: int(row.get("transactionTime") or 0), reverse=True)
+        for row in matched_rows:
             transaction_id = str(row.get("transactionId") or "").strip()
-            if not transaction_id or await self._already_credited(transaction_id):
+            order_id = str(row.get("orderId") or "").strip()
+            if not transaction_id:
+                continue
+            if await self._already_credited(transaction_id, exclude_deposit_id=deposit["id"]):
+                continue
+            if order_id and await self._already_credited(order_id, exclude_deposit_id=deposit["id"]):
                 continue
             received = money(row.get("amount") or 0)
+            payer_num = _payer_id(row).strip()
             return await self._credit(
                 deposit,
                 received=received,
                 coin=coin,
                 transaction_id=transaction_id,
-                note=f"Confirmed on Binance Pay: {received:g} {coin} from Binance ID {payer}",
+                note=f"Confirmed on Binance Pay: {received:g} {coin} (Order: {order_id}, Payer: {payer_num})",
+                notify_customer=notify_customer,
             )
         return {
             "checked": True,
             "credited": False,
-            "detail": f"No new {coin} transfer from Binance ID {payer} yet.",
+            "detail": f"No matching {coin} transfer found for '{reference}'. If you just paid, please wait a minute.",
         }
 
     async def _credit(
-        self, deposit: dict[str, Any], *, received: float, coin: str, transaction_id: str, note: str
+        self,
+        deposit: dict[str, Any],
+        *,
+        received: float,
+        coin: str,
+        transaction_id: str,
+        note: str,
+        notify_customer: bool = True,
     ) -> dict[str, Any]:
         """The payment decides the amount, and its own id is what the deposit is filed under."""
         rate = float(deposit["rate_to_currency"] or 1) or 1
@@ -391,11 +461,19 @@ class BinanceDepositService:
             except asyncpg.UniqueViolationError:
                 return await self._flag(deposit, f"payment {transaction_id} has already been credited")
 
-        success, message, _ = await self.deposits.approve(deposit["id"], note)
+        success, message, _ = await self.deposits.approve(deposit["id"], note, notify_customer=notify_customer)
         if not success:
             return {"checked": True, "credited": False, "detail": message}
         logger.info("Deposit #%s credited automatically from Binance (%s %s)", deposit["id"], received, coin)
-        return {"checked": True, "credited": True, "amount": credit, "detail": f"Credited {credit:.2f} from {received:g} {coin}."}
+        return {
+            "checked": True,
+            "credited": True,
+            "amount": credit,
+            "received_coin": received,
+            "coin": coin,
+            "transaction_id": transaction_id,
+            "detail": f"Credited {credit:.2f} from {received:g} {coin}.",
+        }
 
     async def _flag(self, deposit: dict[str, Any], reason: str) -> dict[str, Any]:
         """Something about the payment is off: leave it for the admin and say why."""
