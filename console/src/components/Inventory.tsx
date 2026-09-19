@@ -497,14 +497,9 @@ function ExpiryPicker({ value, onChange }: { value: string; onChange: (val: stri
           padding: '4px 0',
         }}
       >
-        <div>
-          <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', display: 'block' }}>
-            Auto-Expiry
-          </span>
-          <small style={{ color: 'var(--muted)', fontSize: '12px', display: 'block' }}>
-            {enabled ? 'Item will expire after specified time' : 'Off by default (item never expires)'}
-          </small>
-        </div>
+        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>
+          Auto-Expiry
+        </span>
         <Switch on={enabled} onChange={handleToggle} label="Toggle auto-expiry" />
       </div>
 
