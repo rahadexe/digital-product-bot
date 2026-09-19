@@ -506,111 +506,125 @@ function ExpiryPicker({ value, onChange }: { value: string; onChange: (val: stri
         <Switch on={enabled} onChange={handleToggle} label="Toggle auto-expiry" />
       </div>
 
-      {enabled && (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
+          padding: '10px 12px',
+          borderRadius: '8px',
+          background: 'var(--surface-2)',
+          border: `1px solid ${enabled ? 'var(--border)' : 'color-mix(in srgb, var(--border) 60%, transparent)'}`,
+          marginTop: '6px',
+          opacity: enabled ? 1 : 0.38,
+          pointerEvents: enabled ? 'auto' : 'none',
+          userSelect: enabled ? 'auto' : 'none',
+          filter: enabled ? 'none' : 'grayscale(0.6)',
+          transition: 'opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), filter 0.2s ease, border-color 0.2s ease',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '13px', color: 'var(--text)', fontWeight: 500 }}>Expire in:</span>
+          <input
+            type="number"
+            min="1"
+            max="1000"
+            disabled={!enabled}
+            tabIndex={enabled ? 0 : -1}
+            value={amount}
+            onChange={(e) => handleAmountChange(e.target.value)}
+            placeholder="e.g. 24"
+            style={{
+              width: '74px',
+              height: '34px',
+              padding: '0 8px',
+              fontSize: '13.5px',
+              fontWeight: 600,
+              textAlign: 'center',
+              border: '1px solid var(--border)',
+              borderRadius: '6px',
+              background: 'var(--surface)',
+              color: 'var(--text)',
+              outline: 'none',
+            }}
+          />
+
+          {/* Hours / Days Segmented Switch */}
+          <div
+            style={{
+              display: 'inline-flex',
+              background: 'var(--surface)',
+              padding: '2px',
+              borderRadius: '6px',
+              border: '1px solid var(--border)',
+            }}
+          >
+            <button
+              type="button"
+              disabled={!enabled}
+              tabIndex={enabled ? 0 : -1}
+              onClick={() => handleUnitChange('hours')}
+              style={{
+                border: 'none',
+                padding: '4px 10px',
+                fontSize: '12px',
+                fontWeight: unit === 'hours' ? 600 : 500,
+                borderRadius: '4px',
+                background: unit === 'hours' ? 'var(--accent)' : 'transparent',
+                color: unit === 'hours' ? '#fff' : 'var(--muted)',
+                cursor: enabled ? 'pointer' : 'default',
+                transition: 'all 120ms ease',
+              }}
+            >
+              Hours
+            </button>
+            <button
+              type="button"
+              disabled={!enabled}
+              tabIndex={enabled ? 0 : -1}
+              onClick={() => handleUnitChange('days')}
+              style={{
+                border: 'none',
+                padding: '4px 10px',
+                fontSize: '12px',
+                fontWeight: unit === 'days' ? 600 : 500,
+                borderRadius: '4px',
+                background: unit === 'days' ? 'var(--accent)' : 'transparent',
+                color: unit === 'days' ? '#fff' : 'var(--muted)',
+                cursor: enabled ? 'pointer' : 'default',
+                transition: 'all 120ms ease',
+              }}
+            >
+              Days
+            </button>
+          </div>
+        </div>
+
+        {/* Live Expiry Date Preview */}
         <div
           style={{
             display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
-            padding: '10px 12px',
-            borderRadius: '8px',
-            background: 'var(--surface-2)',
-            border: '1px solid var(--border)',
-            marginTop: '4px',
+            alignItems: 'center',
+            gap: '6px',
+            fontSize: '12px',
+            color: enabled && value ? '#059669' : 'var(--muted)',
+            fontWeight: 500,
+            paddingTop: '2px',
+            minHeight: '20px',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '13px', color: 'var(--text)', fontWeight: 500 }}>Expire in:</span>
-            <input
-              type="number"
-              min="1"
-              max="1000"
-              value={amount}
-              onChange={(e) => handleAmountChange(e.target.value)}
-              placeholder="e.g. 24"
-              style={{
-                width: '74px',
-                height: '34px',
-                padding: '0 8px',
-                fontSize: '13.5px',
-                fontWeight: 600,
-                textAlign: 'center',
-                border: '1px solid var(--border)',
-                borderRadius: '6px',
-                background: 'var(--surface)',
-                color: 'var(--text)',
-                outline: 'none',
-              }}
-            />
-
-            {/* Hours / Days Segmented Switch */}
-            <div
-              style={{
-                display: 'inline-flex',
-                background: 'var(--surface)',
-                padding: '2px',
-                borderRadius: '6px',
-                border: '1px solid var(--border)',
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => handleUnitChange('hours')}
-                style={{
-                  border: 'none',
-                  padding: '4px 10px',
-                  fontSize: '12px',
-                  fontWeight: unit === 'hours' ? 600 : 500,
-                  borderRadius: '4px',
-                  background: unit === 'hours' ? 'var(--accent)' : 'transparent',
-                  color: unit === 'hours' ? '#fff' : 'var(--muted)',
-                  cursor: 'pointer',
-                  transition: 'all 120ms ease',
-                }}
-              >
-                Hours
-              </button>
-              <button
-                type="button"
-                onClick={() => handleUnitChange('days')}
-                style={{
-                  border: 'none',
-                  padding: '4px 10px',
-                  fontSize: '12px',
-                  fontWeight: unit === 'days' ? 600 : 500,
-                  borderRadius: '4px',
-                  background: unit === 'days' ? 'var(--accent)' : 'transparent',
-                  color: unit === 'days' ? '#fff' : 'var(--muted)',
-                  cursor: 'pointer',
-                  transition: 'all 120ms ease',
-                }}
-              >
-                Days
-              </button>
-            </div>
-          </div>
-
-          {/* Live Expiry Date Preview */}
-          {value ? (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontSize: '12px',
-                color: '#059669',
-                fontWeight: 500,
-                paddingTop: '2px',
-              }}
-            >
-              <Clock size={13} style={{ flexShrink: 0 }} />
-              <span>
+          <Clock size={13} style={{ flexShrink: 0, opacity: enabled && value ? 1 : 0.6 }} />
+          <span>
+            {enabled && value ? (
+              <>
                 Will expire on: <strong>{formatExpiryDisplay(value)}</strong>
-              </span>
-            </div>
-          ) : null}
+              </>
+            ) : (
+              'Turn switch on to set expiry timer'
+            )}
+          </span>
         </div>
-      )}
+      </div>
     </div>
   );
 }
