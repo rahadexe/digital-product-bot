@@ -474,6 +474,21 @@ select {
   display: inline-block;
   user-select: none;
 }
+.custom-select-container input,
+.custom-select-container input:hover,
+.custom-select-container input:focus {
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: 100% !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+  width: 100% !important;
+}
 .custom-select-dropdown {
   position: absolute;
   top: calc(100% + 5px);

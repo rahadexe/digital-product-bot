@@ -211,7 +211,6 @@ export function Inventory({ say }: { say: Say }) {
       {adding ? (
         <AddStock
           products={products}
-          initialProduct={productId || products[0]?.id || 0}
           say={say}
           onClose={() => setAdding(false)}
           onAdded={async () => {
@@ -248,8 +247,8 @@ export function Inventory({ say }: { say: Say }) {
   );
 }
 
-function AddStock({ products, initialProduct, say, onClose, onAdded }: { products: Product[]; initialProduct: number; say: Say; onClose: () => void; onAdded: () => Promise<void> }) {
-  const [productId, setProductId] = useState(initialProduct);
+function AddStock({ products, say, onClose, onAdded }: { products: Product[]; say: Say; onClose: () => void; onAdded: () => Promise<void> }) {
+  const [productId, setProductId] = useState(0);
   const [text, setText] = useState('');
   const [seats, setSeats] = useState(1);
   const [expiresAt, setExpiresAt] = useState('');
@@ -291,7 +290,7 @@ function AddStock({ products, initialProduct, say, onClose, onAdded }: { product
       <div className="field">
         <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', display: 'block', marginBottom: '6px' }}>Product</span>
         <CustomSelect
-          value={String(productId)}
+          value={productId ? String(productId) : ''}
           onChange={(val) => setProductId(Number(val))}
           options={products.map((p) => ({
             value: String(p.id),
@@ -299,8 +298,11 @@ function AddStock({ products, initialProduct, say, onClose, onAdded }: { product
             badge: `${p.stock ?? 0} in stock`,
           }))}
           minWidth="100%"
-          searchable={products.length > 3}
-          placeholder="Select product..."
+          searchable={true}
+          placeholder="Search or select product..."
+          emptyValue="0"
+          clearable={Boolean(productId)}
+          onClear={() => setProductId(0)}
         />
       </div>
       <label className="field">
