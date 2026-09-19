@@ -30,6 +30,28 @@ SYSTEM_EMOJIS: list[dict[str, Any]] = [
     {"name": "VyprVPN", "emoji_id": "5796381996032725483", "category": "VPN", "is_system": True},
     {"name": "X-VPN", "emoji_id": "5794376731636798062", "category": "VPN", "is_system": True},
 
+    # Payment Methods
+    {"name": "bKash", "emoji_id": "6217678000977089090", "category": "Payment", "is_system": True},
+    {"name": "Nagad", "emoji_id": "6217625168584380551", "category": "Payment", "is_system": True},
+    {"name": "Rocket", "emoji_id": "4911601033496494993", "category": "Payment", "is_system": True},
+
+    # Services & Platforms
+    {"name": "ChatGPT", "emoji_id": "5453962468478962129", "category": "Services", "is_system": True},
+    {"name": "Gemini", "emoji_id": "5262838511161076891", "category": "Services", "is_system": True},
+    {"name": "YouTube", "emoji_id": "5796637619601283518", "category": "Services", "is_system": True},
+    {"name": "Spotify", "emoji_id": "5796304385973686816", "category": "Services", "is_system": True},
+    {"name": "TradingView", "emoji_id": "5796502474160346077", "category": "Services", "is_system": True},
+    {"name": "Netflix", "emoji_id": "5796522630441867305", "category": "Services", "is_system": True},
+    {"name": "ChatGPT (Icon)", "emoji_id": "5796185041717433060", "category": "Services", "is_system": True},
+    {"name": "Canva", "emoji_id": "5796214303329620386", "category": "Services", "is_system": True},
+    {"name": "Disney+", "emoji_id": "5794147784110117479", "category": "Services", "is_system": True},
+    {"name": "Crunchyroll", "emoji_id": "5796297333637387376", "category": "Services", "is_system": True},
+    {"name": "Telegram (Badge)", "emoji_id": "6264777724741556322", "category": "Services", "is_system": True},
+    {"name": "CapCut", "emoji_id": "5244855659186383242", "category": "Services", "is_system": True},
+    {"name": "YouTube (Alt)", "emoji_id": "5334769042886533147", "category": "Services", "is_system": True},
+    {"name": "Newspaper", "emoji_id": "5336879280578138635", "category": "Services", "is_system": True},
+    {"name": "Telegram (Plane)", "emoji_id": "5269215244810491516", "category": "Services", "is_system": True},
+
     # System UI Icons
     {"name": "Products / Shop", "emoji_id": "6084664543152183861", "category": "System", "is_system": True},
     {"name": "Shopping Cart", "emoji_id": "6102911544205515696", "category": "System", "is_system": True},

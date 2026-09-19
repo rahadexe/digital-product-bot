@@ -27,6 +27,28 @@ export const PRESET_EMOJIS: EmojiItem[] = [
   { name: 'PandaVPN', id: '5796561774773801876', category: 'VPN', is_system: true },
   { name: 'VyprVPN', id: '5796381996032725483', category: 'VPN', is_system: true },
   { name: 'X-VPN', id: '5794376731636798062', category: 'VPN', is_system: true },
+
+  // Payment Methods
+  { name: 'bKash', id: '6217678000977089090', category: 'Payment', is_system: true },
+  { name: 'Nagad', id: '6217625168584380551', category: 'Payment', is_system: true },
+  { name: 'Rocket', id: '4911601033496494993', category: 'Payment', is_system: true },
+
+  // Services & Platforms
+  { name: 'ChatGPT', id: '5453962468478962129', category: 'Services', is_system: true },
+  { name: 'Gemini', id: '5262838511161076891', category: 'Services', is_system: true },
+  { name: 'YouTube', id: '5796637619601283518', category: 'Services', is_system: true },
+  { name: 'Spotify', id: '5796304385973686816', category: 'Services', is_system: true },
+  { name: 'TradingView', id: '5796502474160346077', category: 'Services', is_system: true },
+  { name: 'Netflix', id: '5796522630441867305', category: 'Services', is_system: true },
+  { name: 'ChatGPT (Icon)', id: '5796185041717433060', category: 'Services', is_system: true },
+  { name: 'Canva', id: '5796214303329620386', category: 'Services', is_system: true },
+  { name: 'Disney+', id: '5794147784110117479', category: 'Services', is_system: true },
+  { name: 'Crunchyroll', id: '5796297333637387376', category: 'Services', is_system: true },
+  { name: 'Telegram (Badge)', id: '6264777724741556322', category: 'Services', is_system: true },
+  { name: 'CapCut', id: '5244855659186383242', category: 'Services', is_system: true },
+  { name: 'YouTube (Alt)', id: '5334769042886533147', category: 'Services', is_system: true },
+  { name: 'Newspaper', id: '5336879280578138635', category: 'Services', is_system: true },
+  { name: 'Telegram (Plane)', id: '5269215244810491516', category: 'Services', is_system: true },
 ];
 
 export const VPN_EMOJIS = PRESET_EMOJIS;

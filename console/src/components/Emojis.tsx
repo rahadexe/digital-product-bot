@@ -10,7 +10,7 @@ export function Emojis({ say }: { say: Say }) {
   const [data, setData] = useState<EmojiLibraryResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
-  const [filterTab, setFilterTab] = useState<'all' | 'custom' | 'vpn' | 'system'>('all');
+  const [filterTab, setFilterTab] = useState<'all' | 'custom' | 'services' | 'vpn' | 'payment' | 'system'>('all');
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [form, setForm] = useState({ name: '', emoji_id: '' });
   const [saving, setSaving] = useState(false);
@@ -91,6 +91,14 @@ export function Emojis({ say }: { say: Say }) {
     return allItems.filter((i) => i.category === 'VPN').length;
   }, [allItems]);
 
+  const servicesCount = useMemo(() => {
+    return allItems.filter((i) => i.category === 'Services').length;
+  }, [allItems]);
+
+  const paymentCount = useMemo(() => {
+    return allItems.filter((i) => i.category === 'Payment').length;
+  }, [allItems]);
+
   const systemCount = useMemo(() => {
     return allItems.filter((i) => i.category === 'System').length;
   }, [allItems]);
@@ -104,7 +112,9 @@ export function Emojis({ say }: { say: Say }) {
     return allItems.filter((item) => {
       // Tab filter
       if (filterTab === 'custom' && item.is_system) return false;
+      if (filterTab === 'services' && item.category !== 'Services') return false;
       if (filterTab === 'vpn' && item.category !== 'VPN') return false;
+      if (filterTab === 'payment' && item.category !== 'Payment') return false;
       if (filterTab === 'system' && item.category !== 'System') return false;
 
       // Search filter
@@ -187,10 +197,10 @@ export function Emojis({ say }: { say: Say }) {
               </button>
               <button
                 type="button"
-                className={`mini ${filterTab === 'custom' ? 'btn' : 'ghost'}`}
-                onClick={() => setFilterTab('custom')}
+                className={`mini ${filterTab === 'services' ? 'btn' : 'ghost'}`}
+                onClick={() => setFilterTab('services')}
               >
-                Custom ({customCount})
+                Services ({servicesCount})
               </button>
               <button
                 type="button"
@@ -201,10 +211,24 @@ export function Emojis({ say }: { say: Say }) {
               </button>
               <button
                 type="button"
+                className={`mini ${filterTab === 'payment' ? 'btn' : 'ghost'}`}
+                onClick={() => setFilterTab('payment')}
+              >
+                Payment ({paymentCount})
+              </button>
+              <button
+                type="button"
                 className={`mini ${filterTab === 'system' ? 'btn' : 'ghost'}`}
                 onClick={() => setFilterTab('system')}
               >
                 System ({systemCount})
+              </button>
+              <button
+                type="button"
+                className={`mini ${filterTab === 'custom' ? 'btn' : 'ghost'}`}
+                onClick={() => setFilterTab('custom')}
+              >
+                Custom ({customCount})
               </button>
             </div>
 
