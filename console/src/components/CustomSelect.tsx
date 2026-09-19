@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, Search } from 'lucide-react';
+import { Check, ChevronDown, Plus, Search } from 'lucide-react';
 
 export interface SelectOption {
   value: string;
@@ -22,6 +22,8 @@ export interface CustomSelectProps {
   maxWidth?: number | string;
   searchable?: boolean;
   align?: 'left' | 'right';
+  creatable?: boolean;
+  customPlaceholder?: string;
 }
 
 export function CustomSelect({
@@ -36,11 +38,16 @@ export function CustomSelect({
   maxWidth,
   searchable = false,
   align = 'left',
+  creatable = false,
+  customPlaceholder,
 }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+  const [customVal, setCustomVal] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const customInputRef = useRef<HTMLInputElement>(null);
 
   const selectedOption = useMemo(
     () => options.find((opt) => String(opt.value) === String(value)),
@@ -79,6 +86,19 @@ export function CustomSelect({
       setSearch('');
     }
   }, [isOpen, searchable]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setIsCreating(false);
+      setCustomVal('');
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isCreating) {
+      setTimeout(() => customInputRef.current?.focus(), 50);
+    }
+  }, [isCreating]);
 
   return (
     <div
@@ -129,7 +149,7 @@ export function CustomSelect({
             </span>
           )}
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {selectedOption ? selectedOption.label : placeholder}
+            {selectedOption ? selectedOption.label : (value ? String(value) : placeholder)}
           </span>
         </div>
 
@@ -275,6 +295,118 @@ export function CustomSelect({
               })
             )}
           </div>
+
+          {creatable && !isCreating && (
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsCreating(true);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                fontSize: '13px',
+                color: 'var(--accent)',
+                cursor: 'pointer',
+                marginTop: '3px',
+                borderTop: '1px dashed var(--line)',
+                fontWeight: 500,
+                transition: 'background-color 0.12s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--surface-2)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+              }}
+            >
+              <Plus size={13} style={{ strokeWidth: 2.5 }} />
+              <span>Custom duration...</span>
+            </div>
+          )}
+
+          {creatable && isCreating && (
+            <div
+              style={{
+                padding: '8px 10px',
+                borderTop: '1px solid var(--line)',
+                marginTop: '3px',
+                background: 'var(--surface-2)',
+                borderRadius: '6px',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <input
+                  ref={customInputRef}
+                  type="text"
+                  placeholder={customPlaceholder || 'e.g. 15 Days, 2 Months...'}
+                  value={customVal}
+                  onChange={(e) => setCustomVal(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const trimmed = customVal.trim();
+                      if (trimmed) {
+                        onChange(trimmed);
+                        setIsOpen(false);
+                        setIsCreating(false);
+                        setCustomVal('');
+                      }
+                    } else if (e.key === 'Escape') {
+                      e.stopPropagation();
+                      setIsCreating(false);
+                      setCustomVal('');
+                    }
+                  }}
+                  style={{
+                    flex: 1,
+                    height: '30px',
+                    padding: '0 8px',
+                    fontSize: '12.5px',
+                    border: '1px solid var(--accent)',
+                    borderRadius: '5px',
+                    background: 'var(--surface)',
+                    color: 'var(--text)',
+                    outline: 'none',
+                    minWidth: 0,
+                  }}
+                />
+                <button
+                  type="button"
+                  className="btn"
+                  style={{ height: '30px', padding: '0 10px', fontSize: '12px', whiteSpace: 'nowrap' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const trimmed = customVal.trim();
+                    if (trimmed) {
+                      onChange(trimmed);
+                      setIsOpen(false);
+                      setIsCreating(false);
+                      setCustomVal('');
+                    }
+                  }}
+                >
+                  Set
+                </button>
+                <button
+                  type="button"
+                  className="btn ghost"
+                  style={{ height: '30px', padding: '0 6px', fontSize: '12px', color: 'var(--muted)' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsCreating(false);
+                    setCustomVal('');
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
