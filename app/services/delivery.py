@@ -134,6 +134,41 @@ class DeliveryService:
             'total': sum(counts.values()),
         }
 
+    async def recipient_count(self) -> int:
+        async with self.db.connect() as conn:
+            return await conn.fetchval("SELECT COUNT(*) FROM users WHERE is_banned = 0") or 0
+
+    async def recent_broadcasts(self, limit: int = 15) -> list[dict]:
+        async with self.db.connect() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT b.id, b.created_at,
+                       COALESCE((SELECT o.text FROM outbox o WHERE o.broadcast_id = b.id LIMIT 1), '') AS text,
+                       COUNT(o.id) AS total,
+                       COUNT(o.id) FILTER (WHERE o.status = 'sent') AS success,
+                       COUNT(o.id) FILTER (WHERE o.status = 'failed') AS failed,
+                       COUNT(o.id) FILTER (WHERE o.status IN ('pending', 'sending')) AS pending
+                FROM broadcasts b
+                LEFT JOIN outbox o ON o.broadcast_id = b.id
+                GROUP BY b.id, b.created_at
+                ORDER BY b.id DESC
+                LIMIT $1
+                """,
+                limit,
+            )
+        return [
+            {
+                'id': row['id'],
+                'created_at': row['created_at'].isoformat() if row['created_at'] else '',
+                'text': row['text'],
+                'total': row['total'],
+                'success': row['success'],
+                'failed': row['failed'],
+                'pending': row['pending'],
+            }
+            for row in rows
+        ]
+
     async def retry_order(self, order_id: int) -> None:
         async with self.db.transaction() as conn:
             order = await conn.fetchrow("SELECT * FROM orders WHERE id = $1 AND status = 'completed' FOR UPDATE", order_id)

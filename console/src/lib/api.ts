@@ -541,6 +541,19 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ text }),
     }),
+  broadcastInfo: () =>
+    request<{
+      recipient_count: number;
+      recent: Array<{
+        id: number;
+        created_at: string;
+        text: string;
+        total: number;
+        success: number;
+        failed: number;
+        pending: number;
+      }>;
+    }>('/api/admin/broadcast'),
 
   // Settings
   settings: () => request<Record<string, string>>('/api/admin/settings'),

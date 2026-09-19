@@ -82,6 +82,11 @@ class StoreAccess(BaseMiddleware):
                 await event.answer("Open a private chat with the bot to continue.", show_alert=True)
             return None
 
+        # Admins always have unhindered access to bot commands
+        admin_ids = await services.settings.admin_chat_ids()
+        if user.id in admin_ids:
+            return await handler(event, data)
+
         opens_store = (isinstance(event, Message) and event.text and event.text.split()[0].split("@")[0] in OPEN_COMMANDS) or (
             isinstance(event, CallbackQuery) and event.data == "gate_verify"
         )

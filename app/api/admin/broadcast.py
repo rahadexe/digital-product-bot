@@ -9,6 +9,13 @@ from app.api.deps import ServicesDep
 router = APIRouter()
 
 
+@router.get("/broadcast")
+async def broadcast_info(services: ServicesDep):
+    count = await services.delivery.recipient_count()
+    recent = await services.delivery.recent_broadcasts()
+    return {"recipient_count": count, "recent": recent}
+
+
 @router.post("/broadcast", dependencies=WRITE)
 async def broadcast_message(payload: BroadcastPayload, services: ServicesDep):
     if not services.notifier.bot:
