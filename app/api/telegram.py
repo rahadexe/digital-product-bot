@@ -32,7 +32,7 @@ async def _process(dispatcher: Any, bot: Any, update: Update) -> None:
             info_extra = f" user={update.message.from_user.id if update.message.from_user else 'None'} text={update.message.text!r}"
         elif update.callback_query:
             info_extra = f" user={update.callback_query.from_user.id if update.callback_query.from_user else 'None'} data={update.callback_query.data!r}"
-        logger.info("Update %s (%s)%s handled in %.0f ms%s", update.update_id, update.event_type, info_extra, elapsed_ms, lag)
+        logger.info("Update %s (%s)%s handled in %.0f ms", update.update_id, update.event_type, info_extra, elapsed_ms)
 
 
 @router.post("/telegram/webhook", include_in_schema=False)
