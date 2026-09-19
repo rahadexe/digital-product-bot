@@ -746,6 +746,8 @@ def get_deposit_amount_keyboard(account_info: str, method_id: int, is_binance: b
             style="primary",
             icon_custom_emoji_id=Icons.BACK,
         ),
+    ])
+    buttons.append([
         InlineKeyboardButton(
             text="Cancel",
             callback_data="cancel_deposit",
@@ -767,12 +769,14 @@ def get_deposit_txid_keyboard() -> InlineKeyboardMarkup:
                     style="primary",
                     icon_custom_emoji_id=Icons.BACK,
                 ),
+            ],
+            [
                 InlineKeyboardButton(
                     text="Cancel",
                     callback_data="cancel_deposit",
                     style="danger",
                     icon_custom_emoji_id=Icons.CLOSE,
                 ),
-            ]
+            ],
         ]
     )
