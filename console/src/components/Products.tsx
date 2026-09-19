@@ -444,22 +444,16 @@ function ProductForm({
             className={`delivery-method-card ${form.delivery_type === 'stock' ? 'active' : ''}`}
             onClick={() => set({ delivery_type: 'stock' })}
           >
-            <div className="delivery-method-header">
-              <span className="delivery-method-icon"><Zap size={14} /></span>
-              <span className="delivery-method-title">Instant Stock</span>
-            </div>
-            <span className="delivery-method-desc">Auto-delivered from uploaded stock keys/accounts</span>
+            <span className="delivery-method-icon"><Zap size={14} /></span>
+            <span className="delivery-method-title">Instant Stock</span>
           </button>
           <button
             type="button"
             className={`delivery-method-card ${form.delivery_type === 'manual' ? 'active' : ''}`}
             onClick={() => set({ delivery_type: 'manual' })}
           >
-            <div className="delivery-method-header">
-              <span className="delivery-method-icon"><Clock size={14} /></span>
-              <span className="delivery-method-title">Manual Delivery</span>
-            </div>
-            <span className="delivery-method-desc">Admin fulfills manually in Orders tab</span>
+            <span className="delivery-method-icon"><Clock size={14} /></span>
+            <span className="delivery-method-title">Manual Delivery</span>
           </button>
         </div>
       </div>

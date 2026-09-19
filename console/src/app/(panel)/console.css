@@ -662,10 +662,11 @@ select {
 
 .delivery-method-card {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  text-align: left;
-  padding: 7px 10px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 12px;
   border-radius: 8px;
   border: 1.5px solid var(--border);
   background: var(--surface);
@@ -692,12 +693,13 @@ select {
 .delivery-method-header {
   display: flex;
   align-items: center;
-  gap: 5px;
+  justify-content: center;
+  gap: 7px;
   width: 100%;
 }
 
 .delivery-method-icon {
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1;
   flex-shrink: 0;
   display: inline-flex;
@@ -705,23 +707,14 @@ select {
 }
 
 .delivery-method-title {
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text);
-  white-space: normal;
+  white-space: nowrap;
 }
 
 .delivery-method-card.active .delivery-method-title {
   color: var(--accent);
-}
-
-.delivery-method-desc {
-  font-size: 10px;
-  color: var(--muted);
-  margin-top: 2px;
-  line-height: 1.3;
-  white-space: normal;
-  word-break: break-word;
 }
 
 .toast {
