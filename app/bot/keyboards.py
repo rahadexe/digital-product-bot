@@ -720,5 +720,59 @@ def get_manual_deposit_invoice_keyboard(account_info: str, is_binance: bool = Fa
 
 def get_cancel_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="Cancel", callback_data="cancel_deposit", style="danger", icon_custom_emoji_id=Icons.CROSS)]]
+        inline_keyboard=[[InlineKeyboardButton(text="Cancel", callback_data="cancel_deposit", style="danger", icon_custom_emoji_id=Icons.CLOSE)]]
+    )
+
+
+def get_deposit_amount_keyboard(account_info: str, method_id: int, is_binance: bool = False) -> InlineKeyboardMarkup:
+    """Buttons on the Enter Amount screen: copy number/UID, Back to invoice, Cancel."""
+    destination = str(account_info or "").strip()
+    buttons = []
+    if destination:
+        btn_label = "Copy Binance UID" if is_binance else "Copy Number"
+        btn_icon = Icons.BINANCE if is_binance else Icons.NOTE
+        buttons.append([
+            InlineKeyboardButton(
+                text=btn_label,
+                copy_text=CopyTextButton(text=destination[:256]),
+                style="primary",
+                icon_custom_emoji_id=btn_icon,
+            )
+        ])
+    buttons.append([
+        InlineKeyboardButton(
+            text="Back",
+            callback_data=f"dep_method_{method_id}",
+            style="primary",
+            icon_custom_emoji_id=Icons.BACK,
+        ),
+        InlineKeyboardButton(
+            text="Cancel",
+            callback_data="cancel_deposit",
+            style="danger",
+            icon_custom_emoji_id=Icons.CLOSE,
+        ),
+    ])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def get_deposit_txid_keyboard() -> InlineKeyboardMarkup:
+    """Buttons on the Enter TrxID screen: Back to change amount, Cancel."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Change Amount",
+                    callback_data="dep_confirm_paid",
+                    style="primary",
+                    icon_custom_emoji_id=Icons.BACK,
+                ),
+                InlineKeyboardButton(
+                    text="Cancel",
+                    callback_data="cancel_deposit",
+                    style="danger",
+                    icon_custom_emoji_id=Icons.CLOSE,
+                ),
+            ]
+        ]
     )

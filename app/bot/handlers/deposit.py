@@ -33,7 +33,9 @@ from app.bot.handlers.navigation import is_navigation, navigate
 from app.bot.handlers.start import render_main_dashboard
 from app.bot.keyboards import (
     get_cancel_keyboard,
+    get_deposit_amount_keyboard,
     get_deposit_methods_keyboard,
+    get_deposit_txid_keyboard,
     get_manual_deposit_invoice_keyboard,
 )
 from app.services import Services
@@ -327,7 +329,8 @@ async def handle_deposit_method_select(query: CallbackQuery, state: FSMContext, 
 @router.callback_query(F.data == "dep_confirm_paid")
 async def ask_deposit_input(query: CallbackQuery, state: FSMContext, services: Services):
     data = await state.get_data()
-    if not data.get("method_id"):
+    method_id = data.get("method_id")
+    if not method_id:
         with suppress(TelegramBadRequest):
             await query.answer("Please select a payment method again.", show_alert=True)
         return
@@ -337,6 +340,8 @@ async def ask_deposit_input(query: CallbackQuery, state: FSMContext, services: S
 
     symbol = await services.settings.get("currency_symbol")
     auto_verify = data.get("auto_verify")
+    method_name = data.get("method_name", "Payment")
+    account_info = data.get("account_info", "")
 
     if auto_verify == "binance_pay":
         rate = data.get("rate", 125.0)
@@ -344,26 +349,39 @@ async def ask_deposit_input(query: CallbackQuery, state: FSMContext, services: S
         min_dep = data.get("min_deposit", min_coin * rate)
         await state.set_state(DepositStates.waiting_for_binance_amount)
         text = (
-            f"{ICON_MONEY} <b>Enter Deposit Amount (USDT)</b>\n"
+            f"{ICON_BINANCE} <b>Binance Payment</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
+            f"↳ <b>Binance UID:</b>\n"
+            f"<code>{escape(account_info)}</code> <i>(Tap to copy)</i>\n\n"
+            f"↳ <b>Minimum Deposit:</b> {min_coin:g} USDT (~{price(symbol, min_dep)})\n"
+            f"↳ <b>Exchange Rate:</b> 1 USDT = {rate:g} {symbol}\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"💬 <b>Enter Deposit Amount (USDT):</b>\n"
             f"How much <b>USDT</b> did you send to our Binance UID?\n\n"
-            f"↳ <b>Minimum:</b> <code>{min_coin:g} USDT</code> (~{price(symbol, min_dep)})\n\n"
-            f"<i>Please reply with the USDT amount (e.g. <code>10</code> or <code>25.5</code>):</i>"
+            f"<i>Type the amount below (e.g. <code>10</code> or <code>25.5</code>):</i>"
         )
+        reply_kb = get_deposit_amount_keyboard(account_info, method_id, is_binance=True)
     else:
         min_dep = data.get("min_deposit", 1.0)
         await state.set_state(DepositStates.waiting_for_amount)
+        method_row = {"name": method_name, "auto_verify": auto_verify}
+        method_icon = get_method_icon(method_row)
         text = (
-            f"{ICON_MONEY} <b>Enter Deposit Amount</b>\n"
+            f"{method_icon} <b>{escape(method_name)} Payment</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
+            f"↳ <b>Send Money to:</b>\n"
+            f"<code>{escape(account_info)}</code> <i>(Tap to copy)</i>\n\n"
+            f"↳ <b>Minimum Deposit:</b> {price(symbol, min_dep)}\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"💬 <b>Enter Deposit Amount:</b>\n"
             f"How much money did you send?\n\n"
-            f"↳ <b>Minimum Deposit:</b> <code>{price(symbol, min_dep)}</code>\n\n"
-            f"<i>Please reply with the amount sent (e.g. <code>500</code>):</i>"
+            f"<i>Type the amount below (e.g. <code>500</code>):</i>"
         )
+        reply_kb = get_deposit_amount_keyboard(account_info, method_id, is_binance=False)
 
     if query.message:
         with suppress(TelegramBadRequest):
-            await query.message.edit_text(text, reply_markup=get_cancel_keyboard())
+            await query.message.edit_text(text, reply_markup=reply_kb)
 
 
 @router.message(DepositStates.method_selected)
@@ -390,6 +408,14 @@ async def process_binance_amount(message: Message, state: FSMContext, services: 
         await navigate(raw_text, message, state, services)
         return
 
+    data = await state.get_data()
+    method_id = data.get("method_id", 0)
+    account_info = data.get("account_info", "")
+    rate = data.get("rate", 125.0)
+    min_coin = data.get("min_coin", 1.0)
+    min_dep = data.get("min_deposit", min_coin * rate)
+    symbol = await services.settings.get("currency_symbol")
+
     clean_amount = re.sub(r"[^\d.]", "", raw_text)
     try:
         amount_num = float(clean_amount)
@@ -398,21 +424,15 @@ async def process_binance_amount(message: Message, state: FSMContext, services: 
     except (TypeError, ValueError):
         await message.answer(
             f"{ICON_WARNING} Please enter a valid numeric USDT amount (e.g. <code>10</code> or <code>25.5</code>):",
-            reply_markup=get_cancel_keyboard(),
+            reply_markup=get_deposit_amount_keyboard(account_info, method_id, is_binance=True),
         )
         return
-
-    data = await state.get_data()
-    rate = data.get("rate", 125.0)
-    min_dep = data.get("min_deposit", 40.0)
-    min_coin = round(min_dep / rate, 2) if rate > 0 else min_dep
-    symbol = await services.settings.get("currency_symbol")
 
     if amount_num < min_coin:
         await message.answer(
             f"{ICON_WARNING} Minimum deposit is <b>{min_coin:g} USDT</b> (~{price(symbol, min_dep)}).\n"
             f"Please enter an amount of at least <b>{min_coin:g} USDT</b>:",
-            reply_markup=get_cancel_keyboard(),
+            reply_markup=get_deposit_amount_keyboard(account_info, method_id, is_binance=True),
         )
         return
 
@@ -423,12 +443,13 @@ async def process_binance_amount(message: Message, state: FSMContext, services: 
     await message.answer(
         f"{ICON_NOTE} <b>Payment Reference</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"↳ Amount: <b>{amount_num:g} USDT</b> (~{price(symbol, bdt_approx)})\n\n"
-        f"Please enter your <b>Binance Pay Order ID</b> or your sender <b>Binance UID</b>:\n\n"
+        f"↳ <b>Amount:</b> <b>{amount_num:g} USDT</b> (~{price(symbol, bdt_approx)})\n"
+        f"↳ <b>Binance UID:</b> <code>{escape(account_info)}</code> <i>(Tap to copy)</i>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"Please enter your <b>Binance Pay Order ID</b> or sender <b>Binance UID</b>:\n\n"
         f"↳ <b>Order ID:</b> <code>454711565717520384</code> (from Pay receipt)\n"
-        f"↳ <b>Or Sender UID:</b> <code>580150694</code> (your Binance UID)\n\n"
-        f"<i>Our system will automatically verify and credit your wallet immediately!</i>",
-        reply_markup=get_cancel_keyboard(),
+        f"↳ <b>Or Sender UID:</b> <code>580150694</code> (your Binance UID)",
+        reply_markup=get_deposit_txid_keyboard(),
     )
 
 
@@ -446,7 +467,7 @@ async def process_binance_ref(message: Message, state: FSMContext, services: Ser
         await message.answer(
             f"{ICON_CROSS} Invalid reference format. Please enter a valid Binance Pay Order ID or sender Binance UID:\n\n"
             f"<i>Example: <code>454711565717520384</code> or <code>580150694</code></i>",
-            reply_markup=get_cancel_keyboard(),
+            reply_markup=get_deposit_txid_keyboard(),
         )
         return
 
@@ -462,6 +483,13 @@ async def process_binance_ref(message: Message, state: FSMContext, services: Ser
     await claim_binance_payment(message, state, services, method_id, clean_ref, expected_usdt=expected_usdt)
 
 
+async def _safe_edit_or_answer(status_msg: Message, user_msg: Message, text: str, reply_markup=None):
+    try:
+        await status_msg.edit_text(text, reply_markup=reply_markup)
+    except Exception:
+        await user_msg.answer(text, reply_markup=reply_markup)
+
+
 async def claim_binance_payment(
     message: Message,
     state: FSMContext,
@@ -470,19 +498,30 @@ async def claim_binance_payment(
     ref: str,
     expected_usdt: float | None = None,
 ):
+    status_msg = await message.answer(
+        f"{ICON_TIMER} <b>Verifying Binance payment...</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"↳ <b>Reference:</b> <code>{escape(ref)}</code>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"<i>Checking Binance Pay records, please wait...</i>"
+    )
     try:
         result = await services.binance.claim(message.from_user.id, method_id, ref, expected_usdt=expected_usdt)
     except DuplicateTransactionError:
-        await message.answer(
+        await _safe_edit_or_answer(
+            status_msg,
+            message,
             f"{ICON_CROSS} <b>Payment Already Processed</b>\n\n"
             f"This transaction reference (<code>{escape(ref)}</code>) has already been submitted or credited.\n"
             f"If you need help, please contact support.",
-            reply_markup=get_cancel_keyboard(),
+            reply_markup=get_deposit_txid_keyboard(),
         )
         return
     except PendingDepositError:
         await state.clear()
-        await message.answer(
+        await _safe_edit_or_answer(
+            status_msg,
+            message,
             f"{ICON_TIMER} <b>Pending Deposit Exists</b>\n\n"
             f"You already have a deposit request waiting for review.\n"
             f"Please wait for it to be confirmed before submitting a new one.",
@@ -496,7 +535,7 @@ async def claim_binance_payment(
         return
     except (InvalidInputError, ValueError) as exc:
         await state.clear()
-        await message.answer(f"{ICON_CROSS} {escape(str(exc))}")
+        await _safe_edit_or_answer(status_msg, message, f"{ICON_CROSS} {escape(str(exc))}")
         return
 
     await state.clear()
@@ -518,7 +557,9 @@ async def claim_binance_payment(
             ]
         )
 
-        await message.answer(
+        await _safe_edit_or_answer(
+            status_msg,
+            message,
             f"{ICON_CHECK} <b>Binance Deposit Successful!</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"{ICON_BINANCE} <b>Received:</b> <code>{received_coin:g} {escape(coin)}</code>\n"
@@ -539,7 +580,9 @@ async def claim_binance_payment(
             ]
         )
         expected_text = f"↳ <b>Expected:</b> <code>{expected_usdt:g} USDT</code>\n" if expected_usdt else ""
-        await message.answer(
+        await _safe_edit_or_answer(
+            status_msg,
+            message,
             f"{ICON_TIMER} <b>Payment Verification in Progress...</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"↳ <b>Reference:</b> <code>{escape(ref)}</code>\n"
@@ -560,36 +603,44 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
         await navigate(raw_text, message, state, services)
         return
 
+    data = await state.get_data()
+    method_id = data.get("method_id", 0)
+    account_info = data.get("account_info", "")
+    min_dep = data.get("min_deposit", 1.0)
+    symbol = await services.settings.get("currency_symbol")
+
     clean_amount = raw_text.replace("৳", "").replace("$", "").replace(",", "").strip()
     try:
         amount_num = float(clean_amount)
         if amount_num <= 0:
             raise ValueError()
     except (TypeError, ValueError):
-        await message.answer(f"{ICON_WARNING} Please enter a valid number (e.g. <code>500</code>):", reply_markup=get_cancel_keyboard())
+        await message.answer(
+            f"{ICON_WARNING} Please enter a valid number (e.g. <code>500</code>):",
+            reply_markup=get_deposit_amount_keyboard(account_info, method_id, is_binance=False),
+        )
         return
-
-    data = await state.get_data()
-    min_dep = data.get("min_deposit", 1.0)
-    symbol = await services.settings.get("currency_symbol")
 
     if amount_num < min_dep:
         await message.answer(
             f"{ICON_WARNING} Minimum deposit is {price(symbol, min_dep)}. Please enter a valid amount:",
-            reply_markup=get_cancel_keyboard(),
+            reply_markup=get_deposit_amount_keyboard(account_info, method_id, is_binance=False),
         )
         return
 
     await state.update_data(manual_amount=amount_num)
     await state.set_state(DepositStates.waiting_for_txid)
 
+    method_name = data.get("method_name", "Payment")
     await message.answer(
         f"{ICON_KEY} <b>Transaction ID (TrxID)</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"↳ Amount: <b>{price(symbol, amount_num)}</b>\n\n"
-        f"Please enter the <b>Transaction ID (TrxID)</b> from your payment SMS / receipt:\n\n"
+        f"↳ <b>Amount:</b> <b>{price(symbol, amount_num)}</b>\n"
+        f"↳ <b>Account:</b> <code>{escape(account_info)}</code> <i>(Tap to copy)</i>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"Please enter the <b>Transaction ID (TrxID)</b> from your {escape(method_name)} SMS / receipt:\n\n"
         f"<i>(e.g. <code>BLA7X8Y9Z0</code>)</i>",
-        reply_markup=get_cancel_keyboard(),
+        reply_markup=get_deposit_txid_keyboard(),
     )
 
 
@@ -606,7 +657,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
     if not TRANSACTION_ID_REGEX.fullmatch(clean_tx):
         await message.answer(
             f"{ICON_CROSS} Invalid Transaction ID format. Please enter a valid TrxID from your SMS/receipt.",
-            reply_markup=get_cancel_keyboard(),
+            reply_markup=get_deposit_txid_keyboard(),
         )
         return
 
@@ -622,6 +673,15 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
     symbol = await services.settings.get("currency_symbol")
     method_name = data.get("method_name", "Payment")
 
+    status_msg = await message.answer(
+        f"{ICON_TIMER} <b>Verifying transaction...</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"↳ <b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
+        f"↳ <b>Amount:</b> <code>{price(symbol, amount_num)}</code>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"<i>Checking with payment gateway, please wait a moment...</i>"
+    )
+
     # If ZiniPay auto-verify is configured, attempt automated verification
     if await services.zinipay.is_enabled():
         try:
@@ -633,15 +693,19 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                 quoted_rate=data.get("rate", 1.0),
             )
         except DuplicateTransactionError:
-            await message.answer(
+            await _safe_edit_or_answer(
+                status_msg,
+                message,
                 f"{ICON_CROSS} <b>Payment Already Processed</b>\n\n"
                 f"This Transaction ID (<code>{escape(clean_tx)}</code>) has already been submitted or credited.",
-                reply_markup=get_cancel_keyboard(),
+                reply_markup=get_deposit_txid_keyboard(),
             )
             return
         except PendingDepositError:
             await state.clear()
-            await message.answer(
+            await _safe_edit_or_answer(
+                status_msg,
+                message,
                 f"{ICON_TIMER} <b>Pending Deposit Exists</b>\n\n"
                 f"You already have a deposit request waiting for review.\n"
                 f"Please wait for it to be confirmed before submitting a new one.",
@@ -655,7 +719,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             return
         except (InvalidInputError, ValueError) as exc:
             await state.clear()
-            await message.answer(f"{ICON_CROSS} {escape(str(exc))}")
+            await _safe_edit_or_answer(status_msg, message, f"{ICON_CROSS} {escape(str(exc))}")
             return
 
         if res.get("auto_verified") and res.get("credited"):
@@ -671,7 +735,9 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                     ]
                 ]
             )
-            await message.answer(
+            await _safe_edit_or_answer(
+                status_msg,
+                message,
                 f"{ICON_CHECK} <b>Deposit Successful!</b>\n"
                 f"━━━━━━━━━━━━━━━━━━\n"
                 f"{ICON_DEPOSIT} <b>Method:</b> {escape(provider)}\n"
@@ -685,9 +751,15 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             return
 
         if res.get("error"):
-            await message.answer(
-                f"{ICON_CROSS} <b>Verification Failed</b>\n\n{escape(res.get('detail', ''))}",
-                reply_markup=get_cancel_keyboard(),
+            await _safe_edit_or_answer(
+                status_msg,
+                message,
+                f"{ICON_CROSS} <b>Verification Failed</b>\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"{escape(res.get('detail', ''))}\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"Please re-check your TrxID and enter it again below, or click <b>Change Amount</b> if you entered the wrong amount:",
+                reply_markup=get_deposit_txid_keyboard(),
             )
             return
 
@@ -701,7 +773,9 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                     ]
                 ]
             )
-            await message.answer(
+            await _safe_edit_or_answer(
+                status_msg,
+                message,
                 f"{ICON_CHECK} <b>Deposit Request Submitted!</b>\n"
                 f"━━━━━━━━━━━━━━━━━━\n"
                 f"{ICON_DEPOSIT} <b>Method:</b> {escape(method_name)}\n"
@@ -723,14 +797,18 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             quoted_rate=data.get("rate", 1.0),
         )
     except DuplicateTransactionError:
-        await message.answer(
+        await _safe_edit_or_answer(
+            status_msg,
+            message,
             f"{ICON_CROSS} This Transaction ID has already been submitted! Please check your receipt.",
-            reply_markup=get_cancel_keyboard(),
+            reply_markup=get_deposit_txid_keyboard(),
         )
         return
     except PendingDepositError:
         await state.clear()
-        await message.answer(
+        await _safe_edit_or_answer(
+            status_msg,
+            message,
             f"{ICON_TIMER} <b>Pending Deposit Exists</b>\n\n"
             f"You already have a deposit request waiting for review.\n"
             f"Please wait for it to be confirmed before submitting a new one.",
@@ -744,7 +822,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         return
     except (InvalidInputError, ValueError) as exc:
         await state.clear()
-        await message.answer(f"{ICON_CROSS} <b>Deposit failed:</b> {escape(str(exc))}")
+        await _safe_edit_or_answer(status_msg, message, f"{ICON_CROSS} <b>Deposit failed:</b> {escape(str(exc))}")
         return
 
     await state.clear()
@@ -757,7 +835,9 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         ]
     )
 
-    await message.answer(
+    await _safe_edit_or_answer(
+        status_msg,
+        message,
         f"{ICON_CHECK} <b>Deposit Request Submitted!</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"{ICON_DEPOSIT} <b>Method:</b> {escape(method_name)}\n"
