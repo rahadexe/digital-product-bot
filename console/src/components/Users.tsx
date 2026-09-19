@@ -351,12 +351,27 @@ function CustomerProfilePage({
   const valid = Number.isFinite(value) && value > 0 && Boolean(reason.trim());
 
   async function handleRankChange(newRank: string) {
-    if (!user) return;
+    if (!user || newRank === (user.rank || 'Standard')) return;
+    const isReseller = newRank === 'Reseller';
+    const title = isReseller
+      ? `Make ${nameOf(user)} a Reseller Partner?`
+      : `Change ${nameOf(user)} to Normal User?`;
+    const message = isReseller
+      ? `Are you sure you want to change this customer to Reseller Partner? They will automatically receive reseller pricing in the Telegram bot.`
+      : `Are you sure you want to change this customer back to Normal User?`;
+    const confirmLabel = isReseller ? 'Make Reseller' : 'Change to Normal';
+
+    const ok = await confirm(title, message, confirmLabel, false);
+    if (!ok) {
+      setCurrentRank(user.rank || 'Standard');
+      return;
+    }
+
     setCurrentRank(newRank);
     setRankBusy(true);
     try {
       await api.setUserRank(user.tg_user_id, newRank);
-      say(`Account type updated to ${newRank}.`);
+      say(`Account type updated to ${isReseller ? 'Reseller Partner' : 'Normal User'}.`);
       const updated = { ...user, rank: newRank };
       setUser(updated);
       onUserUpdated(updated);
@@ -632,11 +647,6 @@ function CustomerProfilePage({
               <option value="Standard">Normal User</option>
               <option value="Reseller">Reseller Partner</option>
             </select>
-            {currentRank === 'Reseller' ? (
-              <div className="cust-tier-hint info">
-                💼 Reseller Prices automatically applied in Bot
-              </div>
-            ) : null}
           </div>
         </div>
       </div>
