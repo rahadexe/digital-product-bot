@@ -606,15 +606,6 @@ def get_deposit_methods_keyboard(
 ) -> InlineKeyboardMarkup:
     """Wallet top-up methods: clean buttons displaying the exact configured method name."""
     buttons = []
-    if instant_label:
-        buttons.append([
-            InlineKeyboardButton(
-                text=str(instant_label).strip(),
-                callback_data="dep_instant",
-                style="success",
-                icon_custom_emoji_id=Icons.LIGHTNING,
-            )
-        ])
 
     method_buttons: List[InlineKeyboardButton] = []
     for m in methods:
@@ -667,6 +658,16 @@ def get_deposit_methods_keyboard(
         # Rows of 2
         for i in range(0, total, 2):
             buttons.append(method_buttons[i : i + 2])
+
+    if instant_label:
+        buttons.append([
+            InlineKeyboardButton(
+                text=str(instant_label).strip(),
+                callback_data="dep_instant",
+                style="success",
+                icon_custom_emoji_id=Icons.LIGHTNING,
+            )
+        ])
 
     if back_target:
         buttons.append([
