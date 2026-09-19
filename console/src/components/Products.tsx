@@ -72,6 +72,17 @@ export function Products({ say }: { say: Say }) {
     }
   }
 
+  async function toggleActive(product: Product) {
+    try {
+      const nextActive = !product.is_active;
+      await api.updateProduct(product.id, { is_active: nextActive ? 1 : 0 });
+      say(nextActive ? `${product.title} is now Active.` : `${product.title} is now Hidden.`);
+      await load();
+    } catch (cause) {
+      say(errorText(cause), 'bad');
+    }
+  }
+
   const inStockCount = (products ?? []).filter((p) => (p.stock ?? 0) > 0).length;
   const outOfStockCount = (products ?? []).filter((p) => (p.stock ?? 0) === 0).length;
   const hiddenCount = (products ?? []).filter((p) => !p.is_active).length;
@@ -189,6 +200,7 @@ export function Products({ say }: { say: Say }) {
                 <th>Product</th>
                 <th>Price</th>
                 <th>Stock / Delivery</th>
+                <th style={{ width: '100px', textAlign: 'center' }}>Status</th>
                 <th className="right" aria-label="Actions" />
               </tr>
             </thead>
@@ -207,7 +219,6 @@ export function Products({ say }: { say: Say }) {
                           </span>
                         ) : null}
                         {product.duration_label || 'Instant'}
-                        {product.is_active ? '' : ' · hidden'}
                       </small>
                     </td>
                     <td className="money">{money(product.price)}</td>
@@ -220,6 +231,38 @@ export function Products({ say }: { say: Say }) {
                       ) : (
                         <span className={`pill ${product.stock ? 'good' : 'bad'}`}>{product.stock ? product.stock : 'out'}</span>
                       )}
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={() => toggleActive(product)}
+                        className={`pill ${product.is_active ? 'good' : 'bad'}`}
+                        style={{
+                          cursor: 'pointer',
+                          fontSize: '11.5px',
+                          padding: '3px 8px',
+                          fontWeight: 600,
+                          border: 'none',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          width: '78px',
+                          boxSizing: 'border-box',
+                        }}
+                        title={product.is_active ? 'Click to hide product' : 'Click to activate product'}
+                      >
+                        <span
+                          style={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: '50%',
+                            background: product.is_active ? 'var(--positive)' : 'var(--danger)',
+                            flexShrink: 0,
+                          }}
+                        />
+                        <span>{product.is_active ? 'Active' : 'Hidden'}</span>
+                      </button>
                     </td>
                     <td>
                       <div className="row-actions">
@@ -254,8 +297,8 @@ export function Products({ say }: { say: Say }) {
                   </tr>
                 );
               })}
-              {products && shown.length === 0 ? <EmptyRow columns={4}>{search ? 'Nothing matches.' : 'No products yet.'}</EmptyRow> : null}
-              {!products ? <EmptyRow columns={4}>Loading…</EmptyRow> : null}
+              {products && shown.length === 0 ? <EmptyRow columns={5}>{search ? 'Nothing matches.' : 'No products yet.'}</EmptyRow> : null}
+              {!products ? <EmptyRow columns={5}>Loading…</EmptyRow> : null}
             </tbody>
           </table>
         </div>
@@ -436,7 +479,12 @@ function ProductForm({
           onChange={(event) => set({ description: event.target.value.slice(0, 300) })}
         />
       </label>
-      <FlagRow label="Show in the store" on={form.is_active} onChange={(on) => set({ is_active: on })} />
+      <FlagRow
+        label={form.is_active ? 'Active' : 'Hidden'}
+        hint={form.is_active ? 'Visible in bot store' : 'Hidden from customers in store'}
+        on={form.is_active}
+        onChange={(on) => set({ is_active: on })}
+      />
     </Modal>
   );
 }
