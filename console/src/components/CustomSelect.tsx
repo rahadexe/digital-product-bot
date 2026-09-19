@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, Plus, X } from 'lucide-react';
+import { Check, ChevronDown, Plus, Search, X } from 'lucide-react';
 
 export interface SelectOption {
   value: string;
@@ -28,6 +28,7 @@ export interface CustomSelectProps {
   onCreateOption?: (val: string) => void;
   clearable?: boolean;
   onClear?: () => void;
+  emptyValue?: string;
 }
 
 export function CustomSelect({
@@ -46,6 +47,7 @@ export function CustomSelect({
   onCreateOption,
   clearable = false,
   onClear,
+  emptyValue,
 }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -61,11 +63,15 @@ export function CustomSelect({
     [options, value]
   );
 
+  const isDefaultOrEmpty = selectedOption
+    ? (emptyValue !== undefined ? String(selectedOption.value) === String(emptyValue) : false)
+    : (!value || (emptyValue !== undefined && String(value) === String(emptyValue)));
+
   const displayValue = isTyping
     ? query
-    : selectedOption
+    : selectedOption && !isDefaultOrEmpty
     ? selectedOption.label
-    : (value ? String(value) : '');
+    : '';
 
   const filteredOptions = useMemo(() => {
     if (!isTyping || !query.trim()) return options;
@@ -122,7 +128,7 @@ export function CustomSelect({
     if (onClear) {
       onClear();
     } else {
-      onChange('');
+      onChange(emptyValue !== undefined ? emptyValue : '');
     }
     setQuery('');
     setIsTyping(false);
@@ -138,7 +144,13 @@ export function CustomSelect({
     setIsOpen((prev) => {
       const next = !prev;
       if (next && searchable) {
-        setTimeout(() => inputRef.current?.focus(), 20);
+        setTimeout(() => {
+          inputRef.current?.focus();
+          inputRef.current?.select();
+        }, 20);
+      } else if (!next) {
+        setIsTyping(false);
+        setQuery('');
       }
       return next;
     });
@@ -198,11 +210,13 @@ export function CustomSelect({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', minWidth: 0, flex: 1 }}>
-          {selectedOption?.icon && (
+          {selectedOption?.icon ? (
             <span style={{ display: 'inline-flex', alignItems: 'center', color: 'var(--accent)', flexShrink: 0 }}>
               {selectedOption.icon}
             </span>
-          )}
+          ) : searchable && (isDefaultOrEmpty || isTyping) ? (
+            <Search size={14} style={{ color: 'var(--muted)', flexShrink: 0 }} />
+          ) : null}
 
           {searchable ? (
             <input
@@ -214,8 +228,11 @@ export function CustomSelect({
                 e.stopPropagation();
                 if (!isOpen) setIsOpen(true);
               }}
-              onFocus={() => {
+              onFocus={(e) => {
                 if (!isOpen) setIsOpen(true);
+                if (searchable) {
+                  e.currentTarget.select();
+                }
               }}
               onChange={(e) => {
                 setIsTyping(true);
@@ -229,7 +246,7 @@ export function CustomSelect({
                 outline: 'none',
                 fontSize: '13.5px',
                 fontWeight: 500,
-                color: isTyping || selectedOption ? 'var(--text)' : 'var(--muted)',
+                color: isTyping || (selectedOption && !isDefaultOrEmpty) ? 'var(--text)' : 'var(--muted)',
                 width: '100%',
                 cursor: 'text',
                 padding: 0,
@@ -246,14 +263,19 @@ export function CustomSelect({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
-          {clearable && selectedOption && selectedOption.value !== '0' && selectedOption.value !== '' && (
+          {((isTyping && query.trim()) || (clearable && selectedOption && !isDefaultOrEmpty)) && (
             <span
               role="button"
               onClick={(e) => {
                 e.stopPropagation();
-                handleClear();
+                if (isTyping && query.trim()) {
+                  setQuery('');
+                  inputRef.current?.focus();
+                } else {
+                  handleClear();
+                }
               }}
-              title="Clear selection"
+              title={isTyping && query.trim() ? 'Clear search' : 'Clear selection'}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',

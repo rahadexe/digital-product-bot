@@ -106,7 +106,8 @@ export function Inventory({ say }: { say: Say }) {
               ]}
               minWidth={240}
               searchable={true}
-              placeholder="All products"
+              placeholder="Search products..."
+              emptyValue="0"
               clearable={productId !== 0}
               onClear={() => { setProductId(0); setOffset(0); }}
             />
@@ -317,7 +318,6 @@ function AddStock({ products, initialProduct, say, onClose, onAdded }: { product
       <label className="field">
         <span>Customers per item</span>
         <input type="number" min={1} max={1000} step={1} value={seats} onChange={(event) => setSeats(Math.max(1, Math.min(1000, parseInt(event.target.value, 10) || 1)))} />
-        <small>1 for a key used once. 7 for an account seven people share: each line goes to seven customers, in turn.</small>
       </label>
       <ExpiryPicker value={expiresAt} onChange={setExpiresAt} />
     </Modal>
