@@ -290,9 +290,10 @@ async def handle_deposit_method_select(query: CallbackQuery, state: FSMContext, 
             if custom_inst
             else (
                 "\n\n<b>How to pay:</b>\n"
-                "1. Open <b>Binance App</b> → <b>Pay</b> → <b>Send</b>\n"
-                f"2. Enter Binance UID: <code>{escape(account_info)}</code>\n"
-                f"3. Send <b>{escape(coin)}</b> and tap <b>Payment Done</b> below\n\n"
+                "1. Open <b>Binance App</b> → <b>Assets</b> → <b>Send</b>\n"
+                f"2. Select <b>{escape(coin)}</b> → <b>Send to Binance User</b>\n"
+                f"3. Enter Binance UID: <code>{escape(account_info)}</code>\n"
+                f"4. Send <b>{escape(coin)}</b> and tap <b>Payment Done</b> below\n\n"
                 f"<i>আপনি যত ডলার পাঠাবেন এই রেটে কনভার্ট হয়ে স্বয়ংক্রিয়ভাবে অ্যাকাউন্টে টাকা যোগ হয়ে যাবে।</i>"
             )
         )
