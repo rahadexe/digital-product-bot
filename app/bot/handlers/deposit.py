@@ -314,39 +314,102 @@ async def handle_deposit_method_select(query: CallbackQuery, state: FSMContext, 
     })
 
     if method.get("auto_verify") == "binance_pay":
-        coin = setting_values.get("binance_coin", "USDT")
-        custom_inst = (setting_values.get("binance_pay_instructions") or "").strip()
-        inst_body = f"\n\n<b>Instructions:</b>\n{escape(custom_inst)}" if custom_inst else ""
-        method_icon = get_method_icon(method)
+        pay_id = setting_values.get("binance_pay_id") or account_info
+        binance_name = (setting_values.get("binance_pay_name") or "").strip()
+        name_line = f"<b>Binance Name:</b> <code>{escape(binance_name)}</code>\n" if binance_name else ""
+
         text = (
-            f"{method_icon} <b>{escape(method_name)}</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"↳ <b>Binance UID:</b>\n"
-            f"<code>{escape(account_info)}</code>\n\n"
-            f"↳ <b>Minimum Deposit:</b> {min_coin:g} {escape(coin)} (~{price(symbol, min_dep)})\n"
-            f"↳ <b>Exchange Rate:</b> 1 {escape(coin)} = {rate:g} {symbol}"
-            f"{inst_body}"
+            f"{ICON_BINANCE} <b>Binance Pay Deposit</b>\n\n"
+            f"<b>Pay ID:</b> <code>{escape(pay_id)}</code>\n"
+            f"{name_line}\n"
+            f"1️⃣ Send any USDT amount to the Pay ID above\n"
+            f"2️⃣ Paste your Order ID below\n\n"
+            f"❗️ <i>Only up to 3 decimal places will be credited to your wallet.</i>\n\n"
+            f"🥷 <i>Only payments started after opening this screen and completed within 30 minutes will be credited.</i>\n\n"
+            f"<b>Please send your Order ID below:</b>"
         )
-        reply_kb = get_manual_deposit_invoice_keyboard(account_info, is_binance=True)
-    else:
-        type_label, action_label = get_account_type_labels(account_type)
-        method_icon = get_method_icon(method)
-        text = (
-            f"{method_icon} <b>{escape(method_name)}</b> ({action_label})\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"↳ <b>Account Type:</b> {type_label}\n"
-            f"↳ <b>Transaction:</b> {action_label}\n"
-            f"↳ <b>Number:</b> <code>{escape(account_info)}</code>\n\n"
-            f"↳ <b>Minimum Deposit:</b> {price(symbol, min_dep, usd_rate=usd_rate, show_usd=show_usd)}"
+        await state.set_state(DepositStates.waiting_for_binance_ref)
+        await state.update_data(
+            method_id=method_id,
+            method_name=method_name,
+            account_info=pay_id,
+            auto_verify="binance_pay",
         )
-        custom_instructions = (method.get("instructions") or "").strip()
-        if custom_instructions:
-            text += f"\n\n<b>Instructions:</b>\n{escape(custom_instructions)}"
-        reply_kb = get_manual_deposit_invoice_keyboard(account_info, is_binance=False)
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="Where to find Order ID?",
+                        callback_data="binance_help_order_id",
+                        style="primary",
+                        icon_custom_emoji_id=Icons.QUESTION,
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="Cancel",
+                        callback_data="open_deposit",
+                        style="danger",
+                        icon_custom_emoji_id=Icons.CROSS,
+                    )
+                ],
+            ]
+        )
+        if query.message:
+            with suppress(TelegramBadRequest):
+                await query.message.edit_text(text, reply_markup=kb)
+        return
+
+    type_label, action_label = get_account_type_labels(account_type)
+    method_icon = get_method_icon(method)
+    text = (
+        f"{method_icon} <b>{escape(method_name)} Deposit</b> ({action_label})\n\n"
+        f"<b>Account Type:</b> {type_label}\n"
+        f"<b>Transaction:</b> {action_label}\n"
+        f"<b>Number:</b> <code>{escape(account_info)}</code>\n\n"
+        f"<b>Minimum Deposit:</b> {price(symbol, min_dep, usd_rate=usd_rate, show_usd=show_usd)}"
+    )
+    custom_instructions = (method.get("instructions") or "").strip()
+    if custom_instructions:
+        text += f"\n\n<b>Instructions:</b>\n{escape(custom_instructions)}"
+    reply_kb = get_manual_deposit_invoice_keyboard(account_info, is_binance=False)
 
     if query.message:
         with suppress(TelegramBadRequest):
             await query.message.edit_text(text, reply_markup=reply_kb)
+
+
+@router.callback_query(F.data == "binance_help_order_id")
+async def binance_help_order_id_handler(query: CallbackQuery, state: FSMContext, services: Services):
+    data = await state.get_data()
+    method_id = data.get("method_id")
+
+    text = (
+        f"{ICON_QUESTION} <b>Where to find your Order ID?</b>\n\n"
+        f"1. Open the <b>Binance App</b> on your phone\n"
+        f"2. Tap <b>Pay</b> (top right or under Services)\n"
+        f"3. Tap the <b>Payment History</b> icon (top right corner)\n"
+        f"4. Select the payment you just sent to our Pay ID\n"
+        f"5. Look for <b>Order ID</b> (a 18-19 digit number)\n"
+        f"6. Tap the copy icon next to the Order ID and send it here in the chat!\n\n"
+        f"<i>Example Order ID: <code>454711565717520384</code></i>"
+    )
+    back_target = f"dep_method_{method_id}" if method_id else "open_deposit"
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Back to Deposit",
+                    callback_data=back_target,
+                    style="primary",
+                    icon_custom_emoji_id=Icons.BACK,
+                )
+            ]
+        ]
+    )
+    if query.message:
+        with suppress(TelegramBadRequest):
+            await query.message.edit_text(text, reply_markup=kb)
 
 
 @router.callback_query(F.data == "dep_confirm_paid")
@@ -372,45 +435,63 @@ async def ask_deposit_input(query: CallbackQuery, state: FSMContext, services: S
         rate = data.get("rate", 125.0)
         min_coin = data.get("min_coin", 1.0)
         min_dep = data.get("min_deposit", min_coin * rate)
-        await state.set_state(DepositStates.waiting_for_binance_amount)
+        await state.set_state(DepositStates.waiting_for_binance_ref)
         method_row = {"name": method_name, "auto_verify": auto_verify}
         method_icon = get_method_icon(method_row)
         text = (
-            f"{method_icon} <b>{escape(method_name)}</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"↳ <b>Binance UID:</b>\n"
-            f"<code>{escape(account_info)}</code>\n\n"
-            f"↳ <b>Minimum Deposit:</b> {min_coin:g} USDT (~{price(symbol, min_dep)})\n"
-            f"↳ <b>Exchange Rate:</b> 1 USDT = {rate:g} {symbol}\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"💬 <b>Enter Deposit Amount (USDT):</b>\n"
-            f"How much <b>USDT</b> did you send?\n\n"
-            f"<i>Type the amount below (e.g. <code>10</code> or <code>25.5</code>):</i>"
+            f"{method_icon} <b>{escape(method_name)} Deposit</b>\n\n"
+            f"<b>Pay ID:</b> <code>{escape(account_info)}</code>\n\n"
+            f"1️⃣ Send any USDT amount to the Pay ID above\n"
+            f"2️⃣ Paste your Order ID below\n\n"
+            f"❗️ <i>Only up to 3 decimal places will be credited to your wallet.</i>\n\n"
+            f"🥷 <i>Only payments started after opening this screen and completed within 30 minutes will be credited.</i>\n\n"
+            f"<b>Please send your Order ID below:</b>"
         )
-        reply_kb = get_deposit_amount_keyboard(account_info, method_id, is_binance=True)
-    else:
-        min_dep = data.get("min_deposit", 1.0)
-        account_type = data.get("account_type", "personal")
-        type_label, action_label = get_account_type_labels(account_type)
-        await state.set_state(DepositStates.waiting_for_amount)
-        method_row = {
-            "name": method_name,
-            "auto_verify": auto_verify,
-            "custom_emoji_id": data.get("custom_emoji_id"),
-        }
-        method_icon = get_method_icon(method_row)
-        text = (
-            f"{method_icon} <b>{escape(method_name)}</b>\n"
-            f"<b>কত টাকা পাঠিয়েছেন তা লিখুন</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"↳ <b>Account Type:</b> {type_label}\n"
-            f"↳ <b>Transaction:</b> {action_label}\n"
-            f"↳ <b>Number:</b> <code>{escape(account_info)}</code>\n\n"
-            f"↳ <b>Minimum Deposit:</b> {price(symbol, min_dep, usd_rate=usd_rate, show_usd=show_usd)}\n\n"
-            f"{ICON_MONEY} <b>কত টাকা পাঠিয়েছেন তা লিখুন</b>\n\n"
-            f"যেমন: <code>100</code>"
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="Where to find Order ID?",
+                        callback_data="binance_help_order_id",
+                        style="primary",
+                        icon_custom_emoji_id=Icons.QUESTION,
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="Cancel",
+                        callback_data="open_deposit",
+                        style="danger",
+                        icon_custom_emoji_id=Icons.CROSS,
+                    )
+                ],
+            ]
         )
-        reply_kb = get_deposit_amount_keyboard(account_info, method_id, is_binance=False)
+        if query.message:
+            with suppress(TelegramBadRequest):
+                await query.message.edit_text(text, reply_markup=kb)
+        return
+
+    min_dep = data.get("min_deposit", 1.0)
+    account_type = data.get("account_type", "personal")
+    type_label, action_label = get_account_type_labels(account_type)
+    await state.set_state(DepositStates.waiting_for_amount)
+    method_row = {
+        "name": method_name,
+        "auto_verify": auto_verify,
+        "custom_emoji_id": data.get("custom_emoji_id"),
+    }
+    method_icon = get_method_icon(method_row)
+    text = (
+        f"{method_icon} <b>{escape(method_name)} Deposit</b>\n\n"
+        f"<b>Account Type:</b> {type_label}\n"
+        f"<b>Transaction:</b> {action_label}\n"
+        f"<b>Number:</b> <code>{escape(account_info)}</code>\n\n"
+        f"<b>Minimum Deposit:</b> {price(symbol, min_dep, usd_rate=usd_rate, show_usd=show_usd)}\n\n"
+        f"{ICON_MONEY} <b>কত টাকা পাঠিয়েছেন তা লিখুন:</b>\n\n"
+        f"যেমন: <code>100</code>"
+    )
+    reply_kb = get_deposit_amount_keyboard(account_info, method_id, is_binance=False)
 
     if query.message:
         with suppress(TelegramBadRequest):
@@ -532,10 +613,8 @@ async def claim_binance_payment(
     expected_usdt: float | None = None,
 ):
     status_msg = await message.answer(
-        f"{ICON_TIMER} <b>Verifying Binance payment...</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
-        f"↳ <b>Reference:</b> <code>{escape(ref)}</code>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
+        f"{ICON_TIMER} <b>Verifying Binance payment...</b>\n\n"
+        f"<b>Reference:</b> <code>{escape(ref)}</code>\n\n"
         f"<i>Checking Binance Pay records, please wait...</i>"
     )
     try:
@@ -593,13 +672,11 @@ async def claim_binance_payment(
         await _safe_edit_or_answer(
             status_msg,
             message,
-            f"{ICON_CHECK} <b>Binance Deposit Successful!</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{ICON_CHECK} <b>Binance Deposit Successful!</b>\n\n"
             f"{ICON_BINANCE} <b>Received:</b> <code>{received_coin:g} {escape(coin)}</code>\n"
             f"{ICON_MONEY} <b>Credited:</b> <code>{price(symbol, credited_amount)}</code>\n"
             f"{ICON_BALANCE} <b>Balance:</b> <code>{price(symbol, user_balance)}</code>\n"
-            f"{ICON_KEY} <b>Reference:</b> <code>{escape(ref)}</code>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{ICON_KEY} <b>Reference:</b> <code>{escape(ref)}</code>\n\n"
             f"<i>Your wallet has been credited automatically. Thank you!</i>",
             reply_markup=keyboard,
         )
@@ -612,15 +689,13 @@ async def claim_binance_payment(
                 ]
             ]
         )
-        expected_text = f"↳ <b>Expected:</b> <code>{expected_usdt:g} USDT</code>\n" if expected_usdt else ""
+        expected_text = f"<b>Expected:</b> <code>{expected_usdt:g} USDT</code>\n" if expected_usdt else ""
         await _safe_edit_or_answer(
             status_msg,
             message,
-            f"{ICON_TIMER} <b>Payment Verification in Progress...</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"↳ <b>Reference:</b> <code>{escape(ref)}</code>\n"
-            f"{expected_text}"
-            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{ICON_TIMER} <b>Payment Verification in Progress...</b>\n\n"
+            f"<b>Reference:</b> <code>{escape(ref)}</code>\n"
+            f"{expected_text}\n"
             f"Searching Binance for your transfer. If you just sent it, please allow 1–2 minutes.\n\n"
             f"<i>Your balance will be credited automatically once confirmed.</i>",
             reply_markup=keyboard,
@@ -672,14 +747,11 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
         "auto_verify": data.get("auto_verify"),
         "custom_emoji_id": data.get("custom_emoji_id"),
     }
-    method_icon = get_method_icon(method_row)
     await message.answer(
-        f"{method_icon} <b>{escape(method_name)}</b>\n"
-        f"<b>Transaction ID (TrxID) দিন</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
-        f"↳ <b>Amount:</b> {price(symbol, amount_num)}\n"
-        f"↳ <b>Number:</b> <code>{escape(account_info)}</code> ({action_label})\n\n"
-        f"আপনার {escape(method_name)} SMS / রিসিট থেকে <b>Transaction ID (TrxID)</b> দিন\n\n"
+        f"{method_icon} <b>{escape(method_name)} Deposit</b>\n\n"
+        f"<b>Amount:</b> {price(symbol, amount_num)}\n"
+        f"<b>Number:</b> <code>{escape(account_info)}</code> ({action_label})\n\n"
+        f"আপনার {escape(method_name)} SMS / রিসিট থেকে <b>Transaction ID (TrxID)</b> দিন:\n\n"
         f"যেমন: <code>BLA7X8Y9Z0</code>",
         reply_markup=get_deposit_txid_keyboard(is_bangla=True),
     )

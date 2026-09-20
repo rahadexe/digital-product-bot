@@ -144,6 +144,7 @@ SPECS: dict[str, SettingSpec] = {
     "binance_api_secret": SettingSpec("", secret=True),
     "binance_coin": SettingSpec("USDT", _currency_code, 10),
     "binance_pay_id": SettingSpec("12345678", max_length=64),
+    "binance_pay_name": SettingSpec("", max_length=100),
     "binance_pay_rate": SettingSpec("125", _number(0.0001, 1_000_000), 16),
     "binance_pay_min": SettingSpec("1", _number(0.01, 1_000_000_000), 16),
     "binance_pay_instructions": SettingSpec("", max_length=1000),

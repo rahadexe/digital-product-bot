@@ -86,6 +86,59 @@ class ResellerService:
             )
             return dict(row) if row else None
 
+    async def get_latest_key(self, tg_user_id: int) -> dict[str, Any] | None:
+        """Fetch metadata for the latest API key of a reseller (active or inactive)."""
+        async with self.db.connect() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT id, user_id, tg_user_id, key_prefix, name, is_active, created_at, last_used_at
+                FROM reseller_api_keys
+                WHERE tg_user_id = $1
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                tg_user_id,
+            )
+            return dict(row) if row else None
+
+    async def set_key_status(self, tg_user_id: int, is_active: bool) -> bool:
+        """Enable or disable the latest API key for a reseller."""
+        async with self.db.transaction() as conn:
+            val = 1 if is_active else 0
+            await conn.execute(
+                """
+                UPDATE reseller_api_keys
+                SET is_active = $1
+                WHERE id = (
+                    SELECT id FROM reseller_api_keys
+                    WHERE tg_user_id = $2
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                )
+                """,
+                val,
+                tg_user_id,
+            )
+            return True
+
+    async def get_reseller_stats(self, tg_user_id: int) -> dict[str, Any]:
+        """Get total orders and total spending for a reseller."""
+        async with self.db.connect() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT 
+                    COUNT(*) AS total_orders,
+                    COALESCE(SUM(price), 0) AS total_spent
+                FROM purchases
+                WHERE tg_user_id = $1
+                """,
+                tg_user_id,
+            )
+            return {
+                "total_orders": row["total_orders"] if row else 0,
+                "total_spent": float(row["total_spent"]) if row else 0.0,
+            }
+
     async def revoke_key(self, tg_user_id: int) -> bool:
         """Deactivate all active keys for a reseller."""
         async with self.db.transaction() as conn:

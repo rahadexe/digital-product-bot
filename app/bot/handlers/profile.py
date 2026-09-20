@@ -208,6 +208,7 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
     await respond(event, text, kb)
 
 
+@router.message(Command("api"))
 @router.message(Command("reseller"))
 @router.message(F.text.in_({
     "💼 Apply as a Reseller",
@@ -219,10 +220,14 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
     "reseller",
     "রিসেলার",
     "রিসেলার প্যানেল",
+    "/api",
+    "api",
+    "API",
 }))
 @router.callback_query(F.data == "open_reseller")
-async def show_reseller_info(event: Message | CallbackQuery, state: FSMContext, services: Services):
-    await state.clear()
+async def show_reseller_info(event: Message | CallbackQuery, state: FSMContext | None, services: Services):
+    if state:
+        await state.clear()
     tg_user = event.from_user
     if not tg_user:
         return
@@ -235,44 +240,77 @@ async def show_reseller_info(event: Message | CallbackQuery, state: FSMContext, 
     docs_url = f"{base_url}/api/v1/reseller/docs"
 
     if is_reseller:
-        active_key = await services.reseller.get_active_key(tg_user.id)
+        key = await services.reseller.get_latest_key(tg_user.id)
+        stats = await services.reseller.get_reseller_stats(tg_user.id)
         symbol = await services.settings.get("currency_symbol")
         usd_rate = await services.settings.number("usd_rate")
         show_usd = await services.settings.flag("show_usd_price")
 
         balance_str = price(symbol, user.get("balance", 0.0), usd_rate=usd_rate, show_usd=show_usd)
-        key_display = f"<code>{active_key['key_prefix']}</code>" if active_key else "<i>Not generated yet</i>"
+        recent_spend_str = price(symbol, stats["total_spent"], usd_rate=usd_rate, show_usd=show_usd)
+
+        if key and key.get("is_active"):
+            status_line = f"{ICON_CHECK} <b>Status:</b> Connected"
+            key_display = f"<code>{key['key_prefix']}••••••••</code>"
+            is_connected = True
+        elif key:
+            status_line = f"{ICON_CROSS} <b>Status:</b> Disabled"
+            key_display = f"<code>{key['key_prefix']}••••••••</code>"
+            is_connected = False
+        else:
+            status_line = f"{ICON_WARNING} <b>Status:</b> Not Generated"
+            key_display = "<i>None</i>"
+            is_connected = False
 
         text = (
-            f"{ICON_RESELLER} <b>Reseller Partner Dashboard</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n\n"
-            f"{ICON_VIP} <b>Account Status:</b> <b>Authorized Reseller</b>\n"
-            f"{ICON_BALANCE} <b>Wallet Balance:</b> <code>{balance_str}</code>\n"
-            f"{ICON_KEY} <b>API Key:</b> {key_display}\n"
-            f"{ICON_GLOBE} <b>API Endpoint:</b>\n<code>{base_url}/api/v1/reseller</code>\n\n"
-            f"💡 <i>আপনার নিজস্ব টেলিগ্রাম বট বা ওয়েবসাইটকে আমাদের ইনভেনটরির সাথে কানেক্ট করতে নিচের এপিআই কি ব্যবহার করুন। স্বয়ংক্রিয়ভাবে ডিসকাউন্টেড রিসেলার রেটে কেনাকাটা ও তাত্ক্ষণিক ডেলিভারি সম্পন্ন হবে!</i>"
+            f"{ICON_RESELLER} <b>Reseller Product API</b>\n\n"
+            f"Connect your own bot, website, or reseller panel to this shop. "
+            f"Orders are delivered from live stock and paid from your wallet balance.\n\n"
+            f"{status_line}\n"
+            f"{ICON_BALANCE} <b>API Balance:</b> <code>{balance_str}</code>\n"
+            f"{ICON_ORDERS} <b>Total API Orders:</b> <code>{stats['total_orders']}</code>\n"
+            f"{ICON_SPENT} <b>Recent Spend:</b> <code>{recent_spend_str}</code>\n"
+            f"{ICON_KEY} <b>Current Key:</b> {key_display}\n\n"
+            f"<b>Available actions</b>\n"
+            f"{ICON_PRODUCTS} <b>Product list:</b> <code>GET /api/v1/reseller/products</code>\n"
+            f"{ICON_ACCOUNT} <b>Balance check:</b> <code>GET /api/v1/reseller/me</code>\n"
+            f"{ICON_CART} <b>Place order:</b> <code>POST /api/v1/reseller/orders</code>\n\n"
+            f"<b>Endpoint URL</b>\n"
+            f"<code>{base_url}/api/v1/reseller</code>"
         )
 
         rows = []
-        if active_key:
+        if key:
             rows.append([
-                InlineKeyboardButton(
-                    text="Key Info",
-                    callback_data="reseller_reveal_key",
-                    style="primary",
-                    icon_custom_emoji_id=Icons.KEY,
-                ),
                 InlineKeyboardButton(
                     text="Regenerate Key",
                     callback_data="reseller_regen_prompt",
-                    style="danger",
+                    style="primary",
                     icon_custom_emoji_id=Icons.REFRESH,
-                ),
+                )
             ])
+            if is_connected:
+                rows.append([
+                    InlineKeyboardButton(
+                        text="Disable API",
+                        callback_data="reseller_toggle_active",
+                        style="danger",
+                        icon_custom_emoji_id=Icons.CROSS,
+                    )
+                ])
+            else:
+                rows.append([
+                    InlineKeyboardButton(
+                        text="Enable API",
+                        callback_data="reseller_toggle_active",
+                        style="success",
+                        icon_custom_emoji_id=Icons.CHECK,
+                    )
+                ])
         else:
             rows.append([
                 InlineKeyboardButton(
-                    text="Generate API Key",
+                    text="Generate Key",
                     callback_data="reseller_generate_key",
                     style="success",
                     icon_custom_emoji_id=Icons.KEY,
@@ -281,24 +319,26 @@ async def show_reseller_info(event: Message | CallbackQuery, state: FSMContext, 
 
         rows.append([
             InlineKeyboardButton(
-                text="View API Docs",
+                text="View API Documentation",
                 url=docs_url,
                 style="primary",
                 icon_custom_emoji_id=Icons.NOTE,
-            ),
-            InlineKeyboardButton(
-                text="Quick Guide",
-                callback_data="reseller_quick_guide",
-                style="primary",
-                icon_custom_emoji_id=Icons.LIGHTNING,
-            ),
+            )
         ])
         rows.append([
             InlineKeyboardButton(
-                text="My Profile",
+                text="Refresh",
+                callback_data="open_reseller",
+                style="primary",
+                icon_custom_emoji_id=Icons.REFRESH,
+            )
+        ])
+        rows.append([
+            InlineKeyboardButton(
+                text="Back to Settings",
                 callback_data="open_account",
                 style="primary",
-                icon_custom_emoji_id=Icons.BACK,
+                icon_custom_emoji_id=Icons.ACCOUNT,
             )
         ])
         await respond(event, text, InlineKeyboardMarkup(inline_keyboard=rows))
@@ -316,14 +356,12 @@ async def show_reseller_info(event: Message | CallbackQuery, state: FSMContext, 
     )
 
     text = (
-        f"{ICON_RESELLER} <b>Reseller Program</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n\n"
+        f"{ICON_RESELLER} <b>Reseller Program</b>\n\n"
         f"🇬🇧 If you want to become a reseller in our bot, fill out the details below and message our <b>Contact Management</b>.\n\n"
         f"🇧🇩 আপনি যদি আমাদের বটে রিসেলার হতে চান, তাহলে নিচের তথ্যগুলো পূরণ করে আমাদের <b>Contact Management</b> এ মেসেজ পাঠান:\n\n"
         f"{ICON_NOTE} <b>Application Format:</b>\n"
         f"<code>{format_copy_text}</code>\n\n"
         f"{ICON_VIP} <b>Reseller Benefits:</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
         f"{ICON_COIN} Bulk discounts & wholesale reseller rates\n"
         f"{ICON_KEY} REST API Key to integrate your bot or website\n"
         f"{ICON_LIGHTNING} Rapid delivery & instant automatic credentials\n"
@@ -364,6 +402,29 @@ async def show_reseller_info(event: Message | CallbackQuery, state: FSMContext, 
     await respond(event, text, InlineKeyboardMarkup(inline_keyboard=rows))
 
 
+@router.callback_query(F.data == "reseller_toggle_active")
+async def reseller_toggle_active_handler(event: CallbackQuery, services: Services):
+    tg_user = event.from_user
+    if not tg_user:
+        return
+    user = await services.users.get(tg_user.id)
+    if not user or (user.get("rank") or "").strip().lower() != "reseller":
+        await event.answer("Access denied.", show_alert=True)
+        return
+
+    key = await services.reseller.get_latest_key(tg_user.id)
+    if not key:
+        await event.answer("No API key found. Please generate one first.", show_alert=True)
+        return
+
+    new_active = not bool(key.get("is_active"))
+    await services.reseller.set_key_status(tg_user.id, new_active)
+    alert_text = "API Key enabled successfully!" if new_active else "API Key disabled."
+    with suppress(TelegramBadRequest):
+        await event.answer(alert_text)
+    await show_reseller_info(event, None, services)
+
+
 @router.callback_query(F.data == "reseller_generate_key")
 async def reseller_generate_key_handler(event: CallbackQuery, services: Services):
     tg_user = event.from_user
@@ -379,8 +440,7 @@ async def reseller_generate_key_handler(event: CallbackQuery, services: Services
     base_url = cfg.webhook_base_url.rstrip("/") if cfg.webhook_base_url else (cfg.webapp_url or "http://127.0.0.1:8000")
 
     text = (
-        f"{ICON_CHECK} <b>Reseller API Key Generated!</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n\n"
+        f"{ICON_CHECK} <b>Reseller API Key Generated!</b>\n\n"
         f"{ICON_KEY} <b>Your Secret API Key:</b>\n"
         f"<code>{raw_key}</code>\n\n"
         f"{ICON_WARNING} <b>Important Security Notice:</b>\n"
@@ -435,8 +495,7 @@ async def reseller_reveal_key_handler(event: CallbackQuery, services: Services):
     base_url = cfg.webhook_base_url.rstrip("/") if cfg.webhook_base_url else (cfg.webapp_url or "http://127.0.0.1:8000")
 
     text = (
-        f"{ICON_KEY} <b>Reseller API Key Info</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n\n"
+        f"{ICON_KEY} <b>Reseller API Key Info</b>\n\n"
         f"{ICON_LOCK} <b>Active Key Prefix:</b> <code>{active_key['key_prefix']}</code>\n"
         f"{ICON_TIMER} <b>Created At:</b> {active_key['created_at'].strftime('%Y-%m-%d %H:%M') if active_key.get('created_at') else 'N/A'}\n"
         f"{ICON_STATS} <b>Last Used:</b> {active_key['last_used_at'].strftime('%Y-%m-%d %H:%M') if active_key.get('last_used_at') else 'Never'}\n\n"
@@ -478,8 +537,7 @@ async def reseller_reveal_key_handler(event: CallbackQuery, services: Services):
 @router.callback_query(F.data == "reseller_regen_prompt")
 async def reseller_regen_prompt_handler(event: CallbackQuery):
     text = (
-        f"{ICON_WARNING} <b>Regenerate Reseller API Key?</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n\n"
+        f"{ICON_WARNING} <b>Regenerate Reseller API Key?</b>\n\n"
         f"{ICON_WARNING} <b>সতর্কতা:</b>\n"
         f"নতুন এপিআই কি তৈরি করলে আপনার আগের কি-টি সাথে সাথে নিষ্ক্রিয় (Deactivate) হয়ে যাবে।\n\n"
         f"আপনার যেসকল বট বা ওয়েবসাইটে আগের কি ইন্টিগ্রেট করা আছে, সেগুলোতে নতুন কি আপডেট না করা পর্যন্ত অর্ডার পাঠানো বন্ধ থাকবে।\n\n"
@@ -524,8 +582,7 @@ async def reseller_regen_confirm_handler(event: CallbackQuery, services: Service
     base_url = cfg.webhook_base_url.rstrip("/") if cfg.webhook_base_url else (cfg.webapp_url or "http://127.0.0.1:8000")
 
     text = (
-        f"{ICON_CHECK} <b>New API Key Generated Successfully!</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n\n"
+        f"{ICON_CHECK} <b>New API Key Generated Successfully!</b>\n\n"
         f"{ICON_KEY} <b>Your New Secret API Key:</b>\n"
         f"<code>{raw_key}</code>\n\n"
         f"{ICON_WARNING} আপনার আগের এপিআই কি নিষ্ক্রিয় করা হয়েছে। আপনার বট বা ওয়েবসাইটে এই নতুন কি-টি কনফিগার করুন।"
@@ -569,8 +626,7 @@ async def reseller_quick_guide_handler(event: CallbackQuery, services: Services)
     docs_url = f"{base_url}/api/v1/reseller/docs"
 
     text = (
-        f"{ICON_NOTE} <b>Reseller API Quick Integration Guide</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n\n"
+        f"{ICON_NOTE} <b>Reseller API Quick Integration Guide</b>\n\n"
         f"<b>1. Header Authentication:</b>\n"
         f"প্রতিটি রিকোয়েস্টের হেডারে আপনার API Key পাঠান:\n"
         f"<code>X-API-Key: rk_live_your_key</code>\n\n"
