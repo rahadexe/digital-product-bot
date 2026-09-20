@@ -32,8 +32,17 @@ async def respond(event: Message | CallbackQuery, text: str, keyboard: InlineKey
         await event.answer(text, reply_markup=keyboard)
 
 
-def price(symbol: str, amount: float) -> str:
-    return f"{escape(symbol)}{amount:.2f}"
+def price(
+    symbol: str,
+    amount: float,
+    usd_rate: float | None = None,
+    show_usd: bool = True,
+) -> str:
+    amount_str = f"{escape(symbol)}{amount:.2f}"
+    if show_usd and usd_rate and usd_rate > 0:
+        usd = round(amount / usd_rate, 2)
+        return f"{amount_str} (${usd:.2f})"
+    return amount_str
 
 
 def format_dual_price(

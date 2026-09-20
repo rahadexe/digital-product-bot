@@ -287,7 +287,7 @@ async def product_view(
 
     unit_price_str = format_dual_price(unit_price, symbol, usd_rate=usd_rate, show_usd=show_usd)
     total_price_str = format_dual_price(total_price, symbol, usd_rate=usd_rate, show_usd=show_usd)
-    balance_str = f"{balance:g} {symbol}" if balance == int(balance) else f"{balance:.2f} {symbol}"
+    balance_str = format_dual_price(balance, symbol, usd_rate=usd_rate, show_usd=show_usd)
 
     if has_reseller_rate:
         reg_price = float(product["price"])
@@ -759,7 +759,7 @@ async def get_keypad_view_text(
     else:
         unit_price = float(product["price"])
     unit_price_str = format_dual_price(unit_price, symbol, usd_rate=usd_rate, show_usd=show_usd)
-    balance_str = f"{balance:g} {symbol}" if balance == int(balance) else f"{balance:.2f} {symbol}"
+    balance_str = format_dual_price(balance, symbol, usd_rate=usd_rate, show_usd=show_usd)
 
     duration = escape(product.get("duration_label") or "")
     duration_line = ""

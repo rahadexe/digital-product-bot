@@ -19,7 +19,7 @@ from aiogram.types import (
     Message,
 )
 
-from app.bot.formatting import callback_int, price, respond
+from app.bot.formatting import callback_int, format_dual_price, price, respond
 from app.bot.icons import (
     ICON_ACCOUNT,
     ICON_BALANCE,
@@ -36,12 +36,13 @@ from app.bot.icons import (
     ICON_REFER,
     ICON_RESELLER,
     ICON_ROCKET,
+    ICON_SPARKLES,
     ICON_SPENT,
-    ICON_STAR,
     ICON_STATS,
     ICON_SUPPORT,
     ICON_TIMER,
     ICON_VIP,
+    ICON_WARNING,
     Icons,
 )
 from app.bot.keyboards import get_account_keyboard
@@ -50,18 +51,21 @@ from app.services import Services
 router = Router(name="profile_router")
 
 ORDERS_PAGE_SIZE = 5
-INLINE_CREDENTIAL_LIMIT = 2800
+INLINE_CREDENTIAL_LIMIT = 500
 
 
 
 
-@router.message(Command("account"))
+@router.message(Command("me"))
 @router.message(Command("profile"))
+@router.message(Command("balance"))
+@router.message(F.text == "👤 Profile")
 @router.message(F.text == "👤 My Profile")
-@router.message(F.text == "My Profile")
-@router.message(F.text.casefold() == "my profile")
-@router.message(F.text == "👤 Account")
-@router.message(F.text == "💳 My Balance")
+@router.message(F.text.casefold() == "profile")
+@router.message(F.text == "আমার প্রোফাইল")
+@router.message(F.text == "প্রোফাইল")
+@router.message(F.text == "ব্যালেন্স")
+@router.message(F.text == "💰 Balance")
 @router.message(F.text == "💰 My Balance")
 @router.message(F.text == "💼 Account")
 @router.message(F.text.casefold() == "account")
@@ -77,6 +81,8 @@ async def show_user_profile(event: Message | CallbackQuery, state: FSMContext, s
     stats = await services.users.stats(tg_user.id)
     user = stats.get("user", {})
     symbol = await services.settings.get("currency_symbol")
+    usd_rate = await services.settings.number("usd_rate")
+    show_usd = await services.settings.flag("show_usd_price")
     user_name = escape(tg_user.full_name or tg_user.first_name or "Customer")
 
     rank_val = (user.get("rank") or "Standard").strip()
@@ -91,9 +97,9 @@ async def show_user_profile(event: Message | CallbackQuery, state: FSMContext, s
         f"{ICON_ACCOUNT} <b>Name:</b> {user_name}\n"
         f"{ICON_ID} <b>User ID:</b> <code>{tg_user.id}</code>\n"
         f"{ICON_RESELLER} <b>Account Type:</b> <b>{account_type}</b>\n\n"
-        f"{ICON_BALANCE} <b>Current Balance:</b> <code>{price(symbol, user.get('balance', 0.0))}</code>\n"
+        f"{ICON_BALANCE} <b>Current Balance:</b> <code>{price(symbol, user.get('balance', 0.0), usd_rate=usd_rate, show_usd=show_usd)}</code>\n"
         f"{ICON_ORDERS} <b>Total Orders:</b> {stats.get('order_count', 0)}\n"
-        f"{ICON_SPENT} <b>Total Spent:</b> <code>{price(symbol, stats.get('total_spent', 0.0))}</code>"
+        f"{ICON_SPENT} <b>Total Spent:</b> <code>{price(symbol, stats.get('total_spent', 0.0), usd_rate=usd_rate, show_usd=show_usd)}</code>"
     )
     await respond(event, text, get_account_keyboard())
 
@@ -113,9 +119,11 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
     symbol = await services.settings.get("currency_symbol")
     reward_amount = await services.settings.number("referral_reward_amount")
     reward_enabled = await services.settings.flag("referral_enabled")
+    usd_rate = await services.settings.number("usd_rate")
+    show_usd = await services.settings.flag("show_usd_price")
 
-    reward_str = f"{reward_amount:g} {symbol}" if reward_amount == int(reward_amount) else f"{reward_amount:.2f} {symbol}"
-    balance_str = f"{balance:g} {symbol}" if balance == int(balance) else f"{balance:.2f} {symbol}"
+    reward_str = format_dual_price(reward_amount, symbol, usd_rate=usd_rate, show_usd=show_usd)
+    balance_str = format_dual_price(balance, symbol, usd_rate=usd_rate, show_usd=show_usd)
 
     async with services.db.connect() as conn:
         row = await conn.fetchrow(
@@ -131,16 +139,15 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
         total_invited = row["total_invited"] if row else 0
         total_earned = float(row["total_earned"]) if row else 0.0
 
-    total_earned_str = f"{total_earned:g} {symbol}" if total_earned == int(total_earned) else f"{total_earned:.2f} {symbol}"
+    total_earned_str = format_dual_price(total_earned, symbol, usd_rate=usd_rate, show_usd=show_usd)
     status_badge = "🟢 Active" if reward_enabled and reward_amount > 0 else "⚪ Disabled"
 
     bot_user = await services.notifier.bot_username()
     ref_link = f"https://t.me/{bot_user}?start=ref_{tg_user.id}"
     store_name = (await services.settings.get("store_name")) or "Premium Haven"
 
-    reward_unit = "TK" if (not symbol or symbol in ("৳", "TK", "BDT")) else symbol
-    reward_display = f"{reward_amount:g} {reward_unit}" if reward_enabled and reward_amount > 0 else f"0 {reward_unit}"
-    earned_display = f"{total_earned:g} {reward_unit}" if total_earned == int(total_earned) else f"{total_earned:.2f} {reward_unit}"
+    reward_display = reward_str if reward_enabled and reward_amount > 0 else f"0 {symbol}"
+    earned_display = total_earned_str
 
     tagline = (
         f"{ICON_ROCKET} <i>Earn {reward_display} per referral!</i>"
@@ -358,11 +365,13 @@ async def view_order_detail(query: CallbackQuery, state: FSMContext, services: S
     created = order["created_at"]
     date = created.strftime("%Y-%m-%d %H:%M UTC") if isinstance(created, datetime) else str(created)
     symbol = await services.settings.get("currency_symbol")
+    usd_rate = await services.settings.number("usd_rate")
+    show_usd = await services.settings.flag("show_usd_price")
     text = (
         f"{ICON_ORDERS} <b>Order #{order['id']} Details</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n\n"
         f"{ICON_VIP} <b>Product:</b> {escape(order['product_title'])}\n"
-        f"{ICON_MONEY} <b>Price Paid:</b> <code>{price(symbol, order['price'])}</code>\n"
+        f"{ICON_MONEY} <b>Price Paid:</b> <code>{price(symbol, order['price'], usd_rate=usd_rate, show_usd=show_usd)}</code>\n"
         f"{ICON_TIMER} <b>Date:</b> {date}\n"
         f"{ICON_CHECK} <b>Status:</b> <code>{order['status'].upper()}</code>\n\n"
         f"{ICON_KEY} <b>Delivered Credentials:</b>\n"
@@ -408,6 +417,8 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
 
     deposits = await services.deposits.history(tg_user.id, limit=DEPOSITS_PAGE_SIZE, offset=offset)
     symbol = await services.settings.get("currency_symbol")
+    usd_rate = await services.settings.number("usd_rate")
+    show_usd = await services.settings.flag("show_usd_price")
 
     if not deposits:
         text = (
@@ -431,7 +442,7 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
             date = created.strftime("%Y-%m-%d %H:%M") if isinstance(created, datetime) else str(created)[:16]
             status_badge = DEPOSIT_STATUS_BADGES.get(deposit["status"], f"<b>{escape(str(deposit['status']).title())}</b>")
             entry = (
-                f"{ICON_DEPOSIT} <b>#{deposit['id']}</b> · <code>{price(symbol, deposit['amount'])}</code> · <b>{escape(deposit['method_name'])}</b>\n"
+                f"{ICON_DEPOSIT} <b>#{deposit['id']}</b> · <code>{price(symbol, deposit['amount'], usd_rate=usd_rate, show_usd=show_usd)}</code> · <b>{escape(deposit['method_name'])}</b>\n"
                 f"↳ {status_badge} · <code>{date}</code>"
             )
             if deposit["status"] == "rejected" and deposit.get("admin_note"):

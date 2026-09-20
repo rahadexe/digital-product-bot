@@ -523,7 +523,7 @@ def get_quantity_selector_keyboard(
         ])
     else:
         short = round(total_price - user_balance, 2)
-        short_formatted = f"{short:g} {currency_symbol}" if short == int(short) else f"{short:.2f} {currency_symbol}"
+        short_formatted = format_dual_price(short, currency_symbol, usd_rate=usd_rate, show_usd=show_usd)
         buttons.append([
             InlineKeyboardButton(
                 text=f"Deposit (Need {short_formatted} more)",

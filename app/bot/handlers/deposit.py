@@ -56,7 +56,6 @@ TRANSACTION_ID_REGEX = re.compile(r"^[A-Za-z0-9_\-]{5,80}$")
 # Rate limiting and attempt limits for automated TrxID verification
 MAX_VERIFY_ATTEMPTS = 3
 VERIFY_COOLDOWN_SECONDS = 600  # 10 minutes lockout after 3 failed attempts
-_USER_VERIFY_FAILS: dict[int, list[float]] = {}
 
 
 def get_account_type_labels(account_type: str | None) -> tuple[str, str]:
@@ -171,12 +170,14 @@ async def ask_instant_amount(query: CallbackQuery, state: FSMContext, services: 
     with suppress(TelegramBadRequest):
         await query.answer()
     symbol = await services.settings.get("currency_symbol")
+    usd_rate = await services.settings.number("usd_rate")
+    show_usd = await services.settings.flag("show_usd_price")
     await state.set_state(DepositStates.waiting_for_instant_amount)
     if query.message:
         with suppress(TelegramBadRequest):
             await query.message.edit_text(
                 f"{ICON_LIGHTNING} <b>{escape(instant['label'])}</b>\n"
-                f"Minimum {price(symbol, instant['min_amount'])}\n\n"
+                f"Minimum {price(symbol, instant['min_amount'], usd_rate=usd_rate, show_usd=show_usd)}\n\n"
                 "Enter amount to deposit (e.g. <code>100</code>):",
                 reply_markup=get_cancel_keyboard(),
             )
@@ -210,8 +211,10 @@ async def create_instant_payment(message: Message, state: FSMContext, services: 
         return
     await state.clear()
     symbol = await services.settings.get("currency_symbol")
+    usd_rate = await services.settings.number("usd_rate")
+    show_usd = await services.settings.flag("show_usd_price")
     await message.answer(
-        f"{ICON_NOTE} <b>Payment Invoice: {price(symbol, invoice['credit_amount'])}</b>\n"
+        f"{ICON_NOTE} <b>Payment Invoice: {price(symbol, invoice['credit_amount'], usd_rate=usd_rate, show_usd=show_usd)}</b>\n"
         f"Payable Amount: <b>{symbol}{invoice['pay_amount']:.2f}</b>\n\n"
         "Tap the Pay button below to complete payment. Your balance will be credited automatically upon confirmation.",
         reply_markup=_instant_keyboard(invoice),
@@ -232,12 +235,14 @@ async def check_instant_payment(query: CallbackQuery, state: FSMContext, service
         return
 
     symbol = await services.settings.get("currency_symbol")
+    usd_rate = await services.settings.number("usd_rate")
+    show_usd = await services.settings.flag("show_usd_price")
     if invoice["status"] == "completed":
         user = await services.users.get(query.from_user.id)
         text = (
             f"{ICON_CHECK} <b>Payment Successful!</b>\n"
-            f"{ICON_SPARKLES} {price(symbol, invoice['credit_amount'])} has been credited to your account.\n\n"
-            f"{ICON_BALANCE} <b>Current Balance:</b> <code>{price(symbol, user['balance'] if user else 0.0)}</code>"
+            f"{ICON_SPARKLES} {price(symbol, invoice['credit_amount'], usd_rate=usd_rate, show_usd=show_usd)} has been credited to your account.\n\n"
+            f"{ICON_BALANCE} <b>Current Balance:</b> <code>{price(symbol, user['balance'] if user else 0.0, usd_rate=usd_rate, show_usd=show_usd)}</code>"
         )
     else:
         text = f"{ICON_TIMER} <b>Payment not completed yet.</b> Please complete payment and check again."
@@ -279,6 +284,8 @@ async def handle_deposit_method_select(query: CallbackQuery, state: FSMContext, 
         await query.answer()
 
     symbol = await services.settings.get("currency_symbol")
+    usd_rate = await services.settings.number("usd_rate")
+    show_usd = await services.settings.flag("show_usd_price")
     min_dep = float(method["min_deposit"])
     account_info = method["account_info"]
     method_name = method["name"]
@@ -330,7 +337,7 @@ async def handle_deposit_method_select(query: CallbackQuery, state: FSMContext, 
             f"↳ <b>Account Type:</b> {type_label}\n"
             f"↳ <b>Transaction:</b> {action_label}\n"
             f"↳ <b>Number:</b> <code>{escape(account_info)}</code>\n\n"
-            f"↳ <b>Minimum Deposit:</b> {price(symbol, min_dep)}"
+            f"↳ <b>Minimum Deposit:</b> {price(symbol, min_dep, usd_rate=usd_rate, show_usd=show_usd)}"
         )
         custom_instructions = (method.get("instructions") or "").strip()
         if custom_instructions:
@@ -355,6 +362,8 @@ async def ask_deposit_input(query: CallbackQuery, state: FSMContext, services: S
         await query.answer()
 
     symbol = await services.settings.get("currency_symbol")
+    usd_rate = await services.settings.number("usd_rate")
+    show_usd = await services.settings.flag("show_usd_price")
     auto_verify = data.get("auto_verify")
     method_name = data.get("method_name", "Payment")
     account_info = data.get("account_info", "")
@@ -397,7 +406,7 @@ async def ask_deposit_input(query: CallbackQuery, state: FSMContext, services: S
             f"↳ <b>Account Type:</b> {type_label}\n"
             f"↳ <b>Transaction:</b> {action_label}\n"
             f"↳ <b>Number:</b> <code>{escape(account_info)}</code>\n\n"
-            f"↳ <b>Minimum Deposit:</b> {price(symbol, min_dep)}\n\n"
+            f"↳ <b>Minimum Deposit:</b> {price(symbol, min_dep, usd_rate=usd_rate, show_usd=show_usd)}\n\n"
             f"{ICON_MONEY} <b>কত টাকা পাঠিয়েছেন তা লিখুন</b>\n\n"
             f"যেমন: <code>100</code>"
         )
@@ -708,14 +717,13 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
 
     now = time.time()
     user_id = message.from_user.id
-    fails = [t for t in _USER_VERIFY_FAILS.get(user_id, []) if now - t < VERIFY_COOLDOWN_SECONDS]
-    _USER_VERIFY_FAILS[user_id] = fails
+    fails = await services.deposits.verification_failures(user_id)
 
     if len(fails) >= MAX_VERIFY_ATTEMPTS:
         remaining_sec = int(VERIFY_COOLDOWN_SECONDS - (now - fails[0]))
         rem_min = max(1, (remaining_sec + 59) // 60)
         await state.clear()
-        support_user = await services.settings.get("support_contact")
+        support_user = await services.settings.get("support_username")
         kb = [[InlineKeyboardButton(text="🏠 Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)]]
         if support_user:
             clean_sup = support_user.lstrip("@")
@@ -767,7 +775,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         f"যাচাই করা হচ্ছে, একটু অপেক্ষা করুন..."
     )
 
-    logger.info("Processing TrxID '%s' for user %s, method %s, amount %s", clean_tx, message.from_user.id, method_id, amount_num)
+    logger.info("Processing deposit verification for user %s", message.from_user.id)
 
     # If ZiniPay auto-verify is configured, attempt automated verification
     zinipay_on = await services.zinipay.is_enabled()
@@ -781,17 +789,15 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                 clean_tx,
                 quoted_rate=data.get("rate", 1.0),
             )
-            logger.info("ZiniPay claim result: %s", res)
+            logger.info("ZiniPay claim outcome: credited=%s", res.get("credited", False))
         except DuplicateTransactionError:
             now = time.time()
-            fails = [t for t in _USER_VERIFY_FAILS.get(user_id, []) if now - t < VERIFY_COOLDOWN_SECONDS]
-            fails.append(now)
-            _USER_VERIFY_FAILS[user_id] = fails
+            fails = await services.deposits.verification_failures(user_id, record_failure=True)
             remaining_attempts = MAX_VERIFY_ATTEMPTS - len(fails)
 
             if remaining_attempts <= 0:
                 await state.clear()
-                support_user = await services.settings.get("support_contact")
+                support_user = await services.settings.get("support_username")
                 kb = [[InlineKeyboardButton(text="🏠 Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)]]
                 if support_user:
                     clean_sup = support_user.lstrip("@")
@@ -866,7 +872,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             return
 
         if res.get("auto_verified") and res.get("credited"):
-            _USER_VERIFY_FAILS.pop(user_id, None)
+            await services.deposits.clear_verification_failures(user_id)
             await state.clear()
             user = await services.users.get(message.from_user.id)
             user_balance = user["balance"] if user else 0.0
@@ -906,14 +912,12 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
 
         if res.get("error"):
             now = time.time()
-            fails = [t for t in _USER_VERIFY_FAILS.get(user_id, []) if now - t < VERIFY_COOLDOWN_SECONDS]
-            fails.append(now)
-            _USER_VERIFY_FAILS[user_id] = fails
+            fails = await services.deposits.verification_failures(user_id, record_failure=True)
             remaining_attempts = MAX_VERIFY_ATTEMPTS - len(fails)
 
             if remaining_attempts <= 0:
                 # 3rd attempt failed -> auto-convert to manual review so customer money is safe!
-                _USER_VERIFY_FAILS.pop(user_id, None)
+                await services.deposits.clear_verification_failures(user_id)
                 await state.clear()
 
                 err_type = res.get("error", "not_found")
@@ -977,7 +981,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                     await _safe_edit_or_answer(status_msg, message, success_text, reply_markup=keyboard)
                     return
                 except DuplicateTransactionError:
-                    support_user = await services.settings.get("support_contact")
+                    support_user = await services.settings.get("support_username")
                     kb = [[InlineKeyboardButton(text="🏠 Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)]]
                     if support_user:
                         clean_sup = support_user.lstrip("@")
