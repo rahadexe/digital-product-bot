@@ -646,16 +646,18 @@ def get_deposit_methods_keyboard(
             "callback_data": f"dep_method_{m['id']}",
             "style": "primary",
         }
-        if custom_emoji_id and str(custom_emoji_id).strip().isdigit():
-            kwargs["icon_custom_emoji_id"] = str(custom_emoji_id).strip()
-        elif auto_verify == "binance_pay" or "binance" in name.lower():
-            kwargs["icon_custom_emoji_id"] = Icons.BINANCE
-        elif "bkash" in name.lower():
+        name_lower = name.lower()
+        # For known BD payment methods, always use the premium icons (override DB value)
+        if "bkash" in name_lower:
             kwargs["icon_custom_emoji_id"] = Icons.BKASH
-        elif "nagad" in name.lower():
+        elif "nagad" in name_lower:
             kwargs["icon_custom_emoji_id"] = Icons.NAGAD
-        elif "rocket" in name.lower():
+        elif "rocket" in name_lower and auto_verify != "binance_pay":
             kwargs["icon_custom_emoji_id"] = Icons.ROCKET_METHOD
+        elif auto_verify == "binance_pay" or "binance" in name_lower:
+            kwargs["icon_custom_emoji_id"] = Icons.BINANCE
+        elif custom_emoji_id and str(custom_emoji_id).strip().isdigit():
+            kwargs["icon_custom_emoji_id"] = str(custom_emoji_id).strip()
         else:
             kwargs["icon_custom_emoji_id"] = Icons.DEPOSIT
         method_buttons.append(InlineKeyboardButton(**kwargs))

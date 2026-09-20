@@ -126,23 +126,20 @@ def get_method_icon(method: dict[str, Any]) -> str:
     name = (method.get("name") or "").lower()
     auto_verify = method.get("auto_verify")
 
-    if custom_emoji_id and str(custom_emoji_id).strip().isdigit():
-        emoji_id = str(custom_emoji_id).strip()
-        fallback = (
-            "🌸" if "bkash" in name
-            else ("🔴" if "nagad" in name
-            else ("🟣" if "rocket" in name
-            else ("🟡" if "binance" in name or auto_verify == "binance_pay"
-            else "💳")))
-        )
-        return tg_icon(emoji_id, fallback)
-
-    if auto_verify == "binance_pay" or "binance" in name:
-        return ICON_BINANCE
+    # BD payment methods always use premium icons (ignore DB custom_emoji_id)
     if "bkash" in name:
         return ICON_BKASH
     if "nagad" in name:
         return ICON_NAGAD
-    if "rocket" in name:
+    if "rocket" in name and auto_verify != "binance_pay":
         return ICON_ROCKET_PURPLE
+
+    # For other methods, respect custom_emoji_id from DB if set
+    if custom_emoji_id and str(custom_emoji_id).strip().isdigit():
+        emoji_id = str(custom_emoji_id).strip()
+        fallback = "🟡" if "binance" in name or auto_verify == "binance_pay" else "💳"
+        return tg_icon(emoji_id, fallback)
+
+    if auto_verify == "binance_pay" or "binance" in name:
+        return ICON_BINANCE
     return ICON_DEPOSIT
