@@ -144,12 +144,25 @@ async def handle_gate_verify(query: CallbackQuery, state: FSMContext, services: 
     # User verified channel join: award referral bonus to referrer
     await services.users.process_referral_reward(query.from_user.id)
 
+    values = await services.settings.values()
+    store_name = values.get("store_name", "Premium Haven")
+    support_handle = values.get("support_username", "")
+    custom_welcome = values.get("welcome_text", "").strip()
+    paused_notice = await services.settings.paused_message()
+
+    text = build_welcome_text(store_name, support_handle, custom_welcome, paused_notice)
+    if not text:
+        text = (
+            f"{ICON_SPARKLES} Welcome to <b>{escape(store_name)}</b>!\n"
+            f"<i>YOUR DIGITAL PREMIUM SERVICES.</i>\n\n"
+            f"Please select an option from the keyboard menu below 👇"
+        )
+
     with suppress(TelegramBadRequest):
         await query.answer("✅ Verified successfully!")
     if query.message:
         with suppress(TelegramBadRequest):
-            await query.message.delete()
-        await render_main_dashboard(query.message, services, query.from_user.id)
+            await query.message.edit_text(text, reply_markup=None)
 
 
 @router.callback_query(F.data == "back_to_main")
