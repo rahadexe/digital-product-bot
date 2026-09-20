@@ -111,6 +111,7 @@ class DepositMethodPayload(Payload):
     auto_verify: Literal["none", "binance", "binance_pay"] = "none"
     auto_verify_network: str = Field(default="", pattern=r"^[A-Za-z0-9]{0,16}$")
     custom_emoji_id: Optional[str] = Field(default=None, max_length=64)
+    account_type: Literal["personal", "agent", "merchant"] = "personal"
 
     _empty_text = field_validator("instructions", "auto_verify_network", "custom_emoji_id", mode="before")(_empty_if_none)
 

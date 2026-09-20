@@ -129,7 +129,12 @@ export function PaymentMethods({ say, symbol, zinipayActive }: { say: Say; symbo
                   {method.name}
                   {method.is_active ? '' : ' · off'}
                 </strong>
-                <small>from {money(method.min_deposit)}</small>
+                <small>
+                  from {money(method.min_deposit)} ·{' '}
+                  <span className={`pill ${method.account_type === 'agent' ? 'info' : method.account_type === 'merchant' ? 'warn' : 'good'}`} style={{ textTransform: 'capitalize' }}>
+                    {method.account_type || 'personal'} ({method.account_type === 'agent' ? 'Cash Out' : method.account_type === 'merchant' ? 'Payment' : 'Send Money'})
+                  </span>
+                </small>
                 <code className="key" title={method.account_info}>
                   {method.account_info}
                 </code>
@@ -226,6 +231,7 @@ function MethodForm({
     instructions: method?.instructions ?? kind.defaults.instructions ?? '',
     active: method ? method.is_active === 1 : true,
     custom_emoji_id: method?.custom_emoji_id ?? kind.defaults.custom_emoji_id ?? '',
+    account_type: ((method as any)?.account_type ?? 'personal') as 'personal' | 'agent' | 'merchant',
   });
   const [busy, setBusy] = useState(false);
   const set = (patch: Partial<typeof form>) => setForm((current) => ({ ...current, ...patch }));
@@ -236,6 +242,7 @@ function MethodForm({
     const payload = {
       name: form.name.trim(),
       account_info: form.account_info.trim(),
+      account_type: form.account_type,
       instructions: form.instructions.trim(),
       min_deposit: form.min_deposit,
       rate_to_currency: 1,
@@ -278,6 +285,43 @@ function MethodForm({
         <span>{kind.account.label}</span>
         <input type="text" required placeholder={kind.account.placeholder} value={form.account_info} onChange={(event) => set({ account_info: event.target.value })} />
       </label>
+      <div className="field">
+        <span>Account Type & Action</span>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginTop: '4px' }}>
+          {[
+            { id: 'personal', title: 'Personal', action: 'Send Money', icon: '👤' },
+            { id: 'agent', title: 'Agent', action: 'Cash Out', icon: '🏪' },
+            { id: 'merchant', title: 'Merchant', action: 'Payment', icon: '💳' },
+          ].map((item) => (
+            <button
+              type="button"
+              key={item.id}
+              onClick={() => set({ account_type: item.id as any })}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '10px 8px',
+                borderRadius: '8px',
+                border: form.account_type === item.id ? '2px solid var(--accent, #0284c7)' : '1px solid var(--border)',
+                background: form.account_type === item.id ? 'rgba(2, 132, 199, 0.08)' : 'var(--surface-2)',
+                cursor: 'pointer',
+                textAlign: 'center',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <span style={{ fontSize: '1.2rem', marginBottom: '2px' }}>{item.icon}</span>
+              <strong style={{ fontSize: '0.85rem', color: form.account_type === item.id ? 'var(--accent, #0284c7)' : 'var(--text)' }}>
+                {item.title}
+              </strong>
+              <small style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '2px' }}>
+                {item.action}
+              </small>
+            </button>
+          ))}
+        </div>
+      </div>
       <label className="field">
         <span>Name customers see in bot</span>
         <input type="text" required placeholder={kind.defaults.name || 'Payment method name'} value={form.name} onChange={(event) => set({ name: event.target.value })} />

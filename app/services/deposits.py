@@ -42,6 +42,7 @@ CUSTOMER_DEPOSIT_COLUMNS = (
 METHOD_FIELDS = (
     "name",
     "account_info",
+    "account_type",
     "instructions",
     "min_deposit",
     "rate_to_currency",
@@ -85,13 +86,14 @@ class DepositService:
         auto_verify: str = "none",
         auto_verify_network: str = "",
         custom_emoji_id: str | None = None,
+        account_type: str = "personal",
     ) -> int:
         async with self.db.transaction() as conn:
             method_id = await conn.fetchval(
                 """
                 INSERT INTO deposit_methods (name, account_info, instructions, min_deposit, rate_to_currency,
-                                             sort_order, is_active, auto_verify, auto_verify_network, custom_emoji_id)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id
+                                             sort_order, is_active, auto_verify, auto_verify_network, custom_emoji_id, account_type)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id
                 """,
                 name,
                 account_info,
@@ -103,6 +105,7 @@ class DepositService:
                 auto_verify,
                 auto_verify_network,
                 custom_emoji_id,
+                account_type,
             )
             await record(conn, "deposit_method_created", f"Method #{method_id}: {name}")
         return method_id
@@ -204,6 +207,7 @@ class DepositService:
             "method_id": method["id"],
             "method_name": method["name"],
             "account_info": method["account_info"],
+            "account_type": method.get("account_type") or "personal",
             "instructions": method["instructions"] or "",
             "amount": amount,
             "rate": rate,

@@ -234,6 +234,7 @@ export interface DepositMethod {
   /** The only network accepted when set, e.g. TRX for TRC20 or BSC for BEP20. */
   auto_verify_network?: string;
   custom_emoji_id?: string | null;
+  account_type?: 'personal' | 'agent' | 'merchant';
 }
 
 export interface User {
