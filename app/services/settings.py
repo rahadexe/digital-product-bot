@@ -193,6 +193,13 @@ class SettingsService:
                 logger.warning("Stored setting %s is invalid; using its default.", key)
                 values[key] = spec.default
         self._cache = (now, values)
+        try:
+            from app.bot.formatting import configure_pricing
+            usd_rate = float(values.get("usd_rate", "125"))
+            show_usd = values.get("show_usd_price", "1") == "1"
+            configure_pricing(usd_rate=usd_rate, show_usd=show_usd)
+        except Exception:
+            pass
         return dict(values)
 
     async def public(self) -> dict[str, str]:

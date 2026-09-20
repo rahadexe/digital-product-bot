@@ -17,6 +17,7 @@ import asyncpg
 from app.db import Database
 from app.services.audit import record
 from app.services.errors import NotFoundError
+from app.bot.formatting import format_dual_price
 from app.bot.icons import (
     ICON_CHECK,
     ICON_KEY,
@@ -45,11 +46,9 @@ def receipt(order: dict[str, Any]) -> str:
     title = escape(str(order.get('product_title', 'Purchase')))
     price_val = order.get('price', 0)
     symbol = order.get('currency_symbol', '৳')
-    try:
-        price_num = float(price_val)
-        price_str = f"{price_num:g} {symbol}" if price_num == int(price_num) else f"{price_num:.2f} {symbol}"
-    except (ValueError, TypeError):
-        price_str = f"{price_val} {symbol}"
+    usd_rate = order.get('usd_rate')
+    show_usd = order.get('show_usd')
+    price_str = format_dual_price(price_val, symbol=symbol, usd_rate=usd_rate, show_usd=show_usd)
 
     created = order.get('created_at')
     date_str = ""
@@ -126,6 +125,9 @@ class DeliveryService:
                 DELETE FROM broadcasts
                 WHERE id NOT IN (
                     SELECT id FROM broadcasts ORDER BY id DESC LIMIT 30
+                )
+                AND NOT EXISTS (
+                    SELECT 1 FROM outbox WHERE broadcast_id = broadcasts.id AND status IN ('pending', 'sending')
                 )
                 """
             )
@@ -215,7 +217,8 @@ class DeliveryService:
             row = await conn.fetchrow(
                 "UPDATE outbox SET status = 'sending', next_attempt = $1, attempts = attempts + 1 "
                 "WHERE id = (SELECT id FROM outbox WHERE status IN ('pending', 'sending') AND next_attempt <= $2 "
-                "ORDER BY CASE WHEN order_id IS NOT NULL THEN 0 ELSE 1 END, id LIMIT 1 FOR UPDATE SKIP LOCKED) RETURNING *",
+                "ORDER BY CASE WHEN order_id IS NOT NULL OR about_order_id IS NOT NULL THEN 0 ELSE 1 END, id "
+                "LIMIT 1 FOR UPDATE SKIP LOCKED) RETURNING *",
                 now + LEASE_SECONDS,
                 now,
             )

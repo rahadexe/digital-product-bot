@@ -1,8 +1,4 @@
-"""Wallet purchases: stock claim or supplier fulfillment, referral reward, receipt queueing, later fulfillment and refunds.
-
-A paid order is never lost. When the supplier cannot deliver (no balance, an error, a timeout) the customer is
-still charged and the order waits; the admin sends it later by hand or through the supplier again, or refunds it.
-"""
+"""Transactional wallet purchases, instant stock delivery, manual fulfillment and refunds."""
 
 from __future__ import annotations
 
@@ -10,6 +6,7 @@ import logging
 import uuid
 from html import escape
 from typing import Any
+from collections import Counter
 
 from app.core.money import money
 from app.db import Database
@@ -19,8 +16,8 @@ from app.services.errors import InvalidInputError, NotFoundError
 from app.services.inventory import InventoryService
 from app.services.notifications import Notifier
 from app.services.settings import SettingsService
-from app.services.supplier import SupplierService
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from app.bot.formatting import price
 from app.bot.icons import (
     ICON_ACCOUNT,
     ICON_CHECK,
@@ -57,13 +54,11 @@ class PurchaseService:
         self,
         db: Database,
         settings: SettingsService,
-        supplier: SupplierService,
         delivery: DeliveryService,
         notifier: Notifier,
     ):
         self.db = db
         self.settings = settings
-        self.supplier = supplier
         self.delivery = delivery
         self.notifier = notifier
 
@@ -73,14 +68,14 @@ class PurchaseService:
         and queue the customer's message, all in one transaction.
         The price always comes from the database, never from the caller.
         """
-        if quantity < 1:
-            return False, "Invalid quantity.", None
+        if not 1 <= quantity <= 1000:
+            return False, "Choose a quantity from 1 to 1000.", None
         # Paused applies to every way in (bot, Mini App), so it is checked here rather than in each of them.
         paused = await self.settings.paused_message()
         if paused:
             return False, paused, None
-        referral_percent = await self.settings.number("referral_bonus_percent")
         waiting_reason = ""
+        symbol = await self.settings.get("currency_symbol")
         is_manual = False
         async with self.db.connect() as db:
             await db.execute("BEGIN")
@@ -100,7 +95,7 @@ class PurchaseService:
                     )
                     if previous:
                         await db.execute("ROLLBACK")
-                        if previous["product_id"] != product_id or previous["status"] != "completed":
+                        if previous["product_id"] != product_id or previous["status"] != "completed" or (previous.get("quantity") or 1) != quantity:
                             return False, "This purchase request has already been used.", None
                         return True, "Success", _receipt_fields(previous, user["balance"])
 
@@ -144,11 +139,10 @@ class PurchaseService:
                     stock_item_ids = [item["id"] for item in stock_items]
 
                 # 4. Charge the wallet
-                new_balance = round(user["balance"] - total_price, 4)
-                await db.execute(
-                    "UPDATE users SET balance = $1, total_spent = $2, updated_at = now() WHERE id = $3",
-                    new_balance,
-                    round(user["total_spent"] + total_price, 4),
+                await db.execute("SELECT set_config('app.wallet_reason', $1, true)", f"purchase:{request_id or product_id}")
+                new_balance = await db.fetchval(
+                    "UPDATE users SET balance = balance - $1, total_spent = total_spent + $1, updated_at = now() WHERE id = $2 RETURNING balance",
+                    total_price,
                     user["id"],
                 )
 
@@ -159,8 +153,8 @@ class PurchaseService:
                     """
                     INSERT INTO orders (user_id, tg_user_id, product_id, product_title, price, delivered_item,
                                         status, request_id, delivery_status, fulfillment, source, inventory_item_id,
-                                        fulfilled_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, 'completed', $7, 'pending', $8, $9, $10, CASE WHEN $8 = 'delivered' THEN now() ELSE NULL END)
+                                        fulfilled_at, quantity, unit_price)
+                    VALUES ($1, $2, $3, $4, $5, $6, 'completed', $7, 'pending', $8, $9, $10, CASE WHEN $8 = 'delivered' THEN now() ELSE NULL END, $11, $12)
                     RETURNING *
                     """,
                     user["id"],
@@ -173,13 +167,22 @@ class PurchaseService:
                     fulfillment,
                     source,
                     primary_stock_id,
+                    quantity,
+                    unit_price,
                 )
                 order_id = order_row["id"]
                 for sid in stock_item_ids:
                     await InventoryService.use_seat(db, sid, order_id)
+                if stock_item_ids:
+                    await db.executemany(
+                        "INSERT INTO order_inventory_allocations(order_id,inventory_item_id,allocated_units) VALUES($1,$2,$3)",
+                        [(order_id, sid, units) for sid, units in Counter(stock_item_ids).items()],
+                    )
 
                 order = _receipt_fields(order_row, new_balance)
-                order["currency_symbol"] = await self.settings.get("currency_symbol")
+                order["currency_symbol"] = symbol
+                order["usd_rate"] = await self.settings.number("usd_rate")
+                order["show_usd"] = await self.settings.flag("show_usd_price")
                 if is_manual:
                     await self.delivery.enqueue_waiting_notice(tg_user_id, order, conn=db)
                 else:
@@ -197,11 +200,13 @@ class PurchaseService:
 
     async def _notify_admin(self, user: Any, order: dict[str, Any], waiting_reason: str = "") -> None:
         symbol = escape(await self.settings.get("currency_symbol"))
+        usd_rate = await self.settings.number("usd_rate")
+        show_usd = await self.settings.flag("show_usd_price")
         customer = f"@{escape(user['username'])}" if user.get("username") else "No username"
         order_id = order.get("order_id", order.get("id"))
 
         cfg = get_settings()
-        base_url = cfg.webhook_base_url.rstrip("/") if cfg.webhook_base_url else (await self.settings.get("webapp_url") or "http://127.0.0.1:8000")
+        base_url = cfg.webhook_base_url.rstrip("/") if cfg.webhook_base_url else (cfg.webapp_url or "http://127.0.0.1:8000")
         order_link = f"{base_url}/#orders/{order_id}"
 
         keyboard = None
@@ -229,7 +234,7 @@ class PurchaseService:
             f"{ICON_ORDERS} <b>Order ID:</b> <code>#{order_id}</code>\n"
             f"{ICON_ACCOUNT} <b>Customer:</b> {customer} (<code>{user['tg_user_id']}</code>)\n"
             f"{ICON_VIP} <b>Product:</b> {escape(order['product_title'])}\n"
-            f"{ICON_MONEY} <b>Price Paid:</b> <code>{symbol}{order['price']:.2f}</code>\n"
+            f"{ICON_MONEY} <b>Price Paid:</b> <code>{price(symbol, order['price'], usd_rate=usd_rate, show_usd=show_usd)}</code>\n"
             f"{delivery}",
             event="waiting_order" if waiting_reason else "order",
             keyboard=keyboard,
@@ -238,12 +243,13 @@ class PurchaseService:
     # --- orders that are paid but not delivered ---
 
     async def fulfill_manually(self, order_id: int, content: str) -> dict[str, Any]:
-        """The admin types what the customer gets (from the supplier's site, another stock, anywhere)."""
+        """The admin provides the credentials for a paid manual order."""
         content = content.strip()
         if not content:
             raise InvalidInputError("Type what the customer should receive.")
         if len(content) > MAX_DELIVERY_LENGTH:
             raise InvalidInputError("That is too long to deliver.")
+        symbol = await self.settings.get("currency_symbol")
         async with self.db.transaction() as conn:
             order = await conn.fetchrow("SELECT * FROM orders WHERE id = $1 FOR UPDATE", order_id)
             if not order:
@@ -256,16 +262,12 @@ class PurchaseService:
                 content,
                 order_id,
             )
-            closed = await conn.fetch(
-                "UPDATE supplier_purchase_attempts SET status = 'failed' WHERE order_id = $1 AND status IN ('pending', 'review') "
-                "RETURNING id",
-                order_id,
-            )
             manual_order = _receipt_fields(row, 0)
-            manual_order["currency_symbol"] = await self.settings.get("currency_symbol")
+            manual_order["currency_symbol"] = symbol
+            manual_order["usd_rate"] = await self.settings.number("usd_rate")
+            manual_order["show_usd"] = await self.settings.flag("show_usd_price")
             await self.delivery.enqueue_order(order["tg_user_id"], manual_order, conn=conn)
-            note = f"; closed supplier attempt(s) {', '.join(f'#{r['id']}' for r in closed)}" if closed else ""
-            await record(conn, "order_delivered_manually", f"Order #{order_id} delivered by the admin{note}")
+            await record(conn, "order_delivered_manually", f"Order #{order_id} delivered by the admin")
         return dict(row)
 
     async def order_detail(self, order_id: int) -> dict[str, Any]:
@@ -294,7 +296,6 @@ class PurchaseService:
         return {
             "order": dict(order),
             "stock_item": dict(item) if item else None,
-            "supplier_attempts": [],
             "messages": [dict(row) for row in messages],
         }
 
@@ -306,19 +307,35 @@ class PurchaseService:
                     return False, "Order not found."
                 if order["status"] == "refunded":
                     return False, "Order has already been refunded."
+                await conn.fetch(
+                    "SELECT id FROM users WHERE tg_user_id=ANY($1::bigint[]) ORDER BY tg_user_id FOR UPDATE",
+                    sorted({order['tg_user_id'], order['referral_user_id'] or order['tg_user_id']}),
+                )
+                await conn.execute("SELECT set_config('app.wallet_reason',$1,true)", f"refund:{order_id}")
                 await conn.execute(
                     "UPDATE users SET balance = balance + $1, total_spent = GREATEST(0, total_spent - $1) WHERE tg_user_id = $2",
                     order["price"],
                     order["tg_user_id"],
                 )
                 if order["referral_user_id"] and order["referral_bonus"]:
-                    # Debt is retained if a referrer already spent the reward.
+                    balance = await conn.fetchval("SELECT balance FROM users WHERE tg_user_id=$1", order['referral_user_id'])
+                    recovered = min(balance or 0, order['referral_bonus'])
                     await conn.execute(
                         "UPDATE users SET balance = balance - $1 WHERE tg_user_id = $2",
-                        order["referral_bonus"],
+                        recovered,
                         order["referral_user_id"],
                     )
+                    remaining = round(order['referral_bonus'] - recovered, 4)
+                    if remaining > 0:
+                        await conn.execute(
+                            "INSERT INTO referral_recoveries(order_id,tg_user_id,outstanding) VALUES($1,$2,$3)",
+                            order_id, order['referral_user_id'], remaining,
+                        )
+                        await record(conn, 'referral_recovery_needed', f"Order #{order_id}: {remaining:.4f} remains to recover")
                 await conn.execute("UPDATE orders SET status = 'refunded', delivery_status = 'cancelled' WHERE id = $1", order_id)
+                await conn.execute(
+                    "UPDATE outbox SET status='cancelled' WHERE (order_id=$1 OR about_order_id=$1) AND status IN ('pending','failed')", order_id
+                )
                 await record(
                     conn,
                     "refund_order",

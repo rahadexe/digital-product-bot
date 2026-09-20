@@ -11,6 +11,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from app.services.catalog import CatalogService
 from app.services.notifications import Notifier
 from app.services.settings import SettingsService
+from app.bot.formatting import format_dual_price
 from app.bot.icons import (
     ICON_CHECK,
     ICON_FIRE,
@@ -68,7 +69,7 @@ class AnnouncementService:
             f"{ICON_VIP} <b>Product:</b> {icon} {title}\n"
             f"{ICON_PLUS} <b>Added Stock:</b> <code>{added_count}</code> item(s)\n"
             f"{ICON_SHOP} <b>Total Stock:</b> <code>{product['stock']}</code> units\n"
-            f"{ICON_MONEY} <b>Price:</b> <code>{product['price']:.2f} {symbol}</code>",
+            f"{ICON_MONEY} <b>Price:</b> <code>{format_dual_price(product['price'], symbol)}</code>",
             event="restock",
         )
         channel = values["announcement_channel"]
@@ -81,7 +82,7 @@ class AnnouncementService:
             f"{ICON_VIP} <b>Product:</b> {icon} <b>{title}</b>\n"
             f"{ICON_SPARKLES} <b>Fresh Stock:</b> <code>{added_count} units</code>\n"
             f"{ICON_SHOP} <b>Available:</b> <code>{product['stock']} accounts</code>\n"
-            f"{ICON_MONEY} <b>Price:</b> <code>{product['price']:.2f} {symbol}</code>\n"
+            f"{ICON_MONEY} <b>Price:</b> <code>{format_dual_price(product['price'], symbol)}</code>\n"
             f"{ICON_CHECK} <b>Delivery:</b> Instant Automatic Delivery",
             await self._buy_button(product, f"Buy {product['title']}"),
         )
@@ -102,8 +103,8 @@ class AnnouncementService:
             f"{ICON_FIRE} <b>Special Price Drop!</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"{ICON_VIP} <b>Product:</b> {escape(product.get('icon') or '⚡')} <b>{escape(product['title'])}</b>\n"
-            f"{ICON_SPENT} <b>Previous Price:</b> <s>{old_price:.2f} {symbol}</s>\n"
-            f"{ICON_MONEY} <b>Discounted Price:</b> <code>{new_price:.2f} {symbol}</code>\n"
+            f"{ICON_SPENT} <b>Previous Price:</b> <s>{format_dual_price(old_price, symbol)}</s>\n"
+            f"{ICON_MONEY} <b>Discounted Price:</b> <code>{format_dual_price(new_price, symbol)}</code>\n"
             f"{ICON_CHECK} <b>Delivery:</b> Instant Automatic Delivery",
             await self._buy_button(product, f"Buy {product['title']}"),
         )
@@ -122,7 +123,7 @@ class AnnouncementService:
             f"━━━━━━━━━━━━━━━━━━\n"
             f"{ICON_VIP} <b>Product:</b> {escape(product.get('icon') or '⚡')} <b>{escape(product['title'])}</b>{desc}\n"
             f"{ICON_SHOP} <b>Available Stock:</b> <code>{product['stock']} units</code>\n"
-            f"{ICON_MONEY} <b>Price:</b> <code>{product['price']:.2f} {symbol}</code>\n"
+            f"{ICON_MONEY} <b>Price:</b> <code>{format_dual_price(product['price'], symbol)}</code>\n"
             f"{ICON_CHECK} <b>Delivery:</b> Instant Automatic Delivery",
             await self._buy_button(product, f"Order {product['title']}"),
         )

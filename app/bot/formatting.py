@@ -32,30 +32,48 @@ async def respond(event: Message | CallbackQuery, text: str, keyboard: InlineKey
         await event.answer(text, reply_markup=keyboard)
 
 
-def price(
-    symbol: str,
-    amount: float,
-    usd_rate: float | None = None,
-    show_usd: bool = True,
-) -> str:
-    amount_str = f"{escape(symbol)}{amount:.2f}"
-    if show_usd and usd_rate and usd_rate > 0:
-        usd = round(amount / usd_rate, 2)
-        return f"{amount_str} (${usd:.2f})"
-    return amount_str
+_DEFAULT_USD_RATE: float = 125.0
+_SHOW_USD: bool = True
+
+
+def configure_pricing(usd_rate: float | None = None, show_usd: bool | None = None) -> None:
+    """Keep in-memory pricing defaults up to date with database settings."""
+    global _DEFAULT_USD_RATE, _SHOW_USD
+    if usd_rate is not None and usd_rate > 0:
+        _DEFAULT_USD_RATE = float(usd_rate)
+    if show_usd is not None:
+        _SHOW_USD = bool(show_usd)
 
 
 def format_dual_price(
     amount: float,
     symbol: str = "৳",
     usd_rate: float | None = None,
-    show_usd: bool = True,
+    show_usd: bool | None = None,
 ) -> str:
-    amount_str = f"{amount:g} {symbol}" if amount == int(amount) else f"{amount:.2f} {symbol}"
-    if show_usd and usd_rate and usd_rate > 0:
-        usd = round(amount / usd_rate, 2)
-        return f"{amount_str} (${usd:.2f})"
-    return amount_str
+    try:
+        amt = float(amount)
+        amt_str = f"{amt:g} {symbol}" if amt == int(amt) else f"{amt:.2f} {symbol}"
+    except (ValueError, TypeError):
+        amt = 0.0
+        amt_str = f"{amount} {symbol}"
+
+    rate = usd_rate if usd_rate is not None else _DEFAULT_USD_RATE
+    display_usd = show_usd if show_usd is not None else _SHOW_USD
+
+    if display_usd and rate and rate > 0 and symbol not in ("$", "USD"):
+        usd = round(amt / rate, 2)
+        return f"{amt_str} ≈ ${usd:.2f}"
+    return amt_str
+
+
+def price(
+    symbol: str,
+    amount: float,
+    usd_rate: float | None = None,
+    show_usd: bool | None = None,
+) -> str:
+    return format_dual_price(amount, symbol=escape(symbol), usd_rate=usd_rate, show_usd=show_usd)
 
 
 def callback_int(data: str | None, prefix: str) -> int | None:

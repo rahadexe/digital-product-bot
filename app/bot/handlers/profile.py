@@ -303,6 +303,8 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
 
     orders, total = await services.purchases.customer_orders(tg_user.id, limit=ORDERS_PAGE_SIZE, offset=(page - 1) * ORDERS_PAGE_SIZE)
     symbol = await services.settings.get("currency_symbol")
+    usd_rate = await services.settings.number("usd_rate")
+    show_usd = await services.settings.flag("show_usd_price")
 
     if not orders:
         text = (
@@ -325,8 +327,10 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
         buttons = []
         for order in orders:
             price_val = order["price"]
-            price_str = f"{price_val:g}{symbol}" if price_val == int(price_val) else f"{price_val:.1f}{symbol}"
-            label = f"#{order['id']} · {order['product_title']} · {price_str}"
+            price_str = format_dual_price(price_val, symbol, usd_rate=usd_rate, show_usd=show_usd)
+            max_title_len = max(10, 60 - len(str(order['id'])) - len(price_str) - 6)
+            title_short = order['product_title'][:max_title_len].strip()
+            label = f"#{order['id']} · {title_short} · {price_str}"
             status_icon = Icons.CHECK if order["status"] == "completed" and order.get("fulfillment") != "waiting" else (Icons.TIMER if order.get("fulfillment") == "waiting" else Icons.CROSS)
             buttons.append([InlineKeyboardButton(text=label[:64], callback_data=f"view_order_{order['id']}", style="primary", icon_custom_emoji_id=status_icon)])
 

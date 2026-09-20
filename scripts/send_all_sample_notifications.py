@@ -78,7 +78,7 @@ async def send_all():
             f"{ICON_ORDERS} <b>Order ID:</b> <code>#1042</code>\n"
             f"{ICON_ACCOUNT} <b>Customer:</b> @rahadhasanrafi (<code>{TARGET_TG_ID}</code>)\n"
             f"{ICON_VIP} <b>Product:</b> NordVPN 1 Month Premium\n"
-            f"{ICON_MONEY} <b>Price Paid:</b> <code>150.00 ৳</code>\n"
+            f"{ICON_MONEY} <b>Price Paid:</b> <code>150 ৳ ≈ $1.20</code>\n"
             f"{ICON_CHECK} <b>Delivery:</b> Instant (Delivered)"
         ),
         None
@@ -99,7 +99,7 @@ async def send_all():
             f"{ICON_ORDERS} <b>Order ID:</b> <code>#1043</code>\n"
             f"{ICON_ACCOUNT} <b>Customer:</b> @rahadhasanrafi (<code>{TARGET_TG_ID}</code>)\n"
             f"{ICON_VIP} <b>Product:</b> Canva Pro Lifetime (Manual Invite)\n"
-            f"{ICON_MONEY} <b>Price Paid:</b> <code>250.00 ৳</code>\n"
+            f"{ICON_MONEY} <b>Price Paid:</b> <code>250 ৳ ≈ $2.00</code>\n"
             f"{ICON_WARNING} <b>Delivery:</b> Manual Fulfillment Required"
         ),
         kb_manual
@@ -123,7 +123,7 @@ async def send_all():
         (
             f"{ICON_ORDERS} <b>Order #1042 Details</b>\n\n"
             f"{ICON_VIP} <b>Product:</b> NordVPN 1 Month Premium\n"
-            f"{ICON_MONEY} <b>Price Paid:</b> <code>150 ৳</code>\n"
+            f"{ICON_MONEY} <b>Price Paid:</b> <code>150 ৳ ≈ $1.20</code>\n"
             f"{ICON_TIMER} <b>Date:</b> 2026-09-18 15:10 UTC\n"
             f"{ICON_CHECK} <b>Status:</b> <code>COMPLETED</code>\n\n"
             f"{ICON_KEY} <b>Delivered Credentials:</b>\n"
