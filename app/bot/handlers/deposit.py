@@ -175,13 +175,9 @@ async def ask_instant_amount(query: CallbackQuery, state: FSMContext, services: 
     if query.message:
         with suppress(TelegramBadRequest):
             await query.message.edit_text(
-                f"{ICON_LIGHTNING} <b>Web Checkout (via ZiniPay)</b>\n"
-                f"━━━━━━━━━━━━━━━━━━\n"
-                f"↳ Methods: {ICON_BKASH} bKash | {ICON_NAGAD} Nagad | {ICON_ROCKET_PURPLE} Rocket | {ICON_BINANCE} Binance\n"
-                f"↳ Verification: Instant Automated\n"
-                f"↳ Minimum Deposit: {price(symbol, instant['min_amount'])}\n\n"
-                f"💵 <b>কত টাকা ডিপোজিট করতে চান লিখুন:</b>\n"
-                f"নিচে পরিমাণ লিখুন (যেমন: 500):",
+                f"{ICON_LIGHTNING} <b>{escape(instant['label'])}</b>\n"
+                f"Minimum {price(symbol, instant['min_amount'])}\n\n"
+                "Enter amount to deposit (e.g. <code>100</code>):",
                 reply_markup=get_cancel_keyboard(),
             )
 
@@ -216,11 +212,8 @@ async def create_instant_payment(message: Message, state: FSMContext, services: 
     symbol = await services.settings.get("currency_symbol")
     await message.answer(
         f"{ICON_NOTE} <b>Payment Invoice: {price(symbol, invoice['credit_amount'])}</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
-        f"↳ Amount: <b>{symbol}{invoice['pay_amount']:.2f}</b>\n"
-        f"↳ Gateway: <b>ZiniPay Web Checkout</b>\n"
-        f"↳ Supported: {ICON_BKASH} bKash | {ICON_NAGAD} Nagad | {ICON_ROCKET_PURPLE} Rocket | {ICON_BINANCE} Binance\n\n"
-        "নিচের <b>Pay</b> বাটনে ক্লিক করে পেমেন্ট সম্পন্ন করুন। পেমেন্ট সম্পন্ন হলে ব্যালেন্স সাথে সাথে যুক্ত হয়ে যাবে।",
+        f"Payable Amount: <b>{symbol}{invoice['pay_amount']:.2f}</b>\n\n"
+        "Tap the Pay button below to complete payment. Your balance will be credited automatically upon confirmation.",
         reply_markup=_instant_keyboard(invoice),
     )
 

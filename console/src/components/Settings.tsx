@@ -128,6 +128,7 @@ const SECTIONS: Section[] = [
     },
     fields: [
       { key: 'zinipay_brand_url', label: 'Brand website URL', placeholder: 'https://myshop.com' },
+      { key: 'zinipay_label', label: 'Name customers see', maxLength: 40, placeholder: 'Instant Web Checkout' },
       { key: 'zinipay_min_deposit', label: 'Smallest deposit', type: 'number', fallback: '10', money: true },
     ],
     extra: 'zinipay',
@@ -540,9 +541,6 @@ function ZiniPayExtra({
     <>
       {status?.public_url ? (
         <div className="facts">
-          <span>
-            Bot Button: <code>🌸   🔴   🟣   🟡</code>
-          </span>
           <span>
             Website in ZiniPay: <code>{status.public_url.replace('https://', '')}</code>
           </span>

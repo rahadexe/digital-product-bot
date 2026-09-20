@@ -196,11 +196,10 @@ class PaymentService:
         base = self.public_base_url(values.get("zinipay_brand_url", ""))
         if values.get("zinipay_web_gateway_enabled") != "1" or not await self._api_key() or not base:
             return None
-        label = "🌸   🔴   🟣   🟡"
         return {
-            "label": label,
-            "rate": float(values.get("zinipay_rate", 1.0)),
-            "min_amount": float(values.get("zinipay_min_deposit", 1.0)),
+            "label": values["zinipay_label"],
+            "rate": float(values["zinipay_rate"]),
+            "min_amount": float(values["zinipay_min_deposit"]),
             "local_currency": LOCAL_CURRENCY,
         }
 
