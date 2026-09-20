@@ -362,16 +362,23 @@ async def handle_deposit_method_select(query: CallbackQuery, state: FSMContext, 
 
     type_label, action_label = get_account_type_labels(account_type)
     method_icon = get_method_icon(method)
-    text = (
-        f"{method_icon} <b>{escape(method_name)} Deposit</b> ({action_label})\n\n"
-        f"<b>Account Type:</b> {type_label}\n"
-        f"<b>Transaction:</b> {action_label}\n"
-        f"<b>Number:</b> <code>{escape(account_info)}</code>\n\n"
-        f"<b>Minimum Deposit:</b> {price(symbol, min_dep, usd_rate=usd_rate, show_usd=show_usd)}"
-    )
+    name_lower = method_name.lower()
+    is_bd_wallet = any(w in name_lower for w in ("bkash", "nagad", "rocket"))
+    # BD wallets show BDT only — no USD conversion (would confuse users)
+    effective_show_usd = False if is_bd_wallet else show_usd
+
     custom_instructions = (method.get("instructions") or "").strip()
+
+    text = (
+        f"{method_icon} <b>{escape(method_name)}</b>\n\n"
+        f"📱 <b>Number:</b> <code>{escape(account_info)}</code>\n"
+        f"🏦 <b>Account Type:</b> {type_label}\n"
+        f"💸 <b>Transaction:</b> {action_label}\n\n"
+        f"⚠️ <b>Minimum:</b> {price(symbol, min_dep, usd_rate=usd_rate, show_usd=effective_show_usd)}\n\n"
+    )
     if custom_instructions:
-        text += f"\n\n<b>Instructions:</b>\n{escape(custom_instructions)}"
+        text += f"📋 <b>Instructions:</b>\n{escape(custom_instructions)}\n\n"
+
     reply_kb = get_manual_deposit_invoice_keyboard(account_info, is_binance=False)
 
     if query.message:
@@ -482,12 +489,15 @@ async def ask_deposit_input(query: CallbackQuery, state: FSMContext, services: S
         "custom_emoji_id": data.get("custom_emoji_id"),
     }
     method_icon = get_method_icon(method_row)
+    name_lower = method_name.lower()
+    is_bd_wallet = any(w in name_lower for w in ("bkash", "nagad", "rocket"))
+    effective_show_usd = False if is_bd_wallet else show_usd
     text = (
-        f"{method_icon} <b>{escape(method_name)} Deposit</b>\n\n"
-        f"<b>Account Type:</b> {type_label}\n"
-        f"<b>Transaction:</b> {action_label}\n"
-        f"<b>Number:</b> <code>{escape(account_info)}</code>\n\n"
-        f"<b>Minimum Deposit:</b> {price(symbol, min_dep, usd_rate=usd_rate, show_usd=show_usd)}\n\n"
+        f"{method_icon} <b>{escape(method_name)}</b>\n\n"
+        f"📱 <b>Number:</b> <code>{escape(account_info)}</code>\n"
+        f"🏦 <b>Account Type:</b> {type_label}\n"
+        f"💸 <b>Transaction:</b> {action_label}\n\n"
+        f"⚠️ <b>Minimum:</b> {price(symbol, min_dep, usd_rate=usd_rate, show_usd=effective_show_usd)}\n\n"
         f"{ICON_MONEY} <b>কত টাকা পাঠিয়েছেন তা লিখুন:</b>\n\n"
         f"যেমন: <code>100</code>"
     )
@@ -496,6 +506,7 @@ async def ask_deposit_input(query: CallbackQuery, state: FSMContext, services: S
     if query.message:
         with suppress(TelegramBadRequest):
             await query.message.edit_text(text, reply_markup=reply_kb)
+
 
 
 @router.message(DepositStates.method_selected)
@@ -747,11 +758,12 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
         "auto_verify": data.get("auto_verify"),
         "custom_emoji_id": data.get("custom_emoji_id"),
     }
+    method_icon = get_method_icon(method_row)  # ← fix: was missing this call
     await message.answer(
-        f"{method_icon} <b>{escape(method_name)} Deposit</b>\n\n"
-        f"<b>Amount:</b> {price(symbol, amount_num)}\n"
-        f"<b>Number:</b> <code>{escape(account_info)}</code> ({action_label})\n\n"
-        f"আপনার {escape(method_name)} SMS / রিসিট থেকে <b>Transaction ID (TrxID)</b> দিন:\n\n"
+        f"{method_icon} <b>{escape(method_name)}</b>\n\n"
+        f"💰 <b>Amount:</b> {price(symbol, amount_num)}\n"
+        f"📱 <b>Number:</b> <code>{escape(account_info)}</code> ({action_label})\n\n"
+        f"📨 এখন আপনার {escape(method_name)} SMS বা রিসিট থেকে <b>Transaction ID (TrxID)</b> দিন:\n\n"
         f"যেমন: <code>BLA7X8Y9Z0</code>",
         reply_markup=get_deposit_txid_keyboard(is_bangla=True),
     )
@@ -802,8 +814,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             kb.insert(0, [InlineKeyboardButton(text="Support", url=f"https://t.me/{clean_sup}", icon_custom_emoji_id=Icons.SUPPORT)])
         if is_binance:
             await message.answer(
-                f"{ICON_CROSS} <b>Verification Paused!</b>\n"
-                f"━━━━━━━━━━━━━━━━━━\n"
+                f"{ICON_CROSS} <b>Verification Paused!</b>\n\n"
                 f"⚠️ You entered incorrect Transaction IDs {MAX_VERIFY_ATTEMPTS} times.\n"
                 f"For security, verification is paused for <b>{rem_min} minute(s)</b>.\n\n"
                 f"If you made a valid payment, please contact our support team.",
@@ -811,11 +822,10 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             )
         else:
             await message.answer(
-                f"{ICON_CROSS} <b>ভেরিফিকেশন সাময়িক স্থগিত!</b>\n"
-                f"━━━━━━━━━━━━━━━━━━\n"
-                f"⚠️ আপনি পরপর {MAX_VERIFY_ATTEMPTS} বার ভুল Transaction ID দিয়েছেন।\n"
-                f"সার্ভারের নিরাপত্তা নিশ্চিত করতে আপনার অ্যাকাউন্ট থেকে পরবর্তী <b>{rem_min} মিনিট</b> কোনো ডিপোজিট ভেরিফাই করা যাবে না।\n\n"
-                f"আপনার পেমেন্ট ঠিক থাকলে অনুগ্রহ করে সাপোর্ট অ্যাডমিনের সাথে যোগাযোগ করুন।",
+                f"{ICON_CROSS} <b>ভেরিফিকেশন সাময়িক স্থগিত!</b>\n\n"
+                f"⚠️ আপনি পরপর {MAX_VERIFY_ATTEMPTS} বার ভুল Transaction ID দিয়েছেন।\n"
+                f"নিরাপত্তার জন্য পরবর্তী <b>{rem_min} মিনিট</b> ডিপোজিট ভেরিফাই করা যাবে না।\n\n"
+                f"আপনার পেমেন্ট সঠিক হলে অনুগ্রহ করে সাপোর্টে যোগাযোগ করুন।",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
             )
         return
@@ -832,19 +842,16 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
     symbol = await services.settings.get("currency_symbol")
 
     status_msg = await message.answer(
-        f"{ICON_TIMER} <b>Verifying transaction...</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
-        f"↳ <b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
-        f"↳ <b>Amount:</b> <code>{price(symbol, amount_num)}</code>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
+        f"{ICON_TIMER} <b>Verifying transaction...</b>\n\n"
+        f"<b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
+        f"<b>Amount:</b> <code>{price(symbol, amount_num)}</code>\n\n"
         f"<i>Checking payment gateway, please wait...</i>"
         if is_binance
         else
-        f"{ICON_TIMER} <b>ট্রানজ্যাকশন যাচাই করা হচ্ছে...</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
-        f"↳ <b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
-        f"↳ <b>Amount:</b> {price(symbol, amount_num)}\n\n"
-        f"যাচাই করা হচ্ছে, একটু অপেক্ষা করুন..."
+        f"{ICON_TIMER} <b>ট্রানজ্যাকশন যাচাই করা হচ্ছে...</b>\n\n"
+        f"<b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
+        f"<b>Amount:</b> {price(symbol, amount_num)}\n\n"
+        f"<i>যাচাই করা হচ্ছে, একটু অপেক্ষা করুন...</i>"
     )
 
     logger.info("Processing deposit verification for user %s", message.from_user.id)
