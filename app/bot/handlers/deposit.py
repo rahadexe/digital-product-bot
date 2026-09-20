@@ -411,9 +411,8 @@ async def ask_deposit_input(query: CallbackQuery, state: FSMContext, services: S
             f"↳ <b>Account:</b> <code>{escape(account_info)}</code> ({action_label})\n"
             f"↳ <b>Minimum Deposit:</b> {price(symbol, min_dep)}\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"💬 <b>টাকার পরিমাণ লিখুন:</b>\n"
-            f"আপনি কত টাকা পাঠিয়েছেন তা লিখুন\n\n"
-            f"<i>নিচে পরিমাণ লিখুন (যেমন: <code>500</code>):</i>"
+            f"{ICON_MONEY} <b>কত টাকা পাঠিয়েছেন তা লিখুন:</b>\n\n"
+            f"নিচে পরিমাণ লিখুন (যেমন: <code>500</code>):"
         )
         reply_kb = get_deposit_amount_keyboard(account_info, method_id, is_binance=False)
 
@@ -679,7 +678,7 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
         f"↳ <b>অ্যাকাউন্ট:</b> <code>{escape(account_info)}</code> ({action_label})\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"আপনার {escape(method_name)} SMS / রিসিট থেকে <b>Transaction ID (TrxID)</b> দিন\n\n"
-        f"<i>(যেমন: <code>BLA7X8Y9Z0</code>)</i>",
+        f"(যেমন: <code>BLA7X8Y9Z0</code>)",
         reply_markup=get_deposit_txid_keyboard(is_bangla=True),
     )
 
@@ -709,7 +708,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         else:
             await message.answer(
                 f"{ICON_CROSS} ভুল Transaction ID ফরম্যাট। আপনার SMS/রিসিট থেকে সঠিক TrxID দিন।\n\n"
-                f"<i>(উদাহরণ: <code>BLA7X8Y9Z0</code>)</i>",
+                f"(উদাহরণ: <code>BLA7X8Y9Z0</code>)",
                 reply_markup=get_deposit_txid_keyboard(is_bangla=True),
             )
         return
