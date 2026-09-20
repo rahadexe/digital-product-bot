@@ -399,19 +399,15 @@ def get_products_keyboard(
             suffix = f" · {price_formatted} [0]"
             btn_style = "danger"
 
-        # Mobile viewport safe limit: Telegram mobile single-line buttons fit ~43-46 chars cleanly.
-        # If truncation is needed, preserve the duration label at the end so validity is never lost.
-        max_safe_len = 44 if custom_emoji_id else 46
-        if len(clean_title) + len(suffix) > max_safe_len:
+        btn_text = f"{clean_title}{suffix}"
+        if len(btn_text) > 64:
             if duration_label and clean_title.lower().endswith(duration_label.lower()):
                 base = clean_title[:-len(duration_label)].rstrip()
-                avail = max(4, max_safe_len - len(suffix) - len(duration_label) - 2)
+                avail = max(4, 64 - len(suffix) - len(duration_label) - 2)
                 btn_text = f"{base[:avail]}… {duration_label}{suffix}"
             else:
-                avail = max(6, max_safe_len - len(suffix) - 1)
+                avail = max(6, 64 - len(suffix) - 1)
                 btn_text = f"{clean_title[:avail]}…{suffix}"
-        else:
-            btn_text = f"{clean_title}{suffix}"
 
         btn_kwargs: dict[str, Any] = {
             "text": btn_text[:64],
@@ -754,10 +750,26 @@ def get_manual_deposit_invoice_keyboard(account_info: str, is_binance: bool = Fa
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def get_cancel_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="Cancel", callback_data="cancel_deposit", style="danger", icon_custom_emoji_id=Icons.CLOSE)]]
+def get_cancel_keyboard(back_target: str | None = "open_deposit") -> InlineKeyboardMarkup:
+    row: list[InlineKeyboardButton] = []
+    if back_target:
+        row.append(
+            InlineKeyboardButton(
+                text="Back",
+                callback_data=back_target,
+                style="primary",
+                icon_custom_emoji_id=Icons.BACK,
+            )
+        )
+    row.append(
+        InlineKeyboardButton(
+            text="Cancel",
+            callback_data="cancel_deposit",
+            style="danger",
+            icon_custom_emoji_id=Icons.CLOSE,
+        )
     )
+    return InlineKeyboardMarkup(inline_keyboard=[row])
 
 
 def get_deposit_amount_keyboard(account_info: str, method_id: int, is_binance: bool = False) -> InlineKeyboardMarkup:
