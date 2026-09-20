@@ -541,7 +541,7 @@ function ZiniPayExtra({
       {status?.public_url ? (
         <div className="facts">
           <span>
-            Bot Button: <code>🌸 bKash 🔴 Nagad 🟣 Rocket 🟡 Binance (via ZiniPay)</code>
+            Bot Button: <code>🌸   🔴   🟣   🟡</code>
           </span>
           <span>
             Website in ZiniPay: <code>{status.public_url.replace('https://', '')}</code>

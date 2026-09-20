@@ -660,15 +660,11 @@ def get_deposit_methods_keyboard(
             buttons.append(method_buttons[i : i + 2])
 
     if instant_label:
-        label = str(instant_label).strip()
-        if not label or label in {"bKash / Nagad · Instant", "Instant Web Checkout"}:
-            label = "🌸 bKash 🔴 Nagad 🟣 Rocket 🟡 Binance (via ZiniPay)"
         buttons.append([
             InlineKeyboardButton(
-                text=label,
+                text="🌸   🔴   🟣   🟡",
                 callback_data="dep_instant",
                 style="success",
-                icon_custom_emoji_id=Icons.LIGHTNING,
             )
         ])
 
