@@ -23,6 +23,7 @@ from app.bot.icons import (
     ICON_SHOP,
     ICON_SPARKLES,
     ICON_SPENT,
+    ICON_TIMER,
     ICON_VIP,
     Icons,
     tg_icon,
@@ -129,13 +130,19 @@ class AnnouncementService:
         symbol = escape(values["currency_symbol"])
         icon = self._product_icon(product)
         desc = f"\n{ICON_NOTE} {escape(product.get('description'))}\n" if product.get("description") else ""
+        duration = (product.get("duration_label") or "").strip()
+        duration_line = f"{ICON_TIMER} <b>Validity:</b> {escape(duration)}\n" if duration and duration.lower() not in {"instant", "none", "n/a", ""} else ""
+        is_manual = product.get("delivery_type") == "manual"
+        delivery_line = f"{ICON_TIMER} <b>Delivery:</b> Manual Delivery" if is_manual else f"{ICON_CHECK} <b>Delivery:</b> Instant Automatic Delivery"
         return await self.notifier.send(
             channel,
             f"{ICON_FIRE} <b>Featured Product</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"{ICON_VIP} <b>Product:</b> {icon} <b>{escape(product['title'])}</b>{desc}\n"
+            f"{ICON_VIP} <b>Product:</b> {icon} <b>{escape(product['title'])}</b>\n"
+            f"{duration_line}"
+            f"{desc}"
             f"{ICON_SHOP} <b>Available Stock:</b> <code>{product['stock']} units</code>\n"
             f"{ICON_MONEY} <b>Price:</b> <code>{format_dual_price(product['price'], symbol)}</code>\n"
-            f"{ICON_CHECK} <b>Delivery:</b> Instant Automatic Delivery",
+            f"{delivery_line}",
             await self._buy_button(product, f"Order {product['title']}"),
         )
