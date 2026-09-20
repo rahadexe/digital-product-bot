@@ -381,37 +381,25 @@ def get_products_keyboard(
                     clean_title = clean_title[len(em):].strip()
                     break
 
-        # Extract duration from title if present to format as Title · Duration · Price · [Stock]
-        dur = (p.get("duration_label") or "").strip()
-        base_title = clean_title
-        dur_part = ""
-        if dur and clean_title.lower().endswith(dur.lower()):
-            base_title = clean_title[: -len(dur)].rstrip(" ,-·")
-            dur_part = dur
-
         is_manual = p.get("delivery_type") == "manual"
         if is_manual:
-            stock_badge = "[Manual]"
+            suffix = f" · {price_formatted} [Manual]"
             btn_style = "primary"
         elif stock > 0:
-            stock_badge = f"[{stock}]"
+            suffix = f" · {price_formatted} [{stock}]"
             btn_style = "primary"
         else:
-            stock_badge = "[0]"
+            suffix = f" · {price_formatted} [0]"
             btn_style = "danger"
 
-        parts = [base_title]
-        if dur_part:
-            parts.append(dur_part)
-        parts.append(price_formatted)
-        parts.append(stock_badge)
-
-        btn_text = " · ".join(parts)
-        if len(btn_text) > 64:
-            # Keep duration, price and stock intact, truncate base title
-            suffix_all = " · " + " · ".join(parts[1:])
-            avail = max(6, 64 - len(suffix_all) - 1)
-            btn_text = f"{base_title[:avail]}…{suffix_all}"
+        # Mobile viewport safe limit: Telegram mobile clients single-line buttons clip around 39-42 chars.
+        # Capping ensures the price and stock bracket are always 100% visible on mobile phones.
+        max_safe_len = 40 if custom_emoji_id else 43
+        if len(clean_title) + len(suffix) > max_safe_len:
+            avail = max(6, max_safe_len - len(suffix) - 1)
+            btn_text = f"{clean_title[:avail]}…{suffix}"
+        else:
+            btn_text = f"{clean_title}{suffix}"
 
         btn_kwargs: dict[str, Any] = {
             "text": btn_text[:64],
