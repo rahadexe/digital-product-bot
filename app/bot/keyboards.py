@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, List
 from uuid import uuid4
 
@@ -381,6 +382,13 @@ def get_products_keyboard(
                     clean_title = clean_title[len(em):].strip()
                     break
 
+        # If product has a duration_label set in admin panel and not in title, append it
+        duration_label = (p.get("duration_label") or "").strip()
+        if duration_label and duration_label.lower() not in {"instant", "none", "n/a", ""}:
+            generic_dur_pattern = r"\b\d+\s*(?:days?|months?|years?|weeks?|hours?|d|m|y|দিন|মাস|বছর)\b"
+            if not re.search(rf"\b{re.escape(duration_label)}\b", clean_title, re.IGNORECASE) and not re.search(generic_dur_pattern, clean_title, re.IGNORECASE):
+                clean_title = f"{clean_title} {duration_label}"
+
         is_manual = p.get("delivery_type") == "manual"
         if is_manual:
             suffix = f" · {price_formatted} [Manual]"
@@ -392,12 +400,17 @@ def get_products_keyboard(
             suffix = f" · {price_formatted} [0]"
             btn_style = "danger"
 
-        # Mobile viewport safe limit: Telegram mobile clients single-line buttons clip around 39-42 chars.
-        # Capping ensures the price and stock bracket are always 100% visible on mobile phones.
-        max_safe_len = 40 if custom_emoji_id else 43
+        # Mobile viewport safe limit: Telegram mobile single-line buttons fit ~43-46 chars cleanly.
+        # If truncation is needed, preserve the duration label at the end so validity is never lost.
+        max_safe_len = 44 if custom_emoji_id else 46
         if len(clean_title) + len(suffix) > max_safe_len:
-            avail = max(6, max_safe_len - len(suffix) - 1)
-            btn_text = f"{clean_title[:avail]}…{suffix}"
+            if duration_label and clean_title.lower().endswith(duration_label.lower()):
+                base = clean_title[:-len(duration_label)].rstrip()
+                avail = max(4, max_safe_len - len(suffix) - len(duration_label) - 2)
+                btn_text = f"{base[:avail]}… {duration_label}{suffix}"
+            else:
+                avail = max(6, max_safe_len - len(suffix) - 1)
+                btn_text = f"{clean_title[:avail]}…{suffix}"
         else:
             btn_text = f"{clean_title}{suffix}"
 
