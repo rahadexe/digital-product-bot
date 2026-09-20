@@ -196,10 +196,13 @@ class PaymentService:
         base = self.public_base_url(values.get("zinipay_brand_url", ""))
         if values.get("zinipay_web_gateway_enabled") != "1" or not await self._api_key() or not base:
             return None
+        raw_label = (values.get("zinipay_label") or "").strip()
+        hardcoded_label = "🌸 bKash 🔴 Nagad 🟣 Rocket 🟡 Binance (via ZiniPay)"
+        label = hardcoded_label if (not raw_label or raw_label in {"bKash / Nagad · Instant", "Instant Web Checkout"}) else raw_label
         return {
-            "label": values["zinipay_label"],
-            "rate": float(values["zinipay_rate"]),
-            "min_amount": float(values["zinipay_min_deposit"]),
+            "label": label,
+            "rate": float(values.get("zinipay_rate", 1.0)),
+            "min_amount": float(values.get("zinipay_min_deposit", 1.0)),
             "local_currency": LOCAL_CURRENCY,
         }
 

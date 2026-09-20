@@ -134,7 +134,7 @@ SPECS: dict[str, SettingSpec] = {
     "zinipay_brand_url": SettingSpec("", max_length=256),
     "zinipay_rate": SettingSpec("1.0", _number(0.0001, 1_000_000), 16),
     "zinipay_min_deposit": SettingSpec("1", _number(0.01, 1_000_000_000), 16),
-    "zinipay_label": SettingSpec("bKash / Nagad · Instant", max_length=40),
+    "zinipay_label": SettingSpec("🌸 bKash 🔴 Nagad 🟣 Rocket 🟡 Binance (via ZiniPay)", max_length=120),
     # USDT deposits confirmed against the shop's own Binance account with a read-only API key.
     "binance_enabled": SettingSpec("0", _flag, 1),
     "binance_api_key": SettingSpec("", secret=True),
