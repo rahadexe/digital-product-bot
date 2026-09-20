@@ -724,7 +724,15 @@ select {
   align-items: center;
   gap: 8px;
   margin-left: auto;
-  animation: fade-in 140ms ease;
+}
+.panel-save-actions .btn {
+  transition: opacity 160ms ease, filter 160ms ease, background-color 160ms ease, border-color 160ms ease;
+}
+.panel-save-actions .btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+  filter: grayscale(0.25);
 }
 
 

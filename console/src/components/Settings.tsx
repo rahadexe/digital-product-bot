@@ -393,14 +393,16 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
     );
   }
 
-  function renderSaveActions(section: Section) {
+  function renderSaveActions(section: Section, changed: boolean) {
     const isSaving = savingSection === section.id;
     return (
       <div className="panel-save-actions">
         <button
           type="button"
           className="btn ghost small"
+          disabled={!changed || isSaving}
           onClick={() => discard(section)}
+          title={changed ? 'Discard unsaved changes' : undefined}
           style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
         >
           <RotateCcw size={13} />
@@ -409,8 +411,9 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
         <button
           type="button"
           className="btn small"
-          disabled={isSaving}
+          disabled={!changed || isSaving}
           onClick={() => void save(section)}
+          title={changed ? 'Save changes' : undefined}
           style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
         >
           <Save size={14} />
@@ -467,19 +470,19 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
                   status={payStatus}
                   setStatus={setPayStatus}
                   say={say}
-                  saveActions={changed ? renderSaveActions(section) : null}
+                  saveActions={renderSaveActions(section, changed)}
                 />
               ) : null}
               {section.extra === 'binance' ? (
                 <BinanceExtra
                   status={binance}
                   say={say}
-                  saveActions={changed ? renderSaveActions(section) : null}
+                  saveActions={renderSaveActions(section, changed)}
                 />
               ) : null}
-              {!section.extra && changed ? (
+              {!section.extra && inputs.length ? (
                 <div className="panel-actions panel-actions-save-only">
-                  {renderSaveActions(section)}
+                  {renderSaveActions(section, changed)}
                 </div>
               ) : null}
 
