@@ -60,11 +60,11 @@ def get_account_type_labels(account_type: str | None) -> tuple[str, str]:
     """Returns (type_display, action_display)"""
     at = (account_type or "personal").lower()
     if at == "agent":
-        return ("এজেন্ট (Agent)", "ক্যাশ আউট (Cash Out)")
+        return ("Agent", "Cash Out")
     elif at == "merchant":
-        return ("মার্চেন্ট (Merchant)", "পেমেন্ট (Make Payment)")
+        return ("Merchant", "Payment")
     else:  # personal
-        return ("পার্সোনাল (Personal)", "সেন্ড মানি (Send Money)")
+        return ("Personal", "Send Money")
 
 
 class DepositStates(StatesGroup):
@@ -294,6 +294,7 @@ async def handle_deposit_method_select(query: CallbackQuery, state: FSMContext, 
     await state.set_data({
         "method_id": method_id,
         "method_name": method_name,
+        "custom_emoji_id": method.get("custom_emoji_id"),
         "account_info": account_info,
         "account_type": account_type,
         "min_deposit": min_dep,
@@ -321,12 +322,11 @@ async def handle_deposit_method_select(query: CallbackQuery, state: FSMContext, 
         type_label, action_label = get_account_type_labels(account_type)
         method_icon = get_method_icon(method)
         text = (
-            f"{method_icon} <b>{escape(method_name)}</b> ({type_label.split()[0]})\n"
+            f"{method_icon} <b>{escape(method_name)}</b> ({action_label})\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"↳ <b>Account Type:</b> {type_label}\n"
-            f"↳ <b>Transaction:</b> <b>{action_label}</b>\n"
-            f"↳ <b>Account Number:</b>\n"
-            f"<code>{escape(account_info)}</code>\n\n"
+            f"↳ <b>Transaction:</b> {action_label}\n"
+            f"↳ <b>Number:</b> <code>{escape(account_info)}</code>\n\n"
             f"↳ <b>Minimum Deposit:</b> {price(symbol, min_dep)}"
         )
         custom_instructions = (method.get("instructions") or "").strip()
@@ -381,16 +381,22 @@ async def ask_deposit_input(query: CallbackQuery, state: FSMContext, services: S
         account_type = data.get("account_type", "personal")
         type_label, action_label = get_account_type_labels(account_type)
         await state.set_state(DepositStates.waiting_for_amount)
-        method_row = {"name": method_name, "auto_verify": auto_verify}
+        method_row = {
+            "name": method_name,
+            "auto_verify": auto_verify,
+            "custom_emoji_id": data.get("custom_emoji_id"),
+        }
         method_icon = get_method_icon(method_row)
         text = (
             f"{method_icon} <b>{escape(method_name)}</b>\n"
+            f"<b>কত টাকা পাঠিয়েছেন তা লিখুন</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"↳ <b>Account:</b> <code>{escape(account_info)}</code> ({action_label})\n"
-            f"↳ <b>Minimum Deposit:</b> {price(symbol, min_dep)}\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"{ICON_MONEY} <b>কত টাকা পাঠিয়েছেন তা লিখুন:</b>\n\n"
-            f"নিচে পরিমাণ লিখুন (যেমন: <code>500</code>):"
+            f"↳ <b>Account Type:</b> {type_label}\n"
+            f"↳ <b>Transaction:</b> {action_label}\n"
+            f"↳ <b>Number:</b> <code>{escape(account_info)}</code>\n\n"
+            f"↳ <b>Minimum Deposit:</b> {price(symbol, min_dep)}\n\n"
+            f"{ICON_MONEY} <b>কত টাকা পাঠিয়েছেন তা লিখুন</b>\n\n"
+            f"যেমন: <code>100</code>"
         )
         reply_kb = get_deposit_amount_keyboard(account_info, method_id, is_binance=False)
 
@@ -649,14 +655,20 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
     method_name = data.get("method_name", "Payment")
     account_type = data.get("account_type", "personal")
     _, action_label = get_account_type_labels(account_type)
+    method_row = {
+        "name": method_name,
+        "auto_verify": data.get("auto_verify"),
+        "custom_emoji_id": data.get("custom_emoji_id"),
+    }
+    method_icon = get_method_icon(method_row)
     await message.answer(
-        f"{ICON_KEY} <b>ট্রানজ্যাকশন আইডি (TrxID)</b>\n"
+        f"{method_icon} <b>{escape(method_name)}</b>\n"
+        f"<b>Transaction ID (TrxID) দিন</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"↳ <b>পরিমাণ:</b> <b>{price(symbol, amount_num)}</b>\n"
-        f"↳ <b>অ্যাকাউন্ট:</b> <code>{escape(account_info)}</code> ({action_label})\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
+        f"↳ <b>Amount:</b> {price(symbol, amount_num)}\n"
+        f"↳ <b>Number:</b> <code>{escape(account_info)}</code> ({action_label})\n\n"
         f"আপনার {escape(method_name)} SMS / রিসিট থেকে <b>Transaction ID (TrxID)</b> দিন\n\n"
-        f"(যেমন: <code>BLA7X8Y9Z0</code>)",
+        f"যেমন: <code>BLA7X8Y9Z0</code>",
         reply_markup=get_deposit_txid_keyboard(is_bangla=True),
     )
 
@@ -686,7 +698,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         else:
             await message.answer(
                 f"{ICON_CROSS} ভুল Transaction ID ফরম্যাট। আপনার SMS/রিসিট থেকে সঠিক TrxID দিন।\n\n"
-                f"(উদাহরণ: <code>BLA7X8Y9Z0</code>)",
+                f"যেমন: <code>BLA7X8Y9Z0</code>",
                 reply_markup=get_deposit_txid_keyboard(is_bangla=True),
             )
         return
@@ -748,9 +760,8 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         f"{ICON_TIMER} <b>ট্রানজ্যাকশন যাচাই করা হচ্ছে...</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"↳ <b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
-        f"↳ <b>পরিমাণ:</b> <code>{price(symbol, amount_num)}</code>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
-        f"<i>পেমেন্ট গেটওয়ে থেকে যাচাই করা হচ্ছে, একটু অপেক্ষা করুন...</i>"
+        f"↳ <b>Amount:</b> {price(symbol, amount_num)}\n\n"
+        f"যাচাই করা হচ্ছে, একটু অপেক্ষা করুন..."
     )
 
     logger.info("Processing TrxID '%s' for user %s, method %s, amount %s", clean_tx, message.from_user.id, method_id, amount_num)
@@ -812,7 +823,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                     f"━━━━━━━━━━━━━━━━━━\n"
                     f"এই Transaction ID (<code>{escape(clean_tx)}</code>) দিয়ে আগেই ব্যালেন্স নেওয়া হয়েছে।\n\n"
                     f"👉 <b>আপনার করণীয়:</b> অনুগ্রহ করে SMS থেকে সঠিক ও অব্যবহৃত TrxID টি দিন।\n\n"
-                    f"⚠️ <i>আর <b>{remaining_attempts} বার</b> চেষ্টা করতে পারবেন।</i>"
+                    f"⚠️ আর {remaining_attempts} বার চেষ্টা করতে পারবেন।"
                 )
             await _safe_edit_or_answer(
                 status_msg,
@@ -880,12 +891,12 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                 text = (
                     f"{ICON_CHECK} <b>ডিপোজিট সফল!</b>\n"
                     f"━━━━━━━━━━━━━━━━━━\n"
-                    f"{ICON_DEPOSIT} <b>মেথড:</b> {escape(provider)}\n"
-                    f"{ICON_MONEY} <b>জমা হয়েছে:</b> <code>{price(symbol, amount_num)}</code>\n"
-                    f"{ICON_BALANCE} <b>বর্তমান ব্যালেন্স:</b> <code>{price(symbol, user_balance)}</code>\n"
-                    f"{ICON_KEY} <b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
+                    f"↳ <b>Method:</b> {escape(provider)}\n"
+                    f"↳ <b>Amount:</b> {price(symbol, amount_num)}\n"
+                    f"↳ <b>Current Balance:</b> {price(symbol, user_balance)}\n"
+                    f"↳ <b>Transaction ID:</b> <code>{escape(clean_tx)}</code>\n"
                     f"━━━━━━━━━━━━━━━━━━\n"
-                    f"<i>আপনার ওয়ালেটে স্বয়ংক্রিয়ভাবে টাকা যোগ হয়েছে। ধন্যবাদ!</i>"
+                    f"আপনার ওয়ালেটে স্বয়ংক্রিয়ভাবে টাকা যোগ হয়েছে। ধন্যবাদ!"
                 )
             await _safe_edit_or_answer(status_msg, message, text, reply_markup=keyboard)
             return
@@ -952,11 +963,11 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                         success_text = (
                             f"{ICON_CHECK} <b>ডিপোজিট রিকোয়েস্ট অ্যাডমিন রিভিউতে জমা হয়েছে!</b>\n"
                             f"━━━━━━━━━━━━━━━━━━\n"
-                            f"{ICON_DEPOSIT} <b>মেথড:</b> {escape(method_name)}\n"
-                            f"{ICON_MONEY} <b>পরিমাণ:</b> <code>{price(symbol, amount_num)}</code>\n"
-                            f"{ICON_KEY} <b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
+                            f"↳ <b>Method:</b> {escape(method_name)}\n"
+                            f"↳ <b>Amount:</b> {price(symbol, amount_num)}\n"
+                            f"↳ <b>Transaction ID:</b> <code>{escape(clean_tx)}</code>\n"
                             f"━━━━━━━━━━━━━━━━━━\n"
-                            f"⚠️ আমাদের মার্চেন্ট সিম বা সার্ভারে সাময়িক বিলম্বের কারণে ট্রানজ্যাকশনটি স্বয়ংক্রিয়ভাবে ডিটেক্ট হয়নি।\n\n"
+                            f"⚠️ গেটওয়ে থেকে ট্রানজ্যাকশনটি তাৎক্ষণিক স্বয়ংক্রিয়ভাবে ডিটেক্ট হয়নি।\n\n"
                             f"✅ <b>চিন্তার কোনো কারণ নেই, আপনার টাকা সম্পূর্ণ নিরাপদ!</b>\n"
                             f"আপনার ডিপোজিট রিকোয়েস্টটি আমাদের অ্যাডমিন প্যানেলে জমা হয়েছে। অ্যাডমিন ম্যানুয়ালি চেক করে খুব দ্রুত আপনার ওয়ালেটে ব্যালেন্স যুক্ত করে দেবেন।"
                         )
@@ -1011,46 +1022,42 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                 error_msg = (
                     f"{ICON_CROSS} <b>টাকার পরিমাণ মেলেনি ({len(fails)}/{MAX_VERIFY_ATTEMPTS})</b>\n"
                     f"━━━━━━━━━━━━━━━━━━\n"
-                    f"↳ <b>মেথড:</b> {escape(method_name)}\n"
-                    f"↳ <b>বোটে দেওয়া পরিমাণ:</b> <code>{price(symbol, amount_num)}</code>\n"
-                    f"↳ <b>দেওয়া TrxID:</b> <code>{escape(clean_tx)}</code>\n"
-                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"↳ <b>Method:</b> {escape(method_name)}\n"
+                    f"↳ <b>Amount:</b> {price(symbol, amount_num)}\n"
+                    f"↳ <b>Transaction ID:</b> <code>{escape(clean_tx)}</code>\n\n"
                     f"🔍 <b>কেন এই সমস্যা হতে পারে?</b>\n"
-                    f"• আপনি বিকাশ/নগদ/রকেটে যে পরিমাণ টাকা পাঠিয়েছেন, বোটে তার চেয়ে ভিন্ন পরিমাণ লিখেছেন।\n\n"
+                    f"আপনি {escape(method_name)} এ যে পরিমাণ টাকা পাঠিয়েছেন, এখানে তার চেয়ে ভিন্ন পরিমাণ লিখেছেন।\n\n"
                     f"👉 <b>এখন আপনার করণীয়:</b>\n"
-                    f"১. আপনি যদি বোটে ভুল পরিমাণ দিয়ে থাকেন, নিচে <b>Change Amount</b> বাটনে চাপ দিয়ে সঠিক পরিমাণ লিখুন।\n"
-                    f"২. অথবা আপনার SMS রিসিট দেখে সঠিক TrxID টি পুনরায় দিন।\n\n"
-                    f"⚠️ <i>আর <b>{remaining_attempts} বার</b> চেষ্টা করতে পারবেন। ৩ বার না পেলে এটি স্বয়ংক্রিয়ভাবে অ্যাডমিন রিভিউতে জমা হবে।</i>"
+                    f"১. নিচে <b>Change Amount</b> বাটনে চাপ দিয়ে সঠিক পরিমাণ লিখুন।\n"
+                    f"২. অথবা আপনার SMS রিসিট দেখে সঠিক TrxID টি মিলিয়ে পুনরায় দিন।\n\n"
+                    f"⚠️ আর {remaining_attempts} বার চেষ্টা করতে পারবেন। ৩ বার না পেলে এটি স্বয়ংক্রিয়ভাবে অ্যাডমিন রিভিউতে জমা হবে।"
                 )
             elif err_type == "already_used":
                 error_msg = (
                     f"{ICON_CROSS} <b>TrxID ইতোমধ্যে ব্যবহৃত হয়েছে ({len(fails)}/{MAX_VERIFY_ATTEMPTS})</b>\n"
                     f"━━━━━━━━━━━━━━━━━━\n"
-                    f"↳ <b>মেথড:</b> {escape(method_name)}\n"
-                    f"↳ <b>দেওয়া TrxID:</b> <code>{escape(clean_tx)}</code>\n"
-                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"↳ <b>Method:</b> {escape(method_name)}\n"
+                    f"↳ <b>Transaction ID:</b> <code>{escape(clean_tx)}</code>\n\n"
                     f"🔍 <b>কেন এই সমস্যা হতে পারে?</b>\n"
-                    f"• এই Transaction ID টি দিয়ে ইতিপূর্বে পেমেন্ট ক্লেইম করা হয়ে গেছে।\n\n"
+                    f"এই Transaction ID টি দিয়ে ইতিপূর্বে ব্যালেন্স নেওয়া হয়েছে।\n\n"
                     f"👉 <b>এখন আপনার করণীয়:</b>\n"
-                    f"• আপনার SMS বা রিসিট চেক করে সর্বশেষ নতুন TrxID টি দিন।\n\n"
-                    f"⚠️ <i>আর <b>{remaining_attempts} বার</b> চেষ্টা করতে পারবেন।</i>"
+                    f"আপনার SMS বা রিসিট চেক করে সর্বশেষ নতুন TrxID টি দিন।\n\n"
+                    f"⚠️ আর {remaining_attempts} বার চেষ্টা করতে পারবেন।"
                 )
             else:  # "not_found" and other errors
                 error_msg = (
                     f"{ICON_CROSS} <b>ট্রানজ্যাকশন পাওয়া যায়নি ({len(fails)}/{MAX_VERIFY_ATTEMPTS})</b>\n"
                     f"━━━━━━━━━━━━━━━━━━\n"
-                    f"↳ <b>মেথড:</b> {escape(method_name)}\n"
-                    f"↳ <b>পরিমাণ:</b> <code>{price(symbol, amount_num)}</code>\n"
-                    f"↳ <b>দেওয়া TrxID:</b> <code>{escape(clean_tx)}</code>\n"
-                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"↳ <b>Method:</b> {escape(method_name)}\n"
+                    f"↳ <b>Amount:</b> {price(symbol, amount_num)}\n"
+                    f"↳ <b>Transaction ID:</b> <code>{escape(clean_tx)}</code>\n\n"
                     f"🔍 <b>কেন এই সমস্যা হতে পারে?</b>\n"
-                    f"• বিকাশ/নগদ/রকেট থেকে টাকা পাঠানোর পর মার্চেন্ট সিমে SMS আসতে ১-২ মিনিট দেরি হতে পারে।\n"
-                    f"• অথবা TrxID লেখার সময় কোনো অক্ষর বা সংখ্যা ভুল হতে পারে।\n\n"
+                    f"TrxID লেখার সময় কোনো অক্ষর বা সংখ্যা ভুল হতে পারে।\n\n"
                     f"👉 <b>এখন আপনার করণীয়:</b>\n"
-                    f"১. আপনার পেমেন্ট SMS বা স্টেটমেন্ট দেখে <b>সঠিক TrxID</b> টি মিলিয়ে আবার লিখুন।\n"
-                    f"২. টাকা এইমাত্র পাঠিয়ে থাকলে <b>১ মিনিট অপেক্ষা করে</b> ট্রাই করুন।\n"
+                    f"১. আপনার পেমেন্ট SMS বা স্টেটমেন্ট দেখে সঠিক TrxID টি মিলিয়ে আবার লিখুন।\n"
+                    f"২. টাকা এইমাত্র পাঠিয়ে থাকলে ১ মিনিট অপেক্ষা করে ট্রাই করুন।\n"
                     f"৩. টাকার পরিমাণ ভুল দিয়ে থাকলে নিচে <b>Change Amount</b> বাটনে চাপুন।\n\n"
-                    f"⚠️ <i>আর <b>{remaining_attempts} বার</b> চেষ্টা করতে পারবেন। ৩ বার না পেলে এটি স্বয়ংক্রিয়ভাবে অ্যাডমিন রিভিউতে জমা হবে।</i>"
+                    f"⚠️ আর {remaining_attempts} বার চেষ্টা করতে পারবেন। ৩ বার না পেলে এটি স্বয়ংক্রিয়ভাবে অ্যাডমিন রিভিউতে জমা হবে।"
                 )
 
             await _safe_edit_or_answer(
