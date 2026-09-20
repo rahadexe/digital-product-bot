@@ -21,7 +21,7 @@ class Icons:
     REFER = "5379742233853451967"          # 🔗 Refer & Earn (MeshChainEmoji)
     BALANCE = "6102735781258861018"        # 💰 (Raika_Games)
     MONEY = "5956180995924300841"          # 💵 (emoji1912)
-    SPENT = "5348469219761626211"          # 💸 (http_dxauniverse_by_fStikBot)
+    SPENT = "6251349286152316652"          # 💸 (Raika_Games)
     COIN = "6251368935627692476"           # 🪙 (Raika_Games)
     ORDERS = "6084747049473940188"         # 🎁 (Raika_Games)
     ACCOUNT = "5208604387156448480"        # 👤 My Profile (EmergeTeamAnimated)
@@ -63,7 +63,7 @@ class Icons:
     BYBIT = "5348372939479751825"          # ⚫ Bybit (http_dxauniverse_by_fStikBot)
     BKASH = "6217678000977089090"          # 🌸 bKash
     NAGAD = "6217625168584380551"          # 🔴 Nagad
-    ROCKET = "4911601033496494993"         # 🟣 Rocket
+    ROCKET_METHOD = "4911601033496494993"  # 🟣 Rocket (Payment Method)
 
 
 def tg_icon(emoji_id: str, fallback: str) -> str:
@@ -115,7 +115,7 @@ ICON_BINANCE = tg_icon(Icons.BINANCE, "🟡")
 ICON_BYBIT = tg_icon(Icons.BYBIT, "⚫")
 ICON_BKASH = tg_icon(Icons.BKASH, "🌸")
 ICON_NAGAD = tg_icon(Icons.NAGAD, "🔴")
-ICON_ROCKET_PURPLE = tg_icon(Icons.ROCKET, "🟣")
+ICON_ROCKET_PURPLE = tg_icon(Icons.ROCKET_METHOD, "🟣")
 
 ICON_CONFIRM = tg_icon(Icons.CONFIRM, "✅")
 

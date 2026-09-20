@@ -626,7 +626,7 @@ def get_deposit_methods_keyboard(
         elif "nagad" in name.lower():
             kwargs["icon_custom_emoji_id"] = Icons.NAGAD
         elif "rocket" in name.lower():
-            kwargs["icon_custom_emoji_id"] = Icons.ROCKET
+            kwargs["icon_custom_emoji_id"] = Icons.ROCKET_METHOD
         else:
             kwargs["icon_custom_emoji_id"] = Icons.DEPOSIT
         method_buttons.append(InlineKeyboardButton(**kwargs))
