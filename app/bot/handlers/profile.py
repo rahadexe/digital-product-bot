@@ -81,9 +81,9 @@ async def show_user_profile(event: Message | CallbackQuery, state: FSMContext, s
 
     rank_val = (user.get("rank") or "Standard").strip()
     if rank_val.lower() in {"reseller", "reseller partner"}:
-        account_type = "💼 Reseller Partner (রিসেলার)"
+        account_type = "Reseller"
     else:
-        account_type = "👤 Regular Customer (সাধারণ গ্রাহক)"
+        account_type = "Normal"
 
     text = (
         f"{ICON_ACCOUNT} <b>My Profile</b>\n"

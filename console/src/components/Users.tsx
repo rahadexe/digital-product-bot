@@ -357,11 +357,11 @@ function CustomerProfilePage({
     if (!user || newRank === (user.rank || 'Standard')) return;
     const isReseller = newRank === 'Reseller';
     const title = isReseller
-      ? `Make ${nameOf(user)} a Reseller Partner?`
-      : `Change ${nameOf(user)} to Normal User?`;
+      ? `Make ${nameOf(user)} a Reseller?`
+      : `Change ${nameOf(user)} to Normal?`;
     const message = isReseller
-      ? `Are you sure you want to change this customer to Reseller Partner? They will automatically receive reseller pricing in the Telegram bot.`
-      : `Are you sure you want to change this customer back to Normal User?`;
+      ? `Are you sure you want to change this customer to Reseller? They will automatically receive reseller pricing in the Telegram bot.`
+      : `Are you sure you want to change this customer back to Normal?`;
     const confirmLabel = isReseller ? 'Make Reseller' : 'Change to Normal';
 
     const ok = await confirm(title, message, confirmLabel, false);
@@ -374,7 +374,7 @@ function CustomerProfilePage({
     setRankBusy(true);
     try {
       await api.setUserRank(user.tg_user_id, newRank);
-      say(`Account type updated to ${isReseller ? 'Reseller Partner' : 'Normal User'}.`);
+      say(`Account type updated to ${isReseller ? 'Reseller' : 'Normal'}.`);
       const updated = { ...user, rank: newRank };
       setUser(updated);
       onUserUpdated(updated);
@@ -513,7 +513,7 @@ function CustomerProfilePage({
               </span>
               {user.rank === 'Reseller' ? (
                 <span className="pill cust-reseller-pill">
-                  <Briefcase size={12} /> Reseller Partner
+                  <Briefcase size={12} /> Reseller
                 </span>
               ) : null}
             </div>
@@ -632,7 +632,7 @@ function CustomerProfilePage({
           <div className="cust-metric-val">{orderTotal}</div>
         </div>
 
-        <div className={`cust-metric-card ${currentRank === 'Reseller' ? 'reseller-card' : ''}`}>
+        <div className={`cust-metric-card cust-tier-card ${currentRank === 'Reseller' ? 'reseller-card' : ''}`}>
           <div className="cust-metric-top">
             <span className="cust-metric-label">Account Tier</span>
             <div
@@ -814,7 +814,7 @@ function TierDropdown({
   }, [open]);
 
   return (
-    <div className="tier-dropdown-container" ref={containerRef}>
+    <div className={`tier-dropdown-container ${open ? 'is-open' : ''}`} ref={containerRef}>
       <button
         type="button"
         className={`tier-dropdown-trigger ${isReseller ? 'reseller-trigger' : ''}`}
@@ -829,7 +829,7 @@ function TierDropdown({
             <UserIcon size={15} className="tier-icon-normal" />
           )}
           <span className="tier-trigger-label">
-            {isReseller ? 'Reseller Partner' : 'Normal User'}
+            {isReseller ? 'Reseller' : 'Normal'}
           </span>
         </div>
         <ChevronDown size={14} className={`tier-chevron ${open ? 'rotated' : ''}`} />
@@ -848,7 +848,7 @@ function TierDropdown({
             <div className="tier-item-info">
               <div className="tier-item-row">
                 <UserIcon size={14} />
-                <strong>Normal User</strong>
+                <strong>Normal</strong>
               </div>
               <small>Standard customer pricing</small>
             </div>
@@ -866,7 +866,7 @@ function TierDropdown({
             <div className="tier-item-info">
               <div className="tier-item-row">
                 <Briefcase size={14} />
-                <strong>Reseller Partner</strong>
+                <strong>Reseller</strong>
               </div>
               <small>Discounted reseller prices in Bot</small>
             </div>

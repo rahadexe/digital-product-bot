@@ -2139,6 +2139,8 @@ ul.messages p { margin-top: 6px; color: var(--text-dim); font-size: 12.5px; whit
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
+  position: relative;
+  z-index: 30;
 }
 
 .cust-metric-card {
@@ -2152,11 +2154,23 @@ ul.messages p { margin-top: 6px; color: var(--text-dim); font-size: 12.5px; whit
   gap: 8px;
   min-width: 0;
   transition: transform 120ms ease, box-shadow 120ms ease;
+  position: relative;
 }
 
 .cust-metric-card:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-raised);
+}
+
+.cust-metric-card.cust-tier-card {
+  z-index: 35;
+}
+
+.cust-metric-card:has(.tier-dropdown-container.is-open),
+.cust-metric-card:has(.tier-dropdown-menu),
+.cust-metric-card.cust-tier-card:focus-within {
+  z-index: 100;
+  transform: none;
 }
 
 .cust-metric-top {
@@ -2281,17 +2295,22 @@ ul.messages p { margin-top: 6px; color: var(--text-dim); font-size: 12.5px; whit
   transform: rotate(180deg);
 }
 
+.tier-dropdown-container.is-open {
+  z-index: 100;
+}
+
 .tier-dropdown-menu {
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
   right: 0;
+  min-width: 170px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.14), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 14px 30px -4px rgba(0, 0, 0, 0.22), 0 8px 12px -3px rgba(0, 0, 0, 0.12);
   padding: 5px;
-  z-index: 100;
+  z-index: 999;
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -2382,6 +2401,8 @@ ul.messages p { margin-top: 6px; color: var(--text-dim); font-size: 12.5px; whit
   grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
   gap: 18px;
   align-items: start;
+  position: relative;
+  z-index: 1;
 }
 
 .cust-workspace-panel {
