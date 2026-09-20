@@ -4,13 +4,17 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from app.services.errors import NotFoundError
+from app.services.errors import NotFoundError, PermissionDeniedError
 
 
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(NotFoundError)
     async def not_found(request: Request, exc: NotFoundError):
         return JSONResponse(status_code=404, content={"detail": str(exc)})
+
+    @app.exception_handler(PermissionDeniedError)
+    async def permission_denied(request: Request, exc: PermissionDeniedError):
+        return JSONResponse(status_code=403, content={"detail": str(exc)})
 
     @app.exception_handler(ValueError)
     async def invalid_value(request: Request, exc: ValueError):

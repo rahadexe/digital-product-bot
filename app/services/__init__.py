@@ -29,6 +29,7 @@ from app.services.inventory import InventoryService
 from app.services.notifications import Notifier
 from app.services.payments import PaymentService
 from app.services.purchases import PurchaseService
+from app.services.reseller import ResellerService
 from app.services.settings import SettingsService
 from app.services.update_channels import UpdateChannelService
 from app.services.users import UserService
@@ -70,6 +71,7 @@ class Services:
     announcements: AnnouncementService
     dashboard: DashboardService
     admin_access: AdminAccessService
+    reseller: ResellerService
     runtime: RuntimeStatus = field(default_factory=RuntimeStatus)
 
     async def close(self) -> None:
@@ -100,13 +102,16 @@ def build_services(
     catalog = CatalogService(db)
     delivery = DeliveryService(db)
     deposits = DepositService(db, settings, notifier)
+    users = UserService(db, settings, notifier)
+    reseller = ResellerService(db, settings, catalog, users)
+
     return Services(
         config=config,
         db=db,
         settings=settings,
         notifier=notifier,
         audit=AuditService(db),
-        users=UserService(db, settings, notifier),
+        users=users,
         catalog=catalog,
         inventory=InventoryService(db),
         delivery=delivery,
@@ -120,4 +125,5 @@ def build_services(
         announcements=AnnouncementService(settings, catalog, notifier),
         dashboard=DashboardService(db),
         admin_access=AdminAccessService(db),
+        reseller=reseller,
     )

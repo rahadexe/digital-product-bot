@@ -129,7 +129,8 @@ class SecurityBoundary:
         headers = {key.decode('latin-1').lower(): value.decode('latin-1') for key, value in scope.get('headers', [])}
         origin = headers.get('origin')
         expected = f"{scope.get('scheme', 'http')}://{headers.get('host', '')}"
-        if origin and origin != expected and origin not in self.allowed_origins:
+        is_reseller_api = path.startswith('/api/v1/reseller')
+        if not is_reseller_api and origin and origin != expected and origin not in self.allowed_origins:
             return await JSONResponse({'detail': 'Origin not allowed.'}, 403)(scope, receive, secured_send)
 
         body = bytearray()

@@ -27,6 +27,7 @@ from app.bot.icons import (
     ICON_COIN,
     ICON_CROSS,
     ICON_DEPOSIT,
+    ICON_GLOBE,
     ICON_ID,
     ICON_KEY,
     ICON_LIGHTNING,
@@ -210,6 +211,87 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
 @router.callback_query(F.data == "open_reseller")
 async def show_reseller_info(event: Message | CallbackQuery, state: FSMContext, services: Services):
     await state.clear()
+    tg_user = event.from_user
+    if not tg_user:
+        return
+
+    user = await services.users.get(tg_user.id)
+    is_reseller = (user.get("rank") or "").strip().lower() == "reseller" if user else False
+
+    cfg = services.config
+    base_url = cfg.webhook_base_url.rstrip("/") if cfg.webhook_base_url else (cfg.webapp_url or "http://127.0.0.1:8000")
+    docs_url = f"{base_url}/api/v1/reseller/docs"
+
+    if is_reseller:
+        active_key = await services.reseller.get_active_key(tg_user.id)
+        symbol = await services.settings.get("currency_symbol")
+        usd_rate = await services.settings.number("usd_rate")
+        show_usd = await services.settings.flag("show_usd_price")
+
+        balance_str = price(symbol, user.get("balance", 0.0), usd_rate=usd_rate, show_usd=show_usd)
+        key_display = f"<code>{active_key['key_prefix']}</code>" if active_key else "<i>Not generated yet</i>"
+
+        text = (
+            f"{ICON_RESELLER} <b>Reseller Partner Dashboard</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n\n"
+            f"{ICON_VIP} <b>Account Status:</b> <b>Authorized Reseller</b>\n"
+            f"{ICON_BALANCE} <b>Wallet Balance:</b> <code>{balance_str}</code>\n"
+            f"{ICON_KEY} <b>API Key:</b> {key_display}\n"
+            f"{ICON_GLOBE} <b>API Endpoint:</b>\n<code>{base_url}/api/v1/reseller</code>\n\n"
+            f"💡 <i>আপনার নিজস্ব টেলিগ্রাম বট বা ওয়েবসাইটকে আমাদের ইনভেনটরির সাথে কানেক্ট করতে নিচের এপিআই কি ব্যবহার করুন। স্বয়ংক্রিয়ভাবে ডিসকাউন্টেড রিসেলার রেটে কেনাকাটা ও তাত্ক্ষণিক ডেলিভারি সম্পন্ন হবে!</i>"
+        )
+
+        rows = []
+        if active_key:
+            rows.append([
+                InlineKeyboardButton(
+                    text="🔑 Key Info",
+                    callback_data="reseller_reveal_key",
+                    style="primary",
+                    icon_custom_emoji_id=Icons.KEY,
+                ),
+                InlineKeyboardButton(
+                    text="🔄 Regenerate Key",
+                    callback_data="reseller_regen_prompt",
+                    style="danger",
+                    icon_custom_emoji_id=Icons.REFRESH,
+                ),
+            ])
+        else:
+            rows.append([
+                InlineKeyboardButton(
+                    text="🔑 Generate API Key",
+                    callback_data="reseller_generate_key",
+                    style="success",
+                    icon_custom_emoji_id=Icons.KEY,
+                )
+            ])
+
+        rows.append([
+            InlineKeyboardButton(
+                text="📖 View API Docs",
+                url=docs_url,
+                style="primary",
+                icon_custom_emoji_id=Icons.NOTE,
+            ),
+            InlineKeyboardButton(
+                text="📋 Quick Guide",
+                callback_data="reseller_quick_guide",
+                style="primary",
+                icon_custom_emoji_id=Icons.LIGHTNING,
+            ),
+        ])
+        rows.append([
+            InlineKeyboardButton(
+                text="◀️ My Profile",
+                callback_data="open_account",
+                icon_custom_emoji_id=Icons.BACK,
+            )
+        ])
+        await respond(event, text, InlineKeyboardMarkup(inline_keyboard=rows))
+        return
+
+    # Non-reseller flow (Application form)
     handle = (await services.settings.get("support_username")).lstrip("@")
     store_name = (await services.settings.get("store_name")) or "Premium Haven"
 
@@ -229,8 +311,9 @@ async def show_reseller_info(event: Message | CallbackQuery, state: FSMContext, 
         f"<code>{format_copy_text}</code>\n\n"
         f"{ICON_VIP} <b>Reseller Benefits:</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"{ICON_COIN} Bulk discounts on all products\n"
-        f"{ICON_LIGHTNING} Rapid delivery & instant reservation\n"
+        f"{ICON_COIN} Bulk discounts & wholesale reseller rates\n"
+        f"{ICON_KEY} REST API Key to integrate your bot or website\n"
+        f"{ICON_LIGHTNING} Rapid delivery & instant automatic credentials\n"
         f"{ICON_SUPPORT} 24/7 direct management access"
     )
 
@@ -266,6 +349,243 @@ async def show_reseller_info(event: Message | CallbackQuery, state: FSMContext, 
         )
     ])
     await respond(event, text, InlineKeyboardMarkup(inline_keyboard=rows))
+
+
+@router.callback_query(F.data == "reseller_generate_key")
+async def reseller_generate_key_handler(event: CallbackQuery, services: Services):
+    tg_user = event.from_user
+    if not tg_user:
+        return
+    user = await services.users.get(tg_user.id)
+    if not user or (user.get("rank") or "").strip().lower() != "reseller":
+        await event.answer("Access denied. You must be an authorized Reseller.", show_alert=True)
+        return
+
+    raw_key, _ = await services.reseller.generate_key(tg_user.id)
+    cfg = services.config
+    base_url = cfg.webhook_base_url.rstrip("/") if cfg.webhook_base_url else (cfg.webapp_url or "http://127.0.0.1:8000")
+
+    text = (
+        f"{ICON_CHECK} <b>Reseller API Key Generated!</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n\n"
+        f"🔑 <b>Your Secret API Key:</b>\n"
+        f"<code>{raw_key}</code>\n\n"
+        f"⚠️ <b>Important Security Notice:</b>\n"
+        f"• এই এপিআই কি-টি সম্পূর্ণ গোপন রাখুন। এর মাধ্যমে আপনার ওয়ালেট ব্যালেন্স ব্যবহার করে কেনাকাটা করা সম্ভব।\n"
+        f"• এটি শুধুমাত্র একবারই সম্পূর্ণ প্রদর্শিত হবে। কপি করে নিরাপদ স্থানে সংরক্ষণ করুন।\n\n"
+        f"🌐 <b>API Base URL:</b>\n<code>{base_url}/api/v1/reseller</code>"
+    )
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="📋 Copy API Key",
+                    copy_text=CopyTextButton(text=raw_key),
+                    style="primary",
+                    icon_custom_emoji_id=Icons.NOTE,
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="📖 View API Docs",
+                    url=f"{base_url}/api/v1/reseller/docs",
+                    style="primary",
+                    icon_custom_emoji_id=Icons.NOTE,
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="◀️ Back to Portal",
+                    callback_data="open_reseller",
+                    icon_custom_emoji_id=Icons.BACK,
+                )
+            ],
+        ]
+    )
+    if event.message:
+        await event.message.edit_text(text, reply_markup=kb)
+
+
+@router.callback_query(F.data == "reseller_reveal_key")
+async def reseller_reveal_key_handler(event: CallbackQuery, services: Services):
+    tg_user = event.from_user
+    if not tg_user:
+        return
+    active_key = await services.reseller.get_active_key(tg_user.id)
+    if not active_key:
+        await event.answer("No active key found. Please generate one.", show_alert=True)
+        return
+
+    cfg = services.config
+    base_url = cfg.webhook_base_url.rstrip("/") if cfg.webhook_base_url else (cfg.webapp_url or "http://127.0.0.1:8000")
+
+    text = (
+        f"{ICON_KEY} <b>Reseller API Key Info</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n\n"
+        f"🔐 <b>Active Key Prefix:</b> <code>{active_key['key_prefix']}</code>\n"
+        f"📅 <b>Created At:</b> {active_key['created_at'].strftime('%Y-%m-%d %H:%M') if active_key.get('created_at') else 'N/A'}\n"
+        f"🕒 <b>Last Used:</b> {active_key['last_used_at'].strftime('%Y-%m-%d %H:%M') if active_key.get('last_used_at') else 'Never'}\n\n"
+        f"🔒 <i>সর্বোচ্চ নিরাপত্তার জন্য সম্পূর্ণ সিক্রেট কি ডাটাবেজে এনক্রিপ্ট/হ্যাশ আকারে সংরক্ষিত থাকে। আপনি যদি আপনার পূর্বের কি হারিয়ে ফেলেন, তবে নিচে থেকে নতুন কি জেনারেট (Regenerate) করতে পারবেন।</i>"
+    )
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="🔄 Regenerate Key",
+                    callback_data="reseller_regen_prompt",
+                    style="danger",
+                    icon_custom_emoji_id=Icons.REFRESH,
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="📖 View API Docs",
+                    url=f"{base_url}/api/v1/reseller/docs",
+                    style="primary",
+                    icon_custom_emoji_id=Icons.NOTE,
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="◀️ Back to Portal",
+                    callback_data="open_reseller",
+                    icon_custom_emoji_id=Icons.BACK,
+                )
+            ],
+        ]
+    )
+    if event.message:
+        await event.message.edit_text(text, reply_markup=kb)
+
+
+@router.callback_query(F.data == "reseller_regen_prompt")
+async def reseller_regen_prompt_handler(event: CallbackQuery):
+    text = (
+        f"{ICON_WARNING} <b>Regenerate Reseller API Key?</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n\n"
+        f"⚠️ <b>সতর্কতা:</b>\n"
+        f"নতুন এপিআই কি তৈরি করলে আপনার আগের কি-টি সাথে সাথে নিষ্ক্রিয় (Deactivate) হয়ে যাবে।\n\n"
+        f"আপনার যেসকল বট বা ওয়েবসাইটে আগের কি ইন্টিগ্রেট করা আছে, সেগুলোতে নতুন কি আপডেট না করা পর্যন্ত অর্ডার পাঠানো বন্ধ থাকবে।\n\n"
+        f"আপনি কি নিশ্চিত যে নতুন কি তৈরি করতে চান?"
+    )
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="✅ Yes, Regenerate Key",
+                    callback_data="reseller_regen_confirm",
+                    style="danger",
+                    icon_custom_emoji_id=Icons.CHECK,
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="❌ Cancel",
+                    callback_data="open_reseller",
+                    icon_custom_emoji_id=Icons.CROSS,
+                )
+            ],
+        ]
+    )
+    if event.message:
+        await event.message.edit_text(text, reply_markup=kb)
+
+
+@router.callback_query(F.data == "reseller_regen_confirm")
+async def reseller_regen_confirm_handler(event: CallbackQuery, services: Services):
+    tg_user = event.from_user
+    if not tg_user:
+        return
+    user = await services.users.get(tg_user.id)
+    if not user or (user.get("rank") or "").strip().lower() != "reseller":
+        await event.answer("Access denied.", show_alert=True)
+        return
+
+    raw_key, _ = await services.reseller.generate_key(tg_user.id)
+    cfg = services.config
+    base_url = cfg.webhook_base_url.rstrip("/") if cfg.webhook_base_url else (cfg.webapp_url or "http://127.0.0.1:8000")
+
+    text = (
+        f"{ICON_CHECK} <b>New API Key Generated Successfully!</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n\n"
+        f"🔑 <b>Your New Secret API Key:</b>\n"
+        f"<code>{raw_key}</code>\n\n"
+        f"⚠️ আপনার আগের এপিআই কি নিষ্ক্রিয় করা হয়েছে। আপনার বট বা ওয়েবসাইটে এই নতুন কি-টি কনফিগার করুন।"
+    )
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="📋 Copy New Key",
+                    copy_text=CopyTextButton(text=raw_key),
+                    style="primary",
+                    icon_custom_emoji_id=Icons.NOTE,
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="📖 View API Docs",
+                    url=f"{base_url}/api/v1/reseller/docs",
+                    style="primary",
+                    icon_custom_emoji_id=Icons.NOTE,
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="◀️ Back to Portal",
+                    callback_data="open_reseller",
+                    icon_custom_emoji_id=Icons.BACK,
+                )
+            ],
+        ]
+    )
+    if event.message:
+        await event.message.edit_text(text, reply_markup=kb)
+
+
+@router.callback_query(F.data == "reseller_quick_guide")
+async def reseller_quick_guide_handler(event: CallbackQuery, services: Services):
+    cfg = services.config
+    base_url = cfg.webhook_base_url.rstrip("/") if cfg.webhook_base_url else (cfg.webapp_url or "http://127.0.0.1:8000")
+    docs_url = f"{base_url}/api/v1/reseller/docs"
+
+    text = (
+        f"{ICON_NOTE} <b>Reseller API Quick Integration Guide</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n\n"
+        f"<b>1. Header Authentication:</b>\n"
+        f"প্রতিটি রিকোয়েস্টের হেডারে আপনার API Key পাঠান:\n"
+        f"<code>X-API-Key: rk_live_your_key</code>\n\n"
+        f"<b>2. Endpoints:</b>\n"
+        f"• <code>GET /api/v1/reseller/me</code>\n  ব্যালেন্স ও প্রোফাইল চেক\n"
+        f"• <code>GET /api/v1/reseller/products</code>\n  প্রোডাক্ট লিস্ট ও রিসেলার রেট\n"
+        f"• <code>POST /api/v1/reseller/orders</code>\n  ইনস্ট্যান্ট অর্ডার প্লেস (JSON: <code>{{\"product_id\": 1, \"quantity\": 1}}</code>)\n\n"
+        f"<b>3. Response:</b>\n"
+        f"অর্ডার সফল হলে ক্রেডেনশিয়াল বা লাইসেন্স কি রেসপন্সের <code>credentials</code> ফিল্ডে চলে আসবে!\n\n"
+        f"🌐 <i>বিস্তারিত কোড ও প্যারামিটার দেখতে নিচের লিংকে সম্পূর্ণ ওয়েব ডকুমেন্টেশন ওপেন করুন।</i>"
+    )
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="🌐 Open Full Web Documentation",
+                    url=docs_url,
+                    style="primary",
+                    icon_custom_emoji_id=Icons.GLOBE,
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="◀️ Back to Portal",
+                    callback_data="open_reseller",
+                    icon_custom_emoji_id=Icons.BACK,
+                )
+            ],
+        ]
+    )
+    if event.message:
+        await event.message.edit_text(text, reply_markup=kb)
 
 
 @router.message(Command("orders"))

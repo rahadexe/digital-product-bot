@@ -11,3 +11,8 @@ class NotFoundError(ServiceError):
 
 class InvalidInputError(ServiceError, ValueError):
     pass
+
+
+class PermissionDeniedError(ServiceError):
+    pass
+

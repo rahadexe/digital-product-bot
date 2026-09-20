@@ -8,7 +8,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from app.api import admin, health, payments, telegram
+from app.api import admin, health, payments, reseller, telegram
 from app.api.admin.auth import AdminAuth
 from app.api.errors import register_error_handlers
 from app.api.middleware import SecurityBoundary
@@ -62,6 +62,7 @@ def create_app(services: Services) -> FastAPI:
     app.include_router(telegram.router)
     app.include_router(admin.router)
     app.include_router(payments.router)
+    app.include_router(reseller.router)
 
     @app.get('/app/', include_in_schema=False)
     async def legacy_payment_return(payment: str = ''):
