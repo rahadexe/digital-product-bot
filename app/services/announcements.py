@@ -25,6 +25,7 @@ from app.bot.icons import (
     ICON_SPENT,
     ICON_VIP,
     Icons,
+    tg_icon,
 )
 
 logger = logging.getLogger("app.services.announcements")
@@ -36,18 +37,27 @@ class AnnouncementService:
         self.catalog = catalog
         self.notifier = notifier
 
+    def _product_icon(self, product: dict[str, Any]) -> str:
+        custom_emoji_id = product.get("custom_emoji_id")
+        raw_icon = product.get("icon") or "⚡"
+        if custom_emoji_id and str(custom_emoji_id).strip().isdigit():
+            return tg_icon(str(custom_emoji_id).strip(), raw_icon)
+        return escape(raw_icon)
+
     async def _buy_button(self, product: dict[str, Any], label: str) -> InlineKeyboardMarkup:
         link = f"https://t.me/{await self.notifier.bot_username()}?start=prod_{product['id']}"
+        custom_emoji_id = product.get("custom_emoji_id")
+        btn_kwargs: dict[str, Any] = {
+            "text": label[:64],
+            "url": link,
+            "style": "primary",
+        }
+        if custom_emoji_id and str(custom_emoji_id).strip().isdigit():
+            btn_kwargs["icon_custom_emoji_id"] = str(custom_emoji_id).strip()
+        else:
+            btn_kwargs["icon_custom_emoji_id"] = Icons.CART
         return InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(
-                        text=label[:64],
-                        url=link,
-                        icon_custom_emoji_id=Icons.CART,
-                    )
-                ]
-            ]
+            inline_keyboard=[[InlineKeyboardButton(**btn_kwargs)]]
         )
 
     async def _active_product(self, product_id: int) -> dict[str, Any] | None:
@@ -62,7 +72,7 @@ class AnnouncementService:
             return False
         values = await self.settings.values()
         symbol = escape(values["currency_symbol"])
-        icon, title = escape(product.get("icon") or "⚡"), escape(product["title"])
+        icon, title = self._product_icon(product), escape(product["title"])
         await self.notifier.send_admin(
             f"{ICON_ORDERS} <b>Stock Added (Restock Alert)</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
@@ -98,11 +108,12 @@ class AnnouncementService:
         if not product:
             return False
         symbol = escape(values["currency_symbol"])
+        icon = self._product_icon(product)
         return await self.notifier.send(
             channel,
             f"{ICON_FIRE} <b>Special Price Drop!</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"{ICON_VIP} <b>Product:</b> {escape(product.get('icon') or '⚡')} <b>{escape(product['title'])}</b>\n"
+            f"{ICON_VIP} <b>Product:</b> {icon} <b>{escape(product['title'])}</b>\n"
             f"{ICON_SPENT} <b>Previous Price:</b> <s>{format_dual_price(old_price, symbol)}</s>\n"
             f"{ICON_MONEY} <b>Discounted Price:</b> <code>{format_dual_price(new_price, symbol)}</code>\n"
             f"{ICON_CHECK} <b>Delivery:</b> Instant Automatic Delivery",
@@ -116,12 +127,13 @@ class AnnouncementService:
         if not channel or not product:
             return False
         symbol = escape(values["currency_symbol"])
+        icon = self._product_icon(product)
         desc = f"\n{ICON_NOTE} {escape(product.get('description'))}\n" if product.get("description") else ""
         return await self.notifier.send(
             channel,
             f"{ICON_FIRE} <b>Featured Product</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"{ICON_VIP} <b>Product:</b> {escape(product.get('icon') or '⚡')} <b>{escape(product['title'])}</b>{desc}\n"
+            f"{ICON_VIP} <b>Product:</b> {icon} <b>{escape(product['title'])}</b>{desc}\n"
             f"{ICON_SHOP} <b>Available Stock:</b> <code>{product['stock']} units</code>\n"
             f"{ICON_MONEY} <b>Price:</b> <code>{format_dual_price(product['price'], symbol)}</code>\n"
             f"{ICON_CHECK} <b>Delivery:</b> Instant Automatic Delivery",
