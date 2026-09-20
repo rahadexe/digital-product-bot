@@ -56,27 +56,15 @@ VERIFY_COOLDOWN_SECONDS = 600  # 10 minutes lockout after 3 failed attempts
 _USER_VERIFY_FAILS: dict[int, list[float]] = {}
 
 
-def get_account_type_labels(account_type: str | None) -> tuple[str, str, str]:
-    """Returns (type_display, action_display, default_instruction)"""
+def get_account_type_labels(account_type: str | None) -> tuple[str, str]:
+    """Returns (type_display, action_display)"""
     at = (account_type or "personal").lower()
     if at == "agent":
-        return (
-            "এজেন্ট (Agent)",
-            "ক্যাশ আউট (Cash Out)",
-            "উপরে দেওয়া বিকাশ/নগদ এজেন্ট নাম্বারে ক্যাশ আউট (Cash Out) করবেন এবং তারপরে <b>Payment Done</b> এ ক্লিক করে কত টাকা পেমেন্ট করেছেন সেটা এবং ট্রানজেকশন আইডি দিবেন।"
-        )
+        return ("এজেন্ট (Agent)", "ক্যাশ আউট (Cash Out)")
     elif at == "merchant":
-        return (
-            "মার্চেন্ট (Merchant)",
-            "পেমেন্ট (Make Payment)",
-            "উপরে দেওয়া মার্চেন্ট নাম্বারে পেমেন্ট (Make Payment) করবেন এবং তারপরে <b>Payment Done</b> এ ক্লিক করে কত টাকা পেমেন্ট করেছেন সেটা এবং ট্রানজেকশন আইডি দিবেন।"
-        )
+        return ("মার্চেন্ট (Merchant)", "পেমেন্ট (Make Payment)")
     else:  # personal
-        return (
-            "পার্সোনাল (Personal)",
-            "সেন্ড মানি (Send Money)",
-            "উপরে দেওয়া নাম্বারে সেন্ড মানি (Send Money) করবেন এবং তারপরে <b>Payment Done</b> এ ক্লিক করে কত টাকা পেমেন্ট করেছেন সেটা এবং ট্রানজেকশন আইডি দিবেন।"
-        )
+        return ("পার্সোনাল (Personal)", "সেন্ড মানি (Send Money)")
 
 
 class DepositStates(StatesGroup):
@@ -317,17 +305,7 @@ async def handle_deposit_method_select(query: CallbackQuery, state: FSMContext, 
     if method.get("auto_verify") == "binance_pay":
         coin = setting_values.get("binance_coin", "USDT")
         custom_inst = (setting_values.get("binance_pay_instructions") or "").strip()
-        inst_body = (
-            f"\n\n<b>Instructions:</b>\n{escape(custom_inst)}"
-            if custom_inst
-            else (
-                "\n\n<b>How to pay:</b>\n"
-                "1. Open <b>Binance App</b> → <b>Assets</b> → <b>Send</b>\n"
-                f"2. Select <b>{escape(coin)}</b> → <b>Send to Binance User</b>\n"
-                f"3. Enter Binance UID: <code>{escape(account_info)}</code>\n"
-                f"4. Send <b>{escape(coin)}</b> and tap <b>Payment Done</b> below"
-            )
-        )
+        inst_body = f"\n\n<b>Instructions:</b>\n{escape(custom_inst)}" if custom_inst else ""
         method_icon = get_method_icon(method)
         text = (
             f"{method_icon} <b>{escape(method_name)}</b>\n"
@@ -340,7 +318,7 @@ async def handle_deposit_method_select(query: CallbackQuery, state: FSMContext, 
         )
         reply_kb = get_manual_deposit_invoice_keyboard(account_info, is_binance=True)
     else:
-        type_label, action_label, default_inst = get_account_type_labels(account_type)
+        type_label, action_label = get_account_type_labels(account_type)
         method_icon = get_method_icon(method)
         text = (
             f"{method_icon} <b>{escape(method_name)}</b> ({type_label.split()[0]})\n"
@@ -352,8 +330,8 @@ async def handle_deposit_method_select(query: CallbackQuery, state: FSMContext, 
             f"↳ <b>Minimum Deposit:</b> {price(symbol, min_dep)}"
         )
         custom_instructions = (method.get("instructions") or "").strip()
-        instruction_text = custom_instructions if custom_instructions else default_inst
-        text += f"\n\n<b>Instructions:</b>\n{instruction_text}"
+        if custom_instructions:
+            text += f"\n\n<b>Instructions:</b>\n{escape(custom_instructions)}"
         reply_kb = get_manual_deposit_invoice_keyboard(account_info, is_binance=False)
 
     if query.message:
@@ -401,7 +379,7 @@ async def ask_deposit_input(query: CallbackQuery, state: FSMContext, services: S
     else:
         min_dep = data.get("min_deposit", 1.0)
         account_type = data.get("account_type", "personal")
-        type_label, action_label, _ = get_account_type_labels(account_type)
+        type_label, action_label = get_account_type_labels(account_type)
         await state.set_state(DepositStates.waiting_for_amount)
         method_row = {"name": method_name, "auto_verify": auto_verify}
         method_icon = get_method_icon(method_row)
@@ -670,7 +648,7 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
 
     method_name = data.get("method_name", "Payment")
     account_type = data.get("account_type", "personal")
-    _, action_label, _ = get_account_type_labels(account_type)
+    _, action_label = get_account_type_labels(account_type)
     await message.answer(
         f"{ICON_KEY} <b>ট্রানজ্যাকশন আইডি (TrxID)</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
