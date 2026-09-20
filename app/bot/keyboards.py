@@ -662,10 +662,29 @@ def get_deposit_methods_keyboard(
     if instant_label:
         buttons.append([
             InlineKeyboardButton(
-                text="🌸   🔴   🟣   🟡",
+                text=" ",
                 callback_data="dep_instant",
                 style="success",
-            )
+                icon_custom_emoji_id=Icons.BKASH,
+            ),
+            InlineKeyboardButton(
+                text=" ",
+                callback_data="dep_instant",
+                style="success",
+                icon_custom_emoji_id=Icons.NAGAD,
+            ),
+            InlineKeyboardButton(
+                text=" ",
+                callback_data="dep_instant",
+                style="success",
+                icon_custom_emoji_id=Icons.ROCKET_METHOD,
+            ),
+            InlineKeyboardButton(
+                text=" ",
+                callback_data="dep_instant",
+                style="success",
+                icon_custom_emoji_id=Icons.BINANCE,
+            ),
         ])
 
     if back_target:
