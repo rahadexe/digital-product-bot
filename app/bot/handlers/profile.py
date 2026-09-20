@@ -59,15 +59,30 @@ INLINE_CREDENTIAL_LIMIT = 500
 @router.message(Command("me"))
 @router.message(Command("profile"))
 @router.message(Command("balance"))
-@router.message(F.text == "👤 Profile")
-@router.message(F.text == "👤 My Profile")
+@router.message(Command("account"))
+@router.message(F.text.in_({
+    "My Profile",
+    "my profile",
+    "👤 My Profile",
+    "Profile",
+    "profile",
+    "👤 Profile",
+    "Account",
+    "account",
+    "👤 Account",
+    "💼 Account",
+    "Balance",
+    "balance",
+    "💰 Balance",
+    "💰 My Balance",
+    "My Balance",
+    "my balance",
+    "আমার প্রোফাইল",
+    "প্রোফাইল",
+    "ব্যালেন্স",
+}))
+@router.message(F.text.casefold() == "my profile")
 @router.message(F.text.casefold() == "profile")
-@router.message(F.text == "আমার প্রোফাইল")
-@router.message(F.text == "প্রোফাইল")
-@router.message(F.text == "ব্যালেন্স")
-@router.message(F.text == "💰 Balance")
-@router.message(F.text == "💰 My Balance")
-@router.message(F.text == "💼 Account")
 @router.message(F.text.casefold() == "account")
 @router.message(F.text.casefold() == "balance")
 @router.callback_query(F.data == "open_account")
@@ -254,10 +269,24 @@ async def show_reseller_info(event: Message | CallbackQuery, state: FSMContext, 
 
 
 @router.message(Command("orders"))
-@router.message(F.text == "📦 Orders")
-@router.message(F.text == "📦 My Orders")
-@router.message(F.text == "📦 Order History")
+@router.message(Command("order"))
+@router.message(Command("history"))
+@router.message(F.text.in_({
+    "Orders",
+    "orders",
+    "📦 Orders",
+    "My Orders",
+    "my orders",
+    "📦 My Orders",
+    "Order History",
+    "order history",
+    "📦 Order History",
+    "আমার অর্ডার",
+    "অর্ডার",
+}))
 @router.message(F.text.casefold() == "orders")
+@router.message(F.text.casefold() == "my orders")
+@router.message(F.text.casefold() == "order history")
 @router.callback_query(F.data == "open_orders")
 @router.callback_query(F.data.startswith("orders_page_"))
 async def show_order_history(event: Message | CallbackQuery, state: FSMContext, services: Services):
