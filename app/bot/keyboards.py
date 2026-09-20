@@ -20,6 +20,7 @@ from app.bot.icons import Icons
 def get_persistent_reply_keyboard(
     pinned_categories: List[Dict[str, Any]] | None = None,
     has_unpinned: bool = False,
+    is_reseller: bool = False,
 ) -> ReplyKeyboardMarkup:
     """
     Fully dynamic persistent reply keyboard:
@@ -61,8 +62,9 @@ def get_persistent_reply_keyboard(
         KeyboardButton(text="My Profile", style="primary", icon_custom_emoji_id=Icons.ACCOUNT),
         KeyboardButton(text="Support", style="primary", icon_custom_emoji_id=Icons.SUPPORT),
     ])
+    reseller_text = "Reseller Panel" if is_reseller else "Apply as a Reseller"
     rows.append([
-        KeyboardButton(text="Apply as a Reseller", style="success", icon_custom_emoji_id=Icons.RESELLER),
+        KeyboardButton(text=reseller_text, style="success", icon_custom_emoji_id=Icons.RESELLER),
     ])
 
     return ReplyKeyboardMarkup(
@@ -243,8 +245,9 @@ def get_gate_keyboard(channels: List[Dict[str, Any]]) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def get_main_inline_dashboard(channel_url: str | None = None) -> InlineKeyboardMarkup:
+def get_main_inline_dashboard(channel_url: str | None = None, is_reseller: bool = False) -> InlineKeyboardMarkup:
     """Inline dashboard — 9 core action buttons matching the PremiumHaven banner."""
+    reseller_btn_text = "Reseller Panel" if is_reseller else "Apply as a Reseller"
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -264,7 +267,7 @@ def get_main_inline_dashboard(channel_url: str | None = None) -> InlineKeyboardM
                 InlineKeyboardButton(text="Support", callback_data="open_support", style="primary", icon_custom_emoji_id=Icons.SUPPORT),
             ],
             [
-                InlineKeyboardButton(text="Apply as a Reseller", callback_data="open_reseller", style="success", icon_custom_emoji_id=Icons.RESELLER),
+                InlineKeyboardButton(text=reseller_btn_text, callback_data="open_reseller", style="success", icon_custom_emoji_id=Icons.RESELLER),
             ],
         ]
     )

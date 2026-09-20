@@ -31,12 +31,14 @@ from app.bot.icons import (
     ICON_ID,
     ICON_KEY,
     ICON_LIGHTNING,
+    ICON_LOCK,
     ICON_MONEY,
     ICON_NOTE,
     ICON_ORDERS,
     ICON_REFER,
     ICON_RESELLER,
     ICON_ROCKET,
+    ICON_SHIELD,
     ICON_SPARKLES,
     ICON_SPENT,
     ICON_STATS,
@@ -207,7 +209,17 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
 
 
 @router.message(Command("reseller"))
-@router.message(F.text.in_({"💼 Apply as a Reseller", "Apply as a Reseller", "apply as a reseller", "reseller", "রিসেলার"}))
+@router.message(F.text.in_({
+    "💼 Apply as a Reseller",
+    "Apply as a Reseller",
+    "apply as a reseller",
+    "Reseller Panel",
+    "💼 Reseller Panel",
+    "reseller panel",
+    "reseller",
+    "রিসেলার",
+    "রিসেলার প্যানেল",
+}))
 @router.callback_query(F.data == "open_reseller")
 async def show_reseller_info(event: Message | CallbackQuery, state: FSMContext, services: Services):
     await state.clear()
@@ -245,13 +257,13 @@ async def show_reseller_info(event: Message | CallbackQuery, state: FSMContext, 
         if active_key:
             rows.append([
                 InlineKeyboardButton(
-                    text="🔑 Key Info",
+                    text="Key Info",
                     callback_data="reseller_reveal_key",
                     style="primary",
                     icon_custom_emoji_id=Icons.KEY,
                 ),
                 InlineKeyboardButton(
-                    text="🔄 Regenerate Key",
+                    text="Regenerate Key",
                     callback_data="reseller_regen_prompt",
                     style="danger",
                     icon_custom_emoji_id=Icons.REFRESH,
@@ -260,7 +272,7 @@ async def show_reseller_info(event: Message | CallbackQuery, state: FSMContext, 
         else:
             rows.append([
                 InlineKeyboardButton(
-                    text="🔑 Generate API Key",
+                    text="Generate API Key",
                     callback_data="reseller_generate_key",
                     style="success",
                     icon_custom_emoji_id=Icons.KEY,
@@ -269,13 +281,13 @@ async def show_reseller_info(event: Message | CallbackQuery, state: FSMContext, 
 
         rows.append([
             InlineKeyboardButton(
-                text="📖 View API Docs",
+                text="View API Docs",
                 url=docs_url,
                 style="primary",
                 icon_custom_emoji_id=Icons.NOTE,
             ),
             InlineKeyboardButton(
-                text="📋 Quick Guide",
+                text="Quick Guide",
                 callback_data="reseller_quick_guide",
                 style="primary",
                 icon_custom_emoji_id=Icons.LIGHTNING,
@@ -283,8 +295,9 @@ async def show_reseller_info(event: Message | CallbackQuery, state: FSMContext, 
         ])
         rows.append([
             InlineKeyboardButton(
-                text="◀️ My Profile",
+                text="My Profile",
                 callback_data="open_account",
+                style="primary",
                 icon_custom_emoji_id=Icons.BACK,
             )
         ])
@@ -368,19 +381,19 @@ async def reseller_generate_key_handler(event: CallbackQuery, services: Services
     text = (
         f"{ICON_CHECK} <b>Reseller API Key Generated!</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n\n"
-        f"🔑 <b>Your Secret API Key:</b>\n"
+        f"{ICON_KEY} <b>Your Secret API Key:</b>\n"
         f"<code>{raw_key}</code>\n\n"
-        f"⚠️ <b>Important Security Notice:</b>\n"
+        f"{ICON_WARNING} <b>Important Security Notice:</b>\n"
         f"• এই এপিআই কি-টি সম্পূর্ণ গোপন রাখুন। এর মাধ্যমে আপনার ওয়ালেট ব্যালেন্স ব্যবহার করে কেনাকাটা করা সম্ভব।\n"
         f"• এটি শুধুমাত্র একবারই সম্পূর্ণ প্রদর্শিত হবে। কপি করে নিরাপদ স্থানে সংরক্ষণ করুন।\n\n"
-        f"🌐 <b>API Base URL:</b>\n<code>{base_url}/api/v1/reseller</code>"
+        f"{ICON_GLOBE} <b>API Base URL:</b>\n<code>{base_url}/api/v1/reseller</code>"
     )
 
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="📋 Copy API Key",
+                    text="Copy API Key",
                     copy_text=CopyTextButton(text=raw_key),
                     style="primary",
                     icon_custom_emoji_id=Icons.NOTE,
@@ -388,7 +401,7 @@ async def reseller_generate_key_handler(event: CallbackQuery, services: Services
             ],
             [
                 InlineKeyboardButton(
-                    text="📖 View API Docs",
+                    text="View API Docs",
                     url=f"{base_url}/api/v1/reseller/docs",
                     style="primary",
                     icon_custom_emoji_id=Icons.NOTE,
@@ -396,8 +409,9 @@ async def reseller_generate_key_handler(event: CallbackQuery, services: Services
             ],
             [
                 InlineKeyboardButton(
-                    text="◀️ Back to Portal",
+                    text="Back to Portal",
                     callback_data="open_reseller",
+                    style="danger",
                     icon_custom_emoji_id=Icons.BACK,
                 )
             ],
@@ -423,17 +437,17 @@ async def reseller_reveal_key_handler(event: CallbackQuery, services: Services):
     text = (
         f"{ICON_KEY} <b>Reseller API Key Info</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n\n"
-        f"🔐 <b>Active Key Prefix:</b> <code>{active_key['key_prefix']}</code>\n"
-        f"📅 <b>Created At:</b> {active_key['created_at'].strftime('%Y-%m-%d %H:%M') if active_key.get('created_at') else 'N/A'}\n"
-        f"🕒 <b>Last Used:</b> {active_key['last_used_at'].strftime('%Y-%m-%d %H:%M') if active_key.get('last_used_at') else 'Never'}\n\n"
-        f"🔒 <i>সর্বোচ্চ নিরাপত্তার জন্য সম্পূর্ণ সিক্রেট কি ডাটাবেজে এনক্রিপ্ট/হ্যাশ আকারে সংরক্ষিত থাকে। আপনি যদি আপনার পূর্বের কি হারিয়ে ফেলেন, তবে নিচে থেকে নতুন কি জেনারেট (Regenerate) করতে পারবেন।</i>"
+        f"{ICON_LOCK} <b>Active Key Prefix:</b> <code>{active_key['key_prefix']}</code>\n"
+        f"{ICON_TIMER} <b>Created At:</b> {active_key['created_at'].strftime('%Y-%m-%d %H:%M') if active_key.get('created_at') else 'N/A'}\n"
+        f"{ICON_STATS} <b>Last Used:</b> {active_key['last_used_at'].strftime('%Y-%m-%d %H:%M') if active_key.get('last_used_at') else 'Never'}\n\n"
+        f"{ICON_SHIELD} <i>সর্বোচ্চ নিরাপত্তার জন্য সম্পূর্ণ সিক্রেট কি ডাটাবেজে এনক্রিপ্ট/হ্যাশ আকারে সংরক্ষিত থাকে। আপনি যদি আপনার পূর্বের কি হারিয়ে ফেলেন, তবে নিচে থেকে নতুন কি জেনারেট (Regenerate) করতে পারবেন।</i>"
     )
 
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="🔄 Regenerate Key",
+                    text="Regenerate Key",
                     callback_data="reseller_regen_prompt",
                     style="danger",
                     icon_custom_emoji_id=Icons.REFRESH,
@@ -441,7 +455,7 @@ async def reseller_reveal_key_handler(event: CallbackQuery, services: Services):
             ],
             [
                 InlineKeyboardButton(
-                    text="📖 View API Docs",
+                    text="View API Docs",
                     url=f"{base_url}/api/v1/reseller/docs",
                     style="primary",
                     icon_custom_emoji_id=Icons.NOTE,
@@ -449,8 +463,9 @@ async def reseller_reveal_key_handler(event: CallbackQuery, services: Services):
             ],
             [
                 InlineKeyboardButton(
-                    text="◀️ Back to Portal",
+                    text="Back to Portal",
                     callback_data="open_reseller",
+                    style="primary",
                     icon_custom_emoji_id=Icons.BACK,
                 )
             ],
@@ -465,7 +480,7 @@ async def reseller_regen_prompt_handler(event: CallbackQuery):
     text = (
         f"{ICON_WARNING} <b>Regenerate Reseller API Key?</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n\n"
-        f"⚠️ <b>সতর্কতা:</b>\n"
+        f"{ICON_WARNING} <b>সতর্কতা:</b>\n"
         f"নতুন এপিআই কি তৈরি করলে আপনার আগের কি-টি সাথে সাথে নিষ্ক্রিয় (Deactivate) হয়ে যাবে।\n\n"
         f"আপনার যেসকল বট বা ওয়েবসাইটে আগের কি ইন্টিগ্রেট করা আছে, সেগুলোতে নতুন কি আপডেট না করা পর্যন্ত অর্ডার পাঠানো বন্ধ থাকবে।\n\n"
         f"আপনি কি নিশ্চিত যে নতুন কি তৈরি করতে চান?"
@@ -474,7 +489,7 @@ async def reseller_regen_prompt_handler(event: CallbackQuery):
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="✅ Yes, Regenerate Key",
+                    text="Yes, Regenerate Key",
                     callback_data="reseller_regen_confirm",
                     style="danger",
                     icon_custom_emoji_id=Icons.CHECK,
@@ -482,8 +497,9 @@ async def reseller_regen_prompt_handler(event: CallbackQuery):
             ],
             [
                 InlineKeyboardButton(
-                    text="❌ Cancel",
+                    text="Cancel",
                     callback_data="open_reseller",
+                    style="primary",
                     icon_custom_emoji_id=Icons.CROSS,
                 )
             ],
@@ -510,15 +526,15 @@ async def reseller_regen_confirm_handler(event: CallbackQuery, services: Service
     text = (
         f"{ICON_CHECK} <b>New API Key Generated Successfully!</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n\n"
-        f"🔑 <b>Your New Secret API Key:</b>\n"
+        f"{ICON_KEY} <b>Your New Secret API Key:</b>\n"
         f"<code>{raw_key}</code>\n\n"
-        f"⚠️ আপনার আগের এপিআই কি নিষ্ক্রিয় করা হয়েছে। আপনার বট বা ওয়েবসাইটে এই নতুন কি-টি কনফিগার করুন।"
+        f"{ICON_WARNING} আপনার আগের এপিআই কি নিষ্ক্রিয় করা হয়েছে। আপনার বট বা ওয়েবসাইটে এই নতুন কি-টি কনফিগার করুন।"
     )
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="📋 Copy New Key",
+                    text="Copy New Key",
                     copy_text=CopyTextButton(text=raw_key),
                     style="primary",
                     icon_custom_emoji_id=Icons.NOTE,
@@ -526,7 +542,7 @@ async def reseller_regen_confirm_handler(event: CallbackQuery, services: Service
             ],
             [
                 InlineKeyboardButton(
-                    text="📖 View API Docs",
+                    text="View API Docs",
                     url=f"{base_url}/api/v1/reseller/docs",
                     style="primary",
                     icon_custom_emoji_id=Icons.NOTE,
@@ -534,8 +550,9 @@ async def reseller_regen_confirm_handler(event: CallbackQuery, services: Service
             ],
             [
                 InlineKeyboardButton(
-                    text="◀️ Back to Portal",
+                    text="Back to Portal",
                     callback_data="open_reseller",
+                    style="danger",
                     icon_custom_emoji_id=Icons.BACK,
                 )
             ],
@@ -569,7 +586,7 @@ async def reseller_quick_guide_handler(event: CallbackQuery, services: Services)
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="🌐 Open Full Web Documentation",
+                    text="Open Web Docs",
                     url=docs_url,
                     style="primary",
                     icon_custom_emoji_id=Icons.GLOBE,
@@ -577,8 +594,9 @@ async def reseller_quick_guide_handler(event: CallbackQuery, services: Services)
             ],
             [
                 InlineKeyboardButton(
-                    text="◀️ Back to Portal",
+                    text="Back to Portal",
                     callback_data="open_reseller",
+                    style="danger",
                     icon_custom_emoji_id=Icons.BACK,
                 )
             ],

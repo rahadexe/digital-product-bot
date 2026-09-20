@@ -25,6 +25,7 @@ NAVIGATION_TEXTS = {
     "My Profile": "account",
     "Support": "support",
     "Apply as a Reseller": "reseller",
+    "Reseller Panel": "reseller",
     # Legacy / Emoji variations
     "🛡️ Buy VPN": "vpn",
     "🌐 Proxy Hub": "proxy",
@@ -34,6 +35,9 @@ NAVIGATION_TEXTS = {
     "🎁 Refer & Earn": "referral",
     "👤 My Profile": "account",
     "💼 Apply as a Reseller": "reseller",
+    "💼 Reseller Panel": "reseller",
+    "reseller panel": "reseller",
+    "রিসেলার প্যানেল": "reseller",
     # Shop
     "🛍️ Products": "other_products",
     "🛒 Products": "other_products",
