@@ -305,7 +305,7 @@ def get_support_keyboard(
         handle = support_handle.lstrip("@")
         rows.append([
             InlineKeyboardButton(
-                text="Contact Support",
+                text="Support",
                 url=f"https://t.me/{handle}",
                 style="primary",
                 icon_custom_emoji_id=Icons.SUPPORT,

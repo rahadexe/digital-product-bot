@@ -716,7 +716,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         kb = [[InlineKeyboardButton(text="🏠 Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)]]
         if support_user:
             clean_sup = support_user.lstrip("@")
-            kb.insert(0, [InlineKeyboardButton(text="Contact Support", url=f"https://t.me/{clean_sup}", icon_custom_emoji_id=Icons.SUPPORT)])
+            kb.insert(0, [InlineKeyboardButton(text="Support", url=f"https://t.me/{clean_sup}", icon_custom_emoji_id=Icons.SUPPORT)])
         if is_binance:
             await message.answer(
                 f"{ICON_CROSS} <b>Verification Paused!</b>\n"
@@ -792,7 +792,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                 kb = [[InlineKeyboardButton(text="🏠 Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)]]
                 if support_user:
                     clean_sup = support_user.lstrip("@")
-                    kb.insert(0, [InlineKeyboardButton(text="Contact Support", url=f"https://t.me/{clean_sup}", icon_custom_emoji_id=Icons.SUPPORT)])
+                    kb.insert(0, [InlineKeyboardButton(text="Support", url=f"https://t.me/{clean_sup}", icon_custom_emoji_id=Icons.SUPPORT)])
                 if is_binance:
                     text = (
                         f"{ICON_CROSS} <b>Payment Already Processed ({MAX_VERIFY_ATTEMPTS}/{MAX_VERIFY_ATTEMPTS})</b>\n"
@@ -978,7 +978,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                     kb = [[InlineKeyboardButton(text="🏠 Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)]]
                     if support_user:
                         clean_sup = support_user.lstrip("@")
-                        kb.insert(0, [InlineKeyboardButton(text="Contact Support", url=f"https://t.me/{clean_sup}", icon_custom_emoji_id=Icons.SUPPORT)])
+                        kb.insert(0, [InlineKeyboardButton(text="Support", url=f"https://t.me/{clean_sup}", icon_custom_emoji_id=Icons.SUPPORT)])
                     await _safe_edit_or_answer(
                         status_msg,
                         message,

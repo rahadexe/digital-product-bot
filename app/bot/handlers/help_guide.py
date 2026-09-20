@@ -53,7 +53,7 @@ async def show_guide_info(event: Message | CallbackQuery, state: FSMContext, ser
     guide = await services.settings.get("guide_text")
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Contact Support", callback_data="open_support", style="primary", icon_custom_emoji_id=Icons.SUPPORT)],
+            [InlineKeyboardButton(text="Support", callback_data="open_support", style="primary", icon_custom_emoji_id=Icons.SUPPORT)],
         ]
     )
 
