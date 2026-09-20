@@ -13,7 +13,8 @@ SELECT
     (SELECT COUNT(*) FROM orders WHERE status = 'completed') AS total_orders,
     (SELECT COALESCE(SUM(price), 0) FROM orders WHERE status = 'completed') AS total_revenue,
     (SELECT COUNT(*) FROM orders WHERE status = 'completed' AND fulfillment = 'delivered') AS delivered_orders,
-    (SELECT COALESCE(SUM(max_uses - uses), 0) FROM inventory_items WHERE status = 'available') AS available_stock,
+    (SELECT COALESCE(SUM(max_uses - uses), 0) FROM inventory_items WHERE status = 'available'
+       AND (expires_at IS NULL OR expires_at > now())) AS available_stock,
     (SELECT COUNT(*) FROM deposits WHERE status = 'pending') AS pending_deposits,
     (SELECT COUNT(*) FROM orders WHERE status = 'completed' AND fulfillment = 'waiting') AS waiting_orders
 """
@@ -42,7 +43,7 @@ SELECT
     COALESCE(SUM(o.price), 0)::float AS revenue,
     COUNT(o.id)::int AS orders
 FROM days d
-LEFT JOIN orders o ON DATE(o.created_at) = d.day AND o.status = 'completed'
+LEFT JOIN orders o ON o.created_at >= d.day AND o.created_at < d.day + interval '1 day' AND o.status = 'completed'
 GROUP BY d.day
 ORDER BY d.day ASC
 """

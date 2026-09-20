@@ -68,7 +68,7 @@ class DeliveryWorker:
                 )
             else:
                 reply_markup = None
-                if order and order.get('delivered_item'):
+                if order and order.get('delivered_item') and len(order['delivered_item']) <= 256:
                     reply_markup = InlineKeyboardMarkup(
                         inline_keyboard=[
                             [InlineKeyboardButton(text="Copy Credentials", copy_text=CopyTextButton(text=order['delivered_item']), style="success", icon_custom_emoji_id=Icons.KEY)]

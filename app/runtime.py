@@ -33,7 +33,7 @@ async def run(role: str, config: Settings) -> None:
         if role in ("all", "web") and services.notifier.bot is not None:
             from app.bot.app import create_dispatcher
 
-            services.runtime.dispatcher = create_dispatcher(services, storage=build_storage(config))
+            services.runtime.dispatcher = create_dispatcher(services, storage=build_storage(config, services.db))
 
         components: list[Coroutine[Any, Any, None]] = []
         if role in ("all", "web"):
@@ -50,6 +50,8 @@ async def run(role: str, config: Settings) -> None:
                     components.append(run_polling(services))
                 else:
                     components.append(run_webhook(services))
+                    from app.workers.telegram import TelegramInboxWorker
+                    components.append(TelegramInboxWorker(services).run())
             if role in ("all", "worker"):
                 components.append(run_worker(services))
 
@@ -98,13 +100,14 @@ async def run_web(services: Services) -> None:
         await asyncio.wait({serving}, timeout=5)
 
 
-def build_storage(config: Settings) -> BaseStorage:
+def build_storage(config: Settings, db) -> BaseStorage:
     """Conversation state for the bot; Redis keeps it across restarts and replicas."""
     if config.redis_url:
         from aiogram.fsm.storage.redis import RedisStorage
 
         return RedisStorage.from_url(config.redis_url)
-    return MemoryStorage()
+    from app.bot.storage import PostgresStorage
+    return PostgresStorage(db)
 
 
 async def run_polling(services: Services) -> None:

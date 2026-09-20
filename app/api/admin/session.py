@@ -25,7 +25,6 @@ async def login(payload: LoginPayload, request: Request, response: Response, ser
         async with services.db.connect() as conn:
             await record(conn, "login_rate_limited", f"Admin login blocked from {ip}")
         raise HTTPException(429, "Too many attempts. Try again in five minutes.", headers={"Retry-After": "300"})
-    await services.admin_access.record_attempt(ip)
     if not auth.verify_password(payload.password):
         async with services.db.connect() as conn:
             await record(conn, "login_failed", f"Invalid admin password from {ip}")

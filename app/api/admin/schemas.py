@@ -150,21 +150,6 @@ class BanPayload(BaseModel):
     banned: bool
 
 
-class SupplierAttemptReview(Payload):
-    verified_no_charge: bool
-    reason: str = Field(min_length=10, max_length=1000)
-
-
-class SupplierSyncPayload(Payload):
-    markup_percent: float = Field(25.0, ge=0.0, le=500.0)
-    fixed_markup: float = Field(0.0, ge=0.0, le=AMOUNT_LIMIT)
-    overwrite_prices: bool = False
-
-
-class SupplierItemPricePayload(Payload):
-    price: float = Field(gt=0.0, le=AMOUNT_LIMIT)
-
-
 class UserRankPayload(Payload):
     rank: str = Field(min_length=1, max_length=50)
 

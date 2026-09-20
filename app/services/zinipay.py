@@ -20,6 +20,7 @@ from app.services.deposits import DepositService, DuplicateTransactionError
 from app.services.errors import InvalidInputError
 from app.services.notifications import Notifier
 from app.services.settings import SettingsService
+from app.services.http import gateway_http
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,7 @@ class ZiniPayVerificationService:
         self.notifier = notifier
         self.config = config
         self.timeout = timeout
+        self.http = gateway_http(timeout)
 
     async def get_api_key(self) -> str:
         """Fetch ZiniPay API key from DB settings, falling back to config / env."""
@@ -55,7 +57,7 @@ class ZiniPayVerificationService:
     async def is_enabled(self) -> bool:
         """Check if ZiniPay verification API is enabled with an API key."""
         key = await self.get_api_key()
-        return bool(key)
+        return bool(key) and await self.settings.flag("zinipay_enabled")
 
     async def verify(self, amount: float, transaction_id: str) -> dict[str, Any]:
         """Step 1: Validate transaction existence, amount, and status."""
@@ -77,13 +79,12 @@ class ZiniPayVerificationService:
         }
 
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                res = await client.post(url, json=payload, headers=headers)
-                status = res.status_code
-                try:
-                    data = res.json()
-                except Exception:
-                    data = {}
+            res = await self.http.post(url, json=payload, headers=headers)
+            status = res.status_code
+            try:
+                data = res.json()
+            except Exception:
+                data = {}
         except Exception as exc:
             logger.warning("ZiniPay verify connection error: %s", exc)
             return {"ok": False, "reason": "connection_error", "message": f"Connection error: {exc}"}
@@ -141,13 +142,12 @@ class ZiniPayVerificationService:
         }
 
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                res = await client.post(url, json=payload, headers=headers)
-                status = res.status_code
-                try:
-                    data = res.json()
-                except Exception:
-                    data = {}
+            res = await self.http.post(url, json=payload, headers=headers)
+            status = res.status_code
+            try:
+                data = res.json()
+            except Exception:
+                data = {}
         except Exception as exc:
             logger.warning("ZiniPay confirm connection error: %s", exc)
             return {"ok": False, "message": f"Connection error: {exc}"}
@@ -203,12 +203,12 @@ class ZiniPayVerificationService:
 
         # 3. Step 1: Verify via ZiniPay
         verify_res = await self.verify(amount, clean_tx)
-        logger.info("ZiniPay verify response for tx %s (amount %s): %s", clean_tx, amount, verify_res)
+        logger.info("ZiniPay verification outcome: ok=%s", verify_res.get("ok"))
         if not verify_res.get("ok") and verify_res.get("reason") == "not_found":
             logger.info("Trx %s not found on first attempt. Waiting 3s for SMS sync retry...", clean_tx)
             await asyncio.sleep(3.0)
             verify_res = await self.verify(amount, clean_tx)
-            logger.info("ZiniPay retry response for tx %s: %s", clean_tx, verify_res)
+            logger.info("ZiniPay verification retry: ok=%s", verify_res.get("ok"))
         if not verify_res.get("ok"):
             reason = verify_res.get("reason")
             msg = verify_res.get("message") or ""
@@ -244,52 +244,64 @@ class ZiniPayVerificationService:
                     "detail": f"Verification unavailable ({msg}). Submitted for admin review.",
                 }
 
-        # 4. Step 2: Confirm via ZiniPay
+        # Reserve locally before the irreversible external confirmation. Every crash
+        # after this point leaves a reviewable deposit and a durable attempt.
         verify_id = verify_res.get("id")
-        confirm_res = await self.confirm(amount, clean_tx, verify_id)
-        if not confirm_res.get("ok"):
-            # Fallback to manual review if confirmation failed
-            confirm_msg = confirm_res.get("message") or "Confirm failed"
-            dep_id = await self.deposits.create_request(
-                tg_user_id, method_id, amount, clean_tx, quoted_rate=quoted_rate, admin_note=f"ZiniPay Confirm Error: {confirm_msg}"
+        if verify_id is None:
+            raise InvalidInputError("The gateway returned an incomplete verification. Please try again.")
+        dep_id = await self.deposits.create_request(
+            tg_user_id, method_id, amount, clean_tx, quoted_rate=quoted_rate,
+            verification_id=str(verify_id), admin_note="Automatic verification in progress.",
+        )
+        async with self.db.transaction() as conn:
+            await conn.execute(
+                "UPDATE payment_verification_attempts SET status='confirming',updated_at=now() WHERE deposit_id=$1", dep_id
             )
-            return {
-                "auto_verified": False,
-                "fallback_manual": True,
-                "deposit_id": dep_id,
-                "detail": f"Verification confirmed with note: {confirm_msg}. Submitted for admin review.",
-            }
-
-        # 5. Success! Create and instantly approve the deposit
+        confirm_res = await self.confirm(amount, clean_tx, verify_id)
         provider = confirm_res.get("provider") or verify_res.get("provider") or "bKash/Nagad"
         sender = confirm_res.get("sender_number") or verify_res.get("sender") or ""
-        dep_id = await self.deposits.create_request(
-            tg_user_id, method_id, amount, clean_tx, quoted_rate=quoted_rate
-        )
-
         note = f"Auto-verified via ZiniPay ({provider})"
-        if sender:
-            note += f", Sender: {sender}"
-
-        # Approve and credit user wallet immediately (notify_customer=False so the bot handler sends the rich receipt)
-        approved, app_msg, _ = await self.deposits.approve(dep_id, admin_note=note, notify_customer=False)
-        if not approved:
-            logger.error("Failed to approve auto-verified ZiniPay deposit #%s: %s", dep_id, app_msg)
-
+        if not confirm_res.get("ok"):
+            note = "Gateway confirmation uncertain; verify the merchant statement before approval. " + str(confirm_res.get("message") or "")[:200]
         async with self.db.transaction() as conn:
-            await record(
-                conn,
-                "zinipay_deposit_auto_verified",
-                f"Deposit #{dep_id}: {amount:.2f} BDT auto-verified via {provider} ({clean_tx})",
+            await conn.execute(
+                "UPDATE payment_verification_attempts SET status=$2,note=$3,updated_at=now() WHERE deposit_id=$1",
+                dep_id, "confirmed" if confirm_res.get("ok") else "review", note,
             )
+            await conn.execute("UPDATE deposits SET admin_note=$2 WHERE id=$1 AND status='pending'", dep_id, note)
+        if not confirm_res.get("ok"):
+            return {"auto_verified": False, "fallback_manual": True, "deposit_id": dep_id,
+                    "detail": "Your payment is saved for review. Please do not pay again."}
 
-        return {
-            "auto_verified": True,
-            "credited": True,
-            "deposit_id": dep_id,
-            "amount": amount,
-            "provider": provider,
-            "sender": sender,
-            "transaction_id": clean_tx,
-            "detail": f"Confirmed and credited instantly via {provider}.",
-        }
+        approved, app_msg, _ = await self.deposits.approve(dep_id, admin_note=note, notify_customer=False)
+        async with self.db.transaction() as conn:
+            persisted = await conn.fetchval("SELECT status FROM deposits WHERE id=$1", dep_id)
+            if persisted == "approved":
+                await conn.execute("UPDATE payment_verification_attempts SET status='completed',updated_at=now() WHERE deposit_id=$1", dep_id)
+        if persisted != "approved":
+            return {"auto_verified": False, "fallback_manual": True, "deposit_id": dep_id,
+                    "detail": "Payment confirmation is saved. " + app_msg}
+        return {"auto_verified": True, "credited": True, "deposit_id": dep_id, "amount": amount,
+                "provider": provider, "sender": sender, "transaction_id": clean_tx,
+                "detail": "Payment confirmed and wallet credited."}
+
+    async def recover(self) -> None:
+        """Confirmed outcomes can be replayed; ambiguous provider calls need review."""
+        async with self.db.transaction() as conn:
+            stale = await conn.fetch(
+                "UPDATE payment_verification_attempts SET status='review',updated_at=now(), "
+                "note='Interrupted gateway confirmation. Check the merchant statement; do not ask the customer to pay again.' "
+                "WHERE status IN ('reserved','confirming') AND updated_at < now()-interval '2 minutes' RETURNING deposit_id,note"
+            )
+            for row in stale:
+                await conn.execute("UPDATE deposits SET admin_note=$2 WHERE id=$1 AND status='pending'", row['deposit_id'], row['note'])
+            confirmed = await conn.fetch(
+                "SELECT deposit_id,note FROM payment_verification_attempts WHERE status='confirmed' ORDER BY updated_at LIMIT 20"
+            )
+        for row in confirmed:
+            await self.deposits.approve(row['deposit_id'], row['note'])
+            async with self.db.connect() as conn:
+                await conn.execute(
+                    "UPDATE payment_verification_attempts SET status=CASE WHEN d.status='approved' THEN 'completed' ELSE 'review' END, "
+                    "updated_at=now() FROM deposits d WHERE d.id=deposit_id AND deposit_id=$1 AND d.status<>'pending'", row['deposit_id']
+                )

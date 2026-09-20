@@ -112,6 +112,7 @@ class UserService:
                 "INSERT INTO referral_rewards (referrer_tg_id, referred_tg_id, amount) VALUES ($1, $2, $3)",
                 referrer_id, tg_user_id, reward_amount
             )
+            await conn.execute("SELECT set_config('app.wallet_reason',$1,true)", f"referral:{tg_user_id}")
             await conn.execute(
                 """
                 UPDATE users
@@ -217,6 +218,7 @@ class UserService:
             new_balance = round(row["balance"] + delta, 4)
             if new_balance < 0:
                 raise InvalidInputError("Adjustment would make the wallet negative.")
+            await conn.execute("SELECT set_config('app.wallet_reason',$1,true)", f"admin_adjustment:{reason[:300]}")
             user = await conn.fetchrow(
                 "UPDATE users SET balance = $1, updated_at = now() WHERE tg_user_id = $2 RETURNING *",
                 new_balance,

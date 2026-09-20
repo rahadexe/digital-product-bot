@@ -118,7 +118,7 @@ export interface Order {
   delivered_item: string;
   status: string;
   created_at: string;
-  /** 'waiting': paid, but nothing has been sent yet (the supplier could not deliver). */
+  /** 'waiting': a paid manual order awaiting fulfillment. */
   fulfillment: 'delivered' | 'waiting';
   source: 'stock' | 'supplier' | 'manual' | 'legacy';
   fulfilled_at?: string | null;
@@ -127,7 +127,6 @@ export interface Order {
 export interface OrderDetail {
   order: Order & { customer_balance?: number };
   stock_item: { id: number; max_uses: number; uses: number; status: string } | null;
-  supplier_attempts: { id: number; status: string; provider_request_id: string; created_at: string }[];
   messages: { id: number; text: string; status: string; attempts: number; error: string; is_receipt: boolean }[];
 }
 

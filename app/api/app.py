@@ -63,6 +63,11 @@ def create_app(services: Services) -> FastAPI:
     app.include_router(admin.router)
     app.include_router(payments.router)
 
+    @app.get('/app/', include_in_schema=False)
+    async def legacy_payment_return(payment: str = ''):
+        from urllib.parse import urlencode
+        return RedirectResponse('/api/payments/return?' + urlencode({'reference': payment}), status_code=302)
+
     # Without the slash, /panel would fall through to the catch-all mount below and show the console's 404 page.
     @app.get("/panel", include_in_schema=False)
     async def panel_without_slash():

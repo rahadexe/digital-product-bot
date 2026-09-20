@@ -385,8 +385,7 @@ def get_products_keyboard(
         # If product has a duration_label set in admin panel and not in title, append it
         duration_label = (p.get("duration_label") or "").strip()
         if duration_label and duration_label.lower() not in {"instant", "none", "n/a", ""}:
-            generic_dur_pattern = r"\b\d+\s*(?:days?|months?|years?|weeks?|hours?|d|m|y|দিন|মাস|বছর)\b"
-            if not re.search(rf"\b{re.escape(duration_label)}\b", clean_title, re.IGNORECASE) and not re.search(generic_dur_pattern, clean_title, re.IGNORECASE):
+            if not re.search(rf"\b{re.escape(duration_label)}\b", clean_title, re.IGNORECASE):
                 clean_title = f"{clean_title} {duration_label}"
 
         is_manual = p.get("delivery_type") == "manual"

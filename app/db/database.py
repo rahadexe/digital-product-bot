@@ -70,6 +70,8 @@ class Database:
                         init=self._init_connection,
                         setup=self._use_schema if self.schema else None,
                         reset=self._keep_session,
+                        timeout=10,
+                        command_timeout=30,
                     )
         return self._pool
 
@@ -81,7 +83,7 @@ class Database:
     @asynccontextmanager
     async def connect(self):
         pool = await self._get_pool()
-        async with pool.acquire() as conn:
+        async with pool.acquire(timeout=10) as conn:
             try:
                 yield conn
             finally:

@@ -24,9 +24,6 @@ COMMANDS = [
 
 def menu_button(webapp_url: str) -> MenuButtonCommands | MenuButtonWebApp:
     """The button beside the chat input: the Mini App when it has an HTTPS address, otherwise the command list."""
-    url = webapp_url.strip()
-    if url.startswith("https://"):
-        return MenuButtonWebApp(text="🛍️ Open Store", web_app=WebAppInfo(url=url))
     return MenuButtonCommands()
 
 

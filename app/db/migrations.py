@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import hashlib
 from pathlib import Path
 
 from app.db.database import Database
@@ -24,12 +25,19 @@ async def migrate(db: Database) -> list[str]:
             "CREATE TABLE IF NOT EXISTS schema_migrations ("
             "version TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())"
         )
-        applied = {row["version"] for row in await conn.fetch("SELECT version FROM schema_migrations")}
+        await conn.execute("ALTER TABLE schema_migrations ADD COLUMN IF NOT EXISTS checksum TEXT")
+        applied = {row["version"]: row['checksum'] for row in await conn.fetch("SELECT version,checksum FROM schema_migrations")}
         for path in sorted(MIGRATIONS_DIR.glob("*.sql")):
+            sql = path.read_text(encoding="utf-8")
+            digest = hashlib.sha256(sql.encode()).hexdigest()
             if path.stem in applied:
+                if applied[path.stem] and applied[path.stem] != digest:
+                    raise RuntimeError(f"Applied migration changed: {path.name}. Create a new migration instead.")
+                if not applied[path.stem]:
+                    await conn.execute("UPDATE schema_migrations SET checksum=$2 WHERE version=$1", path.stem, digest)
                 continue
-            await conn.execute(path.read_text(encoding="utf-8"))
-            await conn.execute("INSERT INTO schema_migrations (version) VALUES ($1)", path.stem)
+            await conn.execute(sql)
+            await conn.execute("INSERT INTO schema_migrations (version,checksum) VALUES ($1,$2)", path.stem, digest)
             applied_now.append(path.stem)
     for version in applied_now:
         logger.info("Applied migration %s", version)

@@ -13,11 +13,9 @@ from app.db import Database, affected
 from app.services.audit import record
 from app.services.errors import InvalidInputError
 
-# Free seats in local stock (an account for seven customers counts seven) plus, for supplier-linked
-# products, the supplier's last reported stock.
+# Free seats in local stock; shared accounts contribute their remaining seat capacity.
 STOCK_SQL = """(
     (SELECT COALESCE(SUM(i.max_uses - i.uses), 0) FROM inventory_items i WHERE i.product_id = p.id AND i.status = 'available' AND (i.expires_at IS NULL OR i.expires_at > NOW()))
-    + CASE WHEN p.supplier_product_id IS NULL THEN 0 ELSE COALESCE(p.supplier_stock, 0) END
 )"""
 LISTING_SQL = (
     f"SELECT p.*, c.name AS category_name, {STOCK_SQL} AS stock FROM products p LEFT JOIN categories c ON c.id = p.category_id"
@@ -206,6 +204,10 @@ class CatalogService:
         )
         async with self.db.connect() as conn:
             rows = [dict(row) for row in await conn.fetch(query, *params, limit, offset)]
+        if len(self._products_cache) >= 256:
+            self._products_cache = {key: value for key, value in self._products_cache.items() if now-value[0] < self.PRODUCTS_CACHE_SECONDS}
+            if len(self._products_cache) >= 256:
+                self._products_cache.pop(next(iter(self._products_cache)))
         self._products_cache[cache_key] = (now, rows)
         return [dict(row) for row in rows]
 
@@ -296,6 +298,8 @@ class CatalogService:
         async with self.db.transaction() as conn:
             # Preserve existing orders history while dropping foreign key constraint
             await conn.execute("UPDATE orders SET product_id = NULL WHERE product_id = $1", product_id)
+            # Sold credentials and allocations remain available for historical audits.
+            await conn.execute("UPDATE inventory_items SET product_id = NULL WHERE product_id = $1 AND uses > 0", product_id)
             # Delete associated inventory items
             await conn.execute("DELETE FROM inventory_items WHERE product_id = $1", product_id)
             # Permanently delete the product

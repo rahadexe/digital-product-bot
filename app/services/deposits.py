@@ -68,6 +68,26 @@ class DepositService:
         self.settings = settings
         self.notifier = notifier
 
+    async def verification_failures(self, tg_user_id: int, *, record_failure: bool = False) -> list[float]:
+        async with self.db.connect() as conn:
+            if record_failure:
+                row = await conn.fetchrow(
+                    "INSERT INTO verification_limits(tg_user_id,failures) VALUES($1,1) ON CONFLICT(tg_user_id) "
+                    "DO UPDATE SET failures=CASE WHEN verification_limits.expires_at<=now() THEN 1 ELSE verification_limits.failures+1 END, "
+                    "window_started=CASE WHEN verification_limits.expires_at<=now() THEN now() ELSE verification_limits.window_started END, "
+                    "expires_at=CASE WHEN verification_limits.expires_at<=now() THEN now()+interval '10 minutes' ELSE verification_limits.expires_at END "
+                    "RETURNING failures,window_started", tg_user_id,
+                )
+            else:
+                row = await conn.fetchrow(
+                    "SELECT failures,window_started FROM verification_limits WHERE tg_user_id=$1 AND expires_at>now()", tg_user_id
+                )
+        return [row['window_started'].timestamp()] * min(row['failures'], 3) if row else []
+
+    async def clear_verification_failures(self, tg_user_id: int) -> None:
+        async with self.db.connect() as conn:
+            await conn.execute("DELETE FROM verification_limits WHERE tg_user_id=$1", tg_user_id)
+
     # --- Payment methods ---
     async def methods(self, active_only: bool = True) -> list[dict[str, Any]]:
         query = "SELECT * FROM deposit_methods" + (" WHERE is_active = 1" if active_only else "") + " ORDER BY sort_order, id"
@@ -133,8 +153,9 @@ class DepositService:
         rate = float(settings.get("binance_pay_rate", "125"))
 
         async with self.db.transaction() as conn:
+            await conn.execute("SELECT pg_advisory_xact_lock(7302114552)")
             row = await conn.fetchrow(
-                "SELECT * FROM deposit_methods WHERE auto_verify = 'binance_pay' OR auto_verify = 'binance' OR lower(name) LIKE '%binance%' ORDER BY id LIMIT 1 FOR UPDATE"
+                "SELECT * FROM deposit_methods WHERE auto_verify = 'binance_pay' ORDER BY id LIMIT 1 FOR UPDATE"
             )
             if row:
                 await conn.execute(
@@ -183,6 +204,8 @@ class DepositService:
                 return False
             if row["auto_verify"] == "binance_pay":
                 raise InvalidInputError("System gateway methods cannot be deleted.")
+            if await conn.fetchval("SELECT 1 FROM deposits WHERE method_id=$1 AND status='pending' LIMIT 1", method_id):
+                raise InvalidInputError("Review pending deposits before deleting this payment method.")
             # Every deposit already carries the method's name, so dropping the link loses nothing shown.
             await conn.execute("UPDATE deposits SET method_id = NULL WHERE method_id = $1", method_id)
             await conn.execute("DELETE FROM deposit_methods WHERE id = $1", method_id)
@@ -195,14 +218,17 @@ class DepositService:
                 await record(conn, "deposit_method_archived", f"Method #{method_id}")
 
     # --- Requests ---
-    async def _quote(self, method: Any, amount: float) -> dict[str, Any]:
-        symbol = await self.settings.get("currency_symbol")
-        limit = await self.settings.number("max_deposit_limit")
-        if amount < method["min_deposit"]:
-            raise InvalidInputError(f"The minimum deposit for this method is {symbol}{method['min_deposit']:.2f}.")
+    async def _quote(self, method: Any, amount: float, values: dict[str, str] | None = None) -> dict[str, Any]:
+        values = values if values is not None else await self.settings.values()
+        symbol = values["currency_symbol"]
+        limit = float(values["max_deposit_limit"])
+        rate = float(method["rate_to_currency"])
+        is_pay = method.get("auto_verify") == "binance_pay"
+        minimum = method["min_deposit"] * rate if is_pay else method["min_deposit"]
+        if amount < minimum:
+            raise InvalidInputError(f"The minimum deposit for this method is {symbol}{minimum:.2f}.")
         if amount > limit:
             raise InvalidInputError(f"The maximum single deposit is {symbol}{limit:.2f}. Contact support for larger payments.")
-        rate = float(method["rate_to_currency"])
         return {
             "method_id": method["id"],
             "method_name": method["name"],
@@ -211,7 +237,8 @@ class DepositService:
             "instructions": method["instructions"] or "",
             "amount": amount,
             "rate": rate,
-            "pay_amount": round(amount * rate, 4),
+            "pay_amount": round(amount / rate if is_pay else amount * rate, 4),
+            "paid_currency": values.get("binance_coin", "USDT") if method.get("auto_verify") in ("binance", "binance_pay") else "BDT",
         }
 
     async def quote(self, method_id: int, amount: Any) -> dict[str, Any]:
@@ -235,6 +262,7 @@ class DepositService:
         *,
         quoted_rate: float | None = None,
         admin_note: str = "",
+        verification_id: str | None = None,
     ) -> int:
         paused = await self.settings.paused_message()
         if paused:
@@ -243,6 +271,7 @@ class DepositService:
         clean_tx = str(transaction_id).strip()
         if not TRANSACTION_ID.fullmatch(clean_tx):
             raise InvalidInputError("Invalid transaction ID.")
+        values = await self.settings.values()
         try:
             async with self.db.transaction() as conn:
                 user = await conn.fetchrow("SELECT id, username, is_banned FROM users WHERE tg_user_id = $1", tg_user_id)
@@ -251,14 +280,14 @@ class DepositService:
                 method = await conn.fetchrow("SELECT * FROM deposit_methods WHERE id = $1 AND is_active = 1", method_id)
                 if not method:
                     raise InvalidInputError("Payment method is no longer available.")
-                quote = await self._quote(method, amount)
+                quote = await self._quote(method, amount, values)
                 if quoted_rate is not None and abs(quote["rate"] - quoted_rate) > 1e-9:
                     raise InvalidInputError("The payment rate changed. Please start the deposit again.")
                 deposit_id = await conn.fetchval(
                     """
                     INSERT INTO deposits (user_id, tg_user_id, method_id, method_name, amount, transaction_id,
-                                          status, rate_to_currency, pay_amount, admin_note)
-                    VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $8, $9) RETURNING id
+                                          status, rate_to_currency, pay_amount, admin_note, paid_currency)
+                    VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $8, $9, $10) RETURNING id
                     """,
                     user["id"],
                     tg_user_id,
@@ -269,7 +298,13 @@ class DepositService:
                     quote["rate"],
                     quote["pay_amount"],
                     admin_note or "",
+                    quote["paid_currency"],
                 )
+                if verification_id is not None:
+                    await conn.execute(
+                        "INSERT INTO payment_verification_attempts(deposit_id,provider,verify_id,status) VALUES($1,'zinipay',$2,'reserved')",
+                        deposit_id, verification_id,
+                    )
         except asyncpg.UniqueViolationError as exc:
             if exc.constraint_name == "deposit_one_pending":
                 raise PendingDepositError("You already have a deposit waiting for review.") from exc
@@ -293,7 +328,7 @@ class DepositService:
         note_line = f"\n⚠️ <b>Note:</b> <i>{escape(admin_note)}</i>" if admin_note else ""
 
         cfg = get_settings()
-        base_url = cfg.webhook_base_url.rstrip("/") if cfg.webhook_base_url else (await self.settings.get("webapp_url") or "http://127.0.0.1:8000")
+        base_url = cfg.webhook_base_url.rstrip("/") if cfg.webhook_base_url else (cfg.webapp_url or "http://127.0.0.1:8000")
         deposit_link = f"{base_url}/#deposits"
 
         keyboard = InlineKeyboardMarkup(
@@ -405,6 +440,10 @@ class DepositService:
             if deposit["status"] != "pending":
                 return False, f"Deposit already marked as {deposit['status']}.", None
             if await conn.fetchval(
+                "SELECT 1 FROM payment_verification_attempts WHERE deposit_id=$1 AND status IN ('reserved','confirming')", deposit_id
+            ):
+                return False, "Automatic verification is still running. Please wait before reviewing.", None
+            if await conn.fetchval(
                 "SELECT 1 FROM deposits WHERE id <> $1 AND status = 'approved' "
                 "AND lower(btrim(transaction_id)) = lower(btrim($2))",
                 deposit_id,
@@ -412,6 +451,7 @@ class DepositService:
             ):
                 return False, "This transaction has already been credited.", None
             amount = money(deposit["amount"], positive=True)
+            await conn.execute("SELECT set_config('app.wallet_reason',$1,true)", f"deposit:{deposit_id}")
             new_balance = await conn.fetchval(
                 "UPDATE users SET balance = balance + $1, updated_at = now() WHERE tg_user_id = $2 RETURNING balance",
                 amount,
@@ -457,6 +497,10 @@ class DepositService:
                 return False, "Deposit record not found.", None
             if deposit["status"] != "pending":
                 return False, f"Deposit already marked as {deposit['status']}.", None
+            if await conn.fetchval(
+                "SELECT 1 FROM payment_verification_attempts WHERE deposit_id=$1 AND status IN ('reserved','confirming')", deposit_id
+            ):
+                return False, "Automatic verification is still running. Please wait before reviewing.", None
             await conn.execute(
                 "UPDATE deposits SET status = 'rejected', admin_note = $1, reviewed_at = now() WHERE id = $2",
                 admin_note,

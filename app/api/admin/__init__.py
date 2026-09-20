@@ -14,7 +14,6 @@ from app.api.admin import (
     payments,
     session,
     settings,
-    supplier,
     users,
 )
 from app.api.admin.auth import require_admin
@@ -23,6 +22,6 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 router.include_router(session.router)
 
 protected = APIRouter(dependencies=[Depends(require_admin)])
-for module in (overview, catalog, inventory, orders, deposits, payments, users, channels, broadcast, settings, supplier, emojis):
+for module in (overview, catalog, inventory, orders, deposits, payments, users, channels, broadcast, settings, emojis):
     protected.include_router(module.router)
 router.include_router(protected)

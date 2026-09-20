@@ -9,6 +9,7 @@ the invoice to completed in one transaction, so repeated callbacks and checks ca
 from __future__ import annotations
 
 import logging
+import asyncio
 import secrets
 from decimal import ROUND_HALF_UP, Decimal
 from html import escape
@@ -25,6 +26,7 @@ from app.services.audit import record
 from app.services.errors import InvalidInputError
 from app.services.notifications import Notifier
 from app.services.settings import SettingsService
+from app.services.http import gateway_http
 from app.bot.icons import (
     ICON_ACCOUNT,
     ICON_BALANCE,
@@ -94,18 +96,18 @@ def _is_zinipay_url(url: str) -> bool:
 class ZiniPayClient:
     """The two calls the integration needs. The API key is sent in a header and never logged."""
 
-    def __init__(self, api_key: str, timeout: float = 20.0):
+    def __init__(self, api_key: str, http: httpx.AsyncClient, timeout: float = 20.0):
         self.api_key = api_key
         self.timeout = timeout
+        self.http = http
 
     async def _post(self, path: str, payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.post(
-                    f"{ZINIPAY_API}/{path}",
-                    json=payload,
-                    headers={"zini-api-key": self.api_key, "Accept": "application/json"},
-                )
+            response = await self.http.post(
+                f"{ZINIPAY_API}/{path}",
+                json=payload,
+                headers={"zini-api-key": self.api_key, "Accept": "application/json"},
+            )
         except httpx.HTTPError as exc:
             raise PaymentProviderError(f"ZiniPay could not be reached ({type(exc).__name__}).") from None
         try:
@@ -170,17 +172,18 @@ class PaymentService:
         self.settings = settings
         self.notifier = notifier
         self.config = config
+        self.http = gateway_http()
 
     # --- configuration ---
     def client(self, api_key: str) -> ZiniPayClient:
-        return ZiniPayClient(api_key)
+        return ZiniPayClient(api_key, self.http)
 
     async def _api_key(self) -> str:
         return (await self.settings.get("zinipay_api_key")).strip() or self.config.zinipay_api_key.strip()
 
     def public_base_url(self, brand_url: str = "") -> str:
         """The store's public HTTPS origin, taken from zinipay_brand_url or WEBAPP_URL; ZiniPay requires it for redirects."""
-        raw = brand_url.strip() or self.config.webapp_url.strip()
+        raw = brand_url.strip() or self.config.webhook_base_url.strip() or self.config.webapp_url.strip()
         if not raw:
             return ""
         if "://" not in raw:
@@ -250,7 +253,7 @@ class PaymentService:
         rate = _decimal(values["zinipay_rate"])
         pay_amount = (_decimal(options["min_amount"]) * rate).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         reference = f"{REFERENCE_PREFIX}{secrets.token_hex(8).upper()}"
-        return_url = f"{base}/app/?payment={reference}"
+        return_url = f"{base}/api/payments/return?reference={reference}"
         payload = {
             "cus_name": "Test",
             "cus_email": f"test@{urlsplit(base).hostname}",
@@ -331,7 +334,7 @@ class PaymentService:
             )
 
         base = self.public_base_url(values.get("zinipay_brand_url", ""))
-        return_url = f"{base}/app/?payment={reference}"
+        return_url = f"{base}/api/payments/return?reference={reference}"
         payload = {
             "cus_name": (user["first_name"] or "Customer")[:60],
             "cus_email": f"tg{tg_user_id}@{urlsplit(base).hostname or 'store.local'}",
@@ -369,11 +372,13 @@ class PaymentService:
         async with self.db.transaction() as conn:
             row = await conn.fetchrow(
                 "UPDATE payment_invoices SET status = 'pending', provider_invoice_id = $1, payment_url = $2, updated_at = now() "
-                "WHERE id = $3 RETURNING *",
+                "WHERE id = $3 AND status='created' RETURNING *",
                 body["invoice_id"],
                 payment_url,
                 row["id"],
             )
+            if row is None:
+                row = await conn.fetchrow("SELECT * FROM payment_invoices WHERE reference=$1", reference)
             await record(
                 conn,
                 "payment_invoice_created",
@@ -387,15 +392,17 @@ class PaymentService:
             row = await conn.fetchrow("SELECT * FROM payment_invoices WHERE reference = $1", reference)
         if not row or (tg_user_id is not None and row["tg_user_id"] != tg_user_id):
             return None
-        if row["status"] != "pending" or not row["provider_invoice_id"]:
+        if row["status"] not in ("created", "pending"):
             return _public(row)
         key = await self._api_key()
         if not key:
             return _public(row)
         try:
-            result = await self.client(key).verify(row["provider_invoice_id"], row["reference"])
+            result = await self.client(key).verify(row["provider_invoice_id"] or row["reference"], row["reference"])
         except PaymentProviderError as exc:
             logger.warning("ZiniPay verify for %s failed: %s", reference, exc)
+            async with self.db.connect() as conn:
+                await conn.execute("UPDATE payment_invoices SET updated_at=now(),last_error=$2 WHERE id=$1", row['id'], str(exc)[:300])
             return _public(row)
         return _public(await self._apply(row["id"], result))
 
@@ -419,13 +426,21 @@ class PaymentService:
             return 0
         async with self.db.connect() as conn:
             rows = await conn.fetch(
-                "SELECT reference FROM payment_invoices WHERE status = 'pending' "
-                "AND updated_at < now() - $2 * interval '1 second' ORDER BY updated_at LIMIT $1",
+                "UPDATE payment_invoices SET next_check_at=now()+interval '2 minutes' WHERE id IN ("
+                "SELECT id FROM payment_invoices WHERE status IN ('pending','created') "
+                "AND next_check_at<=now() AND updated_at < now() - $2 * interval '1 second' ORDER BY next_check_at,id LIMIT $1 "
+                "FOR UPDATE SKIP LOCKED) RETURNING reference",
                 limit,
                 idle_seconds,
             )
-        for row in rows:
-            await self.refresh(row["reference"])
+        semaphore = asyncio.Semaphore(4)
+        async def check(reference):
+            async with semaphore:
+                try:
+                    await self.refresh(reference)
+                except Exception:
+                    logger.exception("Invoice reconciliation failed for %s", reference)
+        await asyncio.gather(*(check(row['reference']) for row in rows))
         return len(rows)
 
     async def _fail(self, conn: asyncpg.Connection, row: Any, reason: str, *, alert: bool) -> Any:
@@ -449,7 +464,7 @@ class PaymentService:
         credited: tuple[Any, Any, int] | None = None
         async with self.db.transaction() as conn:
             row = await conn.fetchrow("SELECT * FROM payment_invoices WHERE id = $1 FOR UPDATE", invoice_id)
-            if row["status"] != "pending":
+            if row["status"] not in ("created", "pending"):
                 return row
             raw_status = str(result.get("status") or "").strip().upper() if result is not None else ""
             status = "COMPLETED" if raw_status in ("COMPLETED", "TRUE", "1", "PAID", "SUCCESS") else raw_status
@@ -464,6 +479,7 @@ class PaymentService:
             if status == "FAILED":
                 return await self._fail(conn, row, "ZiniPay reported the payment as failed.", alert=False)
             if status != "COMPLETED":
+                await conn.execute("UPDATE payment_invoices SET updated_at=now() WHERE id=$1", invoice_id)
                 return row
 
             # The answer must belong to this invoice and cover exactly what the customer was asked to pay.
@@ -489,7 +505,7 @@ class PaymentService:
 
             transaction_id = str(result.get("transaction_id") or "").strip()
             if not transaction_id or transaction_id.upper() == "N/A":
-                transaction_id = row["provider_invoice_id"]
+                transaction_id = row["provider_invoice_id"] or row["reference"]
             method = str(result.get("payment_method") or result.get("provider") or "").strip()[:30]
             method_name = f"ZiniPay ({method})" if method else "ZiniPay"
             try:
@@ -513,6 +529,7 @@ class PaymentService:
                 return await self._fail(
                     conn, row, f"Transaction ID {transaction_id} was already recorded for another deposit.", alert=True
                 )
+            await conn.execute("SELECT set_config('app.wallet_reason',$1,true)", f"invoice:{row['reference']}")
             balance = await conn.fetchval(
                 "UPDATE users SET balance = balance + $1, updated_at = now() WHERE tg_user_id = $2 RETURNING balance",
                 row["credit_amount"],

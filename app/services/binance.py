@@ -27,6 +27,7 @@ from app.services.deposits import DepositService
 from app.services.errors import InvalidInputError
 from app.services.notifications import Notifier
 from app.services.settings import SettingsService
+from app.services.http import gateway_http
 
 logger = logging.getLogger("app.services.binance")
 
@@ -59,10 +60,12 @@ class BinanceClient:
     _time_offset: int = 0
     _last_time_sync: float = 0.0
 
-    def __init__(self, api_key: str, api_secret: str, timeout: float = 20.0):
+    def __init__(self, api_key: str, api_secret: str, http: httpx.AsyncClient, timeout: float = 20.0):
         self.api_key = api_key
         self.api_secret = api_secret
         self.timeout = timeout
+        self.http = http
+        self._pay_cache: tuple[float, list[dict[str, Any]]] | None = None
 
     @classmethod
     async def sync_server_time(cls, force: bool = False) -> None:
@@ -89,11 +92,10 @@ class BinanceClient:
     async def _signed_get(self, path: str, params: dict[str, Any]) -> Any:
         await self.sync_server_time()
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.get(
-                    f"{BINANCE_API}{path}?{self._sign(params)}",
-                    headers={"X-MBX-APIKEY": self.api_key, "Accept": "application/json"},
-                )
+            response = await self.http.get(
+                f"{BINANCE_API}{path}?{self._sign(params)}",
+                headers={"X-MBX-APIKEY": self.api_key, "Accept": "application/json"},
+            )
         except httpx.HTTPError as exc:
             raise BinanceError(f"Binance could not be reached ({type(exc).__name__}).") from None
         try:
@@ -105,15 +107,14 @@ class BinanceClient:
             # Timestamp drift: force resync and retry once
             await self.sync_server_time(force=True)
             try:
-                async with httpx.AsyncClient(timeout=self.timeout) as client:
-                    response = await client.get(
-                        f"{BINANCE_API}{path}?{self._sign(params)}",
-                        headers={"X-MBX-APIKEY": self.api_key, "Accept": "application/json"},
-                    )
-                    try:
-                        body = response.json()
-                    except ValueError:
-                        body = None
+                response = await self.http.get(
+                    f"{BINANCE_API}{path}?{self._sign(params)}",
+                    headers={"X-MBX-APIKEY": self.api_key, "Accept": "application/json"},
+                )
+                try:
+                    body = response.json()
+                except ValueError:
+                    body = None
             except Exception:
                 pass
 
@@ -141,12 +142,16 @@ class BinanceClient:
 
     async def pay_transactions(self, *, start_time: int | None = None) -> list[dict[str, Any]]:
         """Binance Pay movements; money received from a person is positive and carries who sent it."""
+        if self._pay_cache and time.monotonic() - self._pay_cache[0] < 15:
+            return self._pay_cache[1]
         params: dict[str, Any] = {"limit": 100}
         if start_time:
             params["startTime"] = start_time
         body = await self._signed_get("/sapi/v1/pay/transactions", params)
         data = body.get("data") if isinstance(body, dict) else body
-        return [row for row in data if isinstance(row, dict)] if isinstance(data, list) else []
+        rows = [row for row in data if isinstance(row, dict)] if isinstance(data, list) else []
+        self._pay_cache = (time.monotonic(), rows)
+        return rows
 
 
 def _payer_id(row: dict[str, Any]) -> str:
@@ -167,10 +172,11 @@ class BinanceDepositService:
         self.deposits = deposits
         self.notifier = notifier
         self.config = config
+        self.http = gateway_http()
 
     # --- configuration ---
     def client(self, api_key: str, api_secret: str) -> BinanceClient:
-        return BinanceClient(api_key, api_secret)
+        return BinanceClient(api_key, api_secret, self.http)
 
     async def _credentials(self) -> tuple[str, str]:
         values = await self.settings.values()
@@ -249,7 +255,7 @@ class BinanceDepositService:
         if deposit_id is not None:
             query += " AND d.id = $3"
             params.append(deposit_id)
-        query += " ORDER BY d.id DESC LIMIT 50"
+        query += " ORDER BY d.next_check_at, d.id LIMIT 50"
         async with self.db.connect() as conn:
             return [dict(row) for row in await conn.fetch(query, *params)]
 
@@ -270,12 +276,20 @@ class BinanceDepositService:
 
     async def recheck_pending(self) -> int:
         """Background pass over deposits still waiting, for payments that confirm after the customer left."""
-        pending = await self._pending()
-        if not pending:
-            return 0
         key, secret = await self._credentials()
         if not key or not secret:
             return 0
+        async with self.db.transaction() as conn:
+            claimed = await conn.fetch(
+                "UPDATE deposits SET next_check_at=now()+interval '2 minutes' WHERE id IN ("
+                "SELECT d.id FROM deposits d JOIN deposit_methods m ON m.id=d.method_id "
+                "WHERE d.status='pending' AND m.auto_verify=ANY($1) AND d.next_check_at<=now() "
+                "AND d.created_at>now()-interval '7 days' ORDER BY d.next_check_at,d.id "
+                "LIMIT $2 FOR UPDATE OF d SKIP LOCKED) RETURNING id", list(PROVIDERS), MAX_CHECKS_PER_RUN
+            )
+        pending = []
+        for row in claimed:
+            pending.extend(await self._pending(row['id']))
         coin = (await self.settings.values())["binance_coin"]
         client = self.client(key, secret)
         checked = 0
@@ -300,7 +314,7 @@ class BinanceDepositService:
             raise InvalidInputError("Payment method is no longer available.")
         rate = float(method["rate_to_currency"] or 1) or 1
         min_dep = float(method["min_deposit"])
-        base_amount = float(expected_usdt * rate) if (expected_usdt and expected_usdt > 0) else min_dep
+        base_amount = money(expected_usdt * rate) if (expected_usdt and expected_usdt > 0) else money(min_dep * rate)
 
         deposit_id = await self.deposits.create_request(tg_user_id, method_id, base_amount, reference, quoted_rate=rate)
         async with self.db.transaction() as conn:
@@ -393,7 +407,9 @@ class BinanceDepositService:
             counterparty = str(row.get("counterpartyId") or "").strip().lower()
             order_id = str(row.get("orderId") or "").strip().lower()
             tx_id = str(row.get("transactionId") or "").strip().lower()
-            candidates = {c for c in (payer_uid, counterparty, order_id, tx_id) if c}
+            # Stable sender IDs are not payment-specific proof. Require the unique
+            # receipt reference; ambiguous UID-only claims remain pending for review.
+            candidates = {c for c in (order_id, tx_id) if c}
             if reference in candidates:
                 matched_rows.append(row)
 
@@ -436,20 +452,23 @@ class BinanceDepositService:
         """The payment decides the amount, and its own id is what the deposit is filed under."""
         rate = float(deposit["rate_to_currency"] or 1) or 1
         # Multiply by exchange rate if rate >= 1 (e.g. 125 BDT per USDT), else divide
-        credit = money(received * rate if rate >= 1.0 else received / rate)
+        credit = money(received * rate if deposit.get('auto_verify') == PAY_PROVIDER else received / rate)
         limit = await self.settings.number("max_deposit_limit")
         if credit > limit:
             return await self._flag(deposit, f"{received:g} {coin} is above the single deposit limit")
-        if credit < money(deposit.get("min_deposit") or 0):
+        minimum = money(deposit.get("min_deposit") or 0)
+        if (received if deposit.get('auto_verify') == PAY_PROVIDER else credit) < minimum:
             return await self._flag(deposit, f"{received:g} {coin} is below this method's smallest top-up")
         if abs(credit - money(deposit["amount"])) > 0.01 or transaction_id.lower() != str(deposit["transaction_id"]).lower():
             try:
                 async with self.db.transaction() as conn:
                     updated = await conn.fetchval(
-                        "UPDATE deposits SET amount = $1, transaction_id = $2 WHERE id = $3 AND status = 'pending' RETURNING amount",
+                        "UPDATE deposits SET amount = $1, transaction_id = $2, pay_amount=$4, paid_currency=$5 WHERE id = $3 AND status = 'pending' RETURNING amount",
                         credit,
                         transaction_id,
                         deposit["id"],
+                        received,
+                        coin,
                     )
                     if updated is None:
                         return {"checked": True, "credited": False, "detail": "The deposit is no longer pending."}

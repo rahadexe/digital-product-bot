@@ -21,7 +21,7 @@ async def ready(services: ServicesDep):
     except Exception:
         return JSONResponse(status_code=503, content={"status": "unavailable", "database": False})
     runtime = services.runtime
-    is_ready = runtime.bot in ("webhook", "disabled") and runtime.components_alive()
+    is_ready = runtime.bot in ("webhook", "polling", "disabled") and runtime.components_alive()
     return JSONResponse(
         status_code=200 if is_ready else 503,
         content={"status": "ready" if is_ready else "starting", "database": True, "bot": runtime.bot},

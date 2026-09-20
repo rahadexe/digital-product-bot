@@ -1,8 +1,8 @@
 # ---- Admin panel (static export) ----
 FROM node:22-alpine AS console
 WORKDIR /console
-COPY console/package.json ./
-RUN npm install
+COPY console/package.json console/package-lock.json ./
+RUN npm ci
 COPY console/ ./
 RUN npm run build
 

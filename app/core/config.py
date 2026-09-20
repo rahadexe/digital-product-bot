@@ -56,9 +56,6 @@ class Settings(BaseSettings):
     # where Docker and Coolify's proxy connect from. Never "*": clients could then name any address they like.
     trusted_proxy_ips: str = '127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7'
 
-    supplier_api_url: str = "https://safwantigershopbot-production.up.railway.app/api"
-    supplier_api_key: str = ""
-    supplier_allowed_hosts: str = "safwantigershopbot-production.up.railway.app"
     # Optional: the ZiniPay brand API key; the admin console setting takes precedence when set.
     zinipay_api_key: str = ""
     # Optional: read-only Binance API credentials for confirming USDT deposits; the console settings win.
@@ -76,7 +73,7 @@ class Settings(BaseSettings):
             self.webapp_url = self.mini_app_url(self.webapp_url)
         if self.webhook_base_url:
             self.webhook_base_url = self.webhook_base_url.rstrip("/")
-        if self.telegram_enabled and not self.webhook_base_url.startswith("https://"):
+        if self.telegram_enabled and not self.use_polling and not self.webhook_base_url.startswith("https://"):
             raise ValueError("Set WEBHOOK_BASE_URL to the public https address Telegram should send updates to.")
         if self.webhook_secret and not re.fullmatch(r"[A-Za-z0-9_-]{32,256}", self.webhook_secret):
             raise ValueError("WEBHOOK_SECRET must be 32-256 letters, digits, '_' or '-'.")
@@ -87,6 +84,8 @@ class Settings(BaseSettings):
         if not self.allowed_origins and public.hostname:
             self.allowed_origins = f"https://{public.netloc}"
         if self.app_env == "production":
+            if 'secret_key' not in self.model_fields_set:
+                raise ValueError("Production requires an explicit persistent SECRET_KEY.")
             if weak_secret or len(self.admin_password) < 12:
                 raise ValueError("Production requires a strong ADMIN_PASSWORD and SECRET_KEY.")
             if not self.database_url:

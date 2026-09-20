@@ -55,7 +55,7 @@ class InventoryService:
         if not clean:
             return {"added": 0, "skipped": 0}
         async with self.db.transaction() as conn:
-            if not await conn.fetchval("SELECT 1 FROM products WHERE id = $1", product_id):
+            if not await conn.fetchval("SELECT 1 FROM products WHERE id = $1 FOR UPDATE", product_id):
                 raise NotFoundError("Product not found.")
             existing = {
                 row["content"]
@@ -131,6 +131,9 @@ class InventoryService:
         if not 1 <= max_uses <= MAX_USES:
             raise InvalidInputError(f"Each item can go to 1 to {MAX_USES} customers.")
         async with self.db.transaction() as conn:
+            product_id = await conn.fetchval("SELECT product_id FROM inventory_items WHERE id = $1", item_id)
+            if product_id is not None:
+                await conn.fetchval("SELECT id FROM products WHERE id = $1 FOR UPDATE", product_id)
             item = await conn.fetchrow("SELECT * FROM inventory_items WHERE id = $1 FOR UPDATE", item_id)
             if not item:
                 raise NotFoundError("Stock item not found.")
@@ -187,7 +190,8 @@ class InventoryService:
                 SELECT i.* FROM inventory_items i
                 WHERE i.product_id = $1 AND i.status = 'available' AND i.uses < i.max_uses
                   AND (i.expires_at IS NULL OR i.expires_at > NOW())
-                ORDER BY EXISTS (SELECT 1 FROM orders o WHERE o.inventory_item_id = i.id AND o.tg_user_id = $2),
+                ORDER BY EXISTS (SELECT 1 FROM order_inventory_allocations a JOIN orders o ON o.id=a.order_id
+                                 WHERE a.inventory_item_id = i.id AND o.tg_user_id = $2),
                          i.uses, i.last_used_at NULLS FIRST, i.id
                 LIMIT $3 FOR UPDATE OF i SKIP LOCKED
                 """,
@@ -195,12 +199,17 @@ class InventoryService:
                 tg_user_id,
                 count,
             )
-            if len(items) == count:
-                return list(items)
+            if sum(item['max_uses'] - item['uses'] for item in items) >= count:
+                # Prefer different credentials, then allocate additional shared seats.
+                claimed = list(items[:count])
+                for item in items:
+                    extra = min(count - len(claimed), item['max_uses'] - item['uses'] - 1)
+                    claimed.extend([item] * max(0, extra))
+                return claimed
             # Check if there are enough items at all
             total_available = await conn.fetchval(
                 """
-                SELECT COUNT(*) FROM inventory_items
+                SELECT COALESCE(SUM(max_uses - uses),0) FROM inventory_items
                 WHERE product_id = $1 AND status = 'available' AND uses < max_uses
                   AND (expires_at IS NULL OR expires_at > NOW())
                 """,

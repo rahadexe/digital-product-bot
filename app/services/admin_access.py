@@ -15,14 +15,18 @@ class AdminAccessService:
         self.db = db
 
     async def login_allowed(self, client_ip: str) -> bool:
-        async with self.db.connect() as conn:
+        async with self.db.transaction() as conn:
+            await conn.execute("SELECT pg_advisory_xact_lock(hashtextextended($1,7302114553))", client_ip)
             recent = await conn.fetchval(
                 "SELECT COUNT(*) FROM admin_login_attempts "
                 "WHERE client_ip = $1 AND attempted_at > now() - make_interval(secs => $2)",
                 client_ip,
                 LOGIN_WINDOW_SECONDS,
             )
-        return recent < MAX_LOGIN_ATTEMPTS
+            if recent >= MAX_LOGIN_ATTEMPTS:
+                return False
+            await conn.execute("INSERT INTO admin_login_attempts(client_ip) VALUES($1)", client_ip)
+        return True
 
     async def record_attempt(self, client_ip: str) -> None:
         async with self.db.transaction() as conn:

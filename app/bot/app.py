@@ -8,6 +8,7 @@ from aiogram import Dispatcher
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.storage.base import BaseStorage
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.storage.memory import SimpleEventIsolation
 from aiogram.types import ErrorEvent
 
 from app.bot.handlers import admin, deposit, help_guide, profile, shop, start
@@ -24,12 +25,14 @@ async def on_error(event: ErrorEvent) -> bool:
     if isinstance(exc, TelegramBadRequest) and any(text in str(exc).lower() for text in HARMLESS_ERRORS):
         return True
     logger.error("Unhandled bot error: %s", exc, exc_info=exc)
-    return True
+    raise exc
 
 
 def create_dispatcher(services: Services, storage: BaseStorage | None = None) -> Dispatcher:
     # Handlers receive ``services`` by parameter name from the dispatcher's workflow data.
-    dispatcher = Dispatcher(storage=storage or MemoryStorage(), services=services)
+    storage = storage or MemoryStorage()
+    isolation = storage.create_isolation() if hasattr(storage, 'create_isolation') else SimpleEventIsolation()
+    dispatcher = Dispatcher(storage=storage, events_isolation=isolation, services=services)
     # Throttling runs first, so a flood is dropped before the access checks read the database.
     throttle = Throttle()
     dispatcher.message.outer_middleware(throttle)

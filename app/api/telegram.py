@@ -17,24 +17,6 @@ logger = logging.getLogger("app.api.telegram")
 router = APIRouter(tags=["telegram"])
 
 MAX_BODY_BYTES = 1024 * 1024  # 1 MB
-BACKGROUND_TASKS: set[asyncio.Task[Any]] = set()
-
-
-async def _process(dispatcher: Any, bot: Any, update: Update) -> None:
-    """Handle one update and log how long it took, so slow replies can be traced from the logs."""
-    started = time.perf_counter()
-    try:
-        await dispatcher.feed_update(bot, update)
-    finally:
-        elapsed_ms = (time.perf_counter() - started) * 1000
-        info_extra = ""
-        if update.message:
-            info_extra = f" user={update.message.from_user.id if update.message.from_user else 'None'} text={update.message.text!r}"
-        elif update.callback_query:
-            info_extra = f" user={update.callback_query.from_user.id if update.callback_query.from_user else 'None'} data={update.callback_query.data!r}"
-        logger.info("Update %s (%s)%s handled in %.0f ms", update.update_id, update.event_type, info_extra, elapsed_ms)
-
-
 @router.post("/telegram/webhook", include_in_schema=False)
 async def telegram_webhook(request: Request) -> JSONResponse:
     services = request.app.state.services
@@ -59,9 +41,15 @@ async def telegram_webhook(request: Request) -> JSONResponse:
         except ValueError:
             pass
 
-    body = await request.body()
-    if len(body) > MAX_BODY_BYTES:
-        return JSONResponse(status_code=413, content={"detail": "Request body is too large."})
+    body = bytearray()
+    try:
+        async with asyncio.timeout(15):
+            async for chunk in request.stream():
+                body.extend(chunk)
+                if len(body) > MAX_BODY_BYTES:
+                    return JSONResponse(status_code=413, content={"detail": "Request body is too large."})
+    except TimeoutError:
+        return JSONResponse(status_code=408, content={"detail": "Request timed out."})
 
     # 4. JSON -> Update.model_validate(data, context={"bot": bot}); invalid -> 400.
     try:
@@ -70,19 +58,14 @@ async def telegram_webhook(request: Request) -> JSONResponse:
     except Exception:
         return JSONResponse(status_code=400, content={"detail": "Invalid update payload."})
 
-    # Answer Telegram immediately and process in the background.
-    task = asyncio.create_task(_process(dispatcher, bot, update))
-    BACKGROUND_TASKS.add(task)
-    if hasattr(services.runtime, "update_tasks"):
-        services.runtime.update_tasks.add(task)
-
-    def _on_done(t: asyncio.Task[Any]) -> None:
-        BACKGROUND_TASKS.discard(t)
-        if hasattr(services.runtime, "update_tasks"):
-            services.runtime.update_tasks.discard(t)
-        if not t.cancelled() and t.exception():
-            logger.exception("Error processing Telegram update in background:", exc_info=t.exception())
-
-    task.add_done_callback(_on_done)
-
+    event = update.message or update.callback_query or update.edited_message
+    sender = getattr(event, "from_user", None)
+    customer_id = sender.id if sender else -update.update_id
+    # Acknowledgement follows durable insertion; retries deduplicate by update ID.
+    async with services.db.connect() as conn:
+        await conn.execute(
+            "INSERT INTO telegram_inbox(update_id,customer_id,payload) VALUES($1,$2,$3::jsonb) "
+            "ON CONFLICT(update_id) DO NOTHING", update.update_id, customer_id, bytes(body).decode('utf-8'),
+        )
+    services.runtime.inbox_wake.set()
     return JSONResponse(status_code=200, content={"ok": True})

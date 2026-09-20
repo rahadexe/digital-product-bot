@@ -30,7 +30,6 @@ from app.services.notifications import Notifier
 from app.services.payments import PaymentService
 from app.services.purchases import PurchaseService
 from app.services.settings import SettingsService
-from app.services.supplier import SupplierService
 from app.services.update_channels import UpdateChannelService
 from app.services.users import UserService
 from app.services.zinipay import ZiniPayVerificationService
@@ -44,6 +43,7 @@ class RuntimeStatus:
     dispatcher: Any = None
     tasks: list[asyncio.Task] = field(default_factory=list)
     update_tasks: set[asyncio.Task] = field(default_factory=set)
+    inbox_wake: asyncio.Event = field(default_factory=asyncio.Event)
 
     def components_alive(self) -> bool:
         return all(not task.done() for task in self.tasks)
@@ -60,7 +60,6 @@ class Services:
     catalog: CatalogService
     inventory: InventoryService
     delivery: DeliveryService
-    supplier: SupplierService
     purchases: PurchaseService
     deposits: DepositService
     payments: PaymentService
@@ -71,11 +70,11 @@ class Services:
     announcements: AnnouncementService
     dashboard: DashboardService
     admin_access: AdminAccessService
-    media: Any = None
     runtime: RuntimeStatus = field(default_factory=RuntimeStatus)
 
     async def close(self) -> None:
         await self.notifier.drain()
+        await asyncio.gather(self.payments.http.aclose(), self.binance.http.aclose(), self.zinipay.http.aclose())
         if self.notifier.bot is not None:
             await self.notifier.bot.session.close()
         await self.db.close()
@@ -99,7 +98,6 @@ def build_services(
     settings = SettingsService(db, config)
     notifier = Notifier(bot, settings)
     catalog = CatalogService(db)
-    supplier = SupplierService(db, settings, config)
     delivery = DeliveryService(db)
     deposits = DepositService(db, settings, notifier)
     return Services(
@@ -112,8 +110,7 @@ def build_services(
         catalog=catalog,
         inventory=InventoryService(db),
         delivery=delivery,
-        supplier=supplier,
-        purchases=PurchaseService(db, settings, supplier, delivery, notifier),
+        purchases=PurchaseService(db, settings, delivery, notifier),
         deposits=deposits,
         payments=PaymentService(db, settings, notifier, config),
         binance=BinanceDepositService(db, settings, deposits, notifier, config),
