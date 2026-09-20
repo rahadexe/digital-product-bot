@@ -60,6 +60,15 @@ const SECTIONS: Section[] = [
     ],
   },
   {
+    id: 'pricing_display',
+    tab: 'general',
+    title: 'Dual Currency & Pricing Display',
+    fields: [
+      { key: 'show_usd_price', label: 'Show USD price on products (৳ & $)', type: 'toggle' },
+      { key: 'usd_rate', label: 'Exchange Rate: 1 USD', type: 'number', fallback: '125', money: true },
+    ],
+  },
+  {
     id: 'channels',
     tab: 'general',
     title: 'Welcome & Channels',

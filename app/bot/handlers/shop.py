@@ -19,7 +19,7 @@ from aiogram.types import (
     Message,
 )
 
-from app.bot.formatting import callback_int, price, respond
+from app.bot.formatting import callback_int, format_dual_price, price, respond
 from app.bot.icons import (
     Icons,
     ICON_BALANCE,
@@ -235,6 +235,8 @@ async def product_view(
     user = await services.users.get(tg_user_id)
     balance = user["balance"] if user else 0.0
     symbol = await services.settings.get("currency_symbol")
+    usd_rate = await services.settings.number("usd_rate")
+    show_usd = await services.settings.flag("show_usd_price")
     stock = product.get("stock", 0)
     title = escape(product["title"])
     duration = escape(product.get("duration_label") or "")
@@ -283,13 +285,13 @@ async def product_view(
         unit_price = float(product["price"])
     total_price = round(unit_price * quantity, 2)
 
-    unit_price_str = f"{unit_price:g} {symbol}" if unit_price == int(unit_price) else f"{unit_price:.2f} {symbol}"
-    total_price_str = f"{total_price:g} {symbol}" if total_price == int(total_price) else f"{total_price:.2f} {symbol}"
+    unit_price_str = format_dual_price(unit_price, symbol, usd_rate=usd_rate, show_usd=show_usd)
+    total_price_str = format_dual_price(total_price, symbol, usd_rate=usd_rate, show_usd=show_usd)
     balance_str = f"{balance:g} {symbol}" if balance == int(balance) else f"{balance:.2f} {symbol}"
 
     if has_reseller_rate:
         reg_price = float(product["price"])
-        reg_price_str = f"{reg_price:g} {symbol}" if reg_price == int(reg_price) else f"{reg_price:.2f} {symbol}"
+        reg_price_str = format_dual_price(reg_price, symbol, usd_rate=usd_rate, show_usd=show_usd)
         price_rate_line = f"{ICON_MONEY} <b>Price Rate:</b> <code>{unit_price_str}</code> (🔥 <i>Reseller Price</i> · <s>{reg_price_str}</s>)\n"
     else:
         price_rate_line = f"{ICON_MONEY} <b>Price Rate:</b> <code>{unit_price_str}</code>\n"
@@ -326,6 +328,8 @@ async def product_view(
         currency_symbol=symbol,
         is_manual=is_manual,
         back_target=back_target,
+        usd_rate=usd_rate,
+        show_usd=show_usd,
     )
     return text, keyboard
 
@@ -475,6 +479,8 @@ async def show_products_list(
         duration_label=duration_label,
     )
     symbol = await services.settings.get("currency_symbol")
+    usd_rate = await services.settings.number("usd_rate")
+    show_usd = await services.settings.flag("show_usd_price")
 
     category_name = ""
     category_icon_display = ""
@@ -533,6 +539,8 @@ async def show_products_list(
         category_id=category_id,
         back_target=effective_back_target,
         is_reseller=is_reseller,
+        usd_rate=usd_rate,
+        show_usd=show_usd,
     )
     if category_name and duration_label:
         title = f"{category_icon_display}<b>{escape(category_name)} ({escape(duration_label)}):</b>"
@@ -580,6 +588,8 @@ async def paginate_products(query: CallbackQuery, state: FSMContext, services: S
 
     products = await services.catalog.products(category_id=category_id, active_only=True, limit=100, in_stock_first=True)
     symbol = await services.settings.get("currency_symbol")
+    usd_rate = await services.settings.number("usd_rate")
+    show_usd = await services.settings.flag("show_usd_price")
 
     category_name = ""
     category_icon_display = ""
@@ -637,6 +647,8 @@ async def paginate_products(query: CallbackQuery, state: FSMContext, services: S
         category_id=category_id,
         back_target=back_target,
         is_reseller=is_reseller,
+        usd_rate=usd_rate,
+        show_usd=show_usd,
     )
     title = (
         f"{category_icon_display}<b>{escape(category_name)}:</b>"
@@ -703,6 +715,8 @@ async def get_keypad_view_text(
     user = await services.users.get(tg_user_id)
     balance = user["balance"] if user else 0.0
     symbol = await services.settings.get("currency_symbol")
+    usd_rate = await services.settings.number("usd_rate")
+    show_usd = await services.settings.flag("show_usd_price")
     stock = product.get("stock", 0)
     is_manual = product.get("delivery_type") == "manual"
     title = escape(product["title"])
@@ -744,7 +758,7 @@ async def get_keypad_view_text(
         unit_price = float(reseller_price)
     else:
         unit_price = float(product["price"])
-    unit_price_str = f"{unit_price:g} {symbol}" if unit_price == int(unit_price) else f"{unit_price:.2f} {symbol}"
+    unit_price_str = format_dual_price(unit_price, symbol, usd_rate=usd_rate, show_usd=show_usd)
     balance_str = f"{balance:g} {symbol}" if balance == int(balance) else f"{balance:.2f} {symbol}"
 
     duration = escape(product.get("duration_label") or "")

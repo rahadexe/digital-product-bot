@@ -12,6 +12,7 @@ from aiogram.types import (
     WebAppInfo,
 )
 
+from app.bot.formatting import format_dual_price
 from app.bot.icons import Icons
 
 
@@ -343,6 +344,8 @@ def get_products_keyboard(
     category_id: int | str | None = None,
     back_target: str = "back_to_main",
     is_reseller: bool = False,
+    usd_rate: float | None = None,
+    show_usd: bool = True,
 ) -> InlineKeyboardMarkup:
     """
     Vibrant colorful product list keyboard matching user reference:
@@ -368,7 +371,7 @@ def get_products_keyboard(
         if is_reseller and reseller_price is not None and float(reseller_price) > 0:
             price_num = float(reseller_price)
 
-        price_formatted = f"{price_num:g} {currency_symbol}" if price_num == int(price_num) else f"{price_num:.1f} {currency_symbol}"
+        price_formatted = format_dual_price(price_num, currency_symbol, usd_rate=usd_rate, show_usd=show_usd)
 
         custom_emoji_id = p.get("custom_emoji_id")
         clean_title = title
@@ -380,14 +383,20 @@ def get_products_keyboard(
 
         is_manual = p.get("delivery_type") == "manual"
         if is_manual:
-            btn_text = f"{clean_title} - {price_formatted} (Manual)"
+            suffix = f" - {price_formatted} (Manual)"
             btn_style = "primary"
         elif stock > 0:
-            btn_text = f"{clean_title} - {price_formatted} (Stock: {stock})"
+            suffix = f" - {price_formatted} (Stock: {stock})"
             btn_style = "primary"
         else:
-            btn_text = f"{clean_title} - {price_formatted} (Stock: 0)"
+            suffix = f" - {price_formatted} (Stock: 0)"
             btn_style = "danger"
+
+        if len(clean_title) + len(suffix) > 64:
+            avail = max(6, 64 - len(suffix) - 1)
+            btn_text = f"{clean_title[:avail]}…{suffix}"
+        else:
+            btn_text = f"{clean_title}{suffix}"
 
         btn_kwargs: dict[str, Any] = {
             "text": btn_text[:64],
@@ -448,6 +457,8 @@ def get_quantity_selector_keyboard(
     currency_symbol: str = "৳",
     is_manual: bool = False,
     back_target: str = "open_shop",
+    usd_rate: float | None = None,
+    show_usd: bool = True,
 ) -> InlineKeyboardMarkup:
     """
     Interactive Quantity Selector keyboard matching reference UI:
@@ -457,7 +468,7 @@ def get_quantity_selector_keyboard(
     [🔙 Back] [❌ Close]
     """
     total_price = round(unit_price * quantity, 2)
-    price_formatted = f"{total_price:g} {currency_symbol}" if total_price == int(total_price) else f"{total_price:.2f} {currency_symbol}"
+    price_formatted = format_dual_price(total_price, currency_symbol, usd_rate=usd_rate, show_usd=show_usd)
     buttons = []
 
     dec_qty = max(1, quantity - 1)
@@ -587,6 +598,8 @@ def get_product_detail_keyboard(
     user_has_enough_balance: bool,
     price: float,
     currency_symbol: str = "৳",
+    usd_rate: float | None = None,
+    show_usd: bool = True,
 ) -> InlineKeyboardMarkup:
     """Fallback simple product keyboard."""
     return get_quantity_selector_keyboard(
@@ -596,6 +609,8 @@ def get_product_detail_keyboard(
         max_stock=999 if has_stock else 0,
         user_balance=999999.0 if user_has_enough_balance else 0.0,
         currency_symbol=currency_symbol,
+        usd_rate=usd_rate,
+        show_usd=show_usd,
     )
 
 

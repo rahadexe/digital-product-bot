@@ -36,6 +36,19 @@ def price(symbol: str, amount: float) -> str:
     return f"{escape(symbol)}{amount:.2f}"
 
 
+def format_dual_price(
+    amount: float,
+    symbol: str = "৳",
+    usd_rate: float | None = None,
+    show_usd: bool = True,
+) -> str:
+    amount_str = f"{amount:g} {symbol}" if amount == int(amount) else f"{amount:.2f} {symbol}"
+    if show_usd and usd_rate and usd_rate > 0:
+        usd = round(amount / usd_rate, 2)
+        return f"{amount_str} (${usd:.2f})"
+    return amount_str
+
+
 def callback_int(data: str | None, prefix: str) -> int | None:
     """The integer after ``prefix``. Modified clients can send any callback data, so anything else is None."""
     if not data or not data.startswith(prefix):

@@ -99,6 +99,8 @@ SPECS: dict[str, SettingSpec] = {
     "store_description": SettingSpec("VPNs, Streaming & AI tools at your fingertips.", max_length=240),
     "currency": SettingSpec("BDT", _currency_code, 10),
     "currency_symbol": SettingSpec("৳", max_length=8),
+    "show_usd_price": SettingSpec("1", _flag, 1),
+    "usd_rate": SettingSpec("125", _number(0.0001, 1_000_000), 16),
     "validity_presets": SettingSpec("3 Days, 7 Days, 14 Days, 30 Days, 90 Days, 1 Year", max_length=2000),
     "custom_emojis": SettingSpec(
         '[{"name":"NordVPN","id":"5796345694969140339","icon":"🏔️"},{"name":"ExpressVPN","id":"5796153709931009517","icon":"🔴"},{"name":"Surfshark","id":"5796592771552777710","icon":"🦈"},{"name":"Proton VPN","id":"5794298344188678751","icon":"🛡️"},{"name":"CyberGhost","id":"5796309230696797985","icon":"👻"},{"name":"HMA VPN","id":"5796595022115639741","icon":"🕶️"},{"name":"Bitdefender","id":"5793973558761756143","icon":"🛡️"},{"name":"Windscribe","id":"5794045349140108622","icon":"🟢"},{"name":"PureVPN","id":"5794156713347126602","icon":"🟣"},{"name":"Turbo VPN","id":"5796633857209931262","icon":"🟠"},{"name":"PotatoVPN","id":"5796403831646458962","icon":"🟡"},{"name":"PandaVPN","id":"5796561774773801876","icon":"🐼"},{"name":"IPVanish","id":"5796381996032725483","icon":"🦎"},{"name":"X-VPN","id":"5794376731636798062","icon":"⬜"}]',
