@@ -1,7 +1,7 @@
 """Telegram Custom Emoji icons extracted from user-provided packs.
 
 Packs:
-- http_dxauniverse_by_fStikBot
+- http_dxauniverse_by_fStikBot  (bKash, Nagad, Rocket, Binance, Bybit, Globe, Star, Shield, Note, Rocket)
 - Raika_Games
 - emoji1912
 - NewsEmoji
@@ -61,9 +61,9 @@ class Icons:
     CONFIRM = "6206185428702206246"        # ✅ (Earning_ON_World_by_TgEmojis_bot)
     BINANCE = "5348212415077064131"        # 🟡 Binance (http_dxauniverse_by_fStikBot)
     BYBIT = "5348372939479751825"          # ⚫ Bybit (http_dxauniverse_by_fStikBot)
-    BKASH = "6217678000977089090"          # 🌸 bKash
-    NAGAD = "6217625168584380551"          # 🔴 Nagad
-    ROCKET_METHOD = "4911601033496494993"  # 🟣 Rocket (Payment Method)
+    BKASH = "5348469219761626211"          # 🌸 bKash (http_dxauniverse_by_fStikBot)
+    NAGAD = "5352985330628730418"          # 🔴 Nagad (http_dxauniverse_by_fStikBot)
+    ROCKET_METHOD = "5346042941196507141"  # 🟣 Rocket (http_dxauniverse_by_fStikBot)
 
 
 def tg_icon(emoji_id: str, fallback: str) -> str:
