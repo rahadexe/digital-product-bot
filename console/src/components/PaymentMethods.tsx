@@ -287,39 +287,45 @@ function MethodForm({
       </label>
       <div className="field">
         <span>Account Type & Action</span>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginTop: '4px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', marginTop: '4px' }}>
           {[
             { id: 'personal', title: 'Personal', action: 'Send Money', icon: '👤' },
             { id: 'agent', title: 'Agent', action: 'Cash Out', icon: '🏪' },
             { id: 'merchant', title: 'Merchant', action: 'Payment', icon: '💳' },
-          ].map((item) => (
-            <button
-              type="button"
-              key={item.id}
-              onClick={() => set({ account_type: item.id as any })}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '10px 8px',
-                borderRadius: '8px',
-                border: form.account_type === item.id ? '2px solid var(--accent, #0284c7)' : '1px solid var(--border)',
-                background: form.account_type === item.id ? 'rgba(2, 132, 199, 0.08)' : 'var(--surface-2)',
-                cursor: 'pointer',
-                textAlign: 'center',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              <span style={{ fontSize: '1.2rem', marginBottom: '2px' }}>{item.icon}</span>
-              <strong style={{ fontSize: '0.85rem', color: form.account_type === item.id ? 'var(--accent, #0284c7)' : 'var(--text)' }}>
-                {item.title}
-              </strong>
-              <small style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '2px' }}>
-                {item.action}
-              </small>
-            </button>
-          ))}
+          ].map((item) => {
+            const active = form.account_type === item.id;
+            return (
+              <button
+                type="button"
+                key={item.id}
+                onClick={() => set({ account_type: item.id as any })}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  padding: '6px 8px',
+                  borderRadius: '6px',
+                  border: active ? '1.5px solid var(--accent, #0284c7)' : '1px solid var(--border)',
+                  background: active ? 'rgba(2, 132, 199, 0.08)' : 'var(--surface-2)',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.15s ease',
+                  minHeight: '36px',
+                }}
+              >
+                <span style={{ fontSize: '0.95rem', lineHeight: 1, flexShrink: 0 }}>{item.icon}</span>
+                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, lineHeight: 1.15 }}>
+                  <strong style={{ fontSize: '0.78rem', fontWeight: 600, color: active ? 'var(--accent, #0284c7)' : 'var(--text)', whiteSpace: 'nowrap' }}>
+                    {item.title}
+                  </strong>
+                  <span style={{ fontSize: '0.65rem', color: 'var(--muted)', whiteSpace: 'nowrap' }}>
+                    {item.action}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
       <label className="field">
