@@ -53,8 +53,8 @@ async def update_product(product_id: int, payload: ProductUpdatePayload, service
     old_price = await services.catalog.update_product(product_id, **data)
     if old_price is None:
         raise HTTPException(status_code=404, detail="Product not found.")
-    if "price" in data and data["price"] is not None and data["price"] < old_price:
-        background.add_task(services.announcements.price_drop, product_id, old_price, data["price"])
+    if "price" in data and data["price"] is not None and data["price"] != old_price:
+        background.add_task(services.announcements.price_change, product_id, old_price, data["price"])
     return {"success": True}
 
 
@@ -69,6 +69,6 @@ async def announce_product(product_id: int, services: ServicesDep):
     if not await services.announcements.promote(product_id):
         raise HTTPException(
             status_code=400,
-            detail="Could not send announcement. Check channel username in Settings and verify bot is Admin there.",
+            detail="Could not send announcement. Check channel username or admin configuration in Settings.",
         )
     return {"success": True}

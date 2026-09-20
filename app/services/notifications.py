@@ -109,6 +109,8 @@ class Notifier:
             return False
         if event == "restock" and not await self.settings.flag("notify_admin_restock"):
             return False
+        if event == "price_change" and not await self.settings.flag("notify_admin_price_change"):
+            return False
         if event == "new_user" and not await self.settings.flag("notify_admin_new_user"):
             return False
 

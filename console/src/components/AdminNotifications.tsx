@@ -294,6 +294,12 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
         />
 
         <FlagRow
+          label="Price Change Alerts (Drop & Up)"
+          on={isOn('notify_admin_price_change', '1')}
+          onChange={(next) => void flip('notify_admin_price_change', next)}
+        />
+
+        <FlagRow
           label="New Customer Registrations"
           on={isOn('notify_admin_new_user', '0')}
           onChange={(next) => void flip('notify_admin_new_user', next)}

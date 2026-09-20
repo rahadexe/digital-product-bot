@@ -180,6 +180,7 @@ class PurchaseService:
                     )
 
                 order = _receipt_fields(order_row, new_balance)
+                order["product_id"] = order_row["product_id"]
                 order["currency_symbol"] = symbol
                 order["usd_rate"] = await self.settings.number("usd_rate")
                 order["show_usd"] = await self.settings.flag("show_usd_price")
@@ -228,6 +229,22 @@ class PurchaseService:
             heading = f"{ICON_SHOP} <b>New Order Received</b>"
             delivery = f"{ICON_CHECK} <b>Delivery:</b> Instant (Delivered)"
 
+        stock_warning = ""
+        prod_id = order.get("product_id")
+        if prod_id and not waiting_reason:
+            try:
+                async with self.db.connect() as conn:
+                    rem_stock = await conn.fetchval(
+                        "SELECT COUNT(*) FROM inventory_items WHERE product_id = $1 AND status = 'available' AND (expires_at IS NULL OR expires_at > now())",
+                        prod_id,
+                    )
+                if rem_stock == 0:
+                    stock_warning = f"\n{ICON_WARNING} <b>Stock Alert:</b> Product is now <b>OUT OF STOCK!</b> (<code>0</code> left)"
+                elif rem_stock <= 2:
+                    stock_warning = f"\n{ICON_WARNING} <b>Stock Alert:</b> Low stock warning (only <code>{rem_stock}</code> left)"
+            except Exception:
+                pass
+
         await self.notifier.send_admin(
             f"{heading}\n"
             f"━━━━━━━━━━━━━━━━━━\n"
@@ -235,7 +252,7 @@ class PurchaseService:
             f"{ICON_ACCOUNT} <b>Customer:</b> {customer} (<code>{user['tg_user_id']}</code>)\n"
             f"{ICON_VIP} <b>Product:</b> {escape(order['product_title'])}\n"
             f"{ICON_MONEY} <b>Price Paid:</b> <code>{price(symbol, order['price'], usd_rate=usd_rate, show_usd=show_usd)}</code>\n"
-            f"{delivery}",
+            f"{delivery}{stock_warning}",
             event="waiting_order" if waiting_reason else "order",
             keyboard=keyboard,
         )

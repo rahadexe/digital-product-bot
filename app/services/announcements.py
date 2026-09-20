@@ -23,8 +23,10 @@ from app.bot.icons import (
     ICON_SHOP,
     ICON_SPARKLES,
     ICON_SPENT,
+    ICON_STATS,
     ICON_TIMER,
     ICON_VIP,
+    ICON_WARNING,
     Icons,
     tg_icon,
 )
@@ -74,75 +76,145 @@ class AnnouncementService:
         values = await self.settings.values()
         symbol = escape(values["currency_symbol"])
         icon, title = self._product_icon(product), escape(product["title"])
-        await self.notifier.send_admin(
+        duration = (product.get("duration_label") or "").strip()
+        duration_line = f"{ICON_TIMER} <b>Validity:</b> {escape(duration)}\n" if duration and duration.lower() not in {"instant", "none", "n/a", ""} else ""
+        button = await self._buy_button(product, f"Buy {product['title']}")
+
+        admin_delivered = await self.notifier.send_admin(
             f"{ICON_ORDERS} <b>Stock Added (Restock Alert)</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"{ICON_VIP} <b>Product:</b> {icon} {title}\n"
+            f"{ICON_VIP} <b>Product:</b> {icon} <b>{title}</b>\n"
+            f"{duration_line}"
             f"{ICON_PLUS} <b>Added Stock:</b> <code>{added_count}</code> item(s)\n"
             f"{ICON_SHOP} <b>Total Stock:</b> <code>{product['stock']}</code> units\n"
             f"{ICON_MONEY} <b>Price:</b> <code>{format_dual_price(product['price'], symbol)}</code>",
             event="restock",
+            keyboard=button,
         )
-        channel = values["announcement_channel"]
-        if not channel or values["auto_restock_alerts"] == "0":
-            return True
-        return await self.notifier.send(
+        channel = values.get("announcement_channel")
+        if not channel or values.get("auto_restock_alerts", "1") == "0":
+            return admin_delivered
+        channel_delivered = await self.notifier.send(
             channel,
             f"{ICON_ORDERS} <b>Fresh Restock Alert!</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"{ICON_VIP} <b>Product:</b> {icon} <b>{title}</b>\n"
+            f"{duration_line}"
             f"{ICON_SPARKLES} <b>Fresh Stock:</b> <code>{added_count} units</code>\n"
             f"{ICON_SHOP} <b>Available:</b> <code>{product['stock']} accounts</code>\n"
             f"{ICON_MONEY} <b>Price:</b> <code>{format_dual_price(product['price'], symbol)}</code>\n"
             f"{ICON_CHECK} <b>Delivery:</b> Instant Automatic Delivery",
-            await self._buy_button(product, f"Buy {product['title']}"),
+            button,
+        )
+        return admin_delivered or channel_delivered
+
+    async def price_change(self, product_id: int, old_price: float, new_price: float) -> bool:
+        if old_price == new_price:
+            return False
+        product = await self._active_product(product_id)
+        if not product:
+            return False
+
+        values = await self.settings.values()
+        symbol = escape(values["currency_symbol"])
+        icon = self._product_icon(product)
+        title = escape(product["title"])
+        diff = abs(new_price - old_price)
+        pct = round((diff / old_price) * 100) if old_price > 0 else 0
+        duration = (product.get("duration_label") or "").strip()
+        duration_line = f"{ICON_TIMER} <b>Validity:</b> {escape(duration)}\n" if duration and duration.lower() not in {"instant", "none", "n/a", ""} else ""
+        is_manual = product.get("delivery_type") == "manual"
+        delivery_line = f"{ICON_TIMER} <b>Delivery:</b> Manual Delivery" if is_manual else f"{ICON_CHECK} <b>Delivery:</b> Instant Automatic Delivery"
+
+        is_drop = new_price < old_price
+
+        if is_drop:
+            heading = f"{ICON_FIRE} <b>Special Price Drop!</b>"
+            diff_line = f"{ICON_SPARKLES} <b>You Save:</b> <code>{format_dual_price(diff, symbol)}</code> (<b>-{pct}% OFF</b>)\n"
+            btn_text = f"Buy {product['title']}"
+        else:
+            heading = f"{ICON_STATS} <b>Price Update Alert</b>"
+            diff_line = f"{ICON_PLUS} <b>Adjustment:</b> <code>+{format_dual_price(diff, symbol)}</code> (<b>+{pct}%</b>)\n"
+            btn_text = f"View {product['title']}"
+
+        button = await self._buy_button(product, btn_text)
+
+        msg_body = (
+            f"{heading}\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{ICON_VIP} <b>Product:</b> {icon} <b>{title}</b>\n"
+            f"{duration_line}"
+            f"{ICON_SPENT} <b>Previous Price:</b> <s>{format_dual_price(old_price, symbol)}</s>\n"
+            f"{ICON_MONEY} <b>New Price:</b> <code>{format_dual_price(new_price, symbol)}</code>\n"
+            f"{diff_line}"
+            f"{ICON_SHOP} <b>Available Stock:</b> <code>{product['stock']} units</code>\n"
+            f"{delivery_line}"
         )
 
+        # 1. Deliver to Telegram Bot Admins (100% 3D custom emojis supported!)
+        admin_delivered = await self.notifier.send_admin(
+            msg_body,
+            event="price_change",
+            keyboard=button,
+        )
+
+        # 2. Deliver to Channel if configured and auto_price_drop_alerts is enabled
+        channel = values.get("announcement_channel")
+        channel_delivered = False
+        if channel and values.get("auto_price_drop_alerts", "1") != "0":
+            channel_delivered = await self.notifier.send(
+                channel,
+                msg_body,
+                button,
+            )
+
+        return admin_delivered or channel_delivered
+
     async def price_drop(self, product_id: int, old_price: float, new_price: float) -> bool:
-        if old_price <= new_price:
-            return False
+        """Backward-compatible method for price drop."""
+        return await self.price_change(product_id, old_price, new_price)
+
+    async def promote(self, product_id: int) -> bool:
         values = await self.settings.values()
-        channel = values["announcement_channel"]
-        if not channel or values["auto_price_drop_alerts"] == "0":
-            return False
         product = await self._active_product(product_id)
         if not product:
             return False
         symbol = escape(values["currency_symbol"])
         icon = self._product_icon(product)
-        return await self.notifier.send(
-            channel,
-            f"{ICON_FIRE} <b>Special Price Drop!</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"{ICON_VIP} <b>Product:</b> {icon} <b>{escape(product['title'])}</b>\n"
-            f"{ICON_SPENT} <b>Previous Price:</b> <s>{format_dual_price(old_price, symbol)}</s>\n"
-            f"{ICON_MONEY} <b>Discounted Price:</b> <code>{format_dual_price(new_price, symbol)}</code>\n"
-            f"{ICON_CHECK} <b>Delivery:</b> Instant Automatic Delivery",
-            await self._buy_button(product, f"Buy {product['title']}"),
-        )
-
-    async def promote(self, product_id: int) -> bool:
-        values = await self.settings.values()
-        channel = values["announcement_channel"]
-        product = await self._active_product(product_id)
-        if not channel or not product:
-            return False
-        symbol = escape(values["currency_symbol"])
-        icon = self._product_icon(product)
+        title = escape(product["title"])
         desc = f"\n{ICON_NOTE} {escape(product.get('description'))}\n" if product.get("description") else ""
         duration = (product.get("duration_label") or "").strip()
         duration_line = f"{ICON_TIMER} <b>Validity:</b> {escape(duration)}\n" if duration and duration.lower() not in {"instant", "none", "n/a", ""} else ""
         is_manual = product.get("delivery_type") == "manual"
         delivery_line = f"{ICON_TIMER} <b>Delivery:</b> Manual Delivery" if is_manual else f"{ICON_CHECK} <b>Delivery:</b> Instant Automatic Delivery"
-        return await self.notifier.send(
-            channel,
+
+        button = await self._buy_button(product, f"Order {product['title']}")
+        text = (
             f"{ICON_FIRE} <b>Featured Product</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"{ICON_VIP} <b>Product:</b> {icon} <b>{escape(product['title'])}</b>\n"
+            f"{ICON_VIP} <b>Product:</b> {icon} <b>{title}</b>\n"
             f"{duration_line}"
             f"{desc}"
             f"{ICON_SHOP} <b>Available Stock:</b> <code>{product['stock']} units</code>\n"
             f"{ICON_MONEY} <b>Price:</b> <code>{format_dual_price(product['price'], symbol)}</code>\n"
-            f"{delivery_line}",
-            await self._buy_button(product, f"Order {product['title']}"),
+            f"{delivery_line}"
         )
+
+        # 1. Send to Bot Admin
+        admin_delivered = await self.notifier.send_admin(
+            text,
+            event="general",
+            keyboard=button,
+        )
+
+        # 2. Post to channel if configured
+        channel = values.get("announcement_channel")
+        channel_delivered = False
+        if channel:
+            channel_delivered = await self.notifier.send(
+                channel,
+                text,
+                button,
+            )
+
+        return admin_delivered or channel_delivered
