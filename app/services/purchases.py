@@ -273,12 +273,20 @@ class PurchaseService:
             keyboard=keyboard,
         )
 
-        # Dispatch order notification to dedicated staff order group(s) if configured
+        # Dispatch privacy-safe order notification to dedicated staff order group(s) if configured
         group_raw = await self.settings.get("order_notification_group")
         if group_raw:
+            group_msg_text = (
+                f"{heading}\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"{ICON_ORDERS} <b>Order ID:</b> <code>#{order_id}</code>\n"
+                f"{ICON_VIP} <b>Product:</b> {escape(order['product_title'])}\n"
+                f"{ICON_MONEY} <b>Price Paid:</b> <code>{price(symbol, order['price'], usd_rate=usd_rate, show_usd=show_usd)}</code>\n"
+                f"{delivery}{stock_warning}"
+            )
             groups = [g.strip() for g in re.split(r"[\s,;]+", group_raw) if g.strip()]
             for grp in groups:
-                await self.notifier.send(grp, msg_text, keyboard=keyboard)
+                await self.notifier.send(grp, group_msg_text, keyboard=keyboard)
 
     # --- orders that are paid but not delivered ---
 
@@ -407,7 +415,6 @@ class PurchaseService:
                 f"{ICON_CHECK} <b>Order Refunded</b>\n"
                 f"━━━━━━━━━━━━━━━━━━\n"
                 f"{ICON_ORDERS} <b>Order ID:</b> <code>#{order_id}</code>\n"
-                f"{ICON_ACCOUNT} <b>Customer:</b> <code>{order['tg_user_id']}</code>\n"
                 f"{ICON_VIP} <b>Product:</b> {escape(order['product_title'])}\n"
                 f"{ICON_MONEY} <b>Refunded:</b> <code>{order['price']:.2f} {symbol}</code>"
             )
