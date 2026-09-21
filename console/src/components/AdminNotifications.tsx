@@ -1,6 +1,6 @@
 'use client';
 
-import { Bell, Users } from 'lucide-react';
+import { Bell, Megaphone, Users } from 'lucide-react';
 import { FlagRow, Switch, type Say } from './ui';
 
 interface AdminNotificationsProps {
@@ -13,10 +13,11 @@ interface AdminNotificationsProps {
 
 export function AdminNotifications({ say, values, setValues, setSaved, flip }: AdminNotificationsProps) {
   const isOn = (key: string, def = '1') => (values[key] ?? def) === '1';
+  const channel = values.announcement_channel?.trim();
 
   return (
     <>
-      {/* ── SUB-SECTION: Admin Operational Alerts ──────────────── */}
+      {/* ── 1. Admin Operational Alerts ────────────────────────── */}
       <div className="panel-subhead">
         <div>
           <h3>
@@ -89,7 +90,7 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
         {/* TOGGLABLE: Stock updates & inventory alerts */}
         <FlagRow
           label="Stock updates &amp; alerts"
-          hint="Alert when inventory is added, or when a product runs out of stock"
+          hint="Alert when items are added to stock, or when a product runs out of stock"
           on={isOn('notify_admin_restock', '1')}
           onChange={(next) => void flip('notify_admin_restock', next)}
         />
@@ -111,7 +112,7 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
         />
       </div>
 
-      {/* ── SUB-SECTION: Customer / User Notifications ─────────── */}
+      {/* ── 2. Customer Notifications ──────────────────────────── */}
       <div className="panel-subhead" style={{ marginTop: '28px' }}>
         <div>
           <h3>
@@ -119,7 +120,7 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
             <span>Customer notifications</span>
           </h3>
           <p>
-            Direct Telegram messages sent to customers for their orders, wallet updates, and referral bonuses.
+            Direct Telegram messages sent to customers for orders, wallet updates, and referral bonuses.
           </p>
         </div>
       </div>
@@ -138,6 +139,22 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
           </div>
           <div className="mandatory-switch" title="Critical customer delivery. Cannot be disabled.">
             <Switch label="Order Delivery" on={true} disabled={true} onChange={() => {}} />
+          </div>
+        </div>
+
+        {/* MANDATORY: Manual Order In-Progress Notice */}
+        <div className="mandatory-row">
+          <div className="mandatory-info">
+            <div className="mandatory-title-row">
+              <strong>Manual Order Acknowledgment</strong>
+              <span className="mandatory-badge warn">ALWAYS ON</span>
+            </div>
+            <p className="mandatory-desc">
+              Sends an immediate confirmation that payment was received and manual order is in queue.
+            </p>
+          </div>
+          <div className="mandatory-switch" title="Order processing notice. Cannot be disabled.">
+            <Switch label="Order In Progress" on={true} disabled={true} onChange={() => {}} />
           </div>
         </div>
 
@@ -195,6 +212,35 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
           hint="Notify referrer when an invited friend joins and a referral bonus is credited"
           on={isOn('notify_user_referral', '1')}
           onChange={(next) => void flip('notify_user_referral', next)}
+        />
+      </div>
+
+      {/* ── 3. Public Channel Auto-Posts ───────────────────────── */}
+      <div className="panel-subhead" style={{ marginTop: '28px' }}>
+        <div>
+          <h3>
+            <Megaphone size={15} style={{ color: '#0ea5e9', flexShrink: 0 }} />
+            <span>Public channel announcements</span>
+          </h3>
+          <p>
+            Automated marketing posts dispatched to your Telegram announcement channel ({channel ? <code>{channel}</code> : 'configured in Channels tab'}).
+          </p>
+        </div>
+      </div>
+
+      <div className="rows">
+        <FlagRow
+          label="Auto-post on Restock"
+          hint="Automatically posts an announcement with a 1-click Buy button to your channel whenever stock is added"
+          on={isOn('auto_restock_alerts', '1')}
+          onChange={(next) => void flip('auto_restock_alerts', next)}
+        />
+
+        <FlagRow
+          label="Auto-post on Price Drop"
+          hint="Automatically posts discount announcements to your channel when a product price is reduced"
+          on={isOn('auto_price_drop_alerts', '1')}
+          onChange={(next) => void flip('auto_price_drop_alerts', next)}
         />
       </div>
     </>
