@@ -26,16 +26,25 @@ ZINIPAY_TRX_API = "https://api.zinipay.com/v1/trx"
 
 
 def _matches_receipt(data: dict[str, Any], amount: float, transaction_id: str) -> bool:
-    """Reject a provider response that explicitly contradicts the requested receipt."""
+    """A receipt must state what was paid and which transaction paid it.
+
+    Silence is not agreement. This previously compared only the fields the
+    response happened to carry, so a body that mentioned neither the amount nor
+    the transaction id agreed with everything and credited the wallet on no
+    evidence at all. A response that cannot name both now goes to review.
+    """
+    if not isinstance(data, dict) or data.get('amount') is None:
+        return False
     try:
-        paid = Decimal(str(data.get('amount', amount)))
+        paid = Decimal(str(data['amount']))
         expected = Decimal(str(amount))
-        if not paid.is_finite() or not expected.is_finite() or abs(paid - expected) > Decimal('0.01'):
-            return False
     except (InvalidOperation, ValueError, TypeError):
         return False
-    return all(str(data[key]).strip().upper() == transaction_id.upper()
-               for key in ('trxID', 'transactionId') if data.get(key) is not None)
+    if not paid.is_finite() or not expected.is_finite() or abs(paid - expected) > Decimal('0.01'):
+        return False
+    stated = [str(data[key]).strip() for key in ('trxID', 'transactionId') if data.get(key) is not None]
+    wanted = transaction_id.strip().upper()
+    return bool(stated) and all(value.upper() == wanted for value in stated)
 
 
 class ZiniPayVerificationService:

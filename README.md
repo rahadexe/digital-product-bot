@@ -38,6 +38,7 @@ cd console && npm ci && npm run dev     # console on :3000, API on :8000
 
 ### Change history
 
+- [Security review and payment-path attack tests](docs/SECURITY_REVIEW_2026-09-21.md)
 - [Handler crashes, request boundaries and query scaling](docs/HANDLER_AND_SCALE_FIXES_2026-09-21.md)
 - [Admin console layout and copy review](docs/ADMIN_UI_REVIEW_2026-09-21.md)
 - [Pre-production security and rate-limit hardening](docs/SECURITY_HARDENING_2026-09-20.md)
