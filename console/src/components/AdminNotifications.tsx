@@ -69,21 +69,14 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
         <FlagRow
           label="Instant Stock Purchases"
           hint="Alert when an order is automatically delivered from inventory stock"
-          on={isOn('notify_admin_orders', '1')}
+          on={isOn('notify_admin_orders', '0')}
           onChange={(next) => void flip('notify_admin_orders', next)}
-        />
-
-        <FlagRow
-          label="Manual Deposit Requests"
-          hint="Alert when a customer submits a bKash / Nagad / Rocket transaction receipt"
-          on={isOn('notify_admin_deposits', '1')}
-          onChange={(next) => void flip('notify_admin_deposits', next)}
         />
 
         <FlagRow
           label="Automatic Gateway Deposits"
           hint="Alert when an automated deposit is verified and credited via Binance Pay or ZiniPay"
-          on={isOn('notify_admin_payments', '1')}
+          on={isOn('notify_admin_payments', '0')}
           onChange={(next) => void flip('notify_admin_payments', next)}
         />
 
@@ -175,6 +168,20 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
             </div>
             <p className="mandatory-desc">
               Immediate alert when a customer orders a manual-delivery product requiring admin fulfillment.
+            </p>
+          </div>
+        </div>
+
+        <div className="mandatory-row">
+          <div className="mandatory-info">
+            <div className="mandatory-title-row">
+              <strong>Manual Deposit Requests</strong>
+              <span className="mandatory-badge warn" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                <Lock size={10} /> REQUIRED · ALWAYS ON
+              </span>
+            </div>
+            <p className="mandatory-desc">
+              Immediate alert with Approve &amp; Reject buttons when a customer submits a manual bKash / Nagad / Rocket transaction receipt for admin verification.
             </p>
           </div>
         </div>

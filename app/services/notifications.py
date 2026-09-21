@@ -97,15 +97,13 @@ class Notifier:
         """
         Send a notification to all configured admin Telegram accounts.
         If an event type is toggled off in settings, the message is skipped.
-        Mandatory events (waiting_order, system_error, general) cannot be toggled off.
+        Mandatory events (waiting_order, deposit, system_error, general) cannot be toggled off.
         """
         if not self.bot:
             return False
 
         # Configurable event toggles
         if event == "order" and not await self.settings.flag("notify_admin_orders"):
-            return False
-        if event == "deposit" and not await self.settings.flag("notify_admin_deposits"):
             return False
         if event == "payment" and not await self.settings.flag("notify_admin_payments"):
             return False
