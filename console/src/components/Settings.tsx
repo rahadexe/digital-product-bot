@@ -46,6 +46,10 @@ const TOGGLE_NAMES: Record<string, string> = {
   notify_user_referral: 'Referral Bonus Alert',
 };
 
+/** Switches that only decide whether a message is sent, so flipping one asks nothing. */
+const ALERT_TOGGLES = (key: string) =>
+  key.startsWith('notify_') || key === 'auto_restock_alerts' || key === 'auto_price_drop_alerts';
+
 type Secret = 'zinipay_api_key' | 'binance_api_key' | 'binance_api_secret';
 
 type Field = {
@@ -331,6 +335,15 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
     let confirmLabel: string;
     let isDanger: boolean;
 
+    // Asking first is worth it when a stray tap changes the shop itself: stopping sales,
+    // changing prices, turning off a payment method or the referral programme. A switch
+    // that only decides whether a message gets sent changes nothing about the store, is
+    // undone by tapping again, and gets flipped often — so those just go.
+    if (ALERT_TOGGLES(key)) {
+      await applyFlip(key, on);
+      return;
+    }
+
     if (key === 'store_paused') {
       if (on) {
         title = 'Pause Store?';
@@ -354,7 +367,10 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
 
     const confirmed = await confirm(title, message, confirmLabel, isDanger);
     if (!confirmed) return;
+    await applyFlip(key, on);
+  }
 
+  async function applyFlip(key: string, on: boolean) {
     const value = on ? '1' : '0';
     const before = values[key];
     setValues((current) => ({ ...current, [key]: value }));
