@@ -3836,3 +3836,10 @@ ul.messages p { margin-top: 6px; color: var(--text-dim); font-size: 12.5px; whit
   /* 180px of forced width does not fit two filters on a 320px screen. */
   .custom-select-container { min-width: 0 !important; }
 }
+
+@media (pointer: coarse) {
+  /* Removing an administrator locks someone out of the bot; 20px is not a
+     target to offer a thumb for that. */
+  .admin-chip-remove { min-width: 36px; min-height: 36px; padding: 8px; }
+  .admin-chip { padding-inline-end: 4px; }
+}

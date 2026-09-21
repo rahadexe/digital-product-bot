@@ -7,6 +7,7 @@ import { Fragment, useEffect, useState } from 'react';
 import { api, type BinanceStatus, type PaymentsStatus } from '@/lib/api';
 import { resetCurrencySymbol } from '@/lib/currency';
 import { AdminNotifications } from './AdminNotifications';
+import { BotAdmins } from './BotAdmins';
 import { CustomSelect } from './CustomSelect';
 import { GateChannels } from './GateChannels';
 import { PaymentMethods } from './PaymentMethods';
@@ -71,7 +72,20 @@ const SECTIONS: Section[] = [
         rows: 3,
         placeholder: 'Custom welcome message (optional)',
       },
+      {
+        key: 'guide_text',
+        label: 'Help guide',
+        hint: 'What /help shows a customer.',
+        type: 'textarea',
+        rows: 4,
+      },
     ],
+  },
+  {
+    id: 'admins',
+    tab: 'general',
+    title: 'Who runs this shop',
+    fields: [],
   },
   {
     id: 'availability',
@@ -167,6 +181,7 @@ const SECTIONS: Section[] = [
     },
     fields: [
       { key: 'binance_pay_id', label: 'Binance UID', placeholder: '750176717' },
+      { key: 'binance_pay_name', label: 'Account name customers see', placeholder: 'Leave blank to show only the UID' },
       { key: 'binance_api_key', label: 'API Key (Read-only)', type: 'password', secret: 'binance_api_key' },
       { key: 'binance_api_secret', label: 'API Secret', type: 'password', secret: 'binance_api_secret' },
       { key: 'binance_pay_rate', label: 'Rate per 1 USDT (৳)', type: 'number', fallback: '125' },
@@ -215,7 +230,9 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
 
   // Following a link to another tab (#settings/payments) while Settings is already open.
   useEffect(() => {
-    if (initialTab) setTab(resolve(initialTab));
+    // #settings with no tab means the first tab. Leaving the previous one showing
+    // would put the address and the screen at odds.
+    setTab(resolve(initialTab));
   }, [initialTab]);
 
   useEffect(() => {
@@ -528,6 +545,9 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
               ) : null}
 
               {/* Embedded Sub-components inside the unified card */}
+              {section.id === 'admins' ? (
+                <BotAdmins say={say} values={values} setValues={setValues} setSaved={setSaved} />
+              ) : null}
               {section.id === 'notifications' ? (
                 <AdminNotifications
                   say={say}

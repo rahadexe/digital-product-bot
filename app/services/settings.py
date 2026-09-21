@@ -95,8 +95,6 @@ class SettingSpec:
 
 SPECS: dict[str, SettingSpec] = {
     "store_name": SettingSpec("PremiumOne", max_length=64),
-    "store_tagline": SettingSpec("Premium digital subscriptions & accounts.", max_length=120),
-    "store_description": SettingSpec("VPNs, Streaming & AI tools at your fingertips.", max_length=240),
     "currency": SettingSpec("BDT", _currency_code, 10),
     "currency_symbol": SettingSpec("৳", max_length=8),
     "show_usd_price": SettingSpec("1", _flag, 1),
