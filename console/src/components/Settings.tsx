@@ -210,19 +210,6 @@ const SECTIONS: Section[] = [
     ],
   },
   {
-    id: 'order_notifications',
-    tab: 'channels',
-    title: 'Order notification group',
-    fields: [
-      {
-        key: 'order_notification_group',
-        label: 'Staff Telegram group chat ID',
-        hint: 'Private Telegram group where real-time order receipts, customer purchases, and manual delivery alerts are posted for staff/admins. Add the bot to the group as an admin.',
-        placeholder: '-100… or @YourStaffGroup',
-      },
-    ],
-  },
-  {
     id: 'update_channels',
     tab: 'channels',
     title: 'Customer channel buttons',

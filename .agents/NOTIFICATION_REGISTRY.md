@@ -29,17 +29,11 @@
 | 6 | **Stock Updates & Alerts** | `notify_admin_restock` (`event="restock"`) | Configurable (Default: 1) | Triggered when inventory items are added, or when stock reaches 0 (Out of Stock). |
 | 7 | **Price Change Alerts** | `notify_admin_price_change` (`event="price_change"`) | Configurable (Default: 1) | Triggered when product prices or discounts are updated in the catalog. |
 | 8 | **New Customer Joined** | `notify_admin_new_user` (`event="new_user"`) | Configurable (Default: 0) | Triggered when a new Telegram user starts the bot and creates an account. |
-
-### 1.B 👥 Staff Order Notification Group (Dispatched to `order_notification_group`)
-
-| # | Notification | Trigger | Description |
-|---|---|---|---|
-| 1 | **Order Purchase & Receipt** | `purchases.py` (`purchase`) | Dispatched in real-time to the configured staff Telegram group (`order_notification_group`). Includes Order ID, Customer ID, Product, Dual-Price, and Console delivery button. |
-| 2 | **Order Refund Alert** | `purchases.py` (`refund`) | Dispatched to staff group when an admin issues a refund. |
-
-> **Security Standard for Groups:**
-> 1. The bot strictly rejects all customer shop commands (`/start`, `/buy`, wallet balances, delivery credentials) inside any group (`chat.type != "private"`).
-> 2. If the bot is added to an unauthorized group by a non-admin, the bot automatically leaves the chat and sends a security alert to the shop owner.
+> **Security Standard: Group & Channel Isolation:**
+> 1. **Zero Group Participation:** The bot is strictly prohibited from participating in any Telegram group or supergroup. If added to any group, the bot immediately leaves (`bot.leave_chat`), sends zero messages, and dispatches a security alert to the shop admins.
+> 2. **Message Gate (`StoreAccess`):** The bot rejects all customer and admin commands (`/start`, `/buy`, wallet balance, credentials) in non-private chats (`chat.type != "private"`).
+> 3. **Unauthorized Channel Protection:** If the bot is added to an unauthorized channel, it automatically leaves immediately to prevent misuse and alerts shop admins.
+> 4. **Channel Whitelist:** Only public channels explicitly configured in `announcement_channel` or gate channels are authorized. Channels ONLY receive public marketing announcements (Restock & Price Drop). Zero customer or order data is ever sent to channels.
 
 ---
 

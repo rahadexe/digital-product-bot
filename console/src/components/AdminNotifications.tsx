@@ -54,7 +54,7 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
             <span>Admin alert preferences</span>
           </h3>
           <p>
-            Notifications dispatched to Telegram accounts under &ldquo;Who runs this shop&rdquo; and your Order Notification Group.
+            Notifications dispatched directly to the Telegram accounts configured under &ldquo;Who runs this shop&rdquo;.
           </p>
         </div>
       </div>

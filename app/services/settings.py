@@ -76,7 +76,7 @@ def _chats(value: str) -> str:
     parts = [p.strip() for p in re.split(r"[\s,;]+", value) if p.strip()]
     for p in parts:
         if not re.fullmatch(r"@[A-Za-z0-9_]{3,64}|-?\d{5,20}", p):
-            raise ValueError(f"'{p}' must be @channel/group or numeric chat ID")
+            raise ValueError(f"'{p}' must be @channel or numeric chat ID")
     return ", ".join(parts)
 
 
@@ -121,7 +121,6 @@ SPECS: dict[str, SettingSpec] = {
     "notify_admin_new_user": SettingSpec("0", _flag, 1),
     "notify_user_referral": SettingSpec("1", _flag, 1),
     "announcement_channel": SettingSpec("", _chats, 500),
-    "order_notification_group": SettingSpec("", _chats, 500),
     "auto_restock_alerts": SettingSpec("1", _flag, 1),
     "auto_price_drop_alerts": SettingSpec("1", _flag, 1),
     # ZiniPay instant payments: credited automatically after ZiniPay confirms each payment.

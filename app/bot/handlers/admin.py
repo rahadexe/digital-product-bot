@@ -227,9 +227,13 @@ async def cmd_admin_help(message: Message, services: Services):
 @router.my_chat_member()
 async def on_bot_chat_member_updated(event: ChatMemberUpdated, services: Services, bot: Bot):
     """
-    Security check: when bot is added to a group or channel,
-    verify authorization. If added to an unauthorized group by a non-admin,
-    the bot automatically leaves the chat and alerts admins.
+    Security check: when bot is added to a group or channel, verify authorization.
+    1. Groups / Supergroups: The bot NEVER operates in groups.
+       If added to any group, it immediately leaves without responding or posting anything,
+       and alerts the store admin.
+    2. Channels: The bot only operates in explicitly configured announcement
+       or gate channels. If added to an unauthorized channel, it leaves
+       immediately without posting, and alerts the store admin.
     """
     new_status = event.new_chat_member.status
     if new_status not in ("member", "administrator"):
@@ -239,15 +243,40 @@ async def on_bot_chat_member_updated(event: ChatMemberUpdated, services: Service
     if chat.type == "private":
         return
 
-    values = await services.settings.values()
-    admin_ids = await services.settings.admin_chat_ids()
     actor_id = event.from_user.id if event.from_user else 0
-    is_actor_admin = actor_id in admin_ids
 
-    authorized_chats = set()
-    for key in ("order_notification_group", "announcement_channel"):
-        raw = values.get(key, "")
-        for part in re.split(r"[\s,;]+", raw):
+    # 1. GROUP / SUPERGROUP: Always leave immediately. No exceptions.
+    if chat.type in ("group", "supergroup"):
+        logger.warning(
+            "Security: Bot added to group '%s' (ID: %s) by user %s. Leaving immediately.",
+            chat.title, chat.id, actor_id
+        )
+        with suppress(Exception):
+            await bot.leave_chat(chat.id)
+
+        # Alert store admins of unauthorized addition
+        await services.notifier.send_admin(
+            f"🛡️ <b>Security Alert: Group Invite Rejected</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"The bot was added to a group:\n"
+            f"• <b>Title:</b> {html.escape(chat.title or 'Unknown')}\n"
+            f"• <b>Chat ID:</b> <code>{chat.id}</code>\n"
+            f"• <b>Added By:</b> <code>{actor_id}</code>\n\n"
+            f"<i>Groups are completely disabled. The bot automatically left without responding.</i>"
+        )
+        return
+
+    # 2. CHANNEL: Only allow explicitly authorized announcement or gate channels.
+    if chat.type == "channel":
+        values = await services.settings.values()
+        admin_ids = await services.settings.admin_chat_ids()
+        is_actor_admin = actor_id in admin_ids
+
+        authorized_chats = set()
+
+        # Announcement channels from settings
+        raw_announcements = values.get("announcement_channel", "")
+        for part in re.split(r"[\s,;]+", raw_announcements):
             p = part.strip()
             if p:
                 authorized_chats.add(p.lower())
@@ -258,42 +287,51 @@ async def on_bot_chat_member_updated(event: ChatMemberUpdated, services: Service
                 except ValueError:
                     pass
 
-    chat_id_str = str(chat.id)
-    chat_user = (chat.username or "").lower()
+        # Gate channels (force-join channels)
+        try:
+            gate_list = await services.gate.channels(active_only=False)
+            for g in gate_list:
+                uname = (g.get("channel_username") or "").strip().lower()
+                if uname:
+                    authorized_chats.add(uname)
+                    if uname.startswith("@"):
+                        authorized_chats.add(uname[1:])
+                cid = str(g.get("chat_id") or "").strip()
+                if cid:
+                    authorized_chats.add(cid)
+        except Exception:
+            logger.exception("Failed to load gate channels for chat authorization check")
 
-    is_authorized = (
-        is_actor_admin
-        or chat_id_str in authorized_chats
-        or (chat_user and chat_user in authorized_chats)
-    )
+        chat_id_str = str(chat.id)
+        chat_user = (chat.username or "").lower()
 
-    if not is_authorized:
-        logger.warning(
-            "Security: Bot added to unauthorized chat '%s' (ID: %s) by user %s. Leaving.",
-            chat.title, chat.id, actor_id
+        is_authorized = (
+            chat_id_str in authorized_chats
+            or (chat_user and (chat_user in authorized_chats or f"@{chat_user}" in authorized_chats))
+            or (is_actor_admin and not authorized_chats)  # admin adding bot before saving config
         )
-        with suppress(Exception):
-            await bot.leave_chat(chat.id)
-        # Alert admins of unauthorized addition
-        await services.notifier.send_admin(
-            f"🛡️ <b>Security Alert: Unauthorized Group</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"The bot was added to an unauthorized group:\n"
-            f"• <b>Title:</b> {html.escape(chat.title or 'Unknown')}\n"
-            f"• <b>Chat ID:</b> <code>{chat.id}</code>\n"
-            f"• <b>Added By:</b> <code>{actor_id}</code>\n\n"
-            f"<i>The bot automatically left the group to protect store data.</i>"
-        )
-        return
 
-    # If this is the authorized order notification group, announce readiness
-    order_groups_raw = values.get("order_notification_group", "")
-    order_groups = [g.strip().lower() for g in re.split(r"[\s,;]+", order_groups_raw) if g.strip()]
-    if chat.type in ("group", "supergroup") and (chat_id_str in order_groups or (chat_user and chat_user in order_groups)):
-        with suppress(Exception):
-            await bot.send_message(
-                chat.id,
-                f"✅ <b>Order Notification Group Connected</b>\n"
-                f"━━━━━━━━━━━━━━━━━━\n"
-                f"Real-time order receipts and delivery alerts will be delivered here."
+        if not is_authorized:
+            logger.warning(
+                "Security: Bot added to unauthorized channel '%s' (ID: %s) by user %s. Leaving.",
+                chat.title, chat.id, actor_id
             )
+            with suppress(Exception):
+                await bot.leave_chat(chat.id)
+
+            await services.notifier.send_admin(
+                f"🛡️ <b>Security Alert: Unauthorized Channel</b>\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"The bot was added to an unauthorized channel:\n"
+                f"• <b>Title:</b> {html.escape(chat.title or 'Unknown')}\n"
+                f"• <b>Channel ID:</b> <code>{chat.id}</code>\n"
+                f"• <b>Username:</b> @{chat_user or 'None'}\n"
+                f"• <b>Added By:</b> <code>{actor_id}</code>\n\n"
+                f"<i>The bot automatically left the channel to prevent unauthorized broadcasts.</i>"
+            )
+            return
+
+        logger.info(
+            "Bot successfully added to authorized channel '%s' (ID: %s).",
+            chat.title, chat.id
+        )
