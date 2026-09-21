@@ -18,14 +18,14 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
   return (
     <>
       {/* ── 1. Public Channel Auto-Posts (TOP) ─────────────────── */}
-      <div className="panel-subhead">
+      <div className="panel-subhead" style={{ borderTop: 0 }}>
         <div>
           <h3>
             <Megaphone size={15} style={{ color: '#0ea5e9', flexShrink: 0 }} />
             <span>Public channel announcements</span>
           </h3>
           <p>
-            Automated marketing posts dispatched to your Telegram announcement channels ({channel ? <code>{channel}</code> : 'configured in Channels tab'}).
+            Automated marketing posts dispatched to your Telegram announcement channels ({channel ? <code style={{ wordBreak: 'break-all' }}>{channel}</code> : 'configured in Channels tab'}).
           </p>
         </div>
       </div>
@@ -47,7 +47,7 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
       </div>
 
       {/* ── 2. Admin Operational & Security Alerts ─────────────── */}
-      <div className="panel-subhead" style={{ marginTop: '28px' }}>
+      <div className="panel-subhead notif-section-head">
         <div>
           <h3>
             <Bell size={15} style={{ color: 'var(--accent)', flexShrink: 0 }} />
@@ -61,11 +61,8 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
 
       <div className="rows">
         {/* TOGGLABLE (ON/OFF) FIRST */}
-        <div style={{ padding: '6px 2px 2px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)' }}>
-            Configurable Alerts (Toggle on/off)
-          </span>
-          <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+        <div className="notif-divider">
+          <span>Configurable Alerts (Toggle on/off)</span>
         </div>
 
         <FlagRow
@@ -111,11 +108,8 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
         />
 
         {/* REQUIRED / ALWAYS ON SYSTEM ALERTS */}
-        <div style={{ marginTop: '14px', padding: '6px 2px 2px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--warning)' }}>
-            Required System &amp; Security Alerts (Always Active)
-          </span>
-          <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+        <div className="notif-divider required" style={{ marginTop: '10px' }}>
+          <span>Required System &amp; Security Alerts</span>
         </div>
 
         <div className="mandatory-row">
@@ -176,7 +170,7 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
       </div>
 
       {/* ── 3. Customer Notifications ──────────────────────────── */}
-      <div className="panel-subhead" style={{ marginTop: '28px' }}>
+      <div className="panel-subhead notif-section-head">
         <div>
           <h3>
             <Users size={15} style={{ color: 'var(--positive)', flexShrink: 0 }} />
@@ -190,11 +184,8 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
 
       <div className="rows">
         {/* TOGGLABLE (ON/OFF) FIRST */}
-        <div style={{ padding: '6px 2px 2px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)' }}>
-            Configurable Customer Alerts
-          </span>
-          <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+        <div className="notif-divider">
+          <span>Configurable Customer Alerts</span>
         </div>
 
         <FlagRow
@@ -205,11 +196,8 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
         />
 
         {/* ALWAYS ON (MANDATORY) BELOW - NO BUTTON */}
-        <div style={{ marginTop: '14px', padding: '6px 2px 2px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--warning)' }}>
-            Required Customer Receipts &amp; Deliveries (Always Active)
-          </span>
-          <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+        <div className="notif-divider required" style={{ marginTop: '10px' }}>
+          <span>Required Customer Deliveries &amp; Receipts</span>
         </div>
 
         <div className="mandatory-row">
