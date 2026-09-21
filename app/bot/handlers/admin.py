@@ -38,6 +38,10 @@ class BroadcastStates(StatesGroup):
     confirming = State()
 
 
+class WelcomeStates(StatesGroup):
+    waiting_for_welcome = State()
+
+
 async def _is_admin(user_id: int, services: Services) -> bool:
     admin_ids = await services.settings.admin_chat_ids()
     return user_id in admin_ids
@@ -220,7 +224,135 @@ async def cmd_admin_help(message: Message, services: Services):
         f"• <code>/bc</code> — Interactive composer\n"
         f"• Reply to message with <code>/bc</code> — Forward & send\n"
         f"• <code>/bcstatus</code> — Check latest delivery status\n"
+        f"• <code>/setwelcome &lt;text&gt;</code> — Set custom welcome message\n"
+        f"• <code>/resetwelcome</code> — Reset welcome message to default\n"
         f"• <code>/cancel</code> — Cancel active action"
+    )
+
+
+@router.message(Command("resetwelcome"))
+async def cmd_reset_welcome(message: Message, services: Services):
+    if not message.from_user or not await _is_admin(message.from_user.id, services):
+        return
+
+    try:
+        await services.settings.update({"welcome_text": ""})
+    except Exception as e:
+        logger.exception("Failed to reset welcome_text: %s", e)
+        await message.answer(f"{ICON_CROSS} Failed to reset: {html.escape(str(e))}")
+        return
+
+    values = await services.settings.values()
+    store_name = values.get("store_name", "Premium Haven")
+    await message.answer(
+        f"{ICON_CHECK} <b>Welcome message reset to default!</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"<b>Default greeting:</b>\n"
+        f"Welcome to <b>{html.escape(store_name)}</b>!\n\n"
+        f"💡 <i>This is now active for all users and updated in the console.</i>"
+    )
+
+
+@router.message(Command("setwelcome", "welcome"))
+async def cmd_set_welcome(message: Message, state: FSMContext, services: Services):
+    if not message.from_user or not await _is_admin(message.from_user.id, services):
+        return
+
+    # Check if replying to an existing message
+    if message.reply_to_message:
+        reply = message.reply_to_message
+        text = reply.html_text or reply.caption or reply.text
+        if text and text.strip():
+            await _save_welcome_text(message, text.strip(), services)
+            await state.clear()
+            return
+
+    # Check if arguments provided directly: e.g. /setwelcome Welcome to our shop!
+    full_html = message.html_text or message.text or ""
+    parts = full_html.split(maxsplit=1)
+    if len(parts) > 1 and parts[1].strip():
+        arg_text = parts[1].strip()
+        if arg_text.lower() in ("reset", "default", "clear"):
+            await cmd_reset_welcome(message, services)
+            await state.clear()
+            return
+        await _save_welcome_text(message, arg_text, services)
+        await state.clear()
+        return
+
+    # Prompt interactive composer
+    values = await services.settings.values()
+    current_welcome = values.get("welcome_text", "").strip()
+    store_name = values.get("store_name", "Premium Haven")
+
+    await state.set_state(WelcomeStates.waiting_for_welcome)
+    status_hint = (
+        f"<b>Current Custom Message:</b>\n<blockquote>{html.escape(current_welcome)}</blockquote>\n\n"
+        if current_welcome
+        else f"<b>Current Status:</b> <i>Using default ('Welcome to {html.escape(store_name)}')</i>\n\n"
+    )
+
+    await message.answer(
+        f"{ICON_NOTE} <b>Set Welcome Message</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"{status_hint}"
+        f"Send the new greeting message you want customers to see on /start.\n\n"
+        f"• HTML formatting (bold, italic, links) is supported.\n"
+        f"• Use <code>{{store_name}}</code> to automatically insert the store name.\n"
+        f"• Send <code>reset</code> or <code>default</code> to restore default greeting.\n"
+        f"• Send /cancel to abort."
+    )
+
+
+@router.message(WelcomeStates.waiting_for_welcome)
+async def process_welcome_input(message: Message, state: FSMContext, services: Services):
+    if not message.from_user or not await _is_admin(message.from_user.id, services):
+        return
+
+    if message.text and message.text.strip().lower() in ("/cancel", "cancel"):
+        await state.clear()
+        await message.answer(f"{ICON_CROSS} Cancelled.")
+        return
+
+    if message.text and message.text.strip().lower() in ("reset", "default", "clear"):
+        await cmd_reset_welcome(message, services)
+        await state.clear()
+        return
+
+    text = message.html_text or message.caption or message.text
+    if not text or not text.strip():
+        await message.answer(f"{ICON_WARNING} Please send a text message or send /cancel.")
+        return
+
+    await _save_welcome_text(message, text.strip(), services)
+    await state.clear()
+
+
+async def _save_welcome_text(message: Message, text: str, services: Services):
+    values = await services.settings.values()
+    store_name = values.get("store_name", "Premium Haven")
+
+    try:
+        await services.settings.update({"welcome_text": text})
+    except Exception as e:
+        logger.exception("Failed to update welcome_text from Telegram: %s", e)
+        await message.answer(f"{ICON_CROSS} Failed to update: {html.escape(str(e))}")
+        return
+
+    preview_display = (
+        text.replace("{store_name}", html.escape(store_name))
+        .replace("[Store Name]", html.escape(store_name))
+        .replace("{store}", html.escape(store_name))
+    )
+
+    await message.answer(
+        f"{ICON_CHECK} <b>Welcome message updated successfully!</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"<b>Preview:</b>\n"
+        f"{preview_display}\n\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"💡 <i>This is now active for all users and updated in the console.</i>\n"
+        f"<i>(To reset to default anytime, send <code>/resetwelcome</code>)</i>"
     )
 
 

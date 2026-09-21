@@ -346,10 +346,26 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
         : field.label;
 
     if (field.type === 'textarea') {
+      const storeName = values['store_name']?.trim() || 'Premium Haven';
+      const placeholder =
+        field.key === 'welcome_text'
+          ? `Welcome to ${storeName}`
+          : field.placeholder;
+      const hint =
+        field.key === 'welcome_text'
+          ? `Default: "Welcome to ${storeName}". Admins can also set or reset this directly in Telegram using /setwelcome.`
+          : field.hint;
+
       return (
         <label key={field.key} className="field wide">
           <span>{label}</span>
-          <textarea rows={field.rows ?? 3} placeholder={field.placeholder} value={valueOf(field)} onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))} />
+          <textarea
+            rows={field.rows ?? 3}
+            placeholder={placeholder}
+            value={valueOf(field)}
+            onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))}
+          />
+          {hint ? <small>{hint}</small> : null}
         </label>
       );
     }

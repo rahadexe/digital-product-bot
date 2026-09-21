@@ -28,8 +28,19 @@ from app.services import Services
 def build_welcome_text(store_name: str, support_handle: str, custom_text: str = "", paused_notice: str = "") -> str:
     prefix = f"{ICON_WARNING} <b>Maintenance Notice:</b> {escape(paused_notice)}\n━━━━━━━━━━━━━━━━━━\n\n" if paused_notice else ""
     if custom_text:
-        return prefix + custom_text
-    return prefix
+        formatted = (
+            custom_text
+            .replace("{store_name}", escape(store_name))
+            .replace("[Store Name]", escape(store_name))
+            .replace("{store}", escape(store_name))
+        )
+        return prefix + formatted
+    default_text = (
+        f"{ICON_SPARKLES} Welcome to <b>{escape(store_name)}</b>!\n"
+        f"<i>YOUR DIGITAL PREMIUM SERVICES.</i>\n\n"
+        f"Please select an option from the keyboard menu below 👇"
+    )
+    return prefix + default_text
 
 router = Router(name="start_router")
 
@@ -42,12 +53,6 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
     paused_notice = await services.settings.paused_message()
 
     text = build_welcome_text(store_name, support_handle, custom_welcome, paused_notice)
-    if not text:
-        text = (
-            f"{ICON_SPARKLES} Welcome to <b>{escape(store_name)}</b>!\n"
-            f"<i>YOUR DIGITAL PREMIUM SERVICES.</i>\n\n"
-            f"Please select an option from the keyboard menu below 👇"
-        )
     pinned_categories = await services.catalog.pinned_categories(active_only=True)
     unpinned_categories = await services.catalog.unpinned_categories(active_only=True)
 
