@@ -199,6 +199,34 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
             </p>
           </div>
         </div>
+
+        <div className="mandatory-row">
+          <div className="mandatory-info">
+            <div className="mandatory-title-row">
+              <strong>Security: Group Invites Auto-Blocked</strong>
+              <span className="mandatory-badge neutral" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                <ShieldAlert size={10} /> ALWAYS OFF · AUTO-LEAVE
+              </span>
+            </div>
+            <p className="mandatory-desc">
+              When added to a Telegram group, the bot silently leaves immediately to prevent data leakage without sending spam alerts to admin inboxes.
+            </p>
+          </div>
+        </div>
+
+        <div className="mandatory-row">
+          <div className="mandatory-info">
+            <div className="mandatory-title-row">
+              <strong>Security: Unauthorized Channels Auto-Blocked</strong>
+              <span className="mandatory-badge neutral" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                <ShieldAlert size={10} /> ALWAYS OFF · AUTO-LEAVE
+              </span>
+            </div>
+            <p className="mandatory-desc">
+              When added to an unconfigured channel, the bot silently leaves immediately to protect broadcasting without sending spam alerts to admin inboxes.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* ── 3. Customer Notifications ──────────────────────────── */}

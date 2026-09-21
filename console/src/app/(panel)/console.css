@@ -3235,6 +3235,12 @@ ul.messages p { margin-top: 6px; color: var(--text-dim); font-size: 12.5px; whit
   color: #6366f1;
 }
 
+.mandatory-badge.neutral {
+  background: color-mix(in srgb, var(--muted) 16%, transparent);
+  color: var(--muted);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
 .mandatory-desc {
   margin: 0;
   font-size: 12px;
