@@ -306,7 +306,7 @@ def get_support_keyboard(
     support_handle: str = "",
     channels: List[Dict[str, Any]] | None = None,
 ) -> InlineKeyboardMarkup:
-    """Keyboard for Support with direct chat button, active channels, and close button."""
+    """Keyboard for Support with direct chat button, guide button, active channels, and close button."""
     rows = []
     if support_handle:
         handle = support_handle.lstrip("@")
@@ -318,6 +318,14 @@ def get_support_keyboard(
                 icon_custom_emoji_id=Icons.SUPPORT,
             )
         ])
+    rows.append([
+        InlineKeyboardButton(
+            text="Guide",
+            callback_data="open_guide",
+            style="primary",
+            icon_custom_emoji_id=Icons.NOTE,
+        )
+    ])
     if channels:
         for ch in channels:
             title = (ch.get("title") or "Channel").strip()

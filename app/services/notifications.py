@@ -17,9 +17,10 @@ logger = logging.getLogger("app.services.notifications")
 
 FALLBACK_USERNAME = "subsmarket247bot"
 
+# Telegram shows this menu to everyone, so only customer commands belong here.
+# The admin ones are listed by /admin and work whether or not they are listed.
 COMMANDS = [
     BotCommand(command="start", description="Start the Bot"),
-    BotCommand(command="help", description="How to use this bot"),
 ]
 
 

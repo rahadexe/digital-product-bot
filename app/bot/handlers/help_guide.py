@@ -77,19 +77,28 @@ GUIDE_TEXT = (
 )
 
 
-@router.message(Command("help"))
-@router.message(Command("guide"))
-@router.message(F.text == "📚 Guide")
-@router.message(F.text.casefold() == "guide")
 @router.callback_query(F.data == "open_guide")
 async def show_guide_info(event: Message | CallbackQuery, state: FSMContext, services: Services):
-    """The guide describes this bot's own buttons, so it is written here rather
-    than stored as a setting: an operator editing it could only ever make it
-    disagree with the keyboard the customer is looking at."""
+    """The guide describes this bot's own buttons."""
     await state.clear()
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Support", callback_data="open_support", style="primary", icon_custom_emoji_id=Icons.SUPPORT)],
+            [
+                InlineKeyboardButton(
+                    text="Support",
+                    callback_data="open_support",
+                    style="primary",
+                    icon_custom_emoji_id=Icons.SUPPORT,
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="Close",
+                    callback_data="close_menu",
+                    style="danger",
+                    icon_custom_emoji_id=Icons.CLOSE,
+                )
+            ],
         ]
     )
 
