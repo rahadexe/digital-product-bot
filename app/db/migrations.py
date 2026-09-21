@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import logging
 import hashlib
+import logging
 from pathlib import Path
 
 from app.db.database import Database

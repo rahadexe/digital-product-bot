@@ -296,6 +296,7 @@ class CatalogService:
 
     async def delete_product(self, product_id: int) -> None:
         async with self.db.transaction() as conn:
+            await conn.fetchval('SELECT id FROM products WHERE id=$1 FOR UPDATE', product_id)
             # Preserve existing orders history while dropping foreign key constraint
             await conn.execute("UPDATE orders SET product_id = NULL WHERE product_id = $1", product_id)
             # Sold credentials and allocations remain available for historical audits.

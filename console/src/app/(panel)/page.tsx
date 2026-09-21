@@ -1,7 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Eye,
+  EyeOff,
   CircleAlert,
   CircleCheck,
   LayoutDashboard,
@@ -48,17 +50,17 @@ type Key =
   | 'settings';
 
 /** Ordered by daily importance: the most-used screens stay at the top, setup stays at the bottom. */
-const ITEMS: { key: Key; label: string; icon: LucideIcon }[] = [
-  { key: 'overview', label: 'Dashboard', icon: LayoutDashboard },
+const ITEMS: { key: Key; label: string; icon: LucideIcon; group?: string }[] = [
+  { key: 'overview', label: 'Dashboard', icon: LayoutDashboard, group: 'Workspace' },
   { key: 'orders', label: 'Orders', icon: ShoppingBag },
-  { key: 'inventory', label: 'Stock', icon: Boxes },
-  { key: 'products', label: 'Products', icon: Package },
-  { key: 'categories', label: 'Categories', icon: FolderTree },
-  { key: 'validities', label: 'Validities', icon: Clock },
-  { key: 'emojis', label: 'Emoji Library', icon: Sparkles },
   { key: 'deposits', label: 'Deposits', icon: Wallet },
   { key: 'users', label: 'Customers', icon: UsersIcon },
-  { key: 'broadcast', label: 'Broadcast', icon: Megaphone },
+  { key: 'products', label: 'Products', icon: Package, group: 'Catalog' },
+  { key: 'inventory', label: 'Stock', icon: Boxes },
+  { key: 'categories', label: 'Categories', icon: FolderTree },
+  { key: 'validities', label: 'Durations', icon: Clock },
+  { key: 'emojis', label: 'Emojis', icon: Sparkles },
+  { key: 'broadcast', label: 'Broadcast', icon: Megaphone, group: 'Manage' },
   { key: 'settings', label: 'Settings', icon: SettingsIcon },
 ];
 const isKey = (value: string): value is Key => ITEMS.some((item) => item.key === value);
@@ -66,7 +68,7 @@ const isKey = (value: string): value is Key => ITEMS.some((item) => item.key ===
 /** The address holds the screen and, for Settings, the tab (#settings/payments), so a reload lands in the same place. */
 function readAddress(): { key: Key; tab: string } {
   const [key, tab = ''] = window.location.hash.slice(1).split('/');
-  if (key === 'gate') return { key: 'settings', tab: 'general' };
+  if (key === 'gate') return { key: 'settings', tab: 'access' };
   if (key === 'instant') return { key: 'deposits', tab: 'instant' };
   return { key: isKey(key) ? key : 'overview', tab };
 }
@@ -149,7 +151,7 @@ export default function ConsolePage() {
     return () => window.clearInterval(every);
   }, [signedIn]);
 
-  if (!ready) return <div className="gate" />;
+  if (!ready) return <div className="gate" role="status">Loading console…</div>;
   if (!signedIn) return <SignIn onDone={check} />;
 
   /** A screen, optionally with its tab: "orders/waiting". */
@@ -166,7 +168,7 @@ export default function ConsolePage() {
 
   return (
     <div className="console">
-      <a className="skip-link" href="#main-content">
+      <a className="skip-link" href="#main-content" onClick={(event) => { event.preventDefault(); document.getElementById('main-content')?.focus(); }}>
         Skip to content
       </a>
 
@@ -187,7 +189,6 @@ export default function ConsolePage() {
           style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
         >
           <span>Bot Admin</span>
-          <span className="online-indicator" />
         </button>
       </header>
 
@@ -206,8 +207,7 @@ export default function ConsolePage() {
               style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
             >
               <Brand />
-              <span className="online-indicator" />
-            </button>
+                </button>
             <button
               type="button"
               className="drawer-close"
@@ -219,7 +219,9 @@ export default function ConsolePage() {
           </div>
 
           <div className="drawer-nav">
-            {ITEMS.map(({ key, label: name, icon: Icon }) => (
+            {ITEMS.map(({ key, label: name, icon: Icon, group }) => (
+              <Fragment key={key}>
+              {group ? <h2 className="nav-section">{group}</h2> : null}
               <button
                 key={key}
                 type="button"
@@ -231,6 +233,7 @@ export default function ConsolePage() {
                 {key === 'deposits' && pending > 0 ? <span className="count">{pending}</span> : null}
                 {key === 'orders' && waitingOrders > 0 ? <span className="count">{waitingOrders}</span> : null}
               </button>
+              </Fragment>
             ))}
           </div>
 
@@ -258,7 +261,9 @@ export default function ConsolePage() {
       <nav className="rail" aria-label="Main navigation">
         <Brand />
         <div className="rail-items">
-          {ITEMS.map(({ key, label: name, icon: Icon }) => (
+          {ITEMS.map(({ key, label: name, icon: Icon, group }) => (
+            <Fragment key={key}>
+            {group ? <h2 className="nav-section">{group}</h2> : null}
             <button
               key={key}
               type="button"
@@ -271,6 +276,7 @@ export default function ConsolePage() {
               {key === 'deposits' && pending > 0 ? <span className="count">{pending}</span> : null}
               {key === 'orders' && waitingOrders > 0 ? <span className="count">{waitingOrders}</span> : null}
             </button>
+            </Fragment>
           ))}
         </div>
         <div className="spacer" />
@@ -296,7 +302,7 @@ export default function ConsolePage() {
       <main className="main" id="main-content" tabIndex={-1}>
         <div className="main-inner">
           {screen.key !== 'overview' && !(screen.key === 'users' && screen.tab) ? (
-            <header className="page-head hide-mobile">
+            <header className="page-head">
               <h1>{label}</h1>
             </header>
           ) : null}
@@ -367,6 +373,7 @@ function Brand() {
 
 function SignIn({ onDone }: { onDone: () => void }) {
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -375,6 +382,7 @@ function SignIn({ onDone }: { onDone: () => void }) {
       <form
         onSubmit={async (event) => {
           event.preventDefault();
+          if (busy) return;
           setBusy(true);
           setError('');
           try {
@@ -391,9 +399,14 @@ function SignIn({ onDone }: { onDone: () => void }) {
         <Brand />
         <label className="field">
           <span>Password</span>
-          <input type="password" autoComplete="current-password" autoFocus required value={password} onChange={(event) => setPassword(event.target.value)} />
+          <span className="password-input">
+            <input type={showPassword ? 'text' : 'password'} autoComplete="current-password" autoFocus required aria-describedby="signin-feedback" aria-invalid={Boolean(error)} value={password} onChange={(event) => setPassword(event.target.value)} />
+            <button className="password-toggle" type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} onClick={() => setShowPassword((shown) => !shown)}>
+              {showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+            </button>
+          </span>
         </label>
-        {error ? <p className="note bad">{error}</p> : null}
+        <p id="signin-feedback" className="signin-feedback" role="status" aria-live="polite">{error}</p>
         <button className="btn block" type="submit" disabled={busy}>
           {busy ? 'Checking…' : 'Sign in'}
         </button>

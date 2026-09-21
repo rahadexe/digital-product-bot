@@ -59,12 +59,12 @@ TRACKED_CLIENTS = 10000
 
 class SecurityBoundary:
     """
-    The rate limit is per process; put a proxy-level limit in front when running several
-    web replicas. Login throttling is stored in the database and is shared.
+    Local flood protection precedes shared database budgets across web replicas.
     """
 
-    def __init__(self, app, settings: Settings):
+    def __init__(self, app, settings: Settings, rate_limits):
         self.app = app
+        self.rate_limits = rate_limits
         self.production = settings.app_env == 'production'
         self.allowed_origins = set(Settings.split(settings.allowed_origins))
         if not self.production:
@@ -122,6 +122,14 @@ class SecurityBoundary:
         if limited and self._rate_limited(client):
             response = JSONResponse({'detail': 'Too many requests. Try again shortly.'}, 429, headers={'Retry-After': '60'})
             return await response(scope, receive, secured_send)
+        if api and scope['method'] != 'OPTIONS':
+            try:
+                retry = await self.rate_limits.consume('http-ip', client, RATE_LIMIT_PER_MINUTE)
+            except Exception:
+                return await JSONResponse({'detail': 'Service temporarily unavailable.'}, 503)(scope, receive, secured_send)
+            if retry:
+                return await JSONResponse({'detail': 'Too many requests. Try again shortly.'}, 429,
+                                          headers={'Retry-After': str(retry)})(scope, receive, secured_send)
 
         if not (api and scope['method'] in {'POST', 'PUT', 'PATCH', 'DELETE'}):
             return await self.app(scope, receive, secured_send)
@@ -134,9 +142,10 @@ class SecurityBoundary:
             return await JSONResponse({'detail': 'Origin not allowed.'}, 403)(scope, receive, secured_send)
 
         body = bytearray()
+        deadline = time.monotonic() + BODY_TIMEOUT_SECONDS
         while True:
             try:
-                message = await asyncio.wait_for(receive(), timeout=BODY_TIMEOUT_SECONDS)
+                message = await asyncio.wait_for(receive(), timeout=max(0, deadline-time.monotonic()))
             except TimeoutError:
                 return await JSONResponse({'detail': 'Request timed out.'}, 408)(scope, receive, secured_send)
             if message['type'] == 'http.disconnect':

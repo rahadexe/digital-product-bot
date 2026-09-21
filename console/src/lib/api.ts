@@ -120,6 +120,7 @@ export interface Order {
   created_at: string;
   /** 'waiting': a paid manual order awaiting fulfillment. */
   fulfillment: 'delivered' | 'waiting';
+  /** 'supplier' only appears on orders placed before that integration was removed. */
   source: 'stock' | 'supplier' | 'manual' | 'legacy';
   fulfilled_at?: string | null;
 }
@@ -278,18 +279,13 @@ export const apiUrl = (path: string) => `${API_BASE}${path}`;
 const TOKEN_KEY = 'admin_session_token';
 const CSRF_KEY = 'admin_csrf';
 
-let cachedCsrf = typeof window !== 'undefined' ? localStorage.getItem(CSRF_KEY) || '' : '';
-
-export function setCsrf(token: string) {
-  cachedCsrf = token;
-  if (typeof window !== 'undefined') {
-    if (token) {
-      localStorage.setItem(CSRF_KEY, token);
-    } else {
-      localStorage.removeItem(CSRF_KEY);
-    }
-  }
+// Clear credentials persisted by older builds; session cookies are HttpOnly.
+if (typeof window !== 'undefined') {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(CSRF_KEY);
 }
+let cachedCsrf = '';
+export function setCsrf(token: string) { cachedCsrf = token; }
 
 // Going back to a screen shows what it showed a moment ago instead of waiting on the database again.
 // Anything that changes data clears it all, so a save is never followed by a stale list.
@@ -313,6 +309,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const known = answers.get(path);
   if (known && Date.now() - known.at < FRESH_FOR_MS) return known.value as Promise<T>;
   const value = requestUncached<T>(path, options);
+  if (answers.size >= 256) answers.delete(answers.keys().next().value!);
   answers.set(path, { at: Date.now(), value });
   value.catch(() => {
     if (answers.get(path)?.value === value) answers.delete(path);
@@ -328,12 +325,7 @@ async function requestUncached<T>(path: string, options: RequestInit = {}): Prom
     headers.set('Content-Type', 'application/json');
   }
 
-  const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
-  if (token && !headers.has('Authorization')) {
-    headers.set('Authorization', `Bearer ${token}`);
-  }
-
-  const csrf = cachedCsrf || (typeof window !== 'undefined' ? localStorage.getItem(CSRF_KEY) : null);
+  const csrf = cachedCsrf;
   if (csrf && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(options.method || 'GET')) {
     headers.set('x-csrf-token', csrf);
   }
@@ -346,6 +338,7 @@ async function requestUncached<T>(path: string, options: RequestInit = {}): Prom
 
   if (res.status === 401 && !path.endsWith('/login') && !path.endsWith('/session')) {
     cachedCsrf = '';
+    answers.clear();
     if (typeof window !== 'undefined') {
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(CSRF_KEY);
@@ -374,12 +367,7 @@ export const api = {
   session: async () => {
     const data = await request<SessionResponse>('/api/admin/session');
     if (data.csrf) setCsrf(data.csrf);
-    if (data.token && typeof window !== 'undefined') {
-      localStorage.setItem(TOKEN_KEY, data.token);
-    } else if (!data.signed_in && typeof window !== 'undefined') {
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(CSRF_KEY);
-    }
+    if (!data.signed_in) { setCsrf(''); forgetAnswers(); }
     return data;
   },
 
@@ -389,9 +377,6 @@ export const api = {
       body: JSON.stringify({ password }),
     });
     if (data.csrf) setCsrf(data.csrf);
-    if (data.token && typeof window !== 'undefined') {
-      localStorage.setItem(TOKEN_KEY, data.token);
-    }
     return data;
   },
 

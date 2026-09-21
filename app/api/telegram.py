@@ -4,9 +4,6 @@ import asyncio
 import json
 import logging
 import secrets
-import time
-from datetime import datetime, timezone
-from typing import Any
 
 from aiogram.types import Update
 from fastapi import APIRouter, Request

@@ -3,10 +3,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import {
   ArrowUpRight,
-  Boxes,
-  CheckCircle2,
   PackageCheck,
-  Settings,
   ShoppingBag,
   TrendingUp,
   Users,
@@ -90,26 +87,18 @@ export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) =
         <h1>Dashboard</h1>
       </div>
 
-      {/* Attention Alerts */}
-      {stats.waiting_orders > 0 ? (
-        <div className="attention" style={{ marginBottom: 16 }}>
-          <strong>
-            {stats.waiting_orders} paid order{stats.waiting_orders === 1 ? '' : 's'} waiting to be sent
-          </strong>
-          <button type="button" className="btn small" onClick={() => onOpen('orders/waiting')}>
-            Fulfil now
-          </button>
-        </div>
-      ) : null}
-
-      {stats.pending_deposits > 0 ? (
-        <div className="attention" style={{ marginBottom: 16 }}>
-          <strong>
-            {stats.pending_deposits} deposit{stats.pending_deposits === 1 ? '' : 's'} waiting for manual verification
-          </strong>
-          <button type="button" className="btn small" onClick={() => onOpen('deposits')}>
-            Review deposits
-          </button>
+      {(stats.waiting_orders > 0 || stats.pending_deposits > 0) ? (
+        <div className="dashboard-actions" aria-label="Needs attention">
+          {stats.waiting_orders > 0 ? <button type="button" onClick={() => onOpen('orders/waiting')}>
+            <ShoppingBag size={18} aria-hidden="true" />
+            <span><strong>{stats.waiting_orders} orders to deliver</strong><small>Open waiting orders</small></span>
+            <ArrowUpRight size={17} aria-hidden="true" />
+          </button> : null}
+          {stats.pending_deposits > 0 ? <button type="button" onClick={() => onOpen('deposits')}>
+            <Wallet size={18} aria-hidden="true" />
+            <span><strong>{stats.pending_deposits} deposits to review</strong><small>Review payments</small></span>
+            <ArrowUpRight size={17} aria-hidden="true" />
+          </button> : null}
         </div>
       ) : null}
 
@@ -117,15 +106,15 @@ export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) =
       <div className="stat-cards-grid">
         <div className="stat-card">
           <div className="stat-card-top">
-            <span className="stat-card-label">Revenue</span>
+            <span className="stat-card-label">Total revenue</span>
             <Wallet className="stat-card-icon" />
           </div>
           <div className="stat-card-value">{money(stats.total_revenue)}</div>
         </div>
 
-        <div
+        <button
+          type="button"
           className="stat-card"
-          style={{ cursor: 'pointer' }}
           onClick={() => { window.location.hash = '#orders'; }}
           title="View orders"
         >
@@ -134,24 +123,24 @@ export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) =
             <ShoppingBag className="stat-card-icon" />
           </div>
           <div className="stat-card-value">{stats.total_orders}</div>
-        </div>
+        </button>
 
-        <div
+        <button
+          type="button"
           className="stat-card"
-          style={{ cursor: 'pointer' }}
           onClick={() => { window.location.hash = '#users'; }}
           title="View all customers"
         >
           <div className="stat-card-top">
-            <span className="stat-card-label">Total Customers</span>
+            <span className="stat-card-label">Customers</span>
             <Users className="stat-card-icon" />
           </div>
           <div className="stat-card-value">{stats.total_users}</div>
-        </div>
+        </button>
 
-        <div
+        <button
+          type="button"
           className="stat-card"
-          style={{ cursor: 'pointer' }}
           onClick={() => { window.location.hash = '#orders'; }}
           title="View delivered orders"
         >
@@ -160,7 +149,7 @@ export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) =
             <PackageCheck className="stat-card-icon" />
           </div>
           <div className="stat-card-value">{deliveredCount}</div>
-        </div>
+        </button>
       </div>
 
       {/* Analytics Chart Card */}
@@ -168,11 +157,11 @@ export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) =
         <div className="analytics-card-header">
           <div>
             <div className="label">Revenue · last 14 days</div>
-            <div className="metric">{money(chartPoints.totalRev || stats.total_revenue)}</div>
+            <div className="metric">{money(chartPoints.totalRev)}</div>
           </div>
           <div className="analytics-badge">
             <TrendingUp size={14} style={{ color: 'var(--positive)' }} />
-            <span>{chartPoints.totalOrders} orders in period</span>
+            <span>{chartPoints.totalOrders} orders</span>
           </div>
         </div>
 
@@ -239,7 +228,7 @@ export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) =
 
             {/* X-axis date labels */}
             {chartPoints.points
-              .filter((_, idx) => idx % 2 === 0 || idx === chartPoints.points.length - 1)
+              .filter((_, idx) => (idx % 4 === 0 && idx < chartPoints.points.length - 2) || idx === chartPoints.points.length - 1)
               .map((pt, idx) => (
                 <text
                   key={idx}
@@ -262,7 +251,6 @@ export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) =
         <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <h2>Recent orders</h2>
-            <p className="hint" style={{ margin: 0 }}>Latest activity across your store</p>
           </div>
           <button
             type="button"
@@ -282,7 +270,7 @@ export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) =
                 <th>Order</th>
                 <th>Customer</th>
                 <th>Status</th>
-                <th>Source</th>
+                <th>Delivery</th>
                 <th className="right">Total</th>
               </tr>
             </thead>
@@ -310,7 +298,7 @@ export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) =
                     </td>
                     <td>
                       <span className="pill" style={{ background: 'var(--surface-2)', border: '1px solid var(--line)' }}>
-                        {order.source || 'stock'}
+                        {order.source === 'manual' ? 'Manual' : order.source === 'stock' ? 'Instant' : order.source || 'Instant'}
                       </span>
                     </td>
                     <td className="right money">
@@ -325,49 +313,6 @@ export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) =
         </div>
       </section>
 
-      {/* Quick Jump Action Cards at Bottom */}
-      <div className="jump-cards-grid">
-        <div className="jump-card" onClick={() => onOpen('settings')}>
-          <div className="jump-card-content">
-            <div className="jump-card-icon">
-              <Settings size={20} />
-            </div>
-            <div>
-              <div className="jump-card-title">Store settings</div>
-              <div className="jump-card-desc">Bot profile, notices, channels</div>
-            </div>
-          </div>
-          <ArrowUpRight size={18} className="jump-card-arrow" />
-        </div>
-
-        <div className="jump-card" onClick={() => onOpen('orders/waiting')}>
-          <div className="jump-card-content">
-            <div className="jump-card-icon">
-              <ShoppingBag size={20} />
-            </div>
-            <div>
-              <div className="jump-card-title">Fulfil orders</div>
-              <div className="jump-card-desc">
-                {stats.waiting_orders > 0 ? `${stats.waiting_orders} pending fulfillment` : 'All orders delivered'}
-              </div>
-            </div>
-          </div>
-          <ArrowUpRight size={18} className="jump-card-arrow" />
-        </div>
-
-        <div className="jump-card" onClick={() => onOpen('inventory')}>
-          <div className="jump-card-content">
-            <div className="jump-card-icon">
-              <Boxes size={20} />
-            </div>
-            <div>
-              <div className="jump-card-title">Manage stock</div>
-              <div className="jump-card-desc">{stats.available_stock} digital accounts available</div>
-            </div>
-          </div>
-          <ArrowUpRight size={18} className="jump-card-arrow" />
-        </div>
-      </div>
     </>
   );
 }

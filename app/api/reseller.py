@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import logging
+from html import escape
 from typing import Annotated, Any, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.deps import ServicesDep
 
@@ -17,16 +18,19 @@ router = APIRouter(prefix="/api/v1/reseller", tags=["Reseller API"])
 
 
 class ResellerOrderPayload(BaseModel):
-    product_id: int = Field(..., gt=0, description="Product ID to purchase")
-    quantity: int = Field(default=1, ge=1, le=100, description="Quantity to purchase (1-100)")
+    model_config = ConfigDict(extra='forbid')
+    product_id: int = Field(..., strict=True, gt=0, le=9223372036854775807, description="Product ID to purchase")
+    quantity: int = Field(default=1, strict=True, ge=1, le=100, description="Quantity to purchase (1-100)")
     custom_id: Optional[str] = Field(
         default=None,
+        min_length=1,
         max_length=64,
-        description="Optional unique merchant reference/idempotency key to prevent double charges on network retry",
+        description="Unique merchant reference, required unless Idempotency-Key header is supplied. Reuse on retry.",
     )
 
 
 async def get_reseller_user(
+    request: Request,
     services: ServicesDep,
     x_api_key: Annotated[Optional[str], Header(alias="X-API-Key")] = None,
     authorization: Annotated[Optional[str], Header()] = None,
@@ -72,6 +76,11 @@ async def get_reseller_user(
             detail="Only authorized Resellers can access this API.",
         )
 
+    write = request.method in {'POST', 'PUT', 'PATCH', 'DELETE'}
+    retry = await services.rate_limits.consume('reseller-write' if write else 'reseller-read',
+                                               str(reseller['tg_user_id']), 30 if write else 120)
+    if retry:
+        raise HTTPException(429, 'Request limit reached. Retry after the indicated delay.', headers={'Retry-After': str(retry)})
     return reseller
 
 
@@ -156,12 +165,18 @@ async def create_reseller_order(
     payload: ResellerOrderPayload,
     reseller: ResellerDep,
     services: ServicesDep,
+    idempotency_key: Annotated[str | None, Header(alias='Idempotency-Key', max_length=64)] = None,
 ):
     """
     Purchase a product programmatically at discounted reseller pricing.
     Deducts balance atomically from reseller wallet and immediately returns delivered credentials in response.
     """
     tg_user_id = reseller["tg_user_id"]
+    request_id = (payload.custom_id or idempotency_key or '').strip()
+    if payload.custom_id and idempotency_key and payload.custom_id.strip() != idempotency_key.strip():
+        raise HTTPException(422, 'custom_id and Idempotency-Key must match when both are supplied.')
+    if not request_id:
+        raise HTTPException(422, 'Supply custom_id or Idempotency-Key and reuse it when retrying this order.')
     settings_vals = await services.settings.values()
     currency = settings_vals.get("currency", "BDT")
     symbol = settings_vals.get("currency_symbol", "৳")
@@ -176,7 +191,9 @@ async def create_reseller_order(
         tg_user_id=tg_user_id,
         product_id=payload.product_id,
         quantity=payload.quantity,
-        request_id=payload.custom_id,
+        request_id=request_id,
+        require_reseller=True,
+        reseller_key_id=reseller['key_id'],
     )
 
     if not success or not order_data:
@@ -186,17 +203,19 @@ async def create_reseller_order(
             status_code = 404
         elif "insufficient balance" in message.lower():
             status_code = 400
+        elif 'no longer active' in message.lower() or 'banned' in message.lower():
+            status_code = 403
         raise HTTPException(status_code=status_code, detail=message)
 
     is_delivered = order_data.get("fulfillment") == "delivered"
     return {
         "success": True,
         "order_id": order_data["order_id"],
-        "custom_id": payload.custom_id,
+        "custom_id": request_id,
         "product_id": payload.product_id,
         "product_title": order_data["product_title"],
         "quantity": payload.quantity,
-        "unit_price": round(float(order_data["price"]) / payload.quantity, 4),
+        "unit_price": float(order_data.get('unit_price') or order_data['price'] / payload.quantity),
         "total_price": float(order_data["price"]),
         "currency": currency,
         "currency_symbol": symbol,
@@ -243,11 +262,11 @@ async def list_reseller_orders(
 async def reseller_documentation_page(request: Request, services: ServicesDep):
     """Interactive, developer-friendly Reseller API documentation page with code examples."""
     settings_vals = await services.settings.values()
-    store_name = settings_vals.get("store_name", "Premium Store")
-    currency = settings_vals.get("currency", "BDT")
-    symbol = settings_vals.get("currency_symbol", "৳")
-    bot_user = await services.notifier.bot_username()
-    base_url = str(request.base_url).rstrip("/")
+    store_name = escape(settings_vals.get("store_name", "Premium Store"))
+    currency = escape(settings_vals.get("currency", "BDT"))
+    symbol = escape(settings_vals.get("currency_symbol", "৳"))
+    bot_user = escape(await services.notifier.bot_username(), quote=True)
+    base_url = escape(str(request.base_url).rstrip("/"), quote=True)
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -606,7 +625,7 @@ async def reseller_documentation_page(request: Request, services: ServicesDep):
           <tbody>
             <tr><td><code>product_id</code></td><td>integer</td><td>Yes</td><td>ID of the product to purchase</td></tr>
             <tr><td><code>quantity</code></td><td>integer</td><td>No (default 1)</td><td>Number of units to buy</td></tr>
-            <tr><td><code>custom_id</code></td><td>string</td><td>No</td><td>Your internal order reference ID (prevents duplicate orders on timeout)</td></tr>
+            <tr><td><code>custom_id</code></td><td>string</td><td>Yes*</td><td>Unique order reference; reuse on retry. *Alternatively supply the Idempotency-Key header.</td></tr>
           </tbody>
         </table>
         <p><b>Request Body Example:</b></p>

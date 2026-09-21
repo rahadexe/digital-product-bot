@@ -102,17 +102,11 @@ SPECS: dict[str, SettingSpec] = {
     "show_usd_price": SettingSpec("1", _flag, 1),
     "usd_rate": SettingSpec("125", _number(0.0001, 1_000_000), 16),
     "validity_presets": SettingSpec("3 Days, 7 Days, 14 Days, 30 Days, 90 Days, 1 Year", max_length=2000),
-    "custom_emojis": SettingSpec(
-        '[{"name":"NordVPN","id":"5796345694969140339","icon":"🏔️"},{"name":"ExpressVPN","id":"5796153709931009517","icon":"🔴"},{"name":"Surfshark","id":"5796592771552777710","icon":"🦈"},{"name":"Proton VPN","id":"5794298344188678751","icon":"🛡️"},{"name":"CyberGhost","id":"5796309230696797985","icon":"👻"},{"name":"HMA VPN","id":"5796595022115639741","icon":"🕶️"},{"name":"Bitdefender","id":"5793973558761756143","icon":"🛡️"},{"name":"Windscribe","id":"5794045349140108622","icon":"🟢"},{"name":"PureVPN","id":"5794156713347126602","icon":"🟣"},{"name":"Turbo VPN","id":"5796633857209931262","icon":"🟠"},{"name":"PotatoVPN","id":"5796403831646458962","icon":"🟡"},{"name":"PandaVPN","id":"5796561774773801876","icon":"🐼"},{"name":"IPVanish","id":"5796381996032725483","icon":"🦎"},{"name":"X-VPN","id":"5794376731636798062","icon":"⬜"}]',
-        max_length=15000,
-    ),
     "support_username": SettingSpec("", _username, 65),
-    "notice_banner": SettingSpec("", max_length=1000),
     "welcome_text": SettingSpec("", max_length=3500),
     "guide_text": SettingSpec(DEFAULT_GUIDE, max_length=3500),
     "referral_enabled": SettingSpec("1", _flag, 1),
     "referral_reward_amount": SettingSpec("3.0", _number(0, 100), 16),
-    "referral_bonus_percent": SettingSpec("0", _number(0, 100), 16),
     "force_join_enabled": SettingSpec("0", _flag, 1),
     "store_paused": SettingSpec("0", _flag, 1),
     "maintenance_message": SettingSpec("Store maintenance is in progress. Please try again soon.", max_length=240),
@@ -128,8 +122,6 @@ SPECS: dict[str, SettingSpec] = {
     "announcement_channel": SettingSpec("", _chat, 65),
     "auto_restock_alerts": SettingSpec("1", _flag, 1),
     "auto_price_drop_alerts": SettingSpec("1", _flag, 1),
-    "supplier_api_url": SettingSpec(""),
-    "supplier_api_key": SettingSpec("", secret=True),
     # ZiniPay instant payments: credited automatically after ZiniPay confirms each payment.
     "zinipay_enabled": SettingSpec("0", _flag, 1),
     "zinipay_web_gateway_enabled": SettingSpec("0", _flag, 1),
@@ -173,10 +165,14 @@ class SettingsService:
         if len(raw) > spec.max_length:
             raise ValueError(f"is longer than {spec.max_length} characters")
         value = spec.parse(raw)
-        if key == "supplier_api_url" and value:
-            from app.services.supplier import validate_supplier_url
-
-            value = validate_supplier_url(value, self.config)
+        fixed = {'currency': 'BDT', 'currency_symbol': '৳', 'zinipay_rate': '1'}
+        if key in fixed:
+            if key == 'zinipay_rate':
+                if float(value) != 1:
+                    raise ValueError('must remain 1 for the BDT wallet')
+            elif value != fixed[key]:
+                raise ValueError(f'must remain {fixed[key]} for the BDT wallet')
+            return fixed[key]
         return value
 
     async def values(self) -> dict[str, str]:
@@ -246,13 +242,6 @@ class SettingsService:
     async def admin_chat_id(self) -> int:
         ids = await self.admin_chat_ids()
         return ids[0] if ids else (self.config.admin_tg_id or 0)
-
-    async def supplier_credentials(self) -> tuple[str, str]:
-        values = await self.values()
-        return (
-            values["supplier_api_url"] or self.config.supplier_api_url,
-            values["supplier_api_key"] or self.config.supplier_api_key,
-        )
 
     async def update(self, changes: dict[str, str]) -> list[str]:
         """Validate every change first, then write them together. Returns the keys that changed."""

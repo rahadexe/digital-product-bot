@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { AlertCircle, CheckCircle2, Clock, Layers, Package, Zap } from 'lucide-react';
+import { Clock, Zap } from 'lucide-react';
 import { api, type Category, type Product } from '@/lib/api';
 import { useMoney } from '@/lib/currency';
 import { EmptyRow, FlagRow, Modal, errorText, useConfirm, type Say } from './ui';
@@ -93,17 +93,17 @@ export function Products({ say }: { say: Say }) {
     }
   }
 
-  const inStockCount = (products ?? []).filter((p) => (p.stock ?? 0) > 0).length;
+  const inStockCount = (products ?? []).filter((p) => p.delivery_type === 'manual' || (p.stock ?? 0) > 0).length;
   const lowStockCount = (products ?? []).filter((p) => p.delivery_type !== 'manual' && (p.stock ?? 0) > 0 && (p.stock ?? 0) <= LOW_STOCK_MAX).length;
-  const outOfStockCount = (products ?? []).filter((p) => (p.stock ?? 0) === 0).length;
+  const outOfStockCount = (products ?? []).filter((p) => p.delivery_type !== 'manual' && (p.stock ?? 0) === 0).length;
   const hiddenCount = (products ?? []).filter((p) => !p.is_active).length;
   const totalStockUnits = (products ?? []).reduce((sum, p) => sum + (p.stock ?? 0), 0);
 
   const shown = (products ?? []).filter((product) => {
     if (search && !product.title.toLowerCase().includes(search.toLowerCase())) return false;
-    if (filter === 'in_stock') return (product.stock ?? 0) > 0;
+    if (filter === 'in_stock') return product.delivery_type === 'manual' || (product.stock ?? 0) > 0;
     if (filter === 'low_stock') return product.delivery_type !== 'manual' && (product.stock ?? 0) > 0 && (product.stock ?? 0) <= LOW_STOCK_MAX;
-    if (filter === 'out_of_stock') return (product.stock ?? 0) === 0;
+    if (filter === 'out_of_stock') return product.delivery_type !== 'manual' && (product.stock ?? 0) === 0;
     if (filter === 'hidden') return !product.is_active;
     return true;
   });
@@ -112,45 +112,11 @@ export function Products({ say }: { say: Say }) {
     <>
       {confirmDialog}
 
-      {/* Product Metric Summary Cards */}
-      <div className="stat-cards-grid">
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setFilter('all')}>
-          <div className="stat-card-top">
-            <span className="stat-card-label">Total Products</span>
-            <Package className="stat-card-icon" />
-          </div>
-          <div className="stat-card-value">{products?.length ?? 0}</div>
-        </div>
-
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setFilter('in_stock')}>
-          <div className="stat-card-top">
-            <span className="stat-card-label">In Stock</span>
-            <CheckCircle2 className="stat-card-icon" />
-          </div>
-          <div className="stat-card-value">{inStockCount}</div>
-        </div>
-
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setFilter('out_of_stock')}>
-          <div className="stat-card-top">
-            <span className="stat-card-label">Out of Stock</span>
-            <AlertCircle className="stat-card-icon" />
-          </div>
-          <div className="stat-card-value">{outOfStockCount}</div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <span className="stat-card-label">Total Stock Units</span>
-            <Layers className="stat-card-icon" />
-          </div>
-          <div className="stat-card-value">{totalStockUnits}</div>
-        </div>
-      </div>
-
       {/* Filter Tabs */}
-      <div className="segmented" role="tablist" style={{ marginBottom: '1rem' }}>
+      <div className="segmented" role="group" aria-label="Filter products" style={{ marginBottom: '1rem' }}>
         <button
           type="button"
+          aria-pressed={filter === 'all'}
           className={filter === 'all' ? 'active' : ''}
           onClick={() => setFilter('all')}
         >
@@ -158,13 +124,15 @@ export function Products({ say }: { say: Say }) {
         </button>
         <button
           type="button"
+          aria-pressed={filter === 'in_stock'}
           className={filter === 'in_stock' ? 'active' : ''}
           onClick={() => setFilter('in_stock')}
         >
-          In Stock ({inStockCount})
+          Available ({inStockCount})
         </button>
         <button
           type="button"
+          aria-pressed={filter === 'low_stock'}
           className={filter === 'low_stock' ? 'active' : ''}
           onClick={() => setFilter('low_stock')}
         >
@@ -172,6 +140,7 @@ export function Products({ say }: { say: Say }) {
         </button>
         <button
           type="button"
+          aria-pressed={filter === 'out_of_stock'}
           className={filter === 'out_of_stock' ? 'active' : ''}
           onClick={() => setFilter('out_of_stock')}
         >
@@ -179,6 +148,7 @@ export function Products({ say }: { say: Say }) {
         </button>
         <button
           type="button"
+          aria-pressed={filter === 'hidden'}
           className={filter === 'hidden' ? 'active' : ''}
           onClick={() => setFilter('hidden')}
         >
@@ -189,7 +159,8 @@ export function Products({ say }: { say: Say }) {
       <section className="panel">
         <header>
           <div className="filters">
-            <input type="search" placeholder="Search products" value={search} onChange={(event) => setSearch(event.target.value)} />
+            <input type="search" aria-label="Search products" placeholder="Search products" value={search} onChange={(event) => setSearch(event.target.value)} />
+            <span className="muted">{totalStockUnits} stock units</span>
           </div>
           <button
             type="button"
@@ -232,14 +203,7 @@ export function Products({ say }: { say: Say }) {
                     <td className="name">
                       {product.icon ? `${product.icon} ` : ''}
                       {product.title}
-                      <small>
-                        {cat ? (
-                          <span style={{ color: 'var(--primary, #3b82f6)', fontWeight: 600, marginRight: 6 }}>
-                            [{cat.name}]
-                          </span>
-                        ) : null}
-                        {product.duration_label || 'Instant'}
-                      </small>
+                      <small>{[cat?.name, product.duration_label].filter(Boolean).join(' · ')}</small>
                     </td>
                     <td className="money">
                       <div>{money(product.price)}</div>

@@ -1,5 +1,15 @@
 # 🚀 Reseller API Developer Integration Guide (রিসেলার এপিআই গাইড)
 
+## নিরাপত্তা ও অনুমতির সীমা
+
+- API key দিয়ে নিজের balance, catalog এবং নিজের order দেখা ও order তৈরি করা যায়। সরাসরি balance কমানো/বাড়ানো, deposit approve, refund বা admin API ব্যবহার করা যায় না।
+- Order payload কেবল `product_id`, integer `quantity` এবং `custom_id` গ্রহণ করে। Price, customer ID, balance বা অন্য অতিরিক্ত field পাঠালে 422 হবে। দাম ও account server নির্ধারণ করে।
+- একই order retry করলে একই `custom_id`/`Idempotency-Key` রাখুন। উভয়টি দিলে মান এক হতে হবে। নতুন key দিলে নতুন order হিসেবে গণ্য হবে এবং আবার charge হতে পারে।
+- Key ও reseller status টাকা কাটার transaction-এর মধ্যেও যাচাই হয়। Revoke কার্যকর হওয়ার পরে পুরোনো key দিয়ে নতুন charge হবে না; ইতিমধ্যে committed order নিজে থেকে বাতিল হয় না।
+- Wallet charge, stock allocation, order এবং delivery queue একই database transaction-এ লেখা হয়। কোনো ধাপ ব্যর্থ হলে সব rollback হয়। Manual delivery order গ্রহণের সময় charge হয়; delivery পরে হয়।
+- API key গোপন রাখুন, শুধু backend থেকে HTTPS-এ ব্যবহার করুন। Key হাতে পেলে কেউ আপনার অনুমতিতেই order করতে পারে; সন্দেহ হলে সঙ্গে সঙ্গে revoke করুন। BDT amount হিসাবের জন্য client-এ decimal arithmetic ব্যবহার করুন।
+- Limits: প্রতি account-এ 120 reads এবং 30 writes/minute; shared IP limit 180 API requests/minute। 429 হলে `Retry-After` মেনে retry করুন।
+
 এই গাইডে বিস্তারিত ব্যাখ্যা করা হয়েছে কীভাবে আপনি আমাদের **Reseller API** ব্যবহার করে আপনার নিজস্ব **টেলিগ্রাম বট**, **ওয়েবসাইট**, বা **অটোমেটেড সিস্টেমে** আমাদের প্রোডাক্টগুলো যুক্ত করবেন এবং সরাসরি পাইকারি রিসেলার মূল্যে কেনাকাটা ও তাত্ক্ষণিক ডেলিভারি গ্রহণ করবেন।
 
 ---
@@ -9,7 +19,7 @@
 * **হোলসেল রিসেলার রেট (`reseller_price`)**: সাধারণ কাস্টমারদের দামের চেয়ে কম মূল্যে আপনি প্রোডাক্ট কিনতে পারবেন।
 * **তাত্ক্ষণিক স্বয়ংক্রিয় ডেলিভারি**: এপিআই দিয়ে অর্ডার প্লেস করার সাথে সাথে সেকেন্ডের মধ্যে এপিআই রেসপন্সে প্রোডাক্টের একাউন্ট/লাইসেন্স কি ডেলিভারি হয়ে যাবে।
 * **ওয়ালেট ভিত্তিক ব্যালেন্স**: বটে যেভাবে বিকাশ, নগদ বা বাইন্যান্স দিয়ে ব্যালেন্স লোড করেন, সেই ওয়ালেট ব্যালেন্স থেকেই স্বয়ংক্রিয়ভাবে টাকা কাটা হবে।
-* **ডাবল চার্জ প্রতিরোধ (Idempotency)**: নেটওয়ার্ক ড্রপ হলেও আপনার `custom_id` দিয়ে ডাবল চার্জ হওয়ার কোনো সম্ভাবনা নেই।
+* **ডাবল চার্জ প্রতিরোধ (Idempotency)**: একই account-এ একই `custom_id`, product ও quantity দিয়ে retry করলে আগের order ফেরত আসে; নতুন charge হয় না।
 
 ---
 
@@ -155,7 +165,7 @@ https://YOUR-DOMAIN-NAME/api/v1/reseller
 | :--- | :--- | :--- | :--- |
 | `product_id` | `integer` | **হ্যাঁ** | যে প্রোডাক্টটি কিনতে চান তার আইডি |
 | `quantity` | `integer` | না (ডিফল্ট `1`) | কয়টি কিনতে চান (১ থেকে ১০০) |
-| `custom_id` | `string` | না | আপনার নিজস্ব ইউনিক অর্ডার আইডি (যাতে নেটওয়ার্ক সমস্যায় ডাবল চার্জ না হয়) |
+| `custom_id` | `string` | হ্যাঁ* | ইউনিক অর্ডার আইডি; retry-তে একই আইডি ব্যবহার করুন। *বিকল্প হিসেবে `Idempotency-Key` header দেওয়া যাবে। কোনোটিই না থাকলে 422 ফিরবে। |
 
 #### রেসপন্স উদাহরণ (200 OK — সফল ডেলিভারি):
 ```json

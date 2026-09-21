@@ -117,7 +117,7 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
         <div>
           <h3>
             <UserCheck size={15} style={{ color: 'var(--positive)', flexShrink: 0 }} />
-            <span>Admin Telegram Recipients</span>
+            <span>Alert recipients</span>
           </h3>
         </div>
         <div className="actions">
@@ -162,7 +162,7 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
         <div className="admin-ids-list" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {adminIds.length === 0 ? (
             <div className="empty-state" style={{ padding: '14px 0', textAlign: 'center', color: 'var(--muted)' }}>
-              No admin Telegram IDs configured. Click &quot;Add Admin ID&quot; below.
+              No alert recipients yet.
             </div>
           ) : (
             <div className="admin-chips-wrap">
@@ -239,7 +239,7 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
         <div>
           <h3>
             <Bell size={15} style={{ color: 'var(--positive)', flexShrink: 0 }} />
-            <span>Operational Notification Rules</span>
+            <span>Notification preferences</span>
           </h3>
         </div>
       </div>
@@ -260,7 +260,7 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
         <div className="mandatory-row">
           <div className="mandatory-info">
             <div className="mandatory-title-row">
-              <strong>Critical Payment &amp; Gateway Errors</strong>
+              <strong>Payment &amp; gateway errors</strong>
               <span className="mandatory-badge danger">ALWAYS ON</span>
             </div>
           </div>
@@ -288,7 +288,7 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
         />
 
         <FlagRow
-          label="Stock Added / Restock Alerts"
+          label="Stock updates"
           on={isOn('notify_admin_restock', '1')}
           onChange={(next) => void flip('notify_admin_restock', next)}
         />
@@ -300,7 +300,7 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
         />
 
         <FlagRow
-          label="New Customer Registrations"
+          label="New customers"
           on={isOn('notify_admin_new_user', '0')}
           onChange={(next) => void flip('notify_admin_new_user', next)}
         />

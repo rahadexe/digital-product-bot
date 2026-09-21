@@ -4,6 +4,9 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 from app.api.deps import ServicesDep
+from app.db.migrations import MIGRATIONS_DIR
+
+EXPECTED_MIGRATIONS = frozenset(path.stem for path in MIGRATIONS_DIR.glob('*.sql'))
 
 router = APIRouter(tags=["health"])
 
@@ -17,7 +20,9 @@ async def live():
 async def ready(services: ServicesDep):
     try:
         async with services.db.connect() as conn:
-            await conn.fetchval("SELECT COUNT(*) FROM schema_migrations")
+            applied = {row['version'] for row in await conn.fetch('SELECT version FROM schema_migrations')}
+            if not EXPECTED_MIGRATIONS.issubset(applied):
+                return JSONResponse(status_code=503, content={'status':'migration_required','database':True})
     except Exception:
         return JSONResponse(status_code=503, content={"status": "unavailable", "database": False})
     runtime = services.runtime

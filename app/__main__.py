@@ -1,8 +1,8 @@
 """Run SubsMarket: ``python -m app [all|web|worker|migrate]``.
 
 ``all`` (the default) runs the web API (with Telegram webhook) and delivery worker in one
-process. Scaled deployments may run several ``web`` replicas only with REDIS_URL set
-(FSM state must be shared); otherwise run one. ``migrate`` applies database migrations and exits.
+process. Webhook replicas share the durable PostgreSQL inbox and conversation state
+(or Redis when configured). Run only one Telegram poller. ``migrate`` applies database migrations and exits.
 """
 
 from __future__ import annotations

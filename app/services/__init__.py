@@ -29,6 +29,7 @@ from app.services.inventory import InventoryService
 from app.services.notifications import Notifier
 from app.services.payments import PaymentService
 from app.services.purchases import PurchaseService
+from app.services.rate_limits import RateLimits
 from app.services.reseller import ResellerService
 from app.services.settings import SettingsService
 from app.services.update_channels import UpdateChannelService
@@ -72,6 +73,7 @@ class Services:
     dashboard: DashboardService
     admin_access: AdminAccessService
     reseller: ResellerService
+    rate_limits: RateLimits
     runtime: RuntimeStatus = field(default_factory=RuntimeStatus)
 
     async def close(self) -> None:
@@ -126,4 +128,5 @@ def build_services(
         dashboard=DashboardService(db),
         admin_access=AdminAccessService(db),
         reseller=reseller,
+        rate_limits=RateLimits(db),
     )

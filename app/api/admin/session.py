@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 from fastapi import APIRouter, HTTPException, Request, Response
 
 from app.api.admin.auth import (
@@ -45,7 +47,6 @@ async def login(payload: LoginPayload, request: Request, response: Response, ser
     return {
         "success": True,
         "csrf": auth.get_csrf_token(token),
-        "token": token,
         "expires_in": SESSION_SECONDS,
     }
 
@@ -54,24 +55,12 @@ async def login(payload: LoginPayload, request: Request, response: Response, ser
 async def session(request: Request, response: Response, services: ServicesDep, auth: AuthDep):
     token = request.cookies.get(SESSION_COOKIE_NAME) or bearer_token(request)
     if await session_is_active(services, auth, token):
-        # Rolling session: refresh cookie expiry for another 90 days
-        response.set_cookie(
-            key=SESSION_COOKIE_NAME,
-            value=token,
-            httponly=True,
-            secure=services.config.cookie_secure,
-            samesite="lax",
-            max_age=SESSION_SECONDS,
-            expires=SESSION_SECONDS,
-            path="/",
-        )
         return {
             "signed_in": True,
             "csrf": auth.get_csrf_token(token),
-            "token": token,
-            "expires_in": SESSION_SECONDS,
+            "expires_in": max(0, (auth.expiry(token) or 0) - int(time.time())),
         }
-    return {"signed_in": False, "csrf": "", "token": None}
+    return {"signed_in": False, "csrf": ""}
 
 
 @router.post("/logout", dependencies=WRITE)

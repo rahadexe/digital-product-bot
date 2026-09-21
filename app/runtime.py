@@ -9,7 +9,6 @@ from typing import Any
 
 import uvicorn
 from aiogram.fsm.storage.base import BaseStorage
-from aiogram.fsm.storage.memory import MemoryStorage
 
 from app.core.config import Settings
 from app.db.migrations import migrate

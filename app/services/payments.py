@@ -8,8 +8,8 @@ the invoice to completed in one transaction, so repeated callbacks and checks ca
 
 from __future__ import annotations
 
-import logging
 import asyncio
+import logging
 import secrets
 from decimal import ROUND_HALF_UP, Decimal
 from html import escape
@@ -19,14 +19,6 @@ from urllib.parse import urlsplit
 import asyncpg
 import httpx
 
-from app.core.config import Settings
-from app.core.money import money
-from app.db import Database
-from app.services.audit import record
-from app.services.errors import InvalidInputError
-from app.services.notifications import Notifier
-from app.services.settings import SettingsService
-from app.services.http import gateway_http
 from app.bot.icons import (
     ICON_ACCOUNT,
     ICON_BALANCE,
@@ -36,6 +28,14 @@ from app.bot.icons import (
     ICON_MONEY,
     ICON_WARNING,
 )
+from app.core.config import Settings
+from app.core.money import money
+from app.db import Database
+from app.services.audit import record
+from app.services.errors import InvalidInputError
+from app.services.http import gateway_http
+from app.services.notifications import Notifier
+from app.services.settings import SettingsService
 
 logger = logging.getLogger("app.services.payments")
 
@@ -57,7 +57,8 @@ class PaymentProviderError(Exception):
 
 def _decimal(value: Any) -> Decimal:
     try:
-        return Decimal(str(value))
+        parsed = Decimal(str(value))
+        return parsed if parsed.is_finite() else Decimal('0')
     except Exception:
         return Decimal("0")
 
@@ -87,10 +88,14 @@ def _field(body: dict[str, Any], *names: str) -> str:
 
 
 def _is_zinipay_url(url: str) -> bool:
-    """A customer may only be sent to ZiniPay itself, whichever domain it serves the page from."""
-    parts = urlsplit(url)
-    labels = (parts.hostname or "").lower().split(".")
-    return parts.scheme == "https" and len(labels) >= 2 and labels[-2] == "zinipay"
+    """Accept the provider's HTTPS domain, never lookalike domains under another TLD."""
+    try:
+        parts = urlsplit(url)
+        host = (parts.hostname or '').lower()
+        return (parts.scheme == 'https' and (host == 'zinipay.com' or host.endswith('.zinipay.com'))
+                and parts.port in (None, 443) and parts.username is None and parts.password is None)
+    except ValueError:
+        return False
 
 
 class ZiniPayClient:
@@ -122,12 +127,15 @@ class ZiniPayClient:
         # Live ZiniPay names the invoice only by the val_id it was given; the sandbox also sends invoice_id.
         invoice_id = _field(body, "invoice_id", "invoiceId", "id") or _field(body, "val_id", "valId")
         payment_url = _field(body, "payment_url", "paymentUrl", "checkout_url", "url")
+        if payment_url and not _is_zinipay_url(payment_url):
+            raise PaymentProviderError('ZiniPay returned an untrusted payment address.')
+        if not invoice_id and payment_url:
+            # The current provider response may contain only /payment/<invoice_id>.
+            segments = urlsplit(payment_url).path.strip('/').split('/')
+            if len(segments) == 2 and segments[0] == 'payment' and 0 < len(segments[1]) <= 120:
+                invoice_id = segments[1]
         if status not in (200, 201) or not payment_url:
             raise PaymentProviderError(_provider_message(status, body, "a payment link"))
-        if not invoice_id and payment_url:
-            parts = [p for p in urlsplit(payment_url).path.split("/") if p]
-            if parts:
-                invoice_id = parts[-1]
         if not invoice_id:
             raise PaymentProviderError(_provider_message(status, body, "an invoice id"))
         return {"invoice_id": invoice_id, "payment_url": payment_url}
@@ -355,7 +363,7 @@ class PaymentService:
             logger.warning("ZiniPay invoice %s could not be created: %s", reference, exc)
             async with self.db.transaction() as conn:
                 await conn.execute(
-                    "UPDATE payment_invoices SET status = 'failed', last_error = $1, updated_at = now() WHERE id = $2",
+                    "UPDATE payment_invoices SET last_error = $1, updated_at = now() WHERE id = $2 AND status = 'created'",
                     str(exc)[:300],
                     row["id"],
                 )
@@ -418,7 +426,16 @@ class PaymentService:
                 reference,
             )
         if row:
-            await self.refresh(row["reference"])
+            # Coalesce unsigned callback floods and retries across replicas. Scheduled
+            # reconciliation also checks the invoice if this process dies after claiming it.
+            async with self.db.connect() as conn:
+                claimed = await conn.fetchval(
+                    "UPDATE payment_invoices SET next_check_at=now()+interval '30 seconds' "
+                    "WHERE reference=$1 AND status IN ('created','pending') AND next_check_at<=now() RETURNING reference",
+                    row['reference'],
+                )
+            if claimed:
+                await self.refresh(claimed)
 
     async def recheck_pending(self, limit: int = 20, idle_seconds: int = 45) -> int:
         """Ask ZiniPay about unpaid invoices nobody has checked recently, least recently checked first."""
@@ -488,13 +505,12 @@ class PaymentService:
             answered_reference = str(result.get("val_id") or result.get("valId") or "")
             ref_match = bool(answered_reference and answered_reference == row["reference"])
             inv_match = bool(answered_invoice and (answered_invoice == row["provider_invoice_id"] or answered_invoice == row["reference"]))
-            if not ref_match and not inv_match:
-                if answered_reference and answered_reference != row["reference"]:
-                    problems.append("the reference does not match")
-                elif answered_invoice and answered_invoice != row["provider_invoice_id"]:
-                    problems.append("the verified invoice does not match")
-                else:
-                    problems.append("the answer names no invoice")
+            if answered_reference and not ref_match:
+                problems.append("the reference does not match")
+            if answered_invoice and not inv_match:
+                problems.append("the verified invoice does not match")
+            if not answered_reference and not answered_invoice:
+                problems.append("the answer names no invoice")
             paid = _decimal(result.get("without_fee", result.get("amount")))
             expected = _decimal(row["pay_amount"])
             if abs(paid - expected) > AMOUNT_TOLERANCE:

@@ -9,7 +9,7 @@ from typing import Any
 
 from app.db import Database
 from app.services.catalog import CatalogService
-from app.services.errors import InvalidInputError, NotFoundError, PermissionDeniedError
+from app.services.errors import NotFoundError, PermissionDeniedError
 from app.services.settings import SettingsService
 from app.services.users import UserService
 
@@ -50,6 +50,9 @@ class ResellerService:
         key_prefix = f"{raw_key[:12]}...{raw_key[-4:]}"
 
         async with self.db.transaction() as conn:
+            user = await conn.fetchrow('SELECT * FROM users WHERE tg_user_id=$1 FOR UPDATE', tg_user_id)
+            if not user or user['is_banned'] or (user['rank'] or '').lower() != 'reseller':
+                raise PermissionDeniedError('Only active resellers can generate API keys.')
             # Revoke previous active keys for this user
             await conn.execute(
                 "UPDATE reseller_api_keys SET is_active = 0 WHERE tg_user_id = $1 AND is_active = 1",
@@ -104,6 +107,9 @@ class ResellerService:
     async def set_key_status(self, tg_user_id: int, is_active: bool) -> bool:
         """Enable or disable the latest API key for a reseller."""
         async with self.db.transaction() as conn:
+            user = await conn.fetchrow('SELECT * FROM users WHERE tg_user_id=$1 FOR UPDATE', tg_user_id)
+            if not user or user['is_banned'] or (user['rank'] or '').lower() != 'reseller':
+                raise PermissionDeniedError('Only active resellers can manage API keys.')
             val = 1 if is_active else 0
             await conn.execute(
                 """
@@ -129,8 +135,8 @@ class ResellerService:
                 SELECT 
                     COUNT(*) AS total_orders,
                     COALESCE(SUM(price), 0) AS total_spent
-                FROM purchases
-                WHERE tg_user_id = $1
+                FROM orders
+                WHERE tg_user_id = $1 AND status='completed'
                 """,
                 tg_user_id,
             )
@@ -142,6 +148,7 @@ class ResellerService:
     async def revoke_key(self, tg_user_id: int) -> bool:
         """Deactivate all active keys for a reseller."""
         async with self.db.transaction() as conn:
+            await conn.fetchval('SELECT id FROM users WHERE tg_user_id=$1 FOR UPDATE',tg_user_id)
             result = await conn.execute(
                 "UPDATE reseller_api_keys SET is_active = 0 WHERE tg_user_id = $1 AND is_active = 1",
                 tg_user_id,
@@ -158,7 +165,7 @@ class ResellerService:
         if not raw_key or not isinstance(raw_key, str):
             return None
         raw_key = raw_key.strip()
-        if not raw_key.startswith("rk_"):
+        if not raw_key.startswith("rk_") or len(raw_key) > 128:
             return None
 
         key_hash = hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
@@ -185,7 +192,8 @@ class ResellerService:
             # Update last_used_at timestamp asynchronously
             try:
                 await conn.execute(
-                    "UPDATE reseller_api_keys SET last_used_at = now() WHERE id = $1",
+                    "UPDATE reseller_api_keys SET last_used_at = now() WHERE id = $1 "
+                    "AND (last_used_at IS NULL OR last_used_at<now()-interval '1 minute')",
                     row["key_id"],
                 )
             except Exception:

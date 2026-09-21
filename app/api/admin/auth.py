@@ -17,7 +17,7 @@ from app.services import Services
 
 SESSION_COOKIE_NAME = "shop_admin_session"
 CSRF_HEADER_NAME = "x-csrf-token"
-SESSION_SECONDS = 90 * 24 * 3600  # 90 days persistent admin session
+SESSION_SECONDS = 8 * 3600
 ALGORITHM = "HS256"
 
 
@@ -38,11 +38,16 @@ class AdminAuth:
         return jwt.encode(payload, self.secret_key, algorithm=ALGORITHM)
 
     def _claims(self, token: str) -> dict[str, Any] | None:
+        if len(token) > 4096:
+            return None
         try:
             payload = jwt.decode(token, self.secret_key, algorithms=[ALGORITHM], options={"require": ["exp", "iat", "sub"]})
         except PyJWTError:
             return None
-        return payload if payload.get("sub") == "admin" else None
+        if (payload.get('sub') != 'admin' or not isinstance(payload['exp'], int)
+                or not isinstance(payload['iat'], int) or payload['exp'] - payload['iat'] > SESSION_SECONDS):
+            return None
+        return payload
 
     def verify_session_token(self, token: str) -> bool:
         return self._claims(token) is not None

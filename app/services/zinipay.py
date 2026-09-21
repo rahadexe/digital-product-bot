@@ -9,22 +9,33 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from decimal import Decimal, InvalidOperation
 from typing import Any
-
-import httpx
 
 from app.core.config import Settings
 from app.db import Database
-from app.services.audit import record
 from app.services.deposits import DepositService, DuplicateTransactionError
 from app.services.errors import InvalidInputError
+from app.services.http import gateway_http
 from app.services.notifications import Notifier
 from app.services.settings import SettingsService
-from app.services.http import gateway_http
 
 logger = logging.getLogger(__name__)
 
 ZINIPAY_TRX_API = "https://api.zinipay.com/v1/trx"
+
+
+def _matches_receipt(data: dict[str, Any], amount: float, transaction_id: str) -> bool:
+    """Reject a provider response that explicitly contradicts the requested receipt."""
+    try:
+        paid = Decimal(str(data.get('amount', amount)))
+        expected = Decimal(str(amount))
+        if not paid.is_finite() or not expected.is_finite() or abs(paid - expected) > Decimal('0.01'):
+            return False
+    except (InvalidOperation, ValueError, TypeError):
+        return False
+    return all(str(data[key]).strip().upper() == transaction_id.upper()
+               for key in ('trxID', 'transactionId') if data.get(key) is not None)
 
 
 class ZiniPayVerificationService:
@@ -89,10 +100,14 @@ class ZiniPayVerificationService:
             logger.warning("ZiniPay verify connection error: %s", exc)
             return {"ok": False, "reason": "connection_error", "message": f"Connection error: {exc}"}
 
+        if not isinstance(data, dict) or not isinstance(data.get('data', {}), dict):
+            return {'ok': False, 'reason': 'error', 'message': 'Malformed gateway response.'}
         # Handle successful verification
         is_success = bool(data.get("success") is True or data.get("status") is True or (status == 200 and data.get("data") and not data.get("error") and not data.get("code")))
         if status == 200 and is_success:
             trx_data = data.get("data") or {}
+            if data.get('success') is False or data.get('status') is False or not _matches_receipt(trx_data, amount, clean_tx):
+                return {'ok': False, 'reason': 'error', 'message': 'Gateway receipt does not match this payment.'}
             return {
                 "ok": True,
                 "id": trx_data.get("id"),
@@ -152,9 +167,13 @@ class ZiniPayVerificationService:
             logger.warning("ZiniPay confirm connection error: %s", exc)
             return {"ok": False, "message": f"Connection error: {exc}"}
 
+        if not isinstance(data, dict) or not isinstance(data.get('data', {}), dict):
+            return {'ok': False, 'message': 'Malformed gateway confirmation.'}
         is_success = bool(data.get("success") is True or data.get("status") is True or (status == 200 and data.get("data") and not data.get("error") and not data.get("code")))
         if status == 200 and is_success:
             confirm_data = data.get("data") or {}
+            if data.get('success') is False or data.get('status') is False or not _matches_receipt(confirm_data, amount, clean_tx):
+                return {'ok': False, 'message': 'Gateway confirmation does not match this payment; review required.'}
             return {
                 "ok": True,
                 "provider": confirm_data.get("provider") or confirm_data.get("method") or "bKash/Nagad",

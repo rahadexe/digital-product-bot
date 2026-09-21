@@ -14,9 +14,6 @@ from typing import Any
 
 import asyncpg
 
-from app.db import Database
-from app.services.audit import record
-from app.services.errors import NotFoundError
 from app.bot.formatting import format_dual_price
 from app.bot.icons import (
     ICON_CHECK,
@@ -26,6 +23,9 @@ from app.bot.icons import (
     ICON_TIMER,
     ICON_VIP,
 )
+from app.db import Database
+from app.services.audit import record
+from app.services.errors import NotFoundError
 
 LEASE_SECONDS = 120
 

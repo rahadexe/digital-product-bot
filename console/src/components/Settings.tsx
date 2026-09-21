@@ -13,11 +13,14 @@ import { UpdateChannels } from './UpdateChannels';
 import { FlagRow, Switch, errorText, type Say } from './ui';
 import { Eye, EyeOff, RotateCcw, Save } from 'lucide-react';
 
-export type SettingsTab = 'general' | 'payments';
+export type SettingsTab = 'general' | 'payments' | 'notifications' | 'channels' | 'access';
 
 const TABS: { key: SettingsTab; label: string }[] = [
-  { key: 'general', label: 'General' },
+  { key: 'general', label: 'Store' },
   { key: 'payments', label: 'Payments' },
+  { key: 'notifications', label: 'Notifications' },
+  { key: 'channels', label: 'Channels' },
+  { key: 'access', label: 'Access' },
 ];
 
 type Secret = 'zinipay_api_key' | 'binance_api_key' | 'binance_api_secret';
@@ -53,16 +56,16 @@ const SECTIONS: Section[] = [
   {
     id: 'store',
     tab: 'general',
-    title: 'Bot Profile & Admins',
+    title: 'Store profile',
     fields: [
-      { key: 'store_name', label: 'Bot / Store Name', placeholder: 'Store name' },
-      { key: 'support_username', label: 'Telegram Support Username', placeholder: '@username' },
+      { key: 'store_name', label: 'Store name', placeholder: 'Store name' },
+      { key: 'support_username', label: 'Support username', placeholder: '@username' },
     ],
   },
   {
     id: 'pricing_display',
     tab: 'general',
-    title: 'Dual Currency & Pricing Display',
+    title: 'Price display',
     fields: [
       { key: 'show_usd_price', label: 'Show USD price on products (৳ & $)', type: 'toggle' },
       { key: 'usd_rate', label: 'Exchange Rate: 1 USD', type: 'number', fallback: '125', money: true },
@@ -70,7 +73,7 @@ const SECTIONS: Section[] = [
   },
   {
     id: 'channels',
-    tab: 'general',
+    tab: 'channels',
     title: 'Welcome & Channels',
     fields: [
       {
@@ -87,7 +90,7 @@ const SECTIONS: Section[] = [
   },
   {
     id: 'access',
-    tab: 'general',
+    tab: 'access',
     title: 'Access & Limits',
     fields: [
       { key: 'maintenance_message', label: 'Maintenance Message', placeholder: 'Store maintenance is in progress...' },
@@ -111,6 +114,7 @@ const SECTIONS: Section[] = [
       },
     ],
   },
+  { id: 'notifications', tab: 'notifications', title: 'Admin notifications', fields: [] },
   // ── Payments Tab ─────────────────────────────────────────
   {
     id: 'zinipay_autoverify',
@@ -131,7 +135,7 @@ const SECTIONS: Section[] = [
   {
     id: 'zinipay_web',
     tab: 'payments',
-    title: 'Web Checkout (ZiniPay Hosted)',
+    title: 'ZiniPay checkout',
     master: {
       key: 'zinipay_web_gateway_enabled',
     },
@@ -435,7 +439,7 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
 
   return (
     <>
-      <div className="segmented" role="tablist" aria-label="Settings">
+      <div className="segmented settings-tabs" role="tablist" aria-label="Settings">
         {TABS.map((item) => (
           <button
             key={item.key}
@@ -497,7 +501,7 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
               ) : null}
 
               {/* Embedded Sub-components inside the unified card */}
-              {section.id === 'store' ? (
+              {section.id === 'notifications' ? (
                 <AdminNotifications
                   say={say}
                   values={values}
