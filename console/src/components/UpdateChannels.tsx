@@ -50,10 +50,14 @@ export function UpdateChannels({ say }: { say: Say }) {
         {(channels ?? []).map((channel) => (
           <div key={channel.id} className={`row${channel.is_active ? '' : ' off'}`}>
             <div className="text">
-              <strong>
-                {channel.title}
-                {channel.is_active ? '' : ' · off'}
-              </strong>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <strong>{channel.title}</strong>
+                {channel.is_active ? (
+                  <span className="channel-status-badge active">Active</span>
+                ) : (
+                  <span className="channel-status-badge inactive">Inactive</span>
+                )}
+              </div>
               <small>
                 #{channel.sort_order} ·{' '}
                 <a href={channel.url} target="_blank" rel="noreferrer">
@@ -153,7 +157,7 @@ function ChannelForm({ draft, say, onClose, onSaved }: { draft: Draft; say: Say;
           onChange={(event) => set({ sort_order: String(Math.max(0, parseInt(event.target.value, 10) || 0)) })}
         />
       </label>
-      <FlagRow label="Show in the bot" on={form.is_active} onChange={(on) => set({ is_active: on })} />
+      <FlagRow label="Active" hint="Show this channel button to customers in the bot" on={form.is_active} onChange={(on) => set({ is_active: on })} />
     </Modal>
   );
 }

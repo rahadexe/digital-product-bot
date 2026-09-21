@@ -3861,3 +3861,25 @@ ul.messages p { margin-top: 6px; color: var(--text-dim); font-size: 12.5px; whit
   line-height: 1.4;
 }
 
+.channel-status-badge {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 2px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+}
+.channel-status-badge.active {
+  background: color-mix(in srgb, var(--positive) 14%, transparent);
+  color: var(--positive);
+  border: 1px solid color-mix(in srgb, var(--positive) 28%, transparent);
+}
+.channel-status-badge.inactive {
+  background: color-mix(in srgb, var(--muted) 16%, transparent);
+  color: var(--muted);
+  border: 1px solid color-mix(in srgb, var(--muted) 25%, transparent);
+}
+
+

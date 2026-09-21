@@ -46,10 +46,14 @@ export function GateChannels({ say }: { say: Say }) {
         {(channels ?? []).map((channel) => (
           <div key={channel.id} className={`row${channel.is_active ? '' : ' off'}`}>
             <div className="text">
-              <strong>
-                {channel.title}
-                {channel.is_active ? '' : ' · off'}
-              </strong>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <strong>{channel.title}</strong>
+                {channel.is_active ? (
+                  <span className="channel-status-badge active">Active</span>
+                ) : (
+                  <span className="channel-status-badge inactive">Inactive</span>
+                )}
+              </div>
               <small>
                 {channel.channel_username} ·{' '}
                 <a href={channel.invite_link} target="_blank" rel="noreferrer">
