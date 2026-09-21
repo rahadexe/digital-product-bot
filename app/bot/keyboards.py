@@ -472,6 +472,8 @@ def get_quantity_selector_keyboard(
     back_target: str = "open_shop",
     usd_rate: float | None = None,
     show_usd: bool = True,
+    product_link: str = "",
+    has_description: bool = False,
 ) -> InlineKeyboardMarkup:
     """
     Interactive Quantity Selector keyboard matching reference UI:
@@ -546,7 +548,32 @@ def get_quantity_selector_keyboard(
             )
         ])
 
-    # Row 4: Back & Close
+    # Row 4: Description and the shareable link. Both are optional, so a product
+    # without a description does not get a button that shows nothing.
+    extras = []
+    if has_description:
+        extras.append(
+            InlineKeyboardButton(
+                text="Description",
+                callback_data=f"prod_desc_{product_id}",
+                style="primary",
+                icon_custom_emoji_id=Icons.NOTE,
+            )
+        )
+    if product_link:
+        # copy_text puts it on the clipboard without a round trip to the bot.
+        extras.append(
+            InlineKeyboardButton(
+                text="Copy Link",
+                copy_text=CopyTextButton(text=product_link[:256]),
+                style="primary",
+                icon_custom_emoji_id=Icons.GLOBE,
+            )
+        )
+    if extras:
+        buttons.append(extras)
+
+    # Row 5: Back & Close
     buttons.append([
         InlineKeyboardButton(text="Back", callback_data=back_target, style="primary", icon_custom_emoji_id=Icons.BACK),
         InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),

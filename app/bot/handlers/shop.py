@@ -302,9 +302,14 @@ async def product_view(
     if duration and duration.lower() not in {"instant", "none", "n/a", ""}:
         text += f"{ICON_TIMER} <b>Validity:</b> {duration}\n"
 
+    # The description lives behind its own button rather than in the card, so a
+    # long one does not push the price and the quantity controls off the screen.
     desc = (product.get("description") or "").strip()
-    if desc and desc.lower() not in {"n/a", "none", "no description", "null"} and not is_redundant_description(product["title"], desc):
-        text += f"{ICON_NOTE} <b>Description:</b> {escape(desc)}\n"
+    has_description = bool(
+        desc
+        and desc.lower() not in {"n/a", "none", "no description", "null"}
+        and not is_redundant_description(product["title"], desc)
+    )
 
     text += (
         f"━━━━━━━━━━━━━━━━━━\n"
@@ -313,6 +318,9 @@ async def product_view(
     )
 
     back_target = f"cat_{cat_id}" if cat_id else "shop_uncat"
+
+    bot_username = await services.notifier.bot_username()
+    product_link = f"https://t.me/{bot_username}?start=prod_{product['id']}" if bot_username else ""
 
     keyboard = get_quantity_selector_keyboard(
         product_id=product["id"],
@@ -325,6 +333,8 @@ async def product_view(
         back_target=back_target,
         usd_rate=usd_rate,
         show_usd=show_usd,
+        product_link=product_link,
+        has_description=has_description,
     )
     return text, keyboard
 
@@ -668,6 +678,58 @@ async def show_product_detail(query: CallbackQuery, state: FSMContext, services:
     await respond(query, text, keyboard)
 
 
+@router.callback_query(F.data.startswith("prod_desc_"))
+async def show_product_description(query: CallbackQuery, state: FSMContext, services: Services):
+    """The Description button. Shown as its own panel so the whole text fits,
+    however long it is, with a way back to the product it belongs to."""
+    product_id = callback_int(query.data, "prod_desc_")
+    if product_id is None:
+        with suppress(TelegramBadRequest):
+            await query.answer("Please reopen the product.", show_alert=True)
+        return
+
+    product = await services.catalog.product(product_id)
+    if not product or not product.get("is_active"):
+        with suppress(TelegramBadRequest):
+            await query.answer("This product is no longer available.", show_alert=True)
+        return
+
+    desc = (product.get("description") or "").strip()
+    if not desc:
+        with suppress(TelegramBadRequest):
+            await query.answer("No description for this product.", show_alert=True)
+        return
+
+    data = await state.get_data()
+    quantity = max(1, int(data.get(f"qty_{product_id}", 1) or 1))
+    icon = product.get("icon") or "📦"
+    custom_emoji_id = product.get("custom_emoji_id")
+    if custom_emoji_id and str(custom_emoji_id).strip().isdigit():
+        icon = tg_icon(str(custom_emoji_id).strip(), icon)
+
+    text = (
+        f"{ICON_NOTE} <b>Description</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"{icon} <b>{escape(product['title'])}</b>\n\n"
+        f"{escape(desc)}"
+    )
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[[
+            InlineKeyboardButton(
+                text="Back to product",
+                callback_data=f"qty_set_{product_id}_{quantity}",
+                style="primary",
+                icon_custom_emoji_id=Icons.BACK,
+            )
+        ]]
+    )
+    with suppress(TelegramBadRequest):
+        await query.answer()
+    if query.message:
+        with suppress(TelegramBadRequest):
+            await query.message.edit_text(text, reply_markup=keyboard)
+
+
 @router.callback_query(F.data.startswith("qty_set_"))
 async def adjust_quantity(query: CallbackQuery, state: FSMContext, services: Services):
     """Handles [-] and [+] button taps to adjust quantity dynamically in real-time."""
@@ -694,6 +756,10 @@ async def adjust_quantity(query: CallbackQuery, state: FSMContext, services: Ser
 
     with suppress(TelegramBadRequest):
         await query.answer()
+
+    # Remember it, so leaving the product for its description and coming back
+    # does not quietly reset the quantity the customer chose.
+    await state.update_data(**{f"qty_{product_id}": quantity})
 
     text, keyboard = await product_view(services, product, query.from_user.id, quantity=quantity)
     if query.message:
