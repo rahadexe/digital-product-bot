@@ -85,19 +85,17 @@ async def show_guide_info(event: Message | CallbackQuery, state: FSMContext, ser
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="Support",
+                    text="Back",
                     callback_data="open_support",
                     style="primary",
-                    icon_custom_emoji_id=Icons.SUPPORT,
-                )
-            ],
-            [
+                    icon_custom_emoji_id=Icons.BACK,
+                ),
                 InlineKeyboardButton(
                     text="Close",
                     callback_data="close_menu",
                     style="danger",
                     icon_custom_emoji_id=Icons.CLOSE,
-                )
+                ),
             ],
         ]
     )

@@ -306,7 +306,13 @@ def get_support_keyboard(
     support_handle: str = "",
     channels: List[Dict[str, Any]] | None = None,
 ) -> InlineKeyboardMarkup:
-    """Keyboard for Support with direct chat button, guide button, active channels, and close button."""
+    """
+    Keyboard for Support.
+    - Top: Support direct chat button (full width).
+    - If channel(s) exist: Guide and Channel buttons placed side-by-side in one row.
+    - If no channels: Guide button is full width.
+    - Bottom: Close button.
+    """
     rows = []
     if support_handle:
         handle = support_handle.lstrip("@")
@@ -318,27 +324,38 @@ def get_support_keyboard(
                 icon_custom_emoji_id=Icons.SUPPORT,
             )
         ])
-    rows.append([
-        InlineKeyboardButton(
-            text="Guide",
-            callback_data="open_guide",
-            style="primary",
-            icon_custom_emoji_id=Icons.NOTE,
-        )
-    ])
+
+    guide_btn = InlineKeyboardButton(
+        text="Guide",
+        callback_data="open_guide",
+        style="primary",
+        icon_custom_emoji_id=Icons.NOTE,
+    )
+
+    valid_channels = []
     if channels:
         for ch in channels:
-            title = (ch.get("title") or "Channel").strip()
+            title = (ch.get("title") or "Official Channel").strip()
             url = ch.get("url") or ""
             if url:
-                rows.append([
+                valid_channels.append(
                     InlineKeyboardButton(
                         text=title,
                         url=url,
                         style="success",
                         icon_custom_emoji_id=Icons.CHANNEL,
                     )
-                ])
+                )
+
+    if valid_channels:
+        # Side-by-side: Guide and Official Channel in the same row
+        rows.append([guide_btn, valid_channels[0]])
+        for ch_btn in valid_channels[1:]:
+            rows.append([ch_btn])
+    else:
+        # Full width when no channels are configured
+        rows.append([guide_btn])
+
     rows.append([
         InlineKeyboardButton(
             text="Close",
