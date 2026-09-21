@@ -105,6 +105,20 @@ class Settings(BaseSettings):
     def webhook_url(self) -> str:
         return f"{self.webhook_base_url}/telegram/webhook"
 
+    @property
+    def console_url(self) -> str:
+        """The operator console's public https origin, or '' when the store has no public address.
+
+        Telegram rejects a button whose url names a private address, and the whole admin alert is
+        lost with it, so callers drop the button rather than link to something only this host can open.
+        """
+        for candidate in (self.webhook_base_url, self.webapp_url):
+            parts = urlsplit(candidate.strip())
+            # WEBAPP_URL is stored pointing at /app/, so only its origin is the console.
+            if parts.scheme == "https" and parts.netloc:
+                return f"https://{parts.netloc}"
+        return ""
+
     @staticmethod
     def mini_app_url(url: str) -> str:
         """The same address pointed at /app/, whatever path it was given."""

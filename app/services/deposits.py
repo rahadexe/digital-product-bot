@@ -12,16 +12,8 @@ from html import escape
 from typing import Any
 
 import asyncpg
-
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-from app.core.config import get_settings
-from app.core.money import money
-from app.db import Database, affected
-from app.services.audit import record
-from app.services.errors import InvalidInputError
-from app.services.notifications import Notifier
-from app.services.settings import SettingsService
 from app.bot.icons import (
     ICON_ACCOUNT,
     ICON_BALANCE,
@@ -34,6 +26,13 @@ from app.bot.icons import (
     ICON_WARNING,
     Icons,
 )
+from app.core.config import get_settings
+from app.core.money import money
+from app.db import Database, affected
+from app.services.audit import record
+from app.services.errors import InvalidInputError
+from app.services.notifications import Notifier
+from app.services.settings import SettingsService
 
 TRANSACTION_ID = re.compile(r"[A-Za-z0-9_\-]{5,80}")
 CUSTOMER_DEPOSIT_COLUMNS = (
@@ -327,20 +326,21 @@ class DepositService:
         payable = f"\n{ICON_COIN} <b>Customer pays:</b> {quote['pay_amount']:.2f} (rate {quote['rate']:g})" if quote["rate"] != 1 else ""
         note_line = f"\n⚠️ <b>Note:</b> <i>{escape(admin_note)}</i>" if admin_note else ""
 
-        cfg = get_settings()
-        base_url = cfg.webhook_base_url.rstrip("/") if cfg.webhook_base_url else (cfg.webapp_url or "http://127.0.0.1:8000")
-        deposit_link = f"{base_url}/#deposits"
-
-        keyboard = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(
-                        text=f"Review Deposit #{deposit_id}",
-                        url=deposit_link,
-                        icon_custom_emoji_id=Icons.DEPOSIT,
-                    )
+        console = get_settings().console_url
+        keyboard = (
+            InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text=f"Review Deposit #{deposit_id}",
+                            url=f"{console}/#deposits",
+                            icon_custom_emoji_id=Icons.DEPOSIT,
+                        )
+                    ]
                 ]
-            ]
+            )
+            if console
+            else None
         )
 
         await self.notifier.send_admin(

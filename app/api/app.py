@@ -46,6 +46,11 @@ def create_app(services: Services) -> FastAPI:
     app.state.services = services
     app.state.admin_auth = AdminAuth(config.secret_key, config.admin_password)
 
+    # Added innermost first: Starlette runs the last one added outermost. CORS must wrap
+    # SecurityBoundary, or a rejection it returns itself (429, 413, 408) reaches a cross-origin
+    # console without Access-Control-Allow-Origin and the browser reports an opaque CORS failure
+    # instead of the real status and Retry-After.
+    app.add_middleware(SecurityBoundary, settings=config, rate_limits=services.rate_limits)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=Settings.split(config.allowed_origins) + ([] if production else DEV_CONSOLE_ORIGINS),
@@ -53,7 +58,6 @@ def create_app(services: Services) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    app.add_middleware(SecurityBoundary, settings=config)
     # Container health checks reach the app as localhost, whatever public domain ALLOWED_HOSTS names.
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=Settings.split(config.allowed_hosts) + ["localhost", "127.0.0.1"])
     register_error_handlers(app)

@@ -3,20 +3,13 @@
 from __future__ import annotations
 
 import logging
-import uuid
+from collections import Counter
+from decimal import Decimal
 from html import escape
 from typing import Any
-from collections import Counter
 
-from app.core.money import money
-from app.db import Database
-from app.services.audit import record
-from app.services.delivery import DeliveryService
-from app.services.errors import InvalidInputError, NotFoundError
-from app.services.inventory import InventoryService
-from app.services.notifications import Notifier
-from app.services.settings import SettingsService
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
 from app.bot.formatting import price
 from app.bot.icons import (
     ICON_ACCOUNT,
@@ -30,6 +23,14 @@ from app.bot.icons import (
     Icons,
 )
 from app.core.config import get_settings
+from app.core.money import money
+from app.db import Database
+from app.services.audit import record
+from app.services.delivery import DeliveryService
+from app.services.errors import InvalidInputError, NotFoundError
+from app.services.inventory import InventoryService
+from app.services.notifications import Notifier
+from app.services.settings import SettingsService
 
 logger = logging.getLogger("app.services.purchases")
 
@@ -42,6 +43,7 @@ def _receipt_fields(row: Any, balance: float) -> dict[str, Any]:
         "order_id": row["id"],
         "product_title": row["product_title"],
         "price": row["price"],
+        "unit_price": row.get('unit_price'),
         "delivered_item": row["delivered_item"],
         "fulfillment": row["fulfillment"],
         "remaining_balance": balance,
@@ -62,7 +64,7 @@ class PurchaseService:
         self.delivery = delivery
         self.notifier = notifier
 
-    async def purchase(self, tg_user_id: int, product_id: int, quantity: int = 1, request_id: str | None = None) -> PurchaseResult:
+    async def purchase(self, tg_user_id: int, product_id: int, quantity: int = 1, request_id: str | None = None, *, require_reseller: bool = False, reseller_key_id: int | None = None) -> PurchaseResult:
         """
         Charge the wallet, take stock seats (or fulfil through manual delivery), record the order,
         and queue the customer's message, all in one transaction.
@@ -76,6 +78,8 @@ class PurchaseService:
             return False, paused, None
         waiting_reason = ""
         symbol = await self.settings.get("currency_symbol")
+        usd_rate = await self.settings.number('usd_rate')
+        show_usd = await self.settings.flag('show_usd_price')
         is_manual = False
         async with self.db.connect() as db:
             await db.execute("BEGIN")
@@ -88,6 +92,15 @@ class PurchaseService:
                 if user["is_banned"]:
                     await db.execute("ROLLBACK")
                     return False, "Account is banned.", None
+                if require_reseller and (user['rank'] or '').strip().lower() != 'reseller':
+                    await db.execute('ROLLBACK')
+                    return False, 'Reseller access is no longer active.', None
+                if require_reseller and not await db.fetchval(
+                    'SELECT id FROM reseller_api_keys WHERE id=$1 AND user_id=$2 AND tg_user_id=$3 AND is_active=1 FOR SHARE',
+                    reseller_key_id,user['id'],tg_user_id,
+                ):
+                    await db.execute('ROLLBACK')
+                    return False, 'API key is no longer active.', None
 
                 if request_id:
                     previous = await db.fetchrow(
@@ -100,7 +113,7 @@ class PurchaseService:
                         return True, "Success", _receipt_fields(previous, user["balance"])
 
                 # 2. Product and price
-                product = await db.fetchrow("SELECT * FROM products WHERE id = $1 AND is_active = 1", product_id)
+                product = await db.fetchrow("SELECT * FROM products WHERE id = $1 AND is_active = 1 FOR SHARE", product_id)
                 if not product:
                     await db.execute("ROLLBACK")
                     return False, "Product is currently unavailable.", None
@@ -112,10 +125,10 @@ class PurchaseService:
                 else:
                     unit_price = money(product["price"], positive=True)
 
-                total_price = round(unit_price * quantity, 4)
-                if user["balance"] < total_price:
+                total_price = Decimal(str(unit_price)) * quantity
+                if not await db.fetchval('SELECT balance >= $1 FROM users WHERE id=$2', total_price, user['id']):
                     await db.execute("ROLLBACK")
-                    short = round(total_price - user["balance"], 2)
+                    short = round(total_price - Decimal(str(user["balance"])), 2)
                     return False, f"Insufficient balance. You need {short:.2f} more to purchase this item.", None
 
                 # 3. Check delivery type
@@ -182,8 +195,8 @@ class PurchaseService:
                 order = _receipt_fields(order_row, new_balance)
                 order["product_id"] = order_row["product_id"]
                 order["currency_symbol"] = symbol
-                order["usd_rate"] = await self.settings.number("usd_rate")
-                order["show_usd"] = await self.settings.flag("show_usd_price")
+                order["usd_rate"] = usd_rate
+                order["show_usd"] = show_usd
                 if is_manual:
                     await self.delivery.enqueue_waiting_notice(tg_user_id, order, conn=db)
                 else:
@@ -206,25 +219,24 @@ class PurchaseService:
         customer = f"@{escape(user['username'])}" if user.get("username") else "No username"
         order_id = order.get("order_id", order.get("id"))
 
-        cfg = get_settings()
-        base_url = cfg.webhook_base_url.rstrip("/") if cfg.webhook_base_url else (cfg.webapp_url or "http://127.0.0.1:8000")
-        order_link = f"{base_url}/#orders/{order_id}"
+        console = get_settings().console_url
 
         keyboard = None
         if waiting_reason:
             heading = f"{ICON_TIMER} <b>Manual Order Action Required</b>"
             delivery = f"{ICON_WARNING} <b>Delivery:</b> Manual Fulfillment Required"
-            keyboard = InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [
-                        InlineKeyboardButton(
-                            text=f"Deliver Order #{order_id}",
-                            url=order_link,
-                            icon_custom_emoji_id=Icons.ORDERS,
-                        )
+            if console:
+                keyboard = InlineKeyboardMarkup(
+                    inline_keyboard=[
+                        [
+                            InlineKeyboardButton(
+                                text=f"Deliver Order #{order_id}",
+                                url=f"{console}/#orders/{order_id}",
+                                icon_custom_emoji_id=Icons.ORDERS,
+                            )
+                        ]
                     ]
-                ]
-            )
+                )
         else:
             heading = f"{ICON_SHOP} <b>New Order Received</b>"
             delivery = f"{ICON_CHECK} <b>Delivery:</b> Instant (Delivered)"
