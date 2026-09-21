@@ -1,7 +1,7 @@
 'use client';
 
-import { Bell, Megaphone, Users } from 'lucide-react';
-import { FlagRow, Switch, type Say } from './ui';
+import { Bell, Lock, Megaphone, Users } from 'lucide-react';
+import { FlagRow, type Say } from './ui';
 
 interface AdminNotificationsProps {
   say: Say;
@@ -17,222 +17,8 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
 
   return (
     <>
-      {/* ── 1. Admin Operational Alerts ────────────────────────── */}
+      {/* ── 1. Public Channel Auto-Posts (TOP) ─────────────────── */}
       <div className="panel-subhead">
-        <div>
-          <h3>
-            <Bell size={15} style={{ color: 'var(--accent)', flexShrink: 0 }} />
-            <span>Admin alert preferences</span>
-          </h3>
-          <p>
-            Notifications dispatched directly to the Telegram accounts configured under &ldquo;Who runs this shop&rdquo;.
-          </p>
-        </div>
-      </div>
-
-      <div className="rows">
-        {/* MANDATORY: Manual Delivery Orders */}
-        <div className="mandatory-row">
-          <div className="mandatory-info">
-            <div className="mandatory-title-row">
-              <strong>Manual Delivery Orders</strong>
-              <span className="mandatory-badge warn">ALWAYS ON</span>
-            </div>
-            <p className="mandatory-desc">
-              Immediate alert when a customer orders a manual-delivery product requiring admin fulfillment.
-            </p>
-          </div>
-          <div className="mandatory-switch" title="Mandatory operational alert. Cannot be disabled.">
-            <Switch label="Manual Delivery Orders" on={true} disabled={true} onChange={() => {}} />
-          </div>
-        </div>
-
-        {/* MANDATORY: Payment & Gateway Errors */}
-        <div className="mandatory-row">
-          <div className="mandatory-info">
-            <div className="mandatory-title-row">
-              <strong>Payment &amp; gateway errors</strong>
-              <span className="mandatory-badge danger">ALWAYS ON</span>
-            </div>
-            <p className="mandatory-desc">
-              Critical alerts when payment verification gateways (Binance Pay, ZiniPay) fail or timeout.
-            </p>
-          </div>
-          <div className="mandatory-switch" title="Mandatory operational alert. Cannot be disabled.">
-            <Switch label="Payment Errors" on={true} disabled={true} onChange={() => {}} />
-          </div>
-        </div>
-
-        {/* TOGGLABLE: Instant Stock Purchases */}
-        <FlagRow
-          label="Instant Stock Purchases"
-          hint="Alert when an order is automatically delivered from inventory stock"
-          on={isOn('notify_admin_orders', '1')}
-          onChange={(next) => void flip('notify_admin_orders', next)}
-        />
-
-        {/* TOGGLABLE: Manual Deposit Requests */}
-        <FlagRow
-          label="Manual Deposit Requests"
-          hint="Alert when a customer submits a bKash / Nagad / Rocket transaction receipt"
-          on={isOn('notify_admin_deposits', '1')}
-          onChange={(next) => void flip('notify_admin_deposits', next)}
-        />
-
-        {/* TOGGLABLE: Automatic Gateway Deposits */}
-        <FlagRow
-          label="Automatic Gateway Deposits"
-          hint="Alert when an automated deposit is verified and credited via Binance Pay or ZiniPay"
-          on={isOn('notify_admin_payments', '1')}
-          onChange={(next) => void flip('notify_admin_payments', next)}
-        />
-
-        {/* TOGGLABLE: Stock updates & inventory alerts */}
-        <FlagRow
-          label="Stock updates &amp; alerts"
-          hint="Alert when items are added to stock, or when a product runs out of stock"
-          on={isOn('notify_admin_restock', '1')}
-          onChange={(next) => void flip('notify_admin_restock', next)}
-        />
-
-        {/* TOGGLABLE: Price Change Alerts */}
-        <FlagRow
-          label="Price Change Alerts (Drop &amp; Up)"
-          hint="Alert when catalog prices are modified"
-          on={isOn('notify_admin_price_change', '1')}
-          onChange={(next) => void flip('notify_admin_price_change', next)}
-        />
-
-        {/* TOGGLABLE: New customers */}
-        <FlagRow
-          label="New customers"
-          hint="Alert when a new Telegram user starts the bot and creates an account"
-          on={isOn('notify_admin_new_user', '0')}
-          onChange={(next) => void flip('notify_admin_new_user', next)}
-        />
-      </div>
-
-      {/* ── 2. Customer Notifications ──────────────────────────── */}
-      <div className="panel-subhead" style={{ marginTop: '28px' }}>
-        <div>
-          <h3>
-            <Users size={15} style={{ color: 'var(--positive)', flexShrink: 0 }} />
-            <span>Customer notifications</span>
-          </h3>
-          <p>
-            Direct Telegram messages sent to customers for orders, wallet updates, and referral bonuses.
-          </p>
-        </div>
-      </div>
-
-      <div className="rows">
-        {/* MANDATORY: Order Delivery & Receipts */}
-        <div className="mandatory-row">
-          <div className="mandatory-info">
-            <div className="mandatory-title-row">
-              <strong>Order Delivery &amp; Credentials</strong>
-              <span className="mandatory-badge warn">ALWAYS ON</span>
-            </div>
-            <p className="mandatory-desc">
-              Sends product credentials, license keys, or accounts immediately upon order completion.
-            </p>
-          </div>
-          <div className="mandatory-switch" title="Critical customer delivery. Cannot be disabled.">
-            <Switch label="Order Delivery" on={true} disabled={true} onChange={() => {}} />
-          </div>
-        </div>
-
-        {/* MANDATORY: Manual Order In-Progress Notice */}
-        <div className="mandatory-row">
-          <div className="mandatory-info">
-            <div className="mandatory-title-row">
-              <strong>Manual Order Acknowledgment</strong>
-              <span className="mandatory-badge warn">ALWAYS ON</span>
-            </div>
-            <p className="mandatory-desc">
-              Sends an immediate confirmation that payment was received and manual order is in queue.
-            </p>
-          </div>
-          <div className="mandatory-switch" title="Order processing notice. Cannot be disabled.">
-            <Switch label="Order In Progress" on={true} disabled={true} onChange={() => {}} />
-          </div>
-        </div>
-
-        {/* MANDATORY: Deposit Approved & Balance Added */}
-        <div className="mandatory-row">
-          <div className="mandatory-info">
-            <div className="mandatory-title-row">
-              <strong>Deposit Approved &amp; Balance Credited</strong>
-              <span className="mandatory-badge warn">ALWAYS ON</span>
-            </div>
-            <p className="mandatory-desc">
-              Sends wallet credit confirmation and updated balance when a deposit succeeds.
-            </p>
-          </div>
-          <div className="mandatory-switch" title="Critical transaction receipt. Cannot be disabled.">
-            <Switch label="Deposit Confirmation" on={true} disabled={true} onChange={() => {}} />
-          </div>
-        </div>
-
-        {/* MANDATORY: Deposit Rejected Alert */}
-        <div className="mandatory-row">
-          <div className="mandatory-info">
-            <div className="mandatory-title-row">
-              <strong>Deposit Rejected Notification</strong>
-              <span className="mandatory-badge warn">ALWAYS ON</span>
-            </div>
-            <p className="mandatory-desc">
-              Sends an explanation notice if an invalid TrxID or unverified deposit is rejected.
-            </p>
-          </div>
-          <div className="mandatory-switch" title="Critical transaction status. Cannot be disabled.">
-            <Switch label="Deposit Rejection" on={true} disabled={true} onChange={() => {}} />
-          </div>
-        </div>
-
-        {/* MANDATORY: Manual Balance Adjustments */}
-        <div className="mandatory-row">
-          <div className="mandatory-info">
-            <div className="mandatory-title-row">
-              <strong>Manual Balance Adjustments</strong>
-              <span className="mandatory-badge warn">ALWAYS ON</span>
-            </div>
-            <p className="mandatory-desc">
-              Receipt sent to customer when admin adjusts their balance directly from the Customers tab.
-            </p>
-          </div>
-          <div className="mandatory-switch" title="Account balance update. Cannot be disabled.">
-            <Switch label="Balance Adjustment" on={true} disabled={true} onChange={() => {}} />
-          </div>
-        </div>
-
-        {/* MANDATORY: Order Refund Notification */}
-        <div className="mandatory-row">
-          <div className="mandatory-info">
-            <div className="mandatory-title-row">
-              <strong>Order Refund Notification</strong>
-              <span className="mandatory-badge warn">ALWAYS ON</span>
-            </div>
-            <p className="mandatory-desc">
-              Instant notification and wallet refund receipt sent to customer when an order is refunded.
-            </p>
-          </div>
-          <div className="mandatory-switch" title="Refund receipt notice. Cannot be disabled.">
-            <Switch label="Order Refund" on={true} disabled={true} onChange={() => {}} />
-          </div>
-        </div>
-
-        {/* TOGGLABLE: Referral Bonus Alert */}
-        <FlagRow
-          label="Referral Bonus Alerts"
-          hint="Notify referrer when an invited friend joins and a referral bonus is credited"
-          on={isOn('notify_user_referral', '1')}
-          onChange={(next) => void flip('notify_user_referral', next)}
-        />
-      </div>
-
-      {/* ── 3. Public Channel Auto-Posts ───────────────────────── */}
-      <div className="panel-subhead" style={{ marginTop: '28px' }}>
         <div>
           <h3>
             <Megaphone size={15} style={{ color: '#0ea5e9', flexShrink: 0 }} />
@@ -258,6 +44,201 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
           on={isOn('auto_price_drop_alerts', '1')}
           onChange={(next) => void flip('auto_price_drop_alerts', next)}
         />
+      </div>
+
+      {/* ── 2. Admin Operational Alerts ────────────────────────── */}
+      <div className="panel-subhead" style={{ marginTop: '28px' }}>
+        <div>
+          <h3>
+            <Bell size={15} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+            <span>Admin alert preferences</span>
+          </h3>
+          <p>
+            Notifications dispatched directly to the Telegram accounts configured under &ldquo;Who runs this shop&rdquo;.
+          </p>
+        </div>
+      </div>
+
+      <div className="rows">
+        {/* TOGGLABLE (ON/OFF) FIRST */}
+        <FlagRow
+          label="Instant Stock Purchases"
+          hint="Alert when an order is automatically delivered from inventory stock"
+          on={isOn('notify_admin_orders', '1')}
+          onChange={(next) => void flip('notify_admin_orders', next)}
+        />
+
+        <FlagRow
+          label="Manual Deposit Requests"
+          hint="Alert when a customer submits a bKash / Nagad / Rocket transaction receipt"
+          on={isOn('notify_admin_deposits', '1')}
+          onChange={(next) => void flip('notify_admin_deposits', next)}
+        />
+
+        <FlagRow
+          label="Automatic Gateway Deposits"
+          hint="Alert when an automated deposit is verified and credited via Binance Pay or ZiniPay"
+          on={isOn('notify_admin_payments', '1')}
+          onChange={(next) => void flip('notify_admin_payments', next)}
+        />
+
+        <FlagRow
+          label="Stock updates &amp; alerts"
+          hint="Alert when items are added to stock, or when a product runs out of stock"
+          on={isOn('notify_admin_restock', '1')}
+          onChange={(next) => void flip('notify_admin_restock', next)}
+        />
+
+        <FlagRow
+          label="Price Change Alerts (Drop &amp; Up)"
+          hint="Alert when catalog prices are modified"
+          on={isOn('notify_admin_price_change', '1')}
+          onChange={(next) => void flip('notify_admin_price_change', next)}
+        />
+
+        <FlagRow
+          label="New customers"
+          hint="Alert when a new Telegram user starts the bot and creates an account"
+          on={isOn('notify_admin_new_user', '0')}
+          onChange={(next) => void flip('notify_admin_new_user', next)}
+        />
+
+        {/* ALWAYS ON (MANDATORY) BELOW - NO BUTTON */}
+        <div className="mandatory-row">
+          <div className="mandatory-info">
+            <div className="mandatory-title-row">
+              <strong>Manual Delivery Orders</strong>
+              <span className="mandatory-badge warn" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                <Lock size={10} /> ALWAYS ON
+              </span>
+            </div>
+            <p className="mandatory-desc">
+              Immediate alert when a customer orders a manual-delivery product requiring admin fulfillment.
+            </p>
+          </div>
+        </div>
+
+        <div className="mandatory-row">
+          <div className="mandatory-info">
+            <div className="mandatory-title-row">
+              <strong>Payment &amp; gateway errors</strong>
+              <span className="mandatory-badge danger" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                <Lock size={10} /> ALWAYS ON
+              </span>
+            </div>
+            <p className="mandatory-desc">
+              Critical alerts when payment verification gateways (Binance Pay, ZiniPay) fail or timeout.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── 3. Customer Notifications ──────────────────────────── */}
+      <div className="panel-subhead" style={{ marginTop: '28px' }}>
+        <div>
+          <h3>
+            <Users size={15} style={{ color: 'var(--positive)', flexShrink: 0 }} />
+            <span>Customer notifications</span>
+          </h3>
+          <p>
+            Direct Telegram messages sent to customers for orders, wallet updates, and referral bonuses.
+          </p>
+        </div>
+      </div>
+
+      <div className="rows">
+        {/* TOGGLABLE (ON/OFF) FIRST */}
+        <FlagRow
+          label="Referral Bonus Alerts"
+          hint="Notify referrer when an invited friend joins and a referral bonus is credited"
+          on={isOn('notify_user_referral', '1')}
+          onChange={(next) => void flip('notify_user_referral', next)}
+        />
+
+        {/* ALWAYS ON (MANDATORY) BELOW - NO BUTTON */}
+        <div className="mandatory-row">
+          <div className="mandatory-info">
+            <div className="mandatory-title-row">
+              <strong>Order Delivery &amp; Credentials</strong>
+              <span className="mandatory-badge warn" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                <Lock size={10} /> ALWAYS ON
+              </span>
+            </div>
+            <p className="mandatory-desc">
+              Sends product credentials, license keys, or accounts immediately upon order completion.
+            </p>
+          </div>
+        </div>
+
+        <div className="mandatory-row">
+          <div className="mandatory-info">
+            <div className="mandatory-title-row">
+              <strong>Manual Order Acknowledgment</strong>
+              <span className="mandatory-badge warn" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                <Lock size={10} /> ALWAYS ON
+              </span>
+            </div>
+            <p className="mandatory-desc">
+              Sends an immediate confirmation that payment was received and manual order is in queue.
+            </p>
+          </div>
+        </div>
+
+        <div className="mandatory-row">
+          <div className="mandatory-info">
+            <div className="mandatory-title-row">
+              <strong>Deposit Approved &amp; Balance Credited</strong>
+              <span className="mandatory-badge warn" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                <Lock size={10} /> ALWAYS ON
+              </span>
+            </div>
+            <p className="mandatory-desc">
+              Sends wallet credit confirmation and updated balance when a deposit succeeds.
+            </p>
+          </div>
+        </div>
+
+        <div className="mandatory-row">
+          <div className="mandatory-info">
+            <div className="mandatory-title-row">
+              <strong>Deposit Rejected Notification</strong>
+              <span className="mandatory-badge warn" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                <Lock size={10} /> ALWAYS ON
+              </span>
+            </div>
+            <p className="mandatory-desc">
+              Sends an explanation notice if an invalid TrxID or unverified deposit is rejected.
+            </p>
+          </div>
+        </div>
+
+        <div className="mandatory-row">
+          <div className="mandatory-info">
+            <div className="mandatory-title-row">
+              <strong>Manual Balance Adjustments</strong>
+              <span className="mandatory-badge warn" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                <Lock size={10} /> ALWAYS ON
+              </span>
+            </div>
+            <p className="mandatory-desc">
+              Receipt sent to customer when admin adjusts their balance directly from the Customers tab.
+            </p>
+          </div>
+        </div>
+
+        <div className="mandatory-row">
+          <div className="mandatory-info">
+            <div className="mandatory-title-row">
+              <strong>Order Refund Notification</strong>
+              <span className="mandatory-badge warn" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                <Lock size={10} /> ALWAYS ON
+              </span>
+            </div>
+            <p className="mandatory-desc">
+              Instant notification and wallet refund receipt sent to customer when an order is refunded.
+            </p>
+          </div>
+        </div>
       </div>
     </>
   );
