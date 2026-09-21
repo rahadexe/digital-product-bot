@@ -3843,3 +3843,13 @@ ul.messages p { margin-top: 6px; color: var(--text-dim); font-size: 12.5px; whit
   .admin-chip-remove { min-width: 36px; min-height: 36px; padding: 8px; }
   .admin-chip { padding-inline-end: 4px; }
 }
+
+.flag-row-text small {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+

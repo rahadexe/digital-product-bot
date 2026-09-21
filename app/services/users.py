@@ -129,15 +129,16 @@ class UserService:
         symbol = await self.settings.get("currency_symbol")
         joined_name = escape(" ".join(filter(None, [user.get("first_name"), user.get("last_name")])) or (f"@{user['username']}" if user.get("username") else "A friend"))
         reward_str = f"{reward_amount:g} {symbol}" if reward_amount == int(reward_amount) else f"{reward_amount:.2f} {symbol}"
-        self.notifier.in_background(
-            self.notifier.send(
-                referrer_id,
-                f"{ICON_ORDERS} <b>Referral Bonus Received!</b>\n"
-                f"━━━━━━━━━━━━━━━━━━\n"
-                f"{ICON_ACCOUNT} <b>Friend:</b> {joined_name}\n"
-                f"{ICON_COIN} <b>Bonus Credited:</b> <code>+{reward_str}</code>",
+        if await self.settings.flag("notify_user_referral"):
+            self.notifier.in_background(
+                self.notifier.send(
+                    referrer_id,
+                    f"{ICON_ORDERS} <b>Referral Bonus Received!</b>\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"{ICON_ACCOUNT} <b>Friend:</b> {joined_name}\n"
+                    f"{ICON_COIN} <b>Bonus Credited:</b> <code>+{reward_str}</code>",
+                )
             )
-        )
         return {"referrer_id": referrer_id, "amount": reward_amount}
 
     async def get(self, tg_user_id: int) -> dict[str, Any] | None:

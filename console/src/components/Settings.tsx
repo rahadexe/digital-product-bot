@@ -184,7 +184,7 @@ const SECTIONS: Section[] = [
     extra: 'binance',
   },
   // ── Notifications ────────────────────────────────────────
-  { id: 'notifications', tab: 'notifications', title: 'Admin notifications', fields: [] },
+  { id: 'notifications', tab: 'notifications', title: 'Notifications', fields: [] },
   // ── Channels ─────────────────────────────────────────────
   // Everything to do with a channel lives here. The force-join switch used to
   // sit on another tab from the channels it requires, so turning it on meant
