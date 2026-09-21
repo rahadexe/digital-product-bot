@@ -1,6 +1,6 @@
 'use client';
 
-import { Bell, Lock, Megaphone, Users } from 'lucide-react';
+import { Bell, Lock, Megaphone, ShieldAlert, Users } from 'lucide-react';
 import { FlagRow, type Say } from './ui';
 
 interface AdminNotificationsProps {
@@ -46,7 +46,7 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
         />
       </div>
 
-      {/* ── 2. Admin Operational Alerts ────────────────────────── */}
+      {/* ── 2. Admin Operational & Security Alerts ─────────────── */}
       <div className="panel-subhead" style={{ marginTop: '28px' }}>
         <div>
           <h3>
@@ -61,6 +61,13 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
 
       <div className="rows">
         {/* TOGGLABLE (ON/OFF) FIRST */}
+        <div style={{ padding: '6px 2px 2px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)' }}>
+            Configurable Alerts (Toggle on/off)
+          </span>
+          <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+        </div>
+
         <FlagRow
           label="Instant Stock Purchases"
           hint="Alert when an order is automatically delivered from inventory stock"
@@ -103,13 +110,20 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
           onChange={(next) => void flip('notify_admin_new_user', next)}
         />
 
-        {/* ALWAYS ON (MANDATORY) BELOW - NO BUTTON */}
+        {/* REQUIRED / ALWAYS ON SYSTEM ALERTS */}
+        <div style={{ marginTop: '14px', padding: '6px 2px 2px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--warning)' }}>
+            Required System &amp; Security Alerts (Always Active)
+          </span>
+          <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+        </div>
+
         <div className="mandatory-row">
           <div className="mandatory-info">
             <div className="mandatory-title-row">
               <strong>Manual Delivery Orders</strong>
               <span className="mandatory-badge warn" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                <Lock size={10} /> ALWAYS ON
+                <Lock size={10} /> REQUIRED · ALWAYS ON
               </span>
             </div>
             <p className="mandatory-desc">
@@ -123,11 +137,39 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
             <div className="mandatory-title-row">
               <strong>Payment &amp; gateway errors</strong>
               <span className="mandatory-badge danger" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                <Lock size={10} /> ALWAYS ON
+                <Lock size={10} /> REQUIRED · CRITICAL
               </span>
             </div>
             <p className="mandatory-desc">
               Critical alerts when payment verification gateways (Binance Pay, ZiniPay) fail or timeout.
+            </p>
+          </div>
+        </div>
+
+        <div className="mandatory-row">
+          <div className="mandatory-info">
+            <div className="mandatory-title-row">
+              <strong>Security: Group Invites Blocked</strong>
+              <span className="mandatory-badge security" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                <ShieldAlert size={10} /> REQUIRED · SECURITY
+              </span>
+            </div>
+            <p className="mandatory-desc">
+              Immediate alert sent to store admins when someone adds the bot to a Telegram group. The bot automatically leaves the group without responding.
+            </p>
+          </div>
+        </div>
+
+        <div className="mandatory-row">
+          <div className="mandatory-info">
+            <div className="mandatory-title-row">
+              <strong>Security: Unauthorized Channels Blocked</strong>
+              <span className="mandatory-badge security" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                <ShieldAlert size={10} /> REQUIRED · SECURITY
+              </span>
+            </div>
+            <p className="mandatory-desc">
+              Immediate alert sent to store admins when someone adds the bot to an unconfigured channel. The bot automatically leaves to protect store broadcasting.
             </p>
           </div>
         </div>
@@ -148,6 +190,13 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
 
       <div className="rows">
         {/* TOGGLABLE (ON/OFF) FIRST */}
+        <div style={{ padding: '6px 2px 2px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--muted)' }}>
+            Configurable Customer Alerts
+          </span>
+          <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+        </div>
+
         <FlagRow
           label="Referral Bonus Alerts"
           hint="Notify referrer when an invited friend joins and a referral bonus is credited"
@@ -156,12 +205,19 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
         />
 
         {/* ALWAYS ON (MANDATORY) BELOW - NO BUTTON */}
+        <div style={{ marginTop: '14px', padding: '6px 2px 2px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--warning)' }}>
+            Required Customer Receipts &amp; Deliveries (Always Active)
+          </span>
+          <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+        </div>
+
         <div className="mandatory-row">
           <div className="mandatory-info">
             <div className="mandatory-title-row">
               <strong>Order Delivery &amp; Credentials</strong>
               <span className="mandatory-badge warn" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                <Lock size={10} /> ALWAYS ON
+                <Lock size={10} /> REQUIRED · ALWAYS ON
               </span>
             </div>
             <p className="mandatory-desc">
@@ -175,7 +231,7 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
             <div className="mandatory-title-row">
               <strong>Manual Order Acknowledgment</strong>
               <span className="mandatory-badge warn" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                <Lock size={10} /> ALWAYS ON
+                <Lock size={10} /> REQUIRED · ALWAYS ON
               </span>
             </div>
             <p className="mandatory-desc">
@@ -189,7 +245,7 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
             <div className="mandatory-title-row">
               <strong>Deposit Approved &amp; Balance Credited</strong>
               <span className="mandatory-badge warn" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                <Lock size={10} /> ALWAYS ON
+                <Lock size={10} /> REQUIRED · ALWAYS ON
               </span>
             </div>
             <p className="mandatory-desc">
@@ -203,7 +259,7 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
             <div className="mandatory-title-row">
               <strong>Deposit Rejected Notification</strong>
               <span className="mandatory-badge warn" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                <Lock size={10} /> ALWAYS ON
+                <Lock size={10} /> REQUIRED · ALWAYS ON
               </span>
             </div>
             <p className="mandatory-desc">
@@ -217,7 +273,7 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
             <div className="mandatory-title-row">
               <strong>Manual Balance Adjustments</strong>
               <span className="mandatory-badge warn" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                <Lock size={10} /> ALWAYS ON
+                <Lock size={10} /> REQUIRED · ALWAYS ON
               </span>
             </div>
             <p className="mandatory-desc">
@@ -231,7 +287,7 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
             <div className="mandatory-title-row">
               <strong>Order Refund Notification</strong>
               <span className="mandatory-badge warn" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                <Lock size={10} /> ALWAYS ON
+                <Lock size={10} /> REQUIRED · ALWAYS ON
               </span>
             </div>
             <p className="mandatory-desc">

@@ -29,6 +29,9 @@
 | 6 | **Stock Updates & Alerts** | `notify_admin_restock` (`event="restock"`) | Configurable (Default: 1) | Triggered when inventory items are added, or when stock reaches 0 (Out of Stock). |
 | 7 | **Price Change Alerts** | `notify_admin_price_change` (`event="price_change"`) | Configurable (Default: 1) | Triggered when product prices or discounts are updated in the catalog. |
 | 8 | **New Customer Joined** | `notify_admin_new_user` (`event="new_user"`) | Configurable (Default: 0) | Triggered when a new Telegram user starts the bot and creates an account. |
+| 9 | **Security: Group Invites Blocked** | `admin.py` (`on_bot_chat_member_updated`) | **REQUIRED (ALWAYS ON)** | Dispatched when bot is added to any group. Bot auto-leaves without responding. |
+| 10 | **Security: Unauthorized Channels Blocked** | `admin.py` (`on_bot_chat_member_updated`) | **REQUIRED (ALWAYS ON)** | Dispatched when bot is added to an unconfigured channel. Bot auto-leaves immediately. |
+
 > **Security Standard: Group & Channel Isolation:**
 > 1. **Zero Group Participation:** The bot is strictly prohibited from participating in any Telegram group or supergroup. If added to any group, the bot immediately leaves (`bot.leave_chat`), sends zero messages, and dispatches a security alert to the shop admins.
 > 2. **Message Gate (`StoreAccess`):** The bot rejects all customer and admin commands (`/start`, `/buy`, wallet balance, credentials) in non-private chats (`chat.type != "private"`).
