@@ -19,6 +19,7 @@ FALLBACK_USERNAME = "subsmarket247bot"
 
 COMMANDS = [
     BotCommand(command="start", description="Start the Bot"),
+    BotCommand(command="help", description="How to use this bot"),
 ]
 
 

@@ -9,7 +9,17 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.bot.formatting import respond, send_operator_html
-from app.bot.icons import ICON_CHANNEL, ICON_SUPPORT, Icons
+from app.bot.icons import (
+    ICON_CHANNEL,
+    ICON_CHECK,
+    ICON_DEPOSIT,
+    ICON_NOTE,
+    ICON_ORDERS,
+    ICON_REFER,
+    ICON_SHOP,
+    ICON_SUPPORT,
+    Icons,
+)
 from app.bot.keyboards import get_support_keyboard, get_update_channels_keyboard
 from app.services import Services
 
@@ -44,12 +54,39 @@ async def show_support_info(event: Message | CallbackQuery, state: FSMContext, s
     await respond(event, text, get_support_keyboard(handle, channels))
 
 
+GUIDE_TEXT = (
+    f"{ICON_NOTE} <b>How to use this bot</b>\n"
+    f"━━━━━━━━━━━━━━━━━━\n\n"
+    f"{ICON_DEPOSIT} <b>1. Add money</b>\n"
+    f"Tap <b>Add Balance</b> and pick how you want to pay. Send the amount, submit the"
+    f" transaction ID, and your wallet is topped up.\n\n"
+    f"{ICON_SHOP} <b>2. Pick a product</b>\n"
+    f"The buttons at the top of the keyboard are the categories. Tap one, choose a"
+    f" product, and set how many you want with <b>−</b> and <b>+</b>.\n\n"
+    f"{ICON_CHECK} <b>3. Buy it</b>\n"
+    f"Tap <b>Confirm</b>. The price comes out of your wallet and the account details"
+    f" arrive here in the chat straight away. Some products are delivered by hand;"
+    f" those say so, and they reach you shortly after.\n\n"
+    f"{ICON_ORDERS} <b>4. Find them again</b>\n"
+    f"Everything you have bought is under <b>My Profile</b>, so you never have to"
+    f" search the chat for an old order.\n\n"
+    f"{ICON_REFER} <b>Earn while you are here</b>\n"
+    f"<b>Refer & Earn</b> gives you your own link. When a friend joins with it, a bonus"
+    f" lands in your wallet.\n\n"
+    f"{ICON_SUPPORT} Stuck on anything? Tap <b>Support</b> below."
+)
+
+
+@router.message(Command("help"))
+@router.message(Command("guide"))
 @router.message(F.text == "📚 Guide")
 @router.message(F.text.casefold() == "guide")
 @router.callback_query(F.data == "open_guide")
 async def show_guide_info(event: Message | CallbackQuery, state: FSMContext, services: Services):
+    """The guide describes this bot's own buttons, so it is written here rather
+    than stored as a setting: an operator editing it could only ever make it
+    disagree with the keyboard the customer is looking at."""
     await state.clear()
-    guide = await services.settings.get("guide_text")
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="Support", callback_data="open_support", style="primary", icon_custom_emoji_id=Icons.SUPPORT)],
@@ -61,10 +98,9 @@ async def show_guide_info(event: Message | CallbackQuery, state: FSMContext, ser
             await event.answer()
         if event.message:
             with suppress(TelegramBadRequest):
-                await send_operator_html(event.message.edit_text, guide, reply_markup=keyboard)
+                await send_operator_html(event.message.edit_text, GUIDE_TEXT, reply_markup=keyboard)
     else:
-        await send_operator_html(event.answer, guide, reply_markup=keyboard)
-
+        await send_operator_html(event.answer, GUIDE_TEXT, reply_markup=keyboard)
 
 @router.message(Command("channel"))
 @router.message(Command("updates"))

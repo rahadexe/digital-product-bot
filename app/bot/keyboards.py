@@ -268,6 +268,9 @@ def get_main_inline_dashboard(channel_url: str | None = None, is_reseller: bool 
             [
                 InlineKeyboardButton(text=reseller_btn_text, callback_data="open_reseller", style="success", icon_custom_emoji_id=Icons.RESELLER),
             ],
+            [
+                InlineKeyboardButton(text="How to use this bot", callback_data="open_guide", style="primary", icon_custom_emoji_id=Icons.NOTE),
+            ],
         ]
     )
 

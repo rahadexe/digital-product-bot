@@ -16,14 +16,6 @@ from app.services.errors import InvalidInputError
 
 logger = logging.getLogger("app.services.settings")
 
-DEFAULT_GUIDE = (
-    "📖 <b>How to Use This Bot:</b>\n\n"
-    "1. <b>Deposit Funds:</b> Tap Deposit to top up your wallet.\n"
-    "2. <b>Select Product:</b> Browse Shop and choose your subscription or key.\n"
-    "3. <b>Instant Delivery:</b> Confirm purchase to receive credentials in chat.\n"
-    "4. <b>Access Anytime:</b> All purchases are saved under Orders."
-)
-
 
 def _text(value: str) -> str:
     return value
@@ -102,7 +94,6 @@ SPECS: dict[str, SettingSpec] = {
     "validity_presets": SettingSpec("3 Days, 7 Days, 14 Days, 30 Days, 90 Days, 1 Year", max_length=2000),
     "support_username": SettingSpec("", _username, 65),
     "welcome_text": SettingSpec("", max_length=3500),
-    "guide_text": SettingSpec(DEFAULT_GUIDE, max_length=3500),
     "referral_enabled": SettingSpec("1", _flag, 1),
     "referral_reward_amount": SettingSpec("3.0", _number(0, 100), 16),
     "force_join_enabled": SettingSpec("0", _flag, 1),

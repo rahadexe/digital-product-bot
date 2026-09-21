@@ -72,13 +72,6 @@ const SECTIONS: Section[] = [
         rows: 3,
         placeholder: 'Custom welcome message (optional)',
       },
-      {
-        key: 'guide_text',
-        label: 'Help guide',
-        hint: 'What /help shows a customer.',
-        type: 'textarea',
-        rows: 4,
-      },
     ],
   },
   {
