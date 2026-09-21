@@ -7,8 +7,7 @@ import logging
 from aiogram import Dispatcher
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.storage.base import BaseStorage
-from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.fsm.storage.memory import SimpleEventIsolation
+from aiogram.fsm.storage.memory import MemoryStorage, SimpleEventIsolation
 from aiogram.types import ErrorEvent
 
 from app.bot.handlers import admin, deposit, help_guide, profile, shop, start

@@ -107,7 +107,9 @@ class GateService:
                 return False
 
         results = await asyncio.gather(*(_check_one(ch) for ch in channels))
-        missing = [ch for ch, ok in zip(channels, results) if not ok]
+        # strict: a result missing for any channel must fail loudly rather than silently
+        # letting a customer through a channel that was never checked.
+        missing = [ch for ch, ok in zip(channels, results, strict=True) if not ok]
 
         if missing:
             self._verified.pop(tg_user_id, None)

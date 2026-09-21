@@ -5,12 +5,6 @@ from __future__ import annotations
 from html import escape
 from typing import Any
 
-from app.core.money import money
-from app.db import Database
-from app.services.audit import record
-from app.services.errors import InvalidInputError
-from app.services.notifications import Notifier
-from app.services.settings import SettingsService
 from app.bot.icons import (
     ICON_ACCOUNT,
     ICON_BALANCE,
@@ -19,8 +13,13 @@ from app.bot.icons import (
     ICON_ID,
     ICON_NOTE,
     ICON_ORDERS,
-    ICON_SPENT,
 )
+from app.core.money import money
+from app.db import Database
+from app.services.audit import record
+from app.services.errors import InvalidInputError
+from app.services.notifications import Notifier
+from app.services.settings import SettingsService
 
 STATS_COLUMNS = ("order_count", "completed_total", "referral_count", "referral_earnings")
 

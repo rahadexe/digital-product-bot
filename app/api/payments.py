@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from html import escape
+
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
-from html import escape
 
 from app.api.deps import ServicesDep
 

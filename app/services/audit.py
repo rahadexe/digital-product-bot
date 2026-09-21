@@ -9,7 +9,13 @@ import asyncpg
 from app.db import Database
 
 # Sign-ins, bans, refunds, money that needed a second look and anything removed.
-SECURITY_ACTIONS = r"^(login_|user_banned|reject_deposit|deposit_check_flagged|payment_failed|refund_order|order_waiting|order_supplier|supplier_retry|adjust_balance|.*_deleted$|.*_removed$)"
+# supplier_* and referral_recovery_* are retired or rare, but old entries still carry them and the
+# security view is the one place an operator goes looking for them.
+SECURITY_ACTIONS = (
+    r"^(login_|user_banned|reject_deposit|deposit_check_flagged|deposit_amount_adjusted|payment_failed|refund_order"
+    r"|referral_recovery_needed|order_waiting|order_supplier|supplier_retry|supplier_history_archived|adjust_balance"
+    r"|.*_deleted$|.*_removed$)"
+)
 
 
 async def record(conn: asyncpg.Connection, action: str, details: str) -> None:

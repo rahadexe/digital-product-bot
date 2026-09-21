@@ -5,6 +5,12 @@ description = "Telegram digital subscription shop: customer bot, Mini App storef
 requires-python = ">=3.12"
 readme = "README.md"
 
+[project.optional-dependencies]
+# Undefined names in a bot handler only surface when a customer taps that button, so the linter
+# that catches them is part of the project, not something each machine installs on its own.
+# Install with: pip install -e ".[dev]"   Check with: ruff check app tests scripts
+dev = ["ruff==0.16.8"]
+
 [tool.ruff]
 line-length = 130
 target-version = "py312"

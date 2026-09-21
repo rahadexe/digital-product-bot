@@ -4,7 +4,6 @@ to the admin/user Telegram account (6775546602) for visual inspection.
 """
 
 import asyncio
-import logging
 import sys
 from pathlib import Path
 
@@ -20,7 +19,6 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-from app.core.config import Settings
 from app.bot.icons import (
     ICON_ACCOUNT,
     ICON_BALANCE,
@@ -34,15 +32,14 @@ from app.bot.icons import (
     ICON_MONEY,
     ICON_NOTE,
     ICON_ORDERS,
-    ICON_RESELLER,
     ICON_SHOP,
     ICON_SPARKLES,
-    ICON_SUPPORT,
     ICON_TIMER,
     ICON_VIP,
     ICON_WARNING,
     Icons,
 )
+from app.core.config import Settings
 
 TARGET_TG_ID = 6775546602
 

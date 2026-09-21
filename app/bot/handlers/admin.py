@@ -21,7 +21,6 @@ from app.bot.icons import (
     ICON_CROWN,
     ICON_ID,
     ICON_NOTE,
-    ICON_ROCKET,
     ICON_TIMER,
     ICON_WARNING,
     Icons,

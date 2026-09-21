@@ -1,8 +1,10 @@
 """Seed default payment methods (bKash, Nagad, Binance) and sample products from screenshot."""
 
 import asyncio
+
 from app.core.config import get_settings
 from app.db import Database
+
 
 async def seed():
     settings = get_settings()

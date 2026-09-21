@@ -25,9 +25,9 @@ from app.db import Database
 from app.services.audit import record
 from app.services.deposits import DepositService
 from app.services.errors import InvalidInputError
+from app.services.http import gateway_http
 from app.services.notifications import Notifier
 from app.services.settings import SettingsService
-from app.services.http import gateway_http
 
 logger = logging.getLogger("app.services.binance")
 
@@ -403,12 +403,11 @@ class BinanceDepositService:
 
         matched_rows = []
         for row in arrivals:
-            payer_uid = _payer_id(row).strip().lower()
-            counterparty = str(row.get("counterpartyId") or "").strip().lower()
             order_id = str(row.get("orderId") or "").strip().lower()
             tx_id = str(row.get("transactionId") or "").strip().lower()
-            # Stable sender IDs are not payment-specific proof. Require the unique
-            # receipt reference; ambiguous UID-only claims remain pending for review.
+            # Stable sender IDs (payerInfo.binanceId, counterpartyId) are not payment-specific proof
+            # and are deliberately not matched on. Require the unique receipt reference; ambiguous
+            # UID-only claims remain pending for review.
             candidates = {c for c in (order_id, tx_id) if c}
             if reference in candidates:
                 matched_rows.append(row)

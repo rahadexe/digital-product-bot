@@ -9,8 +9,8 @@ from aiogram import BaseMiddleware
 from aiogram.exceptions import TelegramAPIError
 from aiogram.types import CallbackQuery, Message
 
-from app.bot.keyboards import get_gate_keyboard
 from app.bot.handlers.start import gate_text
+from app.bot.keyboards import get_gate_keyboard
 from app.services import Services
 
 OPEN_COMMANDS = {"/start", "/menu"}

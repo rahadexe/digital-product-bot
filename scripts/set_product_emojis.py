@@ -1,5 +1,8 @@
 import asyncio
-from app.db.database import Database
+import re
+
+from aiogram import Bot
+
 from app.core.config import get_settings
 
 # Emoji map based on product titles and categories
@@ -22,13 +25,10 @@ EMOJIS = {
     "movie": "5269514462297104098",    # 🎥 http_dxauniverse_by_fStikBot
 }
 
-import re
-
 EMOJI_REGEX = re.compile(
     r"^[\U00010000-\U0010ffff\u2600-\u27bf\u2300-\u23ff\u2b50\u2b55\u200d\ufe0f\s]+"
 )
 
-from aiogram import Bot
 
 async def run():
     bot = Bot(get_settings().bot_token)

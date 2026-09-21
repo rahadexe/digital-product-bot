@@ -1,8 +1,11 @@
 import asyncio
-from app.core.config import Settings
-from app.api.admin.emojis import SYSTEM_EMOJIS
+
 from aiogram import Bot
 from aiogram.enums import ParseMode
+
+from app.api.admin.emojis import SYSTEM_EMOJIS
+from app.core.config import Settings
+
 
 async def main():
     cfg = Settings()

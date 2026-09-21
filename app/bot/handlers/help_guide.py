@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from contextlib import suppress
-from html import escape
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest

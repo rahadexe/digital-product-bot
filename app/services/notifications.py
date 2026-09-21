@@ -8,7 +8,7 @@ from collections.abc import Coroutine
 from typing import TYPE_CHECKING, Any
 
 from aiogram import Bot
-from aiogram.types import BotCommand, InlineKeyboardMarkup, MenuButtonCommands, MenuButtonWebApp, WebAppInfo
+from aiogram.types import BotCommand, InlineKeyboardMarkup, MenuButtonCommands, MenuButtonWebApp
 
 if TYPE_CHECKING:
     from app.services.settings import SettingsService

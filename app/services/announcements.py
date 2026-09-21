@@ -8,9 +8,6 @@ from typing import Any
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-from app.services.catalog import CatalogService
-from app.services.notifications import Notifier
-from app.services.settings import SettingsService
 from app.bot.formatting import format_dual_price
 from app.bot.icons import (
     ICON_CHECK,
@@ -19,17 +16,18 @@ from app.bot.icons import (
     ICON_NOTE,
     ICON_ORDERS,
     ICON_PLUS,
-    ICON_ROCKET,
     ICON_SHOP,
     ICON_SPARKLES,
     ICON_SPENT,
     ICON_STATS,
     ICON_TIMER,
     ICON_VIP,
-    ICON_WARNING,
     Icons,
     tg_icon,
 )
+from app.services.catalog import CatalogService
+from app.services.notifications import Notifier
+from app.services.settings import SettingsService
 
 logger = logging.getLogger("app.services.announcements")
 

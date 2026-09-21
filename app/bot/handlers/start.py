@@ -11,10 +11,9 @@ from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
-from app.bot.formatting import price, send_operator_html
+from app.bot.formatting import send_operator_html
 from app.bot.handlers.shop import product_view
 from app.bot.icons import (
-    ICON_CHANNEL,
     ICON_LOCK,
     ICON_SPARKLES,
     ICON_WARNING,
@@ -24,6 +23,7 @@ from app.bot.keyboards import (
     get_persistent_reply_keyboard,
 )
 from app.services import Services
+
 
 def build_welcome_text(store_name: str, support_handle: str, custom_text: str = "", paused_notice: str = "") -> str:
     prefix = f"{ICON_WARNING} <b>Maintenance Notice:</b> {escape(paused_notice)}\n━━━━━━━━━━━━━━━━━━\n\n" if paused_notice else ""
