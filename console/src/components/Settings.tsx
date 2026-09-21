@@ -13,15 +13,15 @@ import { GateChannels } from './GateChannels';
 import { PaymentMethods } from './PaymentMethods';
 import { UpdateChannels } from './UpdateChannels';
 import { PageLoading, FlagRow, Switch, errorText, type Say } from './ui';
-import { Check, Eye, EyeOff, RotateCcw, Save } from 'lucide-react';
+import { Eye, EyeOff, RotateCcw, Save } from 'lucide-react';
 
-export type SettingsTab = 'general' | 'payments' | 'notifications' | 'channels';
+export type SettingsTab = 'general' | 'payments' | 'channels' | 'notifications';
 
 const TABS: { key: SettingsTab; label: string }[] = [
   { key: 'general', label: 'Store' },
   { key: 'payments', label: 'Payments' },
-  { key: 'notifications', label: 'Notifications' },
   { key: 'channels', label: 'Channels' },
+  { key: 'notifications', label: 'Notifications' },
 ];
 
 /** Where a tab that no longer exists should land, so old links still work. */
@@ -210,8 +210,6 @@ const SECTIONS: Section[] = [
     ],
     extra: 'binance',
   },
-  // ── Notifications ────────────────────────────────────────
-  { id: 'notifications', tab: 'notifications', title: 'Notifications', fields: [] },
   // ── Channels ─────────────────────────────────────────────
   // Announcements (post notifications) placed first for quick daily access.
   {
@@ -244,6 +242,8 @@ const SECTIONS: Section[] = [
     title: 'Customer channel buttons',
     fields: [],
   },
+  // ── Notifications ────────────────────────────────────────
+  { id: 'notifications', tab: 'notifications', title: 'Notifications', fields: [] },
 ];
 
 
@@ -318,6 +318,24 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
     }
   }
 
+  /** One field, saved straight away — for controls that commit on change rather than on blur. */
+  async function saveValue(section: Section, key: string, value: string) {
+    const before = values[key];
+    setSavingSection(section.id);
+    try {
+      await api.updateSettings({ [key]: value });
+      setSaved((current) => ({ ...(current ?? {}), [key]: value }));
+      resetCurrencySymbol();
+      if (section.extra === 'zinipay' || section.extra === 'binance') void refreshGateways();
+      say('Saved.');
+    } catch (cause) {
+      setValues((current) => ({ ...current, [key]: before }));
+      say(errorText(cause, 'Could not save.'), 'bad');
+    } finally {
+      setSavingSection('');
+    }
+  }
+
   async function save(section: Section) {
     const changed = changedIn(section);
     if (!changed.length) return;
@@ -369,6 +387,20 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
 
   if (!saved) return <PageLoading label="Loading…" />;
 
+  // A switch saves the moment it is flipped, so a field that still waited for a Save
+  // button made the same card behave two different ways. Fields now save themselves
+  // when you leave them, and the Save button only appears while an edit is still open.
+  function sectionOf(key: string) {
+    return SECTIONS.find((section) => section.fields.some((field) => field.key === key));
+  }
+
+  function autoSave(key: string, related: EventTarget | null) {
+    // Undo and Save live in the footer; clicking either must not be pre-empted by a save.
+    if (related instanceof HTMLElement && related.closest('[data-settings-footer]')) return;
+    const section = sectionOf(key);
+    if (section && changedIn(section).length) void save(section);
+  }
+
   function renderInput(field: Field) {
     const coinName = values['binance_coin'] || 'USDT';
     const label =
@@ -396,6 +428,7 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
             rows={field.rows ?? 3}
             placeholder={placeholder}
             value={valueOf(field)}
+            onBlur={(event) => autoSave(field.key, event.relatedTarget)}
             onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))}
           />
           {hint ? <small>{hint}</small> : null}
@@ -412,7 +445,12 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
           <CustomSelect
             value={valueOf(field)}
             options={field.options}
-            onChange={(next) => setValues((current) => ({ ...current, [field.key]: next }))}
+            onChange={(next) => {
+              // Picking from a list is a finished decision, like flipping a switch.
+              setValues((current) => ({ ...current, [field.key]: next }));
+              const target = sectionOf(field.key);
+              if (target) void saveValue(target, field.key, next);
+            }}
           />
           {field.hint ? <small>{field.hint}</small> : null}
         </label>
@@ -438,10 +476,11 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
               }}
               placeholder={maskedVal ? maskedVal : 'Enter key...'}
               value={secrets[field.key] ?? ''}
+              onBlur={(event) => autoSave(field.key, event.relatedTarget)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
                   event.preventDefault();
-                  const targetSection = SECTIONS.find((s) => s.fields.some((f) => f.key === field.key));
+                  const targetSection = sectionOf(field.key);
                   if (targetSection) void save(targetSection);
                 }
               }}
@@ -487,10 +526,11 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
           autoComplete="off"
           placeholder={field.placeholder}
           value={valueOf(field)}
+          onBlur={(event) => autoSave(field.key, event.relatedTarget)}
           onKeyDown={(event) => {
             if (event.key === 'Enter') {
               event.preventDefault();
-              const targetSection = SECTIONS.find((s) => s.fields.some((f) => f.key === field.key));
+              const targetSection = sectionOf(field.key);
               if (targetSection) void save(targetSection);
             }
           }}
@@ -503,38 +543,33 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
 
   function renderSaveActions(section: Section, changed: boolean) {
     const isSaving = savingSection === section.id;
+    // Nothing being edited means nothing to decide: a permanent "Saved / Save" pair
+    // next to switches that save themselves only invited the question of which
+    // controls the button covered.
+    if (!changed && !isSaving) return null;
     return (
-      <div className="panel-save-actions">
-        {changed ? (
-          <span className="unsaved-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: 600, color: 'var(--warning)', marginRight: '6px' }}>
-            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--warning)', display: 'inline-block' }} />
-            Unsaved changes
-          </span>
-        ) : (
-          <span className="saved-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: 'var(--muted)', marginRight: '6px' }}>
-            <Check size={13} style={{ color: 'var(--positive)' }} />
-            Saved
-          </span>
-        )}
-        {changed ? (
-          <button
-            type="button"
-            className="btn ghost small"
-            disabled={isSaving}
-            onClick={() => discard(section)}
-            title="Discard unsaved changes"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-          >
-            <RotateCcw size={13} />
-            <span>Undo</span>
-          </button>
-        ) : null}
+      <div className="panel-save-actions" data-settings-footer>
+        <span className="unsaved-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: 600, color: 'var(--warning)', marginRight: '6px' }}>
+          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--warning)', display: 'inline-block' }} />
+          Unsaved changes
+        </span>
+        <button
+          type="button"
+          className="btn ghost small"
+          disabled={isSaving}
+          onClick={() => discard(section)}
+          title="Discard unsaved changes"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+        >
+          <RotateCcw size={13} />
+          <span>Undo</span>
+        </button>
         <button
           type="button"
           className="btn small"
-          disabled={!changed || isSaving}
+          disabled={isSaving}
           onClick={() => void save(section)}
-          title={changed ? 'Save changes' : 'All changes saved'}
+          title="Save changes"
           style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
         >
           <Save size={14} />
@@ -602,7 +637,7 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
                   saveActions={renderSaveActions(section, changed)}
                 />
               ) : null}
-              {!section.extra && inputs.length ? (
+              {!section.extra && inputs.length && changed ? (
                 <div className="panel-actions panel-actions-save-only">
                   {renderSaveActions(section, changed)}
                 </div>
