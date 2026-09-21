@@ -12,7 +12,7 @@ import { CustomSelect } from './CustomSelect';
 import { GateChannels } from './GateChannels';
 import { PaymentMethods } from './PaymentMethods';
 import { UpdateChannels } from './UpdateChannels';
-import { PageLoading, FlagRow, Switch, errorText, type Say } from './ui';
+import { PageLoading, FlagRow, Switch, errorText, useConfirm, type Say } from './ui';
 import { Eye, EyeOff, RotateCcw, Save } from 'lucide-react';
 
 export type SettingsTab = 'general' | 'payments' | 'channels' | 'notifications';
@@ -26,6 +26,25 @@ const TABS: { key: SettingsTab; label: string }[] = [
 
 /** Where a tab that no longer exists should land, so old links still work. */
 const MOVED: Record<string, SettingsTab> = { access: 'channels' };
+
+const TOGGLE_NAMES: Record<string, string> = {
+  store_paused: 'Pause Store',
+  referral_enabled: 'Refer & Earn',
+  show_usd_price: 'Show USD Price on Products',
+  zinipay_enabled: 'ZiniPay Instant Deposits',
+  zinipay_web_gateway_enabled: 'ZiniPay Web Gateway',
+  binance_enabled: 'Binance Pay Deposits',
+  force_join_enabled: 'Force Join Channel Gate',
+  auto_restock_alerts: 'Auto-post on Restock',
+  auto_price_drop_alerts: 'Auto-post on Price Drop',
+  notify_admin_orders: 'Instant Stock Purchases Alert',
+  notify_admin_payments: 'Automatic Gateway Deposits Alert',
+  notify_admin_restock: 'Stock Restock Alert',
+  notify_admin_low_stock: 'Low Stock & Out of Stock Alert',
+  notify_admin_price_change: 'Price Change Alert',
+  notify_admin_new_user: 'New Customers Alert',
+  notify_user_referral: 'Referral Bonus Alert',
+};
 
 type Secret = 'zinipay_api_key' | 'binance_api_key' | 'binance_api_secret';
 
@@ -303,7 +322,39 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
     return () => window.removeEventListener('beforeunload', warn);
   }, [unsaved]);
 
-  async function flip(key: string, on: boolean) {
+  const [confirm, confirmDialog] = useConfirm();
+
+  async function flip(key: string, on: boolean, customLabel?: string) {
+    const name = customLabel || TOGGLE_NAMES[key] || key.replace(/_/g, ' ');
+    let title: string;
+    let message: string;
+    let confirmLabel: string;
+    let isDanger: boolean;
+
+    if (key === 'store_paused') {
+      if (on) {
+        title = 'Pause Store?';
+        message = 'Are you sure you want to pause the store? Customers will not be able to purchase products while maintenance mode is active.';
+        confirmLabel = 'Pause Store';
+        isDanger = true;
+      } else {
+        title = 'Reopen Store?';
+        message = 'Are you sure you want to reopen the store? Customers will be able to browse and purchase products normally.';
+        confirmLabel = 'Reopen Store';
+        isDanger = false;
+      }
+    } else {
+      const action = on ? 'Turn On' : 'Turn Off';
+      const actionVerb = on ? 'enable' : 'disable';
+      title = `${action} "${name}"?`;
+      message = `Are you sure you want to ${actionVerb} "${name}"?`;
+      confirmLabel = action;
+      isDanger = !on;
+    }
+
+    const confirmed = await confirm(title, message, confirmLabel, isDanger);
+    if (!confirmed) return;
+
     const value = on ? '1' : '0';
     const before = values[key];
     setValues((current) => ({ ...current, [key]: value }));
@@ -398,7 +449,13 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
     // Undo and Save live in the footer; clicking either must not be pre-empted by a save.
     if (related instanceof HTMLElement && related.closest('[data-settings-footer]')) return;
     const section = sectionOf(key);
-    if (section && changedIn(section).length) void save(section);
+    if (!section) return;
+    const changed = changedIn(section);
+    // A gateway credential is worth one deliberate press: a half-pasted key saved by
+    // clicking away would take payments down quietly. Its Save button is already on
+    // screen, because the footer only appears once something is unsaved.
+    if (!changed.length || changed.some((field) => field.secret)) return;
+    void save(section);
   }
 
   function renderInput(field: Field) {
@@ -614,13 +671,13 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
                   {section.master && (on ? section.master.on : section.master.off) ? <p>{on ? section.master.on : section.master.off}</p> : null}
                 </div>
                 <div className="actions">
-                  {section.master ? <Switch label={section.title} on={on} onChange={(next) => void flip(section.master!.key, next)} /> : null}
+                  {section.master ? <Switch label={section.title} on={on} onChange={(next) => void flip(section.master!.key, next, section.title)} /> : null}
                 </div>
               </header>
 
               {inputs.length ? <div className="field-grid">{inputs.map(renderInput)}</div> : null}
               {toggles.map((field) => (
-                <FlagRow key={field.key} label={field.label} hint={field.hint} on={isOn(field.key)} onChange={(next) => void flip(field.key, next)} />
+                <FlagRow key={field.key} label={field.label} hint={field.hint} on={isOn(field.key)} onChange={(next) => void flip(field.key, next, field.label)} />
               ))}
               {section.extra === 'zinipay' ? (
                 <ZiniPayExtra
@@ -665,6 +722,7 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
         );
       })}
       </div>
+      {confirmDialog}
     </>
   );
 }

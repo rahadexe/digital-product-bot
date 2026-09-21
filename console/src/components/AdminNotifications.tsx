@@ -9,7 +9,7 @@ interface AdminNotificationsProps {
   values: Record<string, string>;
   setValues: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   setSaved: React.Dispatch<React.SetStateAction<Record<string, string> | null>>;
-  flip: (key: string, on: boolean) => Promise<void>;
+  flip: (key: string, on: boolean, label?: string) => Promise<void>;
 }
 
 export function AdminNotifications({ say, values, setValues, setSaved, flip }: AdminNotificationsProps) {
@@ -36,14 +36,14 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
           label="Auto-post on Restock"
           hint="Automatically posts an announcement with a 1-click Buy button to your channels whenever stock is added"
           on={isOn('auto_restock_alerts', '1')}
-          onChange={(next) => void flip('auto_restock_alerts', next)}
+          onChange={(next) => void flip('auto_restock_alerts', next, 'Auto-post on Restock')}
         />
 
         <FlagRow
           label="Auto-post on Price Drop"
           hint="Automatically posts discount announcements to your channels when a product price is reduced"
           on={isOn('auto_price_drop_alerts', '1')}
-          onChange={(next) => void flip('auto_price_drop_alerts', next)}
+          onChange={(next) => void flip('auto_price_drop_alerts', next, 'Auto-post on Price Drop')}
         />
       </div>
 
@@ -70,28 +70,28 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
           label="Instant Stock Purchases"
           hint="Alert when an order is automatically delivered from inventory stock"
           on={isOn('notify_admin_orders', '0')}
-          onChange={(next) => void flip('notify_admin_orders', next)}
+          onChange={(next) => void flip('notify_admin_orders', next, 'Instant Stock Purchases')}
         />
 
         <FlagRow
           label="Automatic Gateway Deposits"
           hint="Alert when an automated deposit is verified and credited via Binance Pay or ZiniPay"
           on={isOn('notify_admin_payments', '0')}
-          onChange={(next) => void flip('notify_admin_payments', next)}
+          onChange={(next) => void flip('notify_admin_payments', next, 'Automatic Gateway Deposits')}
         />
 
         <FlagRow
           label="Stock Restock Alerts"
           hint="Alert when new items or accounts are added to inventory stock"
           on={isOn('notify_admin_restock', '1')}
-          onChange={(next) => void flip('notify_admin_restock', next)}
+          onChange={(next) => void flip('notify_admin_restock', next, 'Stock Restock Alerts')}
         />
 
         <FlagRow
           label="Low Stock &amp; Out of Stock Alerts"
           hint={`Immediate Telegram alert when stock falls to ${values.low_stock_threshold || '3'} items or fewer, or becomes completely sold out`}
           on={isOn('notify_admin_low_stock', '1')}
-          onChange={(next) => void flip('notify_admin_low_stock', next)}
+          onChange={(next) => void flip('notify_admin_low_stock', next, 'Low Stock & Out of Stock Alerts')}
         />
         {isOn('notify_admin_low_stock', '1') && (
           <div style={{ padding: '8px 16px 14px', background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
@@ -143,14 +143,14 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
           label="Price Change Alerts (Drop &amp; Up)"
           hint="Alert when catalog prices are modified"
           on={isOn('notify_admin_price_change', '1')}
-          onChange={(next) => void flip('notify_admin_price_change', next)}
+          onChange={(next) => void flip('notify_admin_price_change', next, 'Price Change Alerts')}
         />
 
         <FlagRow
           label="New customers"
           hint="Alert when a new Telegram user starts the bot and creates an account"
           on={isOn('notify_admin_new_user', '0')}
-          onChange={(next) => void flip('notify_admin_new_user', next)}
+          onChange={(next) => void flip('notify_admin_new_user', next, 'New Customers Alert')}
         />
 
         {/* REQUIRED / ALWAYS ON SYSTEM ALERTS */}
@@ -252,7 +252,7 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
           label="Referral Bonus Alerts"
           hint="Notify referrer when an invited friend joins and a referral bonus is credited"
           on={isOn('notify_user_referral', '1')}
-          onChange={(next) => void flip('notify_user_referral', next)}
+          onChange={(next) => void flip('notify_user_referral', next, 'Referral Bonus Alerts')}
         />
 
         {/* ALWAYS ON (MANDATORY) BELOW - NO BUTTON */}
