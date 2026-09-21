@@ -968,6 +968,19 @@ async def handle_keypad_action(query: CallbackQuery, state: FSMContext, services
 async def process_custom_quantity(message: Message, state: FSMContext, services: Services):
     """Processes user text input for custom quantity."""
     text = (message.text or "").strip()
+    if text.startswith("/"):
+        await state.clear()
+        cmd = text.split()[0].lower().lstrip("/")
+        if cmd == "start":
+            from app.bot.handlers.start import render_main_dashboard
+            await render_main_dashboard(message, services, message.from_user.id)
+            return
+        if cmd == "cancel":
+            await message.answer(f"{ICON_CROSS} Operation cancelled.")
+            return
+        await message.answer(f"{ICON_CROSS} Operation cancelled.")
+        return
+
     if not text.isdigit() or int(text) < 1:
         await message.answer(f"{ICON_WARNING} Please enter a valid positive number:")
         return

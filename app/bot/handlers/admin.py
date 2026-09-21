@@ -122,9 +122,44 @@ async def process_broadcast_input(message: Message, state: FSMContext, services:
     if not message.from_user or not await _is_admin(message.from_user.id, services):
         return
 
-    if message.text and message.text.strip().lower() in ("/cancel", "cancel"):
-        await state.clear()
-        await message.answer(f"{ICON_CROSS} Broadcast cancelled.")
+    raw_text = (message.text or "").strip()
+    if raw_text.startswith("/"):
+        cmd = raw_text.split()[0].lower().lstrip("/")
+        if cmd in ("cancel",):
+            await state.clear()
+            await message.answer(f"{ICON_CROSS} Broadcast cancelled.")
+            return
+
+        if cmd in ("start",):
+            await state.clear()
+            from app.bot.handlers.start import render_main_dashboard
+            await render_main_dashboard(message, services, message.from_user.id)
+            return
+
+        if cmd in ("admin",):
+            await state.clear()
+            await cmd_admin_help(message, services)
+            return
+
+        if cmd in ("broadcast", "bc"):
+            await state.clear()
+            await cmd_broadcast(message, state, services)
+            return
+
+        if cmd in ("setwelcome", "welcome", "sw"):
+            await state.clear()
+            await cmd_set_welcome(message, state, services)
+            return
+
+        if cmd in ("resetwelcome", "rw"):
+            await state.clear()
+            await cmd_reset_welcome(message, services)
+            return
+
+        await message.answer(
+            f"{ICON_WARNING} <b>Invalid input:</b> Bot commands cannot be broadcast.\n\n"
+            f"Please send the message you want to broadcast, or send /cancel to abort."
+        )
         return
 
     text = message.html_text or message.caption or message.text
@@ -224,13 +259,13 @@ async def cmd_admin_help(message: Message, services: Services):
         f"• <code>/bc</code> — Interactive composer\n"
         f"• Reply to message with <code>/bc</code> — Forward & send\n"
         f"• <code>/bcstatus</code> — Check latest delivery status\n"
-        f"• <code>/setwelcome &lt;text&gt;</code> — Set custom welcome message\n"
-        f"• <code>/resetwelcome</code> — Reset welcome message to default\n"
+        f"• <code>/sw &lt;text&gt;</code> (or <code>/setwelcome</code>) — Set custom welcome message\n"
+        f"• <code>/rw</code> (or <code>/resetwelcome</code>) — Reset welcome message to default\n"
         f"• <code>/cancel</code> — Cancel active action"
     )
 
 
-@router.message(Command("resetwelcome"))
+@router.message(Command("resetwelcome", "rw"))
 async def cmd_reset_welcome(message: Message, services: Services):
     if not message.from_user or not await _is_admin(message.from_user.id, services):
         return
@@ -253,7 +288,7 @@ async def cmd_reset_welcome(message: Message, services: Services):
     )
 
 
-@router.message(Command("setwelcome", "welcome"))
+@router.message(Command("setwelcome", "welcome", "sw"))
 async def cmd_set_welcome(message: Message, state: FSMContext, services: Services):
     if not message.from_user or not await _is_admin(message.from_user.id, services):
         return
@@ -309,14 +344,57 @@ async def process_welcome_input(message: Message, state: FSMContext, services: S
     if not message.from_user or not await _is_admin(message.from_user.id, services):
         return
 
-    if message.text and message.text.strip().lower() in ("/cancel", "cancel"):
+    raw_text = (message.text or "").strip()
+
+    # Reset keywords
+    if raw_text.lower() in ("reset", "default", "clear"):
         await state.clear()
-        await message.answer(f"{ICON_CROSS} Cancelled.")
+        await cmd_reset_welcome(message, services)
         return
 
-    if message.text and message.text.strip().lower() in ("reset", "default", "clear"):
-        await cmd_reset_welcome(message, services)
-        await state.clear()
+    # Intercept commands typed while waiting for welcome input
+    if raw_text.startswith("/"):
+        cmd = raw_text.split()[0].lower().lstrip("/")
+        if cmd in ("cancel",):
+            await state.clear()
+            await message.answer(f"{ICON_CROSS} Cancelled.")
+            return
+
+        if cmd in ("resetwelcome", "rw"):
+            await state.clear()
+            await cmd_reset_welcome(message, services)
+            return
+
+        if cmd in ("start",):
+            await state.clear()
+            from app.bot.handlers.start import render_main_dashboard
+            await render_main_dashboard(message, services, message.from_user.id)
+            return
+
+        if cmd in ("admin",):
+            await state.clear()
+            await cmd_admin_help(message, services)
+            return
+
+        if cmd in ("setwelcome", "welcome", "sw"):
+            await state.clear()
+            await cmd_set_welcome(message, state, services)
+            return
+
+        if cmd in ("broadcast", "bc"):
+            await state.clear()
+            await cmd_broadcast(message, state, services)
+            return
+
+        if cmd in ("bcstatus", "broadcast_status"):
+            await state.clear()
+            await cmd_broadcast_status(message, services)
+            return
+
+        await message.answer(
+            f"{ICON_WARNING} <b>Invalid input:</b> Bot commands (like <code>{html.escape(raw_text)}</code>) cannot be saved as the welcome message.\n\n"
+            f"Please send your custom greeting text, or send /cancel to abort."
+        )
         return
 
     text = message.html_text or message.caption or message.text
@@ -329,18 +407,26 @@ async def process_welcome_input(message: Message, state: FSMContext, services: S
 
 
 async def _save_welcome_text(message: Message, text: str, services: Services):
+    clean_text = text.strip()
+    if clean_text.startswith("/"):
+        await message.answer(
+            f"{ICON_CROSS} <b>Error:</b> Bot commands (like <code>{html.escape(clean_text)}</code>) cannot be saved as the welcome message.\n\n"
+            f"Please send your custom greeting text without a leading slash, or use /resetwelcome to restore the default."
+        )
+        return
+
     values = await services.settings.values()
     store_name = values.get("store_name", "Premium Haven")
 
     try:
-        await services.settings.update({"welcome_text": text})
+        await services.settings.update({"welcome_text": clean_text})
     except Exception as e:
         logger.exception("Failed to update welcome_text from Telegram: %s", e)
         await message.answer(f"{ICON_CROSS} Failed to update: {html.escape(str(e))}")
         return
 
     preview_display = (
-        text.replace("{store_name}", html.escape(store_name))
+        clean_text.replace("{store_name}", html.escape(store_name))
         .replace("[Store Name]", html.escape(store_name))
         .replace("{store}", html.escape(store_name))
     )
