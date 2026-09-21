@@ -224,7 +224,7 @@ export function Products({ say }: { say: Say }) {
                           className={`pill ${!product.stock ? 'bad' : product.stock <= LOW_STOCK_MAX ? 'warn' : 'good'}`}
                           title={product.stock && product.stock <= LOW_STOCK_MAX ? `Low stock (≤ ${LOW_STOCK_MAX} remaining)` : undefined}
                         >
-                          {product.stock ? product.stock : 'out'}
+                          {product.stock ? `${product.stock} in stock` : 'out of stock'}
                         </span>
                       )}
                     </td>
