@@ -343,10 +343,10 @@ async def show_reseller_info(event: Message | CallbackQuery, state: FSMContext |
         ])
         rows.append([
             InlineKeyboardButton(
-                text="Back to Settings",
-                callback_data="open_account",
-                style="primary",
-                icon_custom_emoji_id=Icons.ACCOUNT,
+                text="Close",
+                callback_data="close_menu",
+                style="danger",
+                icon_custom_emoji_id=Icons.CLOSE,
             )
         ])
         await respond(event, text, InlineKeyboardMarkup(inline_keyboard=rows))
