@@ -1,4 +1,10 @@
+"""Send the built-in custom emoji catalogue to an operator, so the ids can be checked visually.
+
+    python -m scripts.send_emoji_catalog [telegram_id]
+"""
+
 import asyncio
+import sys
 
 from aiogram import Bot
 from aiogram.enums import ParseMode
@@ -10,7 +16,9 @@ from app.core.config import Settings
 async def main():
     cfg = Settings()
     bot = Bot(token=cfg.bot_token)
-    admin_id = 6775546602
+    admin_id = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else cfg.admin_tg_id
+    if not admin_id:
+        raise SystemExit("Pass a Telegram ID as the first argument, or set ADMIN_TG_ID.")
 
     categories = {}
     for item in SYSTEM_EMOJIS:

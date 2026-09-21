@@ -73,7 +73,7 @@ https://YOUR-DOMAIN-NAME/api/v1/reseller
   "success": true,
   "user": {
     "user_id": 12,
-    "tg_user_id": 6775546602,
+    "tg_user_id": 100200300,
     "username": "reseller_john",
     "name": "John Doe",
     "rank": "Reseller",

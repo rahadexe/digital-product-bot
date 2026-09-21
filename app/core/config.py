@@ -62,6 +62,25 @@ class Settings(BaseSettings):
     binance_api_key: str = ""
     binance_api_secret: str = ""
 
+    @model_validator(mode="before")
+    @classmethod
+    def drop_blank_values(cls, values):
+        """A key left empty in .env means "not set", not "the empty string".
+
+        Operators copy .env.example and fill in what they need. Leaving ADMIN_TG_ID= or
+        USE_POLLING= blank used to abort startup on a type error rather than fall back
+        to the declared default.
+        """
+        if not isinstance(values, dict):
+            return values
+        blank = {"", None}
+        return {
+            key: value
+            for key, value in values.items()
+            if not (isinstance(value, str) and value.strip() in blank and cls.model_fields.get(key.lower()) is not None
+                    and cls.model_fields[key.lower()].annotation is not str)
+        }
+
     @model_validator(mode="after")
     def validate_security(self):
         if self.admin_password == 'admin123456':

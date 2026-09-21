@@ -1,6 +1,9 @@
-"""
-Script to send live previews of every single notification type in the bot
-to the admin/user Telegram account (6775546602) for visual inspection.
+"""Send a live preview of every notification the bot can produce, for visual inspection.
+
+The recipient is the first argument, or ADMIN_TG_ID from the environment. This sends real
+Telegram messages, so point it at your own account.
+
+    python -m scripts.send_all_sample_notifications [telegram_id]
 """
 
 import asyncio
@@ -41,11 +44,19 @@ from app.bot.icons import (
 )
 from app.core.config import Settings
 
-TARGET_TG_ID = 6775546602
+
+def target_tg_id(config: Settings) -> int:
+    """Whoever was named on the command line, otherwise the configured admin."""
+    if len(sys.argv) > 1 and sys.argv[1].isdigit():
+        return int(sys.argv[1])
+    if config.admin_tg_id:
+        return config.admin_tg_id
+    raise SystemExit("Pass a Telegram ID as the first argument, or set ADMIN_TG_ID.")
 
 
 async def send_all():
     cfg = Settings()
+    TARGET_TG_ID = target_tg_id(cfg)
     bot = Bot(token=cfg.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     
     me = await bot.get_me()
@@ -73,7 +84,7 @@ async def send_all():
             f"{ICON_SHOP} <b>New Order Received</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"{ICON_ORDERS} <b>Order ID:</b> <code>#1042</code>\n"
-            f"{ICON_ACCOUNT} <b>Customer:</b> @rahadhasanrafi (<code>{TARGET_TG_ID}</code>)\n"
+            f"{ICON_ACCOUNT} <b>Customer:</b> @sample_customer (<code>{TARGET_TG_ID}</code>)\n"
             f"{ICON_VIP} <b>Product:</b> NordVPN 1 Month Premium\n"
             f"{ICON_MONEY} <b>Price Paid:</b> <code>150 ৳ ≈ $1.20</code>\n"
             f"{ICON_CHECK} <b>Delivery:</b> Instant (Delivered)"
@@ -94,7 +105,7 @@ async def send_all():
             f"{ICON_TIMER} <b>Manual Order Action Required</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"{ICON_ORDERS} <b>Order ID:</b> <code>#1043</code>\n"
-            f"{ICON_ACCOUNT} <b>Customer:</b> @rahadhasanrafi (<code>{TARGET_TG_ID}</code>)\n"
+            f"{ICON_ACCOUNT} <b>Customer:</b> @sample_customer (<code>{TARGET_TG_ID}</code>)\n"
             f"{ICON_VIP} <b>Product:</b> Canva Pro Lifetime (Manual Invite)\n"
             f"{ICON_MONEY} <b>Price Paid:</b> <code>250 ৳ ≈ $2.00</code>\n"
             f"{ICON_WARNING} <b>Delivery:</b> Manual Fulfillment Required"
@@ -142,7 +153,7 @@ async def send_all():
         (
             f"{ICON_DEPOSIT} <b>New Deposit Request #205</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"{ICON_ACCOUNT} <b>Customer:</b> @rahadhasanrafi (<code>{TARGET_TG_ID}</code>)\n"
+            f"{ICON_ACCOUNT} <b>Customer:</b> @sample_customer (<code>{TARGET_TG_ID}</code>)\n"
             f"{ICON_DEPOSIT} <b>Method:</b> bKash Personal\n"
             f"{ICON_MONEY} <b>Credit Amount:</b> <code>500.00 ৳</code>\n"
             f"{ICON_KEY} <b>Transaction ID:</b> <code>9X87K2L1P0</code>"
@@ -210,7 +221,7 @@ async def send_all():
             f"{ICON_ACCOUNT} <b>New Customer Joined</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"{ICON_ACCOUNT} <b>Name:</b> Rahad Hasan\n"
-            f"💬 <b>Username:</b> @rahadhasanrafi\n"
+            f"💬 <b>Username:</b> @sample_customer\n"
             f"{ICON_ID} <b>Telegram ID:</b> <code>{TARGET_TG_ID}</code>"
         ),
         None

@@ -25,7 +25,7 @@ dist/
 .coverage.*
 htmlcov/
 
-# ─── Node / Next.js console ─────────────────────────────────────
+# ─── Node and the Next.js console ───────────────────────────────
 node_modules/
 console/.next/
 console/out/
@@ -36,6 +36,9 @@ yarn-error.log*
 .pnpm-debug.log*
 .vercel/
 coverage/
+
+# Written and re-added by `next dev`; not part of the application.
+AGENTS.md
 
 # ─── Runtime output and data ────────────────────────────────────
 logs/
@@ -62,17 +65,7 @@ tmp/
 Thumbs.db
 desktop.ini
 
-# ─── Local AI agent tooling (not part of the application) ───────
-.agents/
-.claude/
-CLAUDE.local.md
-
-# ─── Generated images not used by the application ───────────────
-console/public/images/robot_hero.jpg
-console/public/images/store-hero-v2.png
-console/public/images/store-hero-v2.prompt.txt
-
-# ─── Local tools ────────────────────────────────────────────────
-cloudflared.exe
-*.exe
+# ─── Local scratch space and downloaded tools ───────────────────
+# Experiments, one-off scripts and binaries that are not part of the release.
 scratch/
+*.exe

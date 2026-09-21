@@ -192,7 +192,7 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
               <input
                 type="text"
                 autoFocus
-                placeholder="Telegram User ID (e.g. 6775546602)"
+                placeholder="Telegram User ID (e.g. 100200300)"
                 value={newAdminId}
                 onChange={(e) => setNewAdminId(e.target.value)}
                 onKeyDown={(e) => {

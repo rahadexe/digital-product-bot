@@ -542,7 +542,7 @@ async def reseller_documentation_page(request: Request, services: ServicesDep):
   "success": true,
   "user": {{
     "user_id": 12,
-    "tg_user_id": 6775546602,
+    "tg_user_id": 100200300,
     "username": "reseller_pro",
     "name": "Alex Smith",
     "rank": "Reseller",

@@ -1,11 +1,23 @@
+# The image copies only requirements.txt, app/ and console/; everything below either
+# does not belong in a release or would invalidate the build cache on every change.
 .git
+.gitignore
+.dockerignore
 .env
 .env.*
 .venv
 **/__pycache__
-.agents
-.claude
+**/*.py[cod]
+.ruff_cache
+.pytest_cache
 console/node_modules
 console/.next
 console/out
+console/AGENTS.md
+docs
+scratch
+scripts
+tests
 *.log
+*.exe
+*.md

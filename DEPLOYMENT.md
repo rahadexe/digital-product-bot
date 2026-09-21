@@ -46,7 +46,6 @@ DB_STATEMENT_CACHE_SIZE=0
 
 # Telegram Bot Credentials
 BOT_TOKEN=your_bot_token_here
-ADMIN_TG_ID=your_telegram_id_here
 
 # Security
 ADMIN_PASSWORD=your_strong_admin_password_12+chars
@@ -61,6 +60,11 @@ TRUSTED_PROXY_IPS=127.0.0.1
 WEBHOOK_BASE_URL=https://yourdomain.com
 WEBHOOK_SECRET=your_32_to_256_character_secret_token
 ```
+
+This file holds only what the process needs to start. Admin Telegram IDs, the ZiniPay and Binance
+credentials, prices, payment methods and the rest of the store's behaviour are set in the admin
+console after the first start and take effect without a redeploy. See
+[.env.example](.env.example) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ---
 

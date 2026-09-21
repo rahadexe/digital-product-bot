@@ -1,4 +1,4 @@
-﻿import asyncio
+import asyncio
 
 from app.bot.icons import Icons
 from app.core.config import get_settings
