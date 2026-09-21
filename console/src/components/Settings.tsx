@@ -84,14 +84,19 @@ const SECTIONS: Section[] = [
     id: 'availability',
     tab: 'general',
     title: 'Store availability',
+    master: {
+      key: 'store_paused',
+      on: 'Store paused · Blocking new orders and deposits',
+      off: 'Store open · Normal ordering and deposits active',
+    },
     fields: [
-      { key: 'store_paused', label: 'Pause the store', hint: 'Blocks new orders and deposits.', type: 'toggle' },
       {
         key: 'maintenance_message',
         label: 'Message while paused',
         type: 'textarea',
         rows: 2,
         placeholder: 'Store maintenance is in progress...',
+        hint: 'Displayed on /start and when users try to purchase while paused.',
       },
     ],
   },
@@ -99,16 +104,31 @@ const SECTIONS: Section[] = [
     id: 'pricing_display',
     tab: 'general',
     title: 'Price display',
+    master: {
+      key: 'show_usd_price',
+      on: 'Showing both ৳ and $ prices on products',
+      off: 'Showing only ৳ price on products',
+    },
     fields: [
-      { key: 'show_usd_price', label: 'Show USD price on products (৳ & $)', type: 'toggle' },
-      { key: 'usd_rate', label: 'Exchange Rate: 1 USD', type: 'number', fallback: '125', money: true },
+      {
+        key: 'usd_rate',
+        label: 'Exchange Rate: 1 USD',
+        type: 'number',
+        fallback: '125',
+        money: true,
+        hint: 'Used to convert product prices from ৳ to $ when dual currency display is active.',
+      },
     ],
   },
   {
     id: 'referral',
     tab: 'general',
     title: 'Refer & Earn',
-    master: { key: 'referral_enabled' },
+    master: {
+      key: 'referral_enabled',
+      on: 'Referral rewards active · Users earn bonus balance on successful invites',
+      off: 'Referral rewards disabled',
+    },
     fields: [
       {
         key: 'referral_reward_amount',
@@ -116,6 +136,7 @@ const SECTIONS: Section[] = [
         type: 'number',
         fallback: '3',
         money: true,
+        hint: 'Reward credited to inviter balance once referral qualifies.',
       },
     ],
   },
@@ -141,6 +162,8 @@ const SECTIONS: Section[] = [
     title: 'ZiniPay Auto-Verification',
     master: {
       key: 'zinipay_enabled',
+      on: 'Automatic bKash / Nagad verification active',
+      off: 'ZiniPay auto-verification disabled',
     },
     fields: [
       {
@@ -157,6 +180,8 @@ const SECTIONS: Section[] = [
     title: 'ZiniPay checkout',
     master: {
       key: 'zinipay_web_gateway_enabled',
+      on: 'ZiniPay hosted web checkout enabled',
+      off: 'ZiniPay web checkout disabled',
     },
     fields: [
       { key: 'zinipay_brand_url', label: 'Brand website URL', placeholder: 'https://myshop.com' },
@@ -171,6 +196,8 @@ const SECTIONS: Section[] = [
     title: 'Binance',
     master: {
       key: 'binance_enabled',
+      on: 'Automated USDT deposits via Binance Pay enabled',
+      off: 'Binance Pay deposits disabled',
     },
     fields: [
       { key: 'binance_pay_id', label: 'Binance UID', placeholder: '750176717' },
@@ -204,7 +231,11 @@ const SECTIONS: Section[] = [
     id: 'force_join',
     tab: 'channels',
     title: 'Force join',
-    master: { key: 'force_join_enabled' },
+    master: {
+      key: 'force_join_enabled',
+      on: 'Force join active · Customers must join mandatory channels to use the bot',
+      off: 'Force join disabled · All users can access the bot freely',
+    },
     fields: [],
   },
   {
@@ -254,7 +285,11 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
   }
 
   const valueOf = (field: Field) => values[field.key] ?? field.fallback ?? '';
-  const isOn = (key: string) => (values[key] ?? (key.endsWith('_enabled') && key !== 'force_join_enabled' ? '0' : '1')) === '1';
+  const DEFAULTS_OFF = new Set(['store_paused', 'force_join_enabled', 'zinipay_enabled', 'zinipay_web_gateway_enabled', 'binance_enabled']);
+  const isOn = (key: string) => {
+    if (values[key] !== undefined) return values[key] === '1';
+    return DEFAULTS_OFF.has(key) ? false : true;
+  };
   const changedIn = (section: Section) =>
     section.fields.filter((field) => field.type !== 'toggle' && (field.secret ? Boolean(secrets[field.key]?.trim()) : (values[field.key] ?? '') !== (saved?.[field.key] ?? '')));
   const unsaved = SECTIONS.some((section) => changedIn(section).length > 0);
