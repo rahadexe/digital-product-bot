@@ -68,7 +68,7 @@ const isKey = (value: string): value is Key => ITEMS.some((item) => item.key ===
 /** The address holds the screen and, for Settings, the tab (#settings/payments), so a reload lands in the same place. */
 function readAddress(): { key: Key; tab: string } {
   const [key, tab = ''] = window.location.hash.slice(1).split('/');
-  if (key === 'gate') return { key: 'settings', tab: 'access' };
+  if (key === 'gate') return { key: 'settings', tab: 'channels' };
   if (key === 'instant') return { key: 'deposits', tab: 'instant' };
   return { key: isKey(key) ? key : 'overview', tab };
 }

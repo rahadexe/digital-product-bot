@@ -50,6 +50,7 @@ export function CustomSelect({
   emptyValue,
 }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const [query, setQuery] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
@@ -120,6 +121,7 @@ export function CustomSelect({
   const handleSelect = (val: string) => {
     onChange(val);
     setIsOpen(false);
+    setActiveIndex(-1);
     setIsTyping(false);
     setQuery('');
   };
@@ -156,19 +158,46 @@ export function CustomSelect({
     });
   };
 
-  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+  const close = () => {
+    setIsOpen(false);
+    setIsTyping(false);
+    setQuery('');
+    setActiveIndex(-1);
+  };
+
+  const handleKeys = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
-      if (filteredOptions.length > 0) {
-        handleSelect(String(filteredOptions[0].value));
+      if (!isOpen) {
+        setIsOpen(true);
+        setActiveIndex(0);
+        return;
       }
+      const count = filteredOptions.length;
+      if (!count) return;
+      const step = e.key === 'ArrowDown' ? 1 : -1;
+      setActiveIndex((current) => (current + step + count) % count);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (!isOpen) {
+        setIsOpen(true);
+        setActiveIndex(0);
+        return;
+      }
+      const chosen = filteredOptions[activeIndex] ?? filteredOptions[0];
+      if (chosen) handleSelect(String(chosen.value));
+    } else if (e.key === ' ' && !searchable) {
+      e.preventDefault();
+      isOpen ? close() : (setIsOpen(true), setActiveIndex(0));
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      setIsOpen(false);
-      setIsTyping(false);
-      setQuery('');
+      close();
+    } else if (e.key === 'Tab' && isOpen) {
+      close();
     }
   };
+
+  const handleInputKeyDown = handleKeys;
 
   return (
     <div
@@ -187,27 +216,13 @@ export function CustomSelect({
       }}
     >
       <div
+        className={`custom-select-trigger${isOpen ? ' open' : ''}`}
+        role="combobox"
+        aria-expanded={isOpen}
+        aria-haspopup="listbox"
+        tabIndex={searchable ? -1 : 0}
         onClick={handleBoxClick}
-        style={{
-          width: '100%',
-          minHeight: '38px',
-          height: '38px',
-          padding: '0 10px 0 12px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '8px',
-          background: 'var(--surface)',
-          border: `1px solid ${isOpen ? 'var(--accent)' : 'var(--border)'}`,
-          borderRadius: '8px',
-          cursor: 'pointer',
-          outline: 'none',
-          boxShadow: isOpen
-            ? '0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent)'
-            : '0 1px 2px rgba(0, 0, 0, 0.02)',
-          transition: 'border-color 120ms ease, box-shadow 120ms ease',
-          boxSizing: 'border-box',
-        }}
+        onKeyDown={searchable ? undefined : handleKeys}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', minWidth: 0, flex: 1 }}>
           {selectedOption?.icon ? (
@@ -272,6 +287,7 @@ export function CustomSelect({
           {((isTyping && query.trim()) || (clearable && selectedOption && !isDefaultOrEmpty)) && (
             <span
               role="button"
+              className="custom-select-clear"
               onClick={(e) => {
                 e.stopPropagation();
                 if (isTyping && query.trim()) {
@@ -282,17 +298,6 @@ export function CustomSelect({
                 }
               }}
               title={isTyping && query.trim() ? 'Clear search' : 'Clear selection'}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--muted)',
-                cursor: 'pointer',
-                padding: '2px',
-                borderRadius: '4px',
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--danger)')}
-              onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--muted)')}
             >
               <X size={13} />
             </span>
@@ -313,41 +318,23 @@ export function CustomSelect({
 
       {isOpen && (
         <div className="custom-select-dropdown">
-          <div className="custom-select-scroll">
+          <div className="custom-select-scroll" role="listbox">
             {filteredOptions.length === 0 ? (
               <div style={{ padding: '10px 12px', fontSize: '12px', color: 'var(--muted)', textAlign: 'center' }}>
                 No options found
               </div>
             ) : (
-              filteredOptions.map((opt) => {
+              filteredOptions.map((opt, index) => {
                 const isSelected = String(opt.value) === String(value);
 
                 return (
                   <div
                     key={String(opt.value)}
+                    role="option"
+                    aria-selected={isSelected}
+                    className={`custom-select-option${isSelected ? ' selected' : ''}${index === activeIndex ? ' active' : ''}`}
+                    onMouseMove={() => setActiveIndex(index)}
                     onClick={() => handleSelect(String(opt.value))}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: '10px',
-                      padding: '8px 10px',
-                      borderRadius: '6px',
-                      fontSize: '13px',
-                      cursor: 'pointer',
-                      fontWeight: isSelected ? 600 : 400,
-                      color: isSelected ? 'var(--accent)' : 'var(--text)',
-                      background: isSelected ? 'var(--accent-soft)' : 'transparent',
-                      transition: 'background-color 0.12s ease',
-                      boxSizing: 'border-box',
-                      minWidth: 0,
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isSelected) e.currentTarget.style.backgroundColor = 'var(--surface-2)';
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
-                    }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1, overflow: 'hidden' }}>
                       {opt.icon && (

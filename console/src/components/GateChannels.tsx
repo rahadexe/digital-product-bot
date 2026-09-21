@@ -33,7 +33,7 @@ export function GateChannels({ say }: { say: Say }) {
       {confirmDialog}
       <div className="panel-subhead">
         <div>
-          <h3>Mandatory Channels to Join (Force Join)</h3>
+          <h3>Channels a customer must join</h3>
         </div>
         <div className="actions">
           <button type="button" className="btn small" onClick={() => setDraft({ id: null, title: '', channel_username: '', invite_link: '', chat_id: '', is_active: true })}>

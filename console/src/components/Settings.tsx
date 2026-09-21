@@ -7,21 +7,24 @@ import { Fragment, useEffect, useState } from 'react';
 import { api, type BinanceStatus, type PaymentsStatus } from '@/lib/api';
 import { resetCurrencySymbol } from '@/lib/currency';
 import { AdminNotifications } from './AdminNotifications';
+import { CustomSelect } from './CustomSelect';
 import { GateChannels } from './GateChannels';
 import { PaymentMethods } from './PaymentMethods';
 import { UpdateChannels } from './UpdateChannels';
 import { PageLoading, FlagRow, Switch, errorText, type Say } from './ui';
 import { Eye, EyeOff, RotateCcw, Save } from 'lucide-react';
 
-export type SettingsTab = 'general' | 'payments' | 'notifications' | 'channels' | 'access';
+export type SettingsTab = 'general' | 'payments' | 'notifications' | 'channels';
 
 const TABS: { key: SettingsTab; label: string }[] = [
   { key: 'general', label: 'Store' },
   { key: 'payments', label: 'Payments' },
   { key: 'notifications', label: 'Notifications' },
   { key: 'channels', label: 'Channels' },
-  { key: 'access', label: 'Access' },
 ];
+
+/** Where a tab that no longer exists should land, so old links still work. */
+const MOVED: Record<string, SettingsTab> = { access: 'channels' };
 
 type Secret = 'zinipay_api_key' | 'binance_api_key' | 'binance_api_secret';
 
@@ -52,7 +55,7 @@ type Section = {
 };
 
 const SECTIONS: Section[] = [
-  // ── General Tab ──────────────────────────────────────────
+  // ── Store ────────────────────────────────────────────────
   {
     id: 'store',
     tab: 'general',
@@ -60,6 +63,29 @@ const SECTIONS: Section[] = [
     fields: [
       { key: 'store_name', label: 'Store name', placeholder: 'Store name' },
       { key: 'support_username', label: 'Support username', placeholder: '@username' },
+      {
+        key: 'welcome_text',
+        label: 'Welcome message',
+        hint: 'The first thing a customer sees. Leave blank for the default.',
+        type: 'textarea',
+        rows: 3,
+        placeholder: 'Custom welcome message (optional)',
+      },
+    ],
+  },
+  {
+    id: 'availability',
+    tab: 'general',
+    title: 'Store availability',
+    fields: [
+      { key: 'store_paused', label: 'Pause the store', hint: 'Blocks new orders and deposits.', type: 'toggle' },
+      {
+        key: 'maintenance_message',
+        label: 'Message while paused',
+        type: 'textarea',
+        rows: 2,
+        placeholder: 'Store maintenance is in progress...',
+      },
     ],
   },
   {
@@ -69,34 +95,6 @@ const SECTIONS: Section[] = [
     fields: [
       { key: 'show_usd_price', label: 'Show USD price on products (৳ & $)', type: 'toggle' },
       { key: 'usd_rate', label: 'Exchange Rate: 1 USD', type: 'number', fallback: '125', money: true },
-    ],
-  },
-  {
-    id: 'channels',
-    tab: 'channels',
-    title: 'Welcome & Channels',
-    fields: [
-      {
-        key: 'welcome_text',
-        label: 'Welcome Message',
-        type: 'textarea',
-        rows: 3,
-        placeholder: 'Custom welcome message (optional)',
-      },
-      { key: 'announcement_channel', label: 'Announcement Channel', placeholder: '@YourChannel or -100…' },
-      { key: 'auto_restock_alerts', label: 'Post to channel on restock', type: 'toggle' },
-      { key: 'auto_price_drop_alerts', label: 'Post to channel on price drop', type: 'toggle' },
-    ],
-  },
-  {
-    id: 'access',
-    tab: 'access',
-    title: 'Access & Limits',
-    fields: [
-      { key: 'maintenance_message', label: 'Maintenance Message', placeholder: 'Store maintenance is in progress...' },
-      { key: 'max_deposit_limit', label: 'Max Single Deposit', type: 'number', fallback: '500', money: true },
-      { key: 'store_paused', label: 'Pause Store (block orders & deposits)', type: 'toggle' },
-      { key: 'force_join_enabled', label: 'Force Join Gate (require channel membership)', type: 'toggle' },
     ],
   },
   {
@@ -114,8 +112,22 @@ const SECTIONS: Section[] = [
       },
     ],
   },
-  { id: 'notifications', tab: 'notifications', title: 'Admin notifications', fields: [] },
-  // ── Payments Tab ─────────────────────────────────────────
+  // ── Payments ─────────────────────────────────────────────
+  {
+    id: 'deposit_limits',
+    tab: 'payments',
+    title: 'Deposit limits',
+    fields: [
+      {
+        key: 'max_deposit_limit',
+        label: 'Most a customer may add at once',
+        hint: 'Applies to every method below.',
+        type: 'number',
+        fallback: '500',
+        money: true,
+      },
+    ],
+  },
   {
     id: 'zinipay_autoverify',
     tab: 'payments',
@@ -157,25 +169,42 @@ const SECTIONS: Section[] = [
       { key: 'binance_pay_id', label: 'Binance UID', placeholder: '750176717' },
       { key: 'binance_api_key', label: 'API Key (Read-only)', type: 'password', secret: 'binance_api_key' },
       { key: 'binance_api_secret', label: 'API Secret', type: 'password', secret: 'binance_api_secret' },
-      {
-        key: 'binance_coin',
-        label: 'Coin',
-        type: 'select',
-        fallback: 'USDT',
-        options: [
-          { value: 'USDT', label: 'USDT' },
-        ],
-      },
       { key: 'binance_pay_rate', label: 'Rate per 1 USDT (৳)', type: 'number', fallback: '125' },
       { key: 'binance_pay_min', label: 'Smallest deposit ($)', type: 'number', fallback: '1' },
       { key: 'binance_pay_instructions', label: 'Custom instructions (optional)', type: 'textarea', rows: 2, placeholder: 'Leave blank for default instructions' },
     ],
     extra: 'binance',
   },
+  // ── Notifications ────────────────────────────────────────
+  { id: 'notifications', tab: 'notifications', title: 'Admin notifications', fields: [] },
+  // ── Channels ─────────────────────────────────────────────
+  // Everything to do with a channel lives here. The force-join switch used to
+  // sit on another tab from the channels it requires, so turning it on meant
+  // going somewhere else to say which channels it meant.
+  {
+    id: 'force_join',
+    tab: 'channels',
+    title: 'Force join',
+    master: { key: 'force_join_enabled' },
+    fields: [],
+  },
+  {
+    id: 'announcements',
+    tab: 'channels',
+    title: 'Announcements',
+    fields: [
+      { key: 'announcement_channel', label: 'Announcement channel', placeholder: '@YourChannel or -100…' },
+      { key: 'auto_restock_alerts', label: 'Post to channel on restock', type: 'toggle' },
+      { key: 'auto_price_drop_alerts', label: 'Post to channel on price drop', type: 'toggle' },
+    ],
+  },
 ];
 
+
 export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTab?: SettingsTab; onTabChange?: (tab: SettingsTab) => void }) {
-  const [tab, setTab] = useState<SettingsTab>(TABS.some((item) => item.key === initialTab) ? (initialTab as SettingsTab) : 'general');
+  const resolve = (wanted?: string): SettingsTab =>
+    TABS.some((item) => item.key === wanted) ? (wanted as SettingsTab) : MOVED[wanted ?? ''] ?? 'general';
+  const [tab, setTab] = useState<SettingsTab>(resolve(initialTab));
   const [saved, setSaved] = useState<Record<string, string> | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [secrets, setSecrets] = useState<Record<string, string>>({});
@@ -186,7 +215,7 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
 
   // Following a link to another tab (#settings/payments) while Settings is already open.
   useEffect(() => {
-    if (initialTab && TABS.some((item) => item.key === initialTab)) setTab(initialTab);
+    if (initialTab) setTab(resolve(initialTab));
   }, [initialTab]);
 
   useEffect(() => {
@@ -307,19 +336,16 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
     }
 
     if (field.type === 'select' && field.options) {
+      // CustomSelect, not a native <select>: the browser draws its own list,
+      // which does not follow the console's type, spacing or dark mode.
       return (
         <label key={field.key} className="field">
           <span>{label}</span>
-          <select
+          <CustomSelect
             value={valueOf(field)}
-            onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))}
-          >
-            {field.options.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+            options={field.options}
+            onChange={(next) => setValues((current) => ({ ...current, [field.key]: next }))}
+          />
           {field.hint ? <small>{field.hint}</small> : null}
         </label>
       );
@@ -511,8 +537,8 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
                   flip={flip}
                 />
               ) : null}
-              {section.id === 'channels' ? <UpdateChannels say={say} /> : null}
-              {section.id === 'access' ? <GateChannels say={say} /> : null}
+              {section.id === 'announcements' ? <UpdateChannels say={say} /> : null}
+              {section.id === 'force_join' ? <GateChannels say={say} /> : null}
             </section>
 
             {section.id === 'zinipay_autoverify' ? <PaymentMethods say={say} symbol={symbol} zinipayActive={isOn('zinipay_enabled')} /> : null}

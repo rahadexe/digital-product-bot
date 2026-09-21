@@ -33,7 +33,7 @@ export function UpdateChannels({ say }: { say: Say }) {
       {confirmDialog}
       <div className="panel-subhead">
         <div>
-          <h3>Support &amp; Update Channel Buttons</h3>
+          <h3>Buttons shown to customers</h3>
         </div>
         <div className="actions">
           <button
