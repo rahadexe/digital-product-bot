@@ -54,7 +54,7 @@ async def show_support_info(event: Message | CallbackQuery, state: FSMContext, s
     await respond(event, text, get_support_keyboard(handle, channels))
 
 
-GUIDE_TEXT = (
+GUIDE_TEXT_EN = (
     f"{ICON_NOTE} <b>How to use this bot</b>\n"
     f"━━━━━━━━━━━━━━━━━━\n\n"
     f"{ICON_DEPOSIT} <b>1. Add money</b>\n"
@@ -73,16 +73,45 @@ GUIDE_TEXT = (
     f"{ICON_REFER} <b>Earn while you are here</b>\n"
     f"<b>Refer & Earn</b> gives you your own link. When a friend joins with it, a bonus"
     f" lands in your wallet.\n\n"
-    f"{ICON_SUPPORT} Stuck on anything? Tap <b>Support</b> below."
+    f"{ICON_SUPPORT} Stuck on anything? Tap <b>Back</b> to reach Support."
+)
+
+GUIDE_TEXT_BN = (
+    f"{ICON_NOTE} <b>বট ব্যবহারের নিয়মাবলী</b>\n"
+    f"━━━━━━━━━━━━━━━━━━\n\n"
+    f"{ICON_DEPOSIT} <b>১. ব্যালেন্স যোগ করুন</b>\n"
+    f"কীবোর্ড থেকে <b>Add Balance</b> চাপুন এবং পেমেন্ট মেথড বেছে নিন। টাকা পাঠিয়ে Transaction ID বা প্রমাণ দিলে স্বয়ংক্রিয়ভাবে ওয়ালেটে ব্যালেন্স যুক্ত হয়ে যাবে।\n\n"
+    f"{ICON_SHOP} <b>২. পছন্দের প্রোডাক্ট নির্বাচন</b>\n"
+    f"কীবোর্ডের উপরের ক্যাটাগরিগুলো থেকে আপনার পছন্দের প্রোডাক্ট সিলেক্ট করুন। <b>−</b> এবং <b>+</b> বাটন চেপে সংখ্যা নির্ধারণ করুন।\n\n"
+    f"{ICON_CHECK} <b>৩. অর্ডার সম্পন্ন করুন</b>\n"
+    f"<b>Confirm</b> বাটনে চাপ দিলে ওয়ালেট থেকে ব্যালেন্স কেটে নিয়ে সাথে সাথে চ্যাটে ইনস্ট্যান্ট ডেলিভারি পেয়ে যাবেন (ম্যানুয়াল প্রোডাক্ট হলে অপারেটর শীঘ্রই ডেলিভারি দেবে)।\n\n"
+    f"{ICON_ORDERS} <b>৪. কেনা প্রোডাক্ট হিস্টোরি</b>\n"
+    f"আপনার কেনা সমস্ত প্রোডাক্ট এবং অর্ডারের বিবরণ <b>My Profile</b> সেকশনে সংরক্ষিত থাকে।\n\n"
+    f"{ICON_REFER} <b>রেফার করে আয় করুন</b>\n"
+    f"<b>Refer & Earn</b> অপশন থেকে আপনার রেফারেল লিংক শেয়ার করে প্রতি রেফারে আকর্ষণীয় বোনাস ব্যালেন্স আয় করুন।\n\n"
+    f"{ICON_SUPPORT} যেকোনো সমস্যায় নিচে <b>Back</b> চেপে সরাসরি সাপোর্টে যোগাযোগ করুন।"
 )
 
 
-@router.callback_query(F.data == "open_guide")
-async def show_guide_info(event: Message | CallbackQuery, state: FSMContext, services: Services):
-    """The guide describes this bot's own buttons."""
-    await state.clear()
-    keyboard = InlineKeyboardMarkup(
+def get_guide_keyboard(lang: str = "en") -> InlineKeyboardMarkup:
+    """Guide keyboard with language toggle and side-by-side Back + Close buttons."""
+    if lang == "bn":
+        toggle_btn = InlineKeyboardButton(
+            text="🌐 English (Global)",
+            callback_data="guide_lang_en",
+            style="primary",
+            icon_custom_emoji_id=Icons.GLOBE,
+        )
+    else:
+        toggle_btn = InlineKeyboardButton(
+            text="🇧🇩 বাংলায় দেখুন",
+            callback_data="guide_lang_bn",
+            style="primary",
+        )
+
+    return InlineKeyboardMarkup(
         inline_keyboard=[
+            [toggle_btn],
             [
                 InlineKeyboardButton(
                     text="Back",
@@ -100,14 +129,33 @@ async def show_guide_info(event: Message | CallbackQuery, state: FSMContext, ser
         ]
     )
 
+
+@router.callback_query(F.data == "open_guide")
+@router.callback_query(F.data == "guide_lang_en")
+async def show_guide_en(event: Message | CallbackQuery, state: FSMContext, services: Services):
+    """Render English guide."""
+    await state.clear()
+    keyboard = get_guide_keyboard("en")
     if isinstance(event, CallbackQuery):
         with suppress(TelegramBadRequest):
             await event.answer()
         if event.message:
             with suppress(TelegramBadRequest):
-                await send_operator_html(event.message.edit_text, GUIDE_TEXT, reply_markup=keyboard)
+                await send_operator_html(event.message.edit_text, GUIDE_TEXT_EN, reply_markup=keyboard)
     else:
-        await send_operator_html(event.answer, GUIDE_TEXT, reply_markup=keyboard)
+        await send_operator_html(event.answer, GUIDE_TEXT_EN, reply_markup=keyboard)
+
+
+@router.callback_query(F.data == "guide_lang_bn")
+async def show_guide_bn(event: CallbackQuery, state: FSMContext, services: Services):
+    """Render Bengali guide."""
+    await state.clear()
+    keyboard = get_guide_keyboard("bn")
+    with suppress(TelegramBadRequest):
+        await event.answer()
+    if event.message:
+        with suppress(TelegramBadRequest):
+            await send_operator_html(event.message.edit_text, GUIDE_TEXT_BN, reply_markup=keyboard)
 
 @router.message(Command("channel"))
 @router.message(Command("updates"))
