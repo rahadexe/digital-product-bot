@@ -118,6 +118,7 @@ ICON_NAGAD = tg_icon(Icons.NAGAD, "🔴")
 ICON_ROCKET_PURPLE = tg_icon(Icons.ROCKET_METHOD, "🟣")
 
 ICON_CONFIRM = tg_icon(Icons.CONFIRM, "✅")
+ICON_QUESTION = tg_icon(Icons.QUESTION, "❓")
 
 
 def get_method_icon(method: dict[str, Any]) -> str:

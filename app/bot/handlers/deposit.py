@@ -7,8 +7,6 @@ import time
 from contextlib import suppress
 from html import escape
 
-logger = logging.getLogger("app.bot.deposit")
-
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
@@ -17,27 +15,25 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.bot.formatting import callback_int, price, respond
+from app.bot.handlers.navigation import is_navigation, navigate
+from app.bot.handlers.start import render_main_dashboard
 from app.bot.icons import (
     ICON_BALANCE,
     ICON_BINANCE,
-    ICON_BKASH,
     ICON_CHECK,
     ICON_CROSS,
     ICON_DEPOSIT,
     ICON_KEY,
     ICON_LIGHTNING,
     ICON_MONEY,
-    ICON_NAGAD,
     ICON_NOTE,
-    ICON_ROCKET_PURPLE,
+    ICON_QUESTION,
     ICON_SPARKLES,
     ICON_TIMER,
     ICON_WARNING,
     Icons,
     get_method_icon,
 )
-from app.bot.handlers.navigation import is_navigation, navigate
-from app.bot.handlers.start import render_main_dashboard
 from app.bot.keyboards import (
     get_cancel_keyboard,
     get_deposit_amount_keyboard,
@@ -49,10 +45,14 @@ from app.services import Services
 from app.services.deposits import DuplicateTransactionError, PendingDepositError
 from app.services.errors import InvalidInputError
 
+logger = logging.getLogger("app.bot.deposit")
+
 router = Router(name="deposit_router")
 
 # Validates standard transaction IDs and numeric UIDs (bKash, Nagad, Binance, etc.)
 TRANSACTION_ID_REGEX = re.compile(r"^[A-Za-z0-9_\-]{5,80}$")
+# Hosted-invoice references this bot issues; see PaymentService.create_invoice.
+PAYMENT_REFERENCE = re.compile(r"SM[0-9A-F]{16}")
 # Rate limiting and attempt limits for automated TrxID verification
 MAX_VERIFY_ATTEMPTS = 3
 VERIFY_COOLDOWN_SECONDS = 600  # 10 minutes lockout after 3 failed attempts
@@ -1041,6 +1041,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                             f"{ICON_DEPOSIT} <b>Method:</b> {escape(method_name)}\n"
                             f"{ICON_MONEY} <b>Amount:</b> <code>{price(symbol, amount_num)}</code>\n"
                             f"{ICON_KEY} <b>Reference:</b> <code>{escape(clean_tx)}</code>\n"
+                            f"{ICON_NOTE} <b>Request ID:</b> <code>#{dep_id}</code>\n"
                             f"━━━━━━━━━━━━━━━━━━\n"
                             f"⚠️ Automated gateway verification timed out.\n\n"
                             f"✅ <b>Your funds are completely safe!</b> Your request has been forwarded to admin review. Our team will verify and credit your balance shortly."
@@ -1052,6 +1053,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                             f"↳ <b>Method:</b> {escape(method_name)}\n"
                             f"↳ <b>Amount:</b> {price(symbol, amount_num)}\n"
                             f"↳ <b>Transaction ID:</b> <code>{escape(clean_tx)}</code>\n"
+                            f"↳ <b>Request ID:</b> <code>#{dep_id}</code>\n"
                             f"━━━━━━━━━━━━━━━━━━\n"
                             f"⚠️ গেটওয়ে থেকে ট্রানজ্যাকশনটি তাৎক্ষণিক স্বয়ংক্রিয়ভাবে ডিটেক্ট হয়নি।\n\n"
                             f"✅ <b>চিন্তার কোনো কারণ নেই, আপনার টাকা সম্পূর্ণ নিরাপদ!</b>\n"

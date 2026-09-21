@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import math
 import re
 from contextlib import suppress
@@ -19,25 +18,22 @@ from aiogram.types import (
     Message,
 )
 
-from app.bot.formatting import callback_int, format_dual_price, price, respond
+from app.bot.formatting import callback_int, format_dual_price, respond
 from app.bot.icons import (
-    Icons,
     ICON_BALANCE,
     ICON_CART,
+    ICON_CHECK,
     ICON_CROSS,
-    ICON_CROWN,
     ICON_DEPOSIT,
-    ICON_GLOBE,
-    ICON_MAIL,
     ICON_MONEY,
     ICON_NOTE,
     ICON_ORDERS,
-    ICON_SHIELD,
     ICON_SHOP,
     ICON_STATS,
     ICON_TIMER,
     ICON_VIP,
     ICON_WARNING,
+    Icons,
     tg_icon,
 )
 from app.bot.keyboards import (
@@ -116,7 +112,6 @@ async def show_category_or_validity(
     if category.get("has_validity_filter") == 1:
         validities = await services.catalog.category_validities(cat_id)
         if validities:
-            cat_name = category["name"]
             cat_emoji_id = category.get("custom_emoji_id")
             cat_icon = category.get("icon") or "📁"
             if cat_emoji_id and str(cat_emoji_id).strip().isdigit():
@@ -955,7 +950,7 @@ async def execute_quantity_purchase(query: CallbackQuery, state: FSMContext, ser
         is_waiting = order.get("fulfillment") == "waiting"
         success_title = f"{ICON_TIMER} <b>Order Placed!</b>" if is_waiting else f"{ICON_CHECK} <b>Purchase Successful!</b>"
         below_text = (
-            f"<i>Payment successful! Your order is being prepared and will be delivered shortly.</i>"
+            "<i>Payment successful! Your order is being prepared and will be delivered shortly.</i>"
             if is_waiting
             else "<i>Your order details and delivery are below 👇</i>"
         )
@@ -993,7 +988,7 @@ async def execute_legacy_purchase(query: CallbackQuery, state: FSMContext, servi
         is_waiting = order.get("fulfillment") == "waiting"
         success_title = f"{ICON_TIMER} <b>Order Placed!</b>" if is_waiting else f"{ICON_CHECK} <b>Purchase Successful!</b>"
         below_text = (
-            f"<i>Payment successful! Your order is being prepared and will be delivered shortly.</i>"
+            "<i>Payment successful! Your order is being prepared and will be delivered shortly.</i>"
             if is_waiting
             else "<i>Your order details and delivery are below 👇</i>"
         )

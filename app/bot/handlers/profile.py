@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import math
 from contextlib import suppress
 from datetime import datetime
 from html import escape
-import math
 from urllib.parse import quote
 
 from aiogram import F, Router
@@ -23,6 +23,7 @@ from app.bot.formatting import callback_int, format_dual_price, price, respond
 from app.bot.icons import (
     ICON_ACCOUNT,
     ICON_BALANCE,
+    ICON_CART,
     ICON_CHECK,
     ICON_COIN,
     ICON_CROSS,
@@ -39,7 +40,7 @@ from app.bot.icons import (
     ICON_RESELLER,
     ICON_ROCKET,
     ICON_SHIELD,
-    ICON_SPARKLES,
+    ICON_SHOP,
     ICON_SPENT,
     ICON_STATS,
     ICON_SUPPORT,
@@ -55,6 +56,26 @@ router = Router(name="profile_router")
 
 ORDERS_PAGE_SIZE = 5
 INLINE_CREDENTIAL_LIMIT = 500
+
+
+def reseller_api_links(config) -> tuple[str, list[list[InlineKeyboardButton]]]:
+    """The endpoint to show and the docs button row.
+
+    Telegram refuses a button pointing at a private address and drops the whole message with it,
+    so a store without a public https address gets the text without the link.
+    """
+    base = config.console_url
+    if not base:
+        return "<i>Available once the store has a public address. Contact support.</i>", []
+    return (
+        f"<code>{base}/api/v1/reseller</code>",
+        [[InlineKeyboardButton(
+            text="View API Docs",
+            url=f"{base}/api/v1/reseller/docs",
+            style="primary",
+            icon_custom_emoji_id=Icons.NOTE,
+        )]],
+    )
 
 
 
@@ -132,8 +153,6 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
     if not tg_user:
         return
 
-    user = await services.users.get(tg_user.id)
-    balance = user["balance"] if user else 0.0
     symbol = await services.settings.get("currency_symbol")
     reward_amount = await services.settings.number("referral_reward_amount")
     reward_enabled = await services.settings.flag("referral_enabled")
@@ -141,7 +160,6 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
     show_usd = await services.settings.flag("show_usd_price")
 
     reward_str = format_dual_price(reward_amount, symbol, usd_rate=usd_rate, show_usd=show_usd)
-    balance_str = format_dual_price(balance, symbol, usd_rate=usd_rate, show_usd=show_usd)
 
     async with services.db.connect() as conn:
         row = await conn.fetchrow(
@@ -158,7 +176,6 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
         total_earned = float(row["total_earned"]) if row else 0.0
 
     total_earned_str = format_dual_price(total_earned, symbol, usd_rate=usd_rate, show_usd=show_usd)
-    status_badge = "🟢 Active" if reward_enabled and reward_amount > 0 else "⚪ Disabled"
 
     bot_user = await services.notifier.bot_username()
     ref_link = f"https://t.me/{bot_user}?start=ref_{tg_user.id}"
@@ -235,9 +252,7 @@ async def show_reseller_info(event: Message | CallbackQuery, state: FSMContext |
     user = await services.users.get(tg_user.id)
     is_reseller = (user.get("rank") or "").strip().lower() == "reseller" if user else False
 
-    cfg = services.config
-    base_url = cfg.webhook_base_url.rstrip("/") if cfg.webhook_base_url else (cfg.webapp_url or "http://127.0.0.1:8000")
-    docs_url = f"{base_url}/api/v1/reseller/docs"
+    endpoint_text, docs_rows = reseller_api_links(services.config)
 
     if is_reseller:
         key = await services.reseller.get_latest_key(tg_user.id)
@@ -272,11 +287,11 @@ async def show_reseller_info(event: Message | CallbackQuery, state: FSMContext |
             f"{ICON_SPENT} <b>Recent Spend:</b> <code>{recent_spend_str}</code>\n"
             f"{ICON_KEY} <b>Current Key:</b> {key_display}\n\n"
             f"<b>Available actions</b>\n"
-            f"{ICON_PRODUCTS} <b>Product list:</b> <code>GET /api/v1/reseller/products</code>\n"
+            f"{ICON_SHOP} <b>Product list:</b> <code>GET /api/v1/reseller/products</code>\n"
             f"{ICON_ACCOUNT} <b>Balance check:</b> <code>GET /api/v1/reseller/me</code>\n"
             f"{ICON_CART} <b>Place order:</b> <code>POST /api/v1/reseller/orders</code>\n\n"
             f"<b>Endpoint URL</b>\n"
-            f"<code>{base_url}/api/v1/reseller</code>"
+            f"{endpoint_text}"
         )
 
         rows = []
@@ -317,14 +332,7 @@ async def show_reseller_info(event: Message | CallbackQuery, state: FSMContext |
                 )
             ])
 
-        rows.append([
-            InlineKeyboardButton(
-                text="View API Documentation",
-                url=docs_url,
-                style="primary",
-                icon_custom_emoji_id=Icons.NOTE,
-            )
-        ])
+        rows.extend(docs_rows)
         rows.append([
             InlineKeyboardButton(
                 text="Refresh",
@@ -436,8 +444,7 @@ async def reseller_generate_key_handler(event: CallbackQuery, services: Services
         return
 
     raw_key, _ = await services.reseller.generate_key(tg_user.id)
-    cfg = services.config
-    base_url = cfg.webhook_base_url.rstrip("/") if cfg.webhook_base_url else (cfg.webapp_url or "http://127.0.0.1:8000")
+    endpoint_text, docs_rows = reseller_api_links(services.config)
 
     text = (
         f"{ICON_CHECK} <b>Reseller API Key Generated!</b>\n\n"
@@ -446,7 +453,7 @@ async def reseller_generate_key_handler(event: CallbackQuery, services: Services
         f"{ICON_WARNING} <b>Important Security Notice:</b>\n"
         f"• এই এপিআই কি-টি সম্পূর্ণ গোপন রাখুন। এর মাধ্যমে আপনার ওয়ালেট ব্যালেন্স ব্যবহার করে কেনাকাটা করা সম্ভব।\n"
         f"• এটি শুধুমাত্র একবারই সম্পূর্ণ প্রদর্শিত হবে। কপি করে নিরাপদ স্থানে সংরক্ষণ করুন।\n\n"
-        f"{ICON_GLOBE} <b>API Base URL:</b>\n<code>{base_url}/api/v1/reseller</code>"
+        f"{ICON_GLOBE} <b>API Base URL:</b>\n{endpoint_text}"
     )
 
     kb = InlineKeyboardMarkup(
@@ -459,14 +466,7 @@ async def reseller_generate_key_handler(event: CallbackQuery, services: Services
                     icon_custom_emoji_id=Icons.NOTE,
                 )
             ],
-            [
-                InlineKeyboardButton(
-                    text="View API Docs",
-                    url=f"{base_url}/api/v1/reseller/docs",
-                    style="primary",
-                    icon_custom_emoji_id=Icons.NOTE,
-                )
-            ],
+            *docs_rows,
             [
                 InlineKeyboardButton(
                     text="Back to Portal",
@@ -491,8 +491,7 @@ async def reseller_reveal_key_handler(event: CallbackQuery, services: Services):
         await event.answer("No active key found. Please generate one.", show_alert=True)
         return
 
-    cfg = services.config
-    base_url = cfg.webhook_base_url.rstrip("/") if cfg.webhook_base_url else (cfg.webapp_url or "http://127.0.0.1:8000")
+    _, docs_rows = reseller_api_links(services.config)
 
     text = (
         f"{ICON_KEY} <b>Reseller API Key Info</b>\n\n"
@@ -512,14 +511,7 @@ async def reseller_reveal_key_handler(event: CallbackQuery, services: Services):
                     icon_custom_emoji_id=Icons.REFRESH,
                 )
             ],
-            [
-                InlineKeyboardButton(
-                    text="View API Docs",
-                    url=f"{base_url}/api/v1/reseller/docs",
-                    style="primary",
-                    icon_custom_emoji_id=Icons.NOTE,
-                )
-            ],
+            *docs_rows,
             [
                 InlineKeyboardButton(
                     text="Back to Portal",
@@ -578,8 +570,7 @@ async def reseller_regen_confirm_handler(event: CallbackQuery, services: Service
         return
 
     raw_key, _ = await services.reseller.generate_key(tg_user.id)
-    cfg = services.config
-    base_url = cfg.webhook_base_url.rstrip("/") if cfg.webhook_base_url else (cfg.webapp_url or "http://127.0.0.1:8000")
+    _, docs_rows = reseller_api_links(services.config)
 
     text = (
         f"{ICON_CHECK} <b>New API Key Generated Successfully!</b>\n\n"
@@ -597,14 +588,7 @@ async def reseller_regen_confirm_handler(event: CallbackQuery, services: Service
                     icon_custom_emoji_id=Icons.NOTE,
                 )
             ],
-            [
-                InlineKeyboardButton(
-                    text="View API Docs",
-                    url=f"{base_url}/api/v1/reseller/docs",
-                    style="primary",
-                    icon_custom_emoji_id=Icons.NOTE,
-                )
-            ],
+            *docs_rows,
             [
                 InlineKeyboardButton(
                     text="Back to Portal",
@@ -621,9 +605,7 @@ async def reseller_regen_confirm_handler(event: CallbackQuery, services: Service
 
 @router.callback_query(F.data == "reseller_quick_guide")
 async def reseller_quick_guide_handler(event: CallbackQuery, services: Services):
-    cfg = services.config
-    base_url = cfg.webhook_base_url.rstrip("/") if cfg.webhook_base_url else (cfg.webapp_url or "http://127.0.0.1:8000")
-    docs_url = f"{base_url}/api/v1/reseller/docs"
+    _, docs_rows = reseller_api_links(services.config)
 
     text = (
         f"{ICON_NOTE} <b>Reseller API Quick Integration Guide</b>\n\n"
@@ -640,14 +622,7 @@ async def reseller_quick_guide_handler(event: CallbackQuery, services: Services)
     )
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text="Open Web Docs",
-                    url=docs_url,
-                    style="primary",
-                    icon_custom_emoji_id=Icons.GLOBE,
-                )
-            ],
+            *docs_rows,
             [
                 InlineKeyboardButton(
                     text="Back to Portal",
