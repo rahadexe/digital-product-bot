@@ -84,13 +84,12 @@ class AnnouncementService:
         button = await self._buy_button(product, f"Buy {product['title']}")
 
         admin_delivered = await self.notifier.send_admin(
-            f"{ICON_ORDERS} <b>Stock Added (Restock Alert)</b>\n"
+            f"{ICON_ORDERS} <b>Restocked</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"{ICON_VIP} <b>Product:</b> {icon} <b>{title}</b>\n"
+            f"{icon} <b>{title}</b>\n"
             f"{duration_line}"
-            f"{ICON_PLUS} <b>Added Stock:</b> <code>{added_count}</code> item(s)\n"
-            f"{ICON_SHOP} <b>Total Stock:</b> <code>{product['stock']}</code> units\n"
-            f"{ICON_MONEY} <b>Price:</b> <code>{format_dual_price(product['price'], symbol)}</code>",
+            f"{ICON_PLUS} <code>+{added_count}</code> · now <code>{product['stock']}</code> in stock\n"
+            f"{ICON_MONEY} <code>{format_dual_price(product['price'], symbol)}</code>",
             event="restock",
             keyboard=button,
         )

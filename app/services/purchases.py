@@ -300,13 +300,10 @@ class PurchaseService:
                         )
                     ]])
                 alert_text = (
-                    f"{ICON_WARNING} <b>CRITICAL: Product Out of Stock!</b>\n"
+                    f"{ICON_CROSS} <b>Sold out</b>\n"
                     f"━━━━━━━━━━━━━━━━━━\n"
-                    f"{ICON_VIP} <b>Product:</b> {escape(order['product_title'])}\n"
-                    f"{ICON_SHOP} <b>Available Stock:</b> <code>0</code> units (Sold Out)\n"
-                    f"{ICON_CROSS} <b>Status:</b> Customers cannot purchase this item until restocked.\n"
-                    f"━━━━━━━━━━━━━━━━━━\n"
-                    f"⚠️ <i>Please add fresh inventory stock immediately.</i>"
+                    f"{ICON_VIP} {escape(order['product_title'])}\n"
+                    f"<i>Nobody can buy it until you restock.</i>"
                 )
                 await self.notifier.send_admin(
                     alert_text,
@@ -324,13 +321,10 @@ class PurchaseService:
                         )
                     ]])
                 alert_text = (
-                    f"{ICON_WARNING} <b>Low Stock Warning!</b>\n"
+                    f"{ICON_WARNING} <b>Running low</b>\n"
                     f"━━━━━━━━━━━━━━━━━━\n"
-                    f"{ICON_VIP} <b>Product:</b> {escape(order['product_title'])}\n"
-                    f"{ICON_SHOP} <b>Available Stock:</b> only <code>{rem_stock}</code> unit{'s' if rem_stock > 1 else ''} left!\n"
-                    f"{ICON_TIMER} <b>Alert Threshold:</b> <code>&le; {threshold}</code> units\n"
-                    f"━━━━━━━━━━━━━━━━━━\n"
-                    f"⚠️ <i>Stock is running out quickly. Please prepare restock soon.</i>"
+                    f"{ICON_VIP} {escape(order['product_title'])}\n"
+                    f"{ICON_SHOP} <code>{rem_stock}</code> left"
                 )
                 await self.notifier.send_admin(
                     alert_text,

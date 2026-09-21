@@ -61,15 +61,14 @@ class UserService:
             )
             result = dict(row)
             if row["is_new"]:
-                cust = f"@{escape(username)}" if username else "No username"
-                full_name = escape(" ".join(filter(None, [first_name, last_name])) or "New User")
+                cust = f" · @{escape(username)}" if username else ""
+                full_name = escape(" ".join(filter(None, [first_name, last_name])) or "No name")
                 self.notifier.in_background(
                     self.notifier.send_admin(
-                        f"{ICON_ACCOUNT} <b>New Customer Joined</b>\n"
+                        f"{ICON_ACCOUNT} <b>New customer</b>\n"
                         f"━━━━━━━━━━━━━━━━━━\n"
-                        f"{ICON_ACCOUNT} <b>Name:</b> {full_name}\n"
-                        f"{ICON_ACCOUNT} <b>Username:</b> {cust}\n"
-                        f"{ICON_ID} <b>Telegram ID:</b> <code>{tg_user_id}</code>",
+                        f"{full_name}{cust}\n"
+                        f"{ICON_ID} <code>{tg_user_id}</code>",
                         event="new_user",
                     )
                 )

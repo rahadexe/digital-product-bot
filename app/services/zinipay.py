@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
+from contextlib import suppress
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -45,6 +47,15 @@ def _matches_receipt(data: dict[str, Any], amount: float, transaction_id: str) -
     stated = [str(data[key]).strip() for key in ('trxID', 'transactionId') if data.get(key) is not None]
     wanted = transaction_id.strip().upper()
     return bool(stated) and all(value.upper() == wanted for value in stated)
+
+
+# A bKash or Nagad receipt does not reach the gateway the instant the customer taps send:
+# the merchant SIM has to receive the SMS and the gateway has to ingest it. That regularly
+# takes half a minute. Giving up after one quick retry told paying customers their
+# transaction did not exist, and cost them one of their three attempts for it. Wait out the
+# sync instead, reporting progress, and only call it missing once these are exhausted.
+SMS_SYNC_RETRY_DELAYS = (3.0, 7.0, 12.0, 20.0)
+SMS_SYNC_WINDOW_SECONDS = sum(SMS_SYNC_RETRY_DELAYS)
 
 
 class ZiniPayVerificationService:
@@ -203,8 +214,14 @@ class ZiniPayVerificationService:
         transaction_id: str,
         *,
         quoted_rate: float = 1.0,
+        on_sync_wait: Callable[[float, float], Awaitable[None]] | None = None,
     ) -> dict[str, Any]:
-        """Attempt to auto-verify transaction via ZiniPay, or fall back to manual deposit queue."""
+        """Attempt to auto-verify transaction via ZiniPay, or fall back to manual deposit queue.
+
+        ``on_sync_wait(waited, total)`` is awaited before each wait for the receipt SMS to
+        reach the gateway, so the caller can keep the customer informed rather than leaving
+        them on a silent spinner.
+        """
         clean_tx = str(transaction_id).strip()
 
         # 1. Pre-check: has this TrxID already been credited?
@@ -232,11 +249,18 @@ class ZiniPayVerificationService:
         # 3. Step 1: Verify via ZiniPay
         verify_res = await self.verify(amount, clean_tx)
         logger.info("ZiniPay verification outcome: ok=%s", verify_res.get("ok"))
-        if not verify_res.get("ok") and verify_res.get("reason") == "not_found":
-            logger.info("Trx %s not found on first attempt. Waiting 3s for SMS sync retry...", clean_tx)
-            await asyncio.sleep(3.0)
+        waited = 0.0
+        for delay in SMS_SYNC_RETRY_DELAYS:
+            if verify_res.get("ok") or verify_res.get("reason") != "not_found":
+                break
+            logger.info("Trx %s not found yet; waiting %.0fs more for SMS sync", clean_tx, delay)
+            if on_sync_wait:
+                with suppress(Exception):
+                    await on_sync_wait(waited + delay, SMS_SYNC_WINDOW_SECONDS)
+            await asyncio.sleep(delay)
+            waited += delay
             verify_res = await self.verify(amount, clean_tx)
-            logger.info("ZiniPay verification retry: ok=%s", verify_res.get("ok"))
+            logger.info("ZiniPay verification retry after %.0fs: ok=%s", waited, verify_res.get("ok"))
         if not verify_res.get("ok"):
             reason = verify_res.get("reason")
             msg = verify_res.get("message") or ""

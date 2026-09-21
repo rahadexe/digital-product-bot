@@ -292,7 +292,7 @@ async def cmd_reset_welcome(message: Message, services: Services):
         f"━━━━━━━━━━━━━━━━━━\n"
         f"<b>Default greeting:</b>\n"
         f"Welcome to <b>{html.escape(store_name)}</b>!\n\n"
-        f"💡 <i>This is now active for all users and updated in the console.</i>"
+        f"{ICON_NOTE} <i>Live for every customer now, and visible in the console.</i>"
     )
 
 
@@ -445,7 +445,7 @@ async def _save_welcome_text(message: Message, text: str, services: Services):
         f"<b>Preview:</b>\n"
         f"{preview_display}\n\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"💡 <i>This is now active for all users and updated in the console.</i>\n"
+        f"{ICON_NOTE} <i>Live for every customer now, and visible in the console.</i>\n"
         f"<i>(To reset to default anytime, send <code>/resetwelcome</code>)</i>"
     )
 
@@ -494,6 +494,14 @@ async def on_bot_chat_member_updated(event: ChatMemberUpdated, services: Service
         )
         with suppress(Exception):
             await bot.leave_chat(chat.id)
+        await _alert_once(
+            services, "group", str(chat.id),
+            f"{ICON_SHIELD} <b>Group invite rejected</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{ICON_CHANNEL} {html.escape(chat.title or 'Unknown')} · <code>{chat.id}</code>\n"
+            f"{ICON_ACCOUNT} Added by <code>{actor_id}</code>\n\n"
+            f"<i>The bot left. Groups are never allowed.</i>",
+        )
         return
 
     # 2. CHANNEL: Only allow explicitly authorized announcement or gate channels.
@@ -548,6 +556,16 @@ async def on_bot_chat_member_updated(event: ChatMemberUpdated, services: Service
             )
             with suppress(Exception):
                 await bot.leave_chat(chat.id)
+            await _alert_once(
+                services, "channel", str(chat.id),
+                f"{ICON_SHIELD} <b>Unauthorised channel</b>\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"{ICON_CHANNEL} {html.escape(chat.title or 'Unknown')}"
+                f"{' · @' + chat_user if chat_user else ''} · <code>{chat.id}</code>\n"
+                f"{ICON_ACCOUNT} Added by <code>{actor_id}</code>\n\n"
+                f"<i>The bot left, so nothing can be broadcast from it. Add the channel in "
+                f"Settings → Channels first.</i>",
+            )
             return
 
         logger.info(

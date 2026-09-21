@@ -4,6 +4,7 @@ from fastapi import APIRouter, Body, HTTPException
 
 from app.api.admin.auth import WRITE
 from app.api.deps import ServicesDep
+from app.bot.icons import ICON_CHECK
 
 router = APIRouter()
 
@@ -44,9 +45,9 @@ async def test_admin_notification(services: ServicesDep):
     for cid in chat_ids:
         ok = await services.notifier.send(
             cid,
-            "🔔 <b>Admin Notification Test</b>\n\n"
-            "This is a test notification from your Store Console.\n"
-            "If you see this message, your Telegram ID is correctly configured and alerts are working! 🎉",
+            f"{ICON_CHECK} <b>Alerts are reaching you</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"<i>Sent from the console to check this Telegram account.</i>",
         )
         results.append({
             "chat_id": cid,
