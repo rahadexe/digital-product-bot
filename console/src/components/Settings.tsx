@@ -202,8 +202,6 @@ const SECTIONS: Section[] = [
     title: 'Announcements',
     fields: [
       { key: 'announcement_channel', label: 'Announcement channel', placeholder: '@YourChannel or -100…' },
-      { key: 'auto_restock_alerts', label: 'Post to channel on restock', type: 'toggle' },
-      { key: 'auto_price_drop_alerts', label: 'Post to channel on price drop', type: 'toggle' },
     ],
   },
 ];
