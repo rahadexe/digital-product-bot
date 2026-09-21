@@ -665,7 +665,11 @@ async def paginate_products(query: CallbackQuery, state: FSMContext, services: S
             await query.message.edit_text(title, reply_markup=keyboard)
 
 
-@router.callback_query(F.data.startswith("prod_"))
+# Matches prod_<id> only. A startswith("prod_") filter also swallowed
+# prod_desc_<id>, because the first handler registered for a callback wins,
+# and that one answered "Product not found" after failing to read "desc_12"
+# as a number.
+@router.callback_query(F.data.regexp(r"^prod_\d+$"))
 async def show_product_detail(query: CallbackQuery, state: FSMContext, services: Services):
     await state.clear()
     product_id = callback_int(query.data, "prod_")
