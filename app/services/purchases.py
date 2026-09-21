@@ -225,18 +225,25 @@ class PurchaseService:
         if waiting_reason:
             heading = f"{ICON_TIMER} <b>Manual Order Action Required</b>"
             delivery = f"{ICON_WARNING} <b>Delivery:</b> Manual Fulfillment Required"
-            if console:
-                keyboard = InlineKeyboardMarkup(
-                    inline_keyboard=[
-                        [
-                            InlineKeyboardButton(
-                                text=f"Deliver Order #{order_id}",
-                                url=f"{console}/#orders/{order_id}",
-                                icon_custom_emoji_id=Icons.ORDERS,
-                            )
-                        ]
-                    ]
+            # The customer has paid and is waiting for a human. Let that human
+            # answer from the chat the alert arrived in.
+            rows = [[
+                InlineKeyboardButton(
+                    text=f"Deliver #{order_id} here",
+                    callback_data=f"adm_ord_deliver_{order_id}",
+                    style="success",
+                    icon_custom_emoji_id=Icons.ORDERS,
                 )
+            ]]
+            if console:
+                rows.append([
+                    InlineKeyboardButton(
+                        text="Open in console",
+                        url=f"{console}/#orders/{order_id}",
+                        icon_custom_emoji_id=Icons.NOTE,
+                    )
+                ])
+            keyboard = InlineKeyboardMarkup(inline_keyboard=rows)
         else:
             heading = f"{ICON_SHOP} <b>New Order Received</b>"
             delivery = f"{ICON_CHECK} <b>Delivery:</b> Instant (Delivered)"

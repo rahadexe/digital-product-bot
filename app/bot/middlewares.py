@@ -58,6 +58,13 @@ class Throttle(BaseMiddleware):
         allowed, notify = self._take(user.id, time.monotonic())
         if allowed:
             return await handler(event, data)
+        # Working through a queue of deposits or orders is two taps each, so an owner
+        # clearing a backlog empties the bucket in seconds. A dropped tap is silent, which
+        # makes Approve look broken. The administrator list is a handful of trusted
+        # accounts and comes from the settings cache, so let them through.
+        services: Services | None = data.get("services")
+        if services and user.id in await services.settings.admin_chat_ids():
+            return await handler(event, data)
         if notify:
             with suppress(TelegramAPIError):
                 if isinstance(event, CallbackQuery):

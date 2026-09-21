@@ -326,22 +326,33 @@ class DepositService:
         payable = f"\n{ICON_COIN} <b>Customer pays:</b> {quote['pay_amount']:.2f} (rate {quote['rate']:g})" if quote["rate"] != 1 else ""
         note_line = f"\n⚠️ <b>Note:</b> <i>{escape(admin_note)}</i>" if admin_note else ""
 
+        # Reviewing a deposit is the most time-critical thing an operator does:
+        # a customer has already sent money and is waiting. Offer the decision
+        # here rather than only a link that costs a browser and a login.
         console = get_settings().console_url
-        keyboard = (
-            InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [
-                        InlineKeyboardButton(
-                            text=f"Review Deposit #{deposit_id}",
-                            url=f"{console}/#deposits",
-                            icon_custom_emoji_id=Icons.DEPOSIT,
-                        )
-                    ]
-                ]
-            )
-            if console
-            else None
-        )
+        rows = [[
+            InlineKeyboardButton(
+                text="Approve",
+                callback_data=f"adm_dep_ask_approve_{deposit_id}",
+                style="success",
+                icon_custom_emoji_id=Icons.CONFIRM,
+            ),
+            InlineKeyboardButton(
+                text="Reject",
+                callback_data=f"adm_dep_ask_reject_{deposit_id}",
+                style="danger",
+                icon_custom_emoji_id=Icons.CROSS,
+            ),
+        ]]
+        if console:
+            rows.append([
+                InlineKeyboardButton(
+                    text="Open in console",
+                    url=f"{console}/#deposits",
+                    icon_custom_emoji_id=Icons.DEPOSIT,
+                )
+            ])
+        keyboard = InlineKeyboardMarkup(inline_keyboard=rows)
 
         await self.notifier.send_admin(
             f"{ICON_DEPOSIT} <b>New Deposit Request #{deposit_id}</b>\n"
