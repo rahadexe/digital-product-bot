@@ -30,6 +30,17 @@
 | 7 | **Price Change Alerts** | `notify_admin_price_change` (`event="price_change"`) | Configurable (Default: 1) | Triggered when product prices or discounts are updated in the catalog. |
 | 8 | **New Customer Joined** | `notify_admin_new_user` (`event="new_user"`) | Configurable (Default: 0) | Triggered when a new Telegram user starts the bot and creates an account. |
 
+### 1.B 👥 Staff Order Notification Group (Dispatched to `order_notification_group`)
+
+| # | Notification | Trigger | Description |
+|---|---|---|---|
+| 1 | **Order Purchase & Receipt** | `purchases.py` (`purchase`) | Dispatched in real-time to the configured staff Telegram group (`order_notification_group`). Includes Order ID, Customer ID, Product, Dual-Price, and Console delivery button. |
+| 2 | **Order Refund Alert** | `purchases.py` (`refund`) | Dispatched to staff group when an admin issues a refund. |
+
+> **Security Standard for Groups:**
+> 1. The bot strictly rejects all customer shop commands (`/start`, `/buy`, wallet balances, delivery credentials) inside any group (`chat.type != "private"`).
+> 2. If the bot is added to an unauthorized group by a non-admin, the bot automatically leaves the chat and sends a security alert to the shop owner.
+
 ---
 
 ### 2. 👥 Customer Notifications (Sent directly to the user in the Telegram Bot)
@@ -48,10 +59,13 @@
 
 ### 3. 📢 Public Channel Auto-Posts (Dispatched to `announcement_channel`)
 
+> Supports single or multiple channels separated by commas (e.g. `-1004331909607, @SecondChannel`).
+> **Zero Customer Data Leakage:** ONLY public marketing announcements (Restock & Price Drop) are ever sent to announcement channels. Customer receipts, order details, and wallet data are strictly prohibited and architecturally excluded from public channels.
+
 | # | Announcement Name | Setting Key | Mode | Description |
 |---|---|---|---|---|
-| 1 | **Auto-post on Restock** | `auto_restock_alerts` | Configurable (Default: 1) | Posts restock announcements with 1-click Buy button directly to the channel. |
-| 2 | **Auto-post on Price Drop** | `auto_price_drop_alerts` | Configurable (Default: 1) | Posts discount announcements to the announcement channel when price drops. |
+| 1 | **Auto-post on Restock** | `auto_restock_alerts` | Configurable (Default: 1) | Posts restock announcements with 1-click Buy button directly to all configured channels. |
+| 2 | **Auto-post on Price Drop** | `auto_price_drop_alerts` | Configurable (Default: 1) | Posts discount announcements to all configured announcement channels when price drops. |
 
 ---
 

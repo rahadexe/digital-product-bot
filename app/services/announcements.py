@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from html import escape
 from typing import Any
 
@@ -67,6 +68,11 @@ class AnnouncementService:
         product = await self.catalog.product(product_id)
         return product if product and product["is_active"] else None
 
+    def _channels(self, raw: str) -> list[str]:
+        if not raw:
+            return []
+        return [c.strip() for c in re.split(r"[\s,;]+", raw) if c.strip()]
+
     async def restock(self, product_id: int, added_count: int) -> bool:
         product = await self._active_product(product_id)
         if not product:
@@ -89,21 +95,27 @@ class AnnouncementService:
             event="restock",
             keyboard=button,
         )
-        channel = values.get("announcement_channel")
-        if not channel or values.get("auto_restock_alerts", "1") == "0":
+        raw_channels = values.get("announcement_channel", "")
+        channels = self._channels(raw_channels)
+        if not channels or values.get("auto_restock_alerts", "1") == "0":
             return admin_delivered
-        channel_delivered = await self.notifier.send(
-            channel,
-            f"{ICON_ORDERS} <b>Fresh Restock Alert!</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"{ICON_VIP} <b>Product:</b> {icon} <b>{title}</b>\n"
-            f"{duration_line}"
-            f"{ICON_SPARKLES} <b>Fresh Stock:</b> <code>{added_count} units</code>\n"
-            f"{ICON_SHOP} <b>Available:</b> <code>{product['stock']} accounts</code>\n"
-            f"{ICON_MONEY} <b>Price:</b> <code>{format_dual_price(product['price'], symbol)}</code>\n"
-            f"{ICON_CHECK} <b>Delivery:</b> Instant Automatic Delivery",
-            button,
-        )
+
+        channel_delivered = False
+        for ch in channels:
+            deliv = await self.notifier.send(
+                ch,
+                f"{ICON_ORDERS} <b>Fresh Restock Alert!</b>\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"{ICON_VIP} <b>Product:</b> {icon} <b>{title}</b>\n"
+                f"{duration_line}"
+                f"{ICON_SPARKLES} <b>Fresh Stock:</b> <code>{added_count} units</code>\n"
+                f"{ICON_SHOP} <b>Available:</b> <code>{product['stock']} accounts</code>\n"
+                f"{ICON_MONEY} <b>Price:</b> <code>{format_dual_price(product['price'], symbol)}</code>\n"
+                f"{ICON_CHECK} <b>Delivery:</b> Instant Automatic Delivery",
+                button,
+            )
+            if deliv:
+                channel_delivered = True
         return admin_delivered or channel_delivered
 
     async def price_change(self, product_id: int, old_price: float, new_price: float) -> bool:
@@ -142,10 +154,8 @@ class AnnouncementService:
             f"━━━━━━━━━━━━━━━━━━\n"
             f"{ICON_VIP} <b>Product:</b> {icon} <b>{title}</b>\n"
             f"{duration_line}"
-            f"{ICON_SPENT} <b>Previous Price:</b> <s>{format_dual_price(old_price, symbol)}</s>\n"
-            f"{ICON_MONEY} <b>New Price:</b> <code>{format_dual_price(new_price, symbol)}</code>\n"
             f"{diff_line}"
-            f"{ICON_SHOP} <b>Available Stock:</b> <code>{product['stock']} units</code>\n"
+            f"{ICON_MONEY} <b>New Price:</b> <code>{format_dual_price(new_price, symbol)}</code>\n"
             f"{delivery_line}"
         )
 
@@ -156,15 +166,19 @@ class AnnouncementService:
             keyboard=button,
         )
 
-        # 2. Deliver to Channel if configured and auto_price_drop_alerts is enabled
-        channel = values.get("announcement_channel")
+        # 2. Deliver to Channels if configured and auto_price_drop_alerts is enabled
+        raw_channels = values.get("announcement_channel", "")
+        channels = self._channels(raw_channels)
         channel_delivered = False
-        if channel and values.get("auto_price_drop_alerts", "1") != "0":
-            channel_delivered = await self.notifier.send(
-                channel,
-                msg_body,
-                button,
-            )
+        if channels and values.get("auto_price_drop_alerts", "1") != "0":
+            for ch in channels:
+                deliv = await self.notifier.send(
+                    ch,
+                    msg_body,
+                    button,
+                )
+                if deliv:
+                    channel_delivered = True
 
         return admin_delivered or channel_delivered
 
@@ -205,14 +219,18 @@ class AnnouncementService:
             keyboard=button,
         )
 
-        # 2. Post to channel if configured
-        channel = values.get("announcement_channel")
+        # 2. Post to channels if configured
+        raw_channels = values.get("announcement_channel", "")
+        channels = self._channels(raw_channels)
         channel_delivered = False
-        if channel:
-            channel_delivered = await self.notifier.send(
-                channel,
-                text,
-                button,
-            )
+        if channels:
+            for ch in channels:
+                deliv = await self.notifier.send(
+                    ch,
+                    text,
+                    button,
+                )
+                if deliv:
+                    channel_delivered = True
 
         return admin_delivered or channel_delivered

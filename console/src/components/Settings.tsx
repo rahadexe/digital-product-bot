@@ -199,13 +199,26 @@ const SECTIONS: Section[] = [
   {
     id: 'announcements',
     tab: 'channels',
-    title: 'Announcement channel',
+    title: 'Announcement channels',
     fields: [
       {
         key: 'announcement_channel',
-        label: 'Announcement channel',
-        hint: 'The Telegram channel where the bot posts restock and price drop alerts.',
-        placeholder: '@YourChannel or -100…',
+        label: 'Public announcement channels',
+        hint: 'Public Telegram channels where the bot posts restock and price drop alerts. Enter single or multiple channels separated by commas (e.g. -1004331909607, @MyChannel).',
+        placeholder: '-1004331909607, @SecondChannel',
+      },
+    ],
+  },
+  {
+    id: 'order_notifications',
+    tab: 'channels',
+    title: 'Order notification group',
+    fields: [
+      {
+        key: 'order_notification_group',
+        label: 'Staff Telegram group chat ID',
+        hint: 'Private Telegram group where real-time order receipts, customer purchases, and manual delivery alerts are posted for staff/admins. Add the bot to the group as an admin.',
+        placeholder: '-100… or @YourStaffGroup',
       },
     ],
   },

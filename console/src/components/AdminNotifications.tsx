@@ -25,7 +25,7 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
             <span>Public channel announcements</span>
           </h3>
           <p>
-            Automated marketing posts dispatched to your Telegram announcement channel ({channel ? <code>{channel}</code> : 'configured in Channels tab'}).
+            Automated marketing posts dispatched to your Telegram announcement channels ({channel ? <code>{channel}</code> : 'configured in Channels tab'}).
           </p>
         </div>
       </div>
@@ -33,14 +33,14 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
       <div className="rows">
         <FlagRow
           label="Auto-post on Restock"
-          hint="Automatically posts an announcement with a 1-click Buy button to your channel whenever stock is added"
+          hint="Automatically posts an announcement with a 1-click Buy button to your channels whenever stock is added"
           on={isOn('auto_restock_alerts', '1')}
           onChange={(next) => void flip('auto_restock_alerts', next)}
         />
 
         <FlagRow
           label="Auto-post on Price Drop"
-          hint="Automatically posts discount announcements to your channel when a product price is reduced"
+          hint="Automatically posts discount announcements to your channels when a product price is reduced"
           on={isOn('auto_price_drop_alerts', '1')}
           onChange={(next) => void flip('auto_price_drop_alerts', next)}
         />
@@ -54,7 +54,7 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
             <span>Admin alert preferences</span>
           </h3>
           <p>
-            Notifications dispatched directly to the Telegram accounts configured under &ldquo;Who runs this shop&rdquo;.
+            Notifications dispatched to Telegram accounts under &ldquo;Who runs this shop&rdquo; and your Order Notification Group.
           </p>
         </div>
       </div>

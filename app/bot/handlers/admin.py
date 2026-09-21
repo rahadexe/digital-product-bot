@@ -4,14 +4,15 @@ from __future__ import annotations
 
 import html
 import logging
+import re
 from contextlib import suppress
 
-from aiogram import F, Router
+from aiogram import Bot, F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import CallbackQuery, ChatMemberUpdated, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.bot.icons import (
     ICON_ACCOUNT,
@@ -221,3 +222,78 @@ async def cmd_admin_help(message: Message, services: Services):
         f"• <code>/bcstatus</code> — Check latest delivery status\n"
         f"• <code>/cancel</code> — Cancel active action"
     )
+
+
+@router.my_chat_member()
+async def on_bot_chat_member_updated(event: ChatMemberUpdated, services: Services, bot: Bot):
+    """
+    Security check: when bot is added to a group or channel,
+    verify authorization. If added to an unauthorized group by a non-admin,
+    the bot automatically leaves the chat and alerts admins.
+    """
+    new_status = event.new_chat_member.status
+    if new_status not in ("member", "administrator"):
+        return
+
+    chat = event.chat
+    if chat.type == "private":
+        return
+
+    values = await services.settings.values()
+    admin_ids = await services.settings.admin_chat_ids()
+    actor_id = event.from_user.id if event.from_user else 0
+    is_actor_admin = actor_id in admin_ids
+
+    authorized_chats = set()
+    for key in ("order_notification_group", "announcement_channel"):
+        raw = values.get(key, "")
+        for part in re.split(r"[\s,;]+", raw):
+            p = part.strip()
+            if p:
+                authorized_chats.add(p.lower())
+                if p.startswith("@"):
+                    authorized_chats.add(p[1:].lower())
+                try:
+                    authorized_chats.add(str(int(p)))
+                except ValueError:
+                    pass
+
+    chat_id_str = str(chat.id)
+    chat_user = (chat.username or "").lower()
+
+    is_authorized = (
+        is_actor_admin
+        or chat_id_str in authorized_chats
+        or (chat_user and chat_user in authorized_chats)
+    )
+
+    if not is_authorized:
+        logger.warning(
+            "Security: Bot added to unauthorized chat '%s' (ID: %s) by user %s. Leaving.",
+            chat.title, chat.id, actor_id
+        )
+        with suppress(Exception):
+            await bot.leave_chat(chat.id)
+        # Alert admins of unauthorized addition
+        await services.notifier.send_admin(
+            f"🛡️ <b>Security Alert: Unauthorized Group</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"The bot was added to an unauthorized group:\n"
+            f"• <b>Title:</b> {html.escape(chat.title or 'Unknown')}\n"
+            f"• <b>Chat ID:</b> <code>{chat.id}</code>\n"
+            f"• <b>Added By:</b> <code>{actor_id}</code>\n\n"
+            f"<i>The bot automatically left the group to protect store data.</i>"
+        )
+        return
+
+    # If this is the authorized order notification group, announce readiness
+    order_groups_raw = values.get("order_notification_group", "")
+    order_groups = [g.strip().lower() for g in re.split(r"[\s,;]+", order_groups_raw) if g.strip()]
+    if chat.type in ("group", "supergroup") and (chat_id_str in order_groups or (chat_user and chat_user in order_groups)):
+        with suppress(Exception):
+            await bot.send_message(
+                chat.id,
+                f"✅ <b>Order Notification Group Connected</b>\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"Real-time order receipts and delivery alerts will be delivered here."
+            )

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections import Counter
 from decimal import Decimal
 from html import escape
@@ -257,17 +258,27 @@ class PurchaseService:
             except Exception:
                 pass
 
-        await self.notifier.send_admin(
+        msg_text = (
             f"{heading}\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"{ICON_ORDERS} <b>Order ID:</b> <code>#{order_id}</code>\n"
             f"{ICON_ACCOUNT} <b>Customer:</b> {customer} (<code>{user['tg_user_id']}</code>)\n"
             f"{ICON_VIP} <b>Product:</b> {escape(order['product_title'])}\n"
             f"{ICON_MONEY} <b>Price Paid:</b> <code>{price(symbol, order['price'], usd_rate=usd_rate, show_usd=show_usd)}</code>\n"
-            f"{delivery}{stock_warning}",
+            f"{delivery}{stock_warning}"
+        )
+        await self.notifier.send_admin(
+            msg_text,
             event="waiting_order" if waiting_reason else "order",
             keyboard=keyboard,
         )
+
+        # Dispatch order notification to dedicated staff order group(s) if configured
+        group_raw = await self.settings.get("order_notification_group")
+        if group_raw:
+            groups = [g.strip() for g in re.split(r"[\s,;]+", group_raw) if g.strip()]
+            for grp in groups:
+                await self.notifier.send(grp, msg_text, keyboard=keyboard)
 
     # --- orders that are paid but not delivered ---
 
@@ -375,18 +386,34 @@ class PurchaseService:
             return False, f"Refund failed: {type(exc).__name__}"
 
         symbol = escape(await self.settings.get("currency_symbol"))
+        refund_customer_msg = (
+            f"{ICON_CHECK} <b>Order Refunded</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{ICON_ORDERS} <b>Order ID:</b> <code>#{order_id}</code>\n"
+            f"{ICON_VIP} <b>Product:</b> {escape(order['product_title'])}\n"
+            f"{ICON_MONEY} <b>Refunded to Wallet:</b> <code>+{order['price']:.2f} {symbol}</code>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"<i>টাকা আপনার ওয়ালেট ব্যালেন্সে ফেরত দেওয়া হয়েছে।</i>"
+        )
         self.notifier.in_background(
-            self.notifier.send(
-                order["tg_user_id"],
+            self.notifier.send(order["tg_user_id"], refund_customer_msg)
+        )
+
+        # Notify staff order group
+        group_raw = await self.settings.get("order_notification_group")
+        if group_raw:
+            groups = [g.strip() for g in re.split(r"[\s,;]+", group_raw) if g.strip()]
+            refund_staff_msg = (
                 f"{ICON_CHECK} <b>Order Refunded</b>\n"
                 f"━━━━━━━━━━━━━━━━━━\n"
                 f"{ICON_ORDERS} <b>Order ID:</b> <code>#{order_id}</code>\n"
+                f"{ICON_ACCOUNT} <b>Customer:</b> <code>{order['tg_user_id']}</code>\n"
                 f"{ICON_VIP} <b>Product:</b> {escape(order['product_title'])}\n"
-                f"{ICON_MONEY} <b>Refunded to Wallet:</b> <code>+{order['price']:.2f} {symbol}</code>\n"
-                f"━━━━━━━━━━━━━━━━━━\n"
-                f"<i>টাকা আপনার ওয়ালেট ব্যালেন্সে ফেরত দেওয়া হয়েছে।</i>",
+                f"{ICON_MONEY} <b>Refunded:</b> <code>{order['price']:.2f} {symbol}</code>"
             )
-        )
+            for grp in groups:
+                self.notifier.in_background(self.notifier.send(grp, refund_staff_msg))
+
         return True, f"Successfully refunded {order['price']:.2f} to user."
 
     async def order_for_customer(self, tg_user_id: int, order_id: int) -> dict[str, Any] | None:
