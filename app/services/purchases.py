@@ -14,6 +14,7 @@ from app.bot.formatting import price
 from app.bot.icons import (
     ICON_ACCOUNT,
     ICON_CHECK,
+    ICON_CROSS,
     ICON_MONEY,
     ICON_ORDERS,
     ICON_SHOP,
@@ -249,18 +250,25 @@ class PurchaseService:
             delivery = f"{ICON_CHECK} <b>Delivery:</b> Instant (Delivered)"
 
         stock_warning = ""
+        rem_stock = None
+        threshold = 3
         prod_id = order.get("product_id")
         if prod_id and not waiting_reason:
+            try:
+                threshold = int(await self.settings.number("low_stock_threshold"))
+            except Exception:
+                threshold = 3
             try:
                 async with self.db.connect() as conn:
                     rem_stock = await conn.fetchval(
                         "SELECT COUNT(*) FROM inventory_items WHERE product_id = $1 AND status = 'available' AND (expires_at IS NULL OR expires_at > now())",
                         prod_id,
                     )
-                if rem_stock == 0:
-                    stock_warning = f"\n{ICON_WARNING} <b>Stock Alert:</b> Product is now <b>OUT OF STOCK!</b> (<code>0</code> left)"
-                elif rem_stock <= 2:
-                    stock_warning = f"\n{ICON_WARNING} <b>Stock Alert:</b> Low stock warning (only <code>{rem_stock}</code> left)"
+                if rem_stock is not None:
+                    if rem_stock == 0:
+                        stock_warning = f"\n{ICON_WARNING} <b>Stock Alert:</b> Product is now <b>OUT OF STOCK!</b> (<code>0</code> left)"
+                    elif rem_stock <= threshold:
+                        stock_warning = f"\n{ICON_WARNING} <b>Stock Alert:</b> Low stock warning (only <code>{rem_stock}</code> left)"
             except Exception:
                 pass
 
@@ -278,6 +286,57 @@ class PurchaseService:
             event="waiting_order" if waiting_reason else "order",
             keyboard=keyboard,
         )
+
+        # Dedicated Low Stock & Out of Stock Alert for store administrators
+        if rem_stock is not None:
+            if rem_stock == 0:
+                low_stock_kb = None
+                if console:
+                    low_stock_kb = InlineKeyboardMarkup(inline_keyboard=[[
+                        InlineKeyboardButton(
+                            text="Restock in Console",
+                            url=f"{console}/#inventory",
+                            icon_custom_emoji_id=Icons.PLUS,
+                        )
+                    ]])
+                alert_text = (
+                    f"{ICON_WARNING} <b>CRITICAL: Product Out of Stock!</b>\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"{ICON_VIP} <b>Product:</b> {escape(order['product_title'])}\n"
+                    f"{ICON_SHOP} <b>Available Stock:</b> <code>0</code> units (Sold Out)\n"
+                    f"{ICON_CROSS} <b>Status:</b> Customers cannot purchase this item until restocked.\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"⚠️ <i>Please add fresh inventory stock immediately.</i>"
+                )
+                await self.notifier.send_admin(
+                    alert_text,
+                    event="low_stock",
+                    keyboard=low_stock_kb,
+                )
+            elif rem_stock <= threshold:
+                low_stock_kb = None
+                if console:
+                    low_stock_kb = InlineKeyboardMarkup(inline_keyboard=[[
+                        InlineKeyboardButton(
+                            text="Restock in Console",
+                            url=f"{console}/#inventory",
+                            icon_custom_emoji_id=Icons.PLUS,
+                        )
+                    ]])
+                alert_text = (
+                    f"{ICON_WARNING} <b>Low Stock Warning!</b>\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"{ICON_VIP} <b>Product:</b> {escape(order['product_title'])}\n"
+                    f"{ICON_SHOP} <b>Available Stock:</b> only <code>{rem_stock}</code> unit{'s' if rem_stock > 1 else ''} left!\n"
+                    f"{ICON_TIMER} <b>Alert Threshold:</b> <code>&le; {threshold}</code> units\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"⚠️ <i>Stock is running out quickly. Please prepare restock soon.</i>"
+                )
+                await self.notifier.send_admin(
+                    alert_text,
+                    event="low_stock",
+                    keyboard=low_stock_kb,
+                )
 
     # --- orders that are paid but not delivered ---
 

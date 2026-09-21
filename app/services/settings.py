@@ -125,6 +125,8 @@ SPECS: dict[str, SettingSpec] = {
     "notify_admin_deposits": SettingSpec("1", _flag, 1),
     "notify_admin_payments": SettingSpec("1", _flag, 1),
     "notify_admin_restock": SettingSpec("1", _flag, 1),
+    "notify_admin_low_stock": SettingSpec("1", _flag, 1),
+    "low_stock_threshold": SettingSpec("3", _number(1, 100), 4),
     "notify_admin_price_change": SettingSpec("1", _flag, 1),
     "notify_admin_new_user": SettingSpec("0", _flag, 1),
     "notify_user_referral": SettingSpec("1", _flag, 1),

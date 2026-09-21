@@ -1,7 +1,8 @@
 'use client';
 
 import { Bell, Lock, Megaphone, ShieldAlert, Users } from 'lucide-react';
-import { FlagRow, type Say } from './ui';
+import { api } from '@/lib/api';
+import { errorText, FlagRow, type Say } from './ui';
 
 interface AdminNotificationsProps {
   say: Say;
@@ -87,11 +88,63 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
         />
 
         <FlagRow
-          label="Stock updates &amp; alerts"
-          hint="Alert when items are added to stock, or when a product runs out of stock"
+          label="Stock Restock Alerts"
+          hint="Alert when new items or accounts are added to inventory stock"
           on={isOn('notify_admin_restock', '1')}
           onChange={(next) => void flip('notify_admin_restock', next)}
         />
+
+        <FlagRow
+          label="Low Stock &amp; Out of Stock Alerts"
+          hint={`Immediate Telegram alert when stock falls to ${values.low_stock_threshold || '3'} items or fewer, or becomes completely sold out`}
+          on={isOn('notify_admin_low_stock', '1')}
+          onChange={(next) => void flip('notify_admin_low_stock', next)}
+        />
+        {isOn('notify_admin_low_stock', '1') && (
+          <div style={{ padding: '8px 16px 14px', background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
+              Alert threshold:
+            </span>
+            <div style={{ display: 'inline-flex', gap: '6px' }}>
+              {['1', '2', '3', '5', '10'].map((num) => {
+                const active = (values.low_stock_threshold || '3') === num;
+                return (
+                  <button
+                    key={num}
+                    type="button"
+                    className={`button compact ${active ? 'primary' : 'ghost'}`}
+                    style={{
+                      padding: '2px 10px',
+                      fontSize: '12px',
+                      minHeight: '26px',
+                      borderRadius: '6px',
+                      border: active ? '1px solid var(--accent)' : '1px solid var(--border)',
+                      background: active ? 'var(--accent)' : 'transparent',
+                      color: active ? '#fff' : 'inherit',
+                      fontWeight: active ? 600 : 400,
+                      cursor: 'pointer',
+                    }}
+                    onClick={async () => {
+                      setValues((c) => ({ ...c, low_stock_threshold: num }));
+                      try {
+                        await api.updateSettings({ low_stock_threshold: num });
+                        setSaved((c) => ({ ...(c ?? {}), low_stock_threshold: num }));
+                        say(`Low stock threshold set to ${num}.`);
+                      } catch (err) {
+                        say(errorText(err, 'Failed to update threshold'), 'bad');
+                      }
+                    }}
+                  >
+                    {num} {num === '3' ? '(Default)' : ''}
+                  </button>
+                );
+              })}
+            </div>
+            <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
+              items remaining
+            </span>
+          </div>
+        )}
 
         <FlagRow
           label="Price Change Alerts (Drop &amp; Up)"
