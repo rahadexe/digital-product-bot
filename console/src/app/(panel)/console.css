@@ -733,13 +733,21 @@ select {
   transition: opacity 160ms ease, filter 160ms ease, background-color 160ms ease, border-color 160ms ease;
 }
 .panel-save-actions .btn:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
+  opacity: 0.55;
+  cursor: default;
   pointer-events: none;
-  filter: grayscale(0.25);
+  background: var(--surface-2);
+  border-color: var(--line);
+  color: var(--muted);
+  box-shadow: none;
 }
 
-
+.saved-badge {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  letter-spacing: 0.01em;
+}
 .unsaved { color: var(--warning); font-size: 12px; font-weight: 600; }
 
 /* ---- dialogs ---------------------------------------------------------- */

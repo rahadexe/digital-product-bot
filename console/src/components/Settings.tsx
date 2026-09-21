@@ -13,7 +13,7 @@ import { GateChannels } from './GateChannels';
 import { PaymentMethods } from './PaymentMethods';
 import { UpdateChannels } from './UpdateChannels';
 import { PageLoading, FlagRow, Switch, errorText, type Say } from './ui';
-import { Eye, EyeOff, RotateCcw, Save } from 'lucide-react';
+import { Check, Eye, EyeOff, RotateCcw, Save } from 'lucide-react';
 
 export type SettingsTab = 'general' | 'payments' | 'notifications' | 'channels';
 
@@ -199,10 +199,21 @@ const SECTIONS: Section[] = [
   {
     id: 'announcements',
     tab: 'channels',
-    title: 'Announcements',
+    title: 'Announcement channel',
     fields: [
-      { key: 'announcement_channel', label: 'Announcement channel', placeholder: '@YourChannel or -100…' },
+      {
+        key: 'announcement_channel',
+        label: 'Announcement channel',
+        hint: 'The Telegram channel where the bot posts restock and price drop alerts.',
+        placeholder: '@YourChannel or -100…',
+      },
     ],
+  },
+  {
+    id: 'update_channels',
+    tab: 'channels',
+    title: 'Customer channel buttons',
+    fields: [],
   },
 ];
 
@@ -445,23 +456,36 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
     const isSaving = savingSection === section.id;
     return (
       <div className="panel-save-actions">
-        <button
-          type="button"
-          className="btn ghost small"
-          disabled={!changed || isSaving}
-          onClick={() => discard(section)}
-          title={changed ? 'Discard unsaved changes' : undefined}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-        >
-          <RotateCcw size={13} />
-          <span>Undo</span>
-        </button>
+        {changed ? (
+          <span className="unsaved-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: 600, color: 'var(--warning)', marginRight: '6px' }}>
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--warning)', display: 'inline-block' }} />
+            Unsaved changes
+          </span>
+        ) : (
+          <span className="saved-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: 'var(--muted)', marginRight: '6px' }}>
+            <Check size={13} style={{ color: 'var(--positive)' }} />
+            Saved
+          </span>
+        )}
+        {changed ? (
+          <button
+            type="button"
+            className="btn ghost small"
+            disabled={isSaving}
+            onClick={() => discard(section)}
+            title="Discard unsaved changes"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          >
+            <RotateCcw size={13} />
+            <span>Undo</span>
+          </button>
+        ) : null}
         <button
           type="button"
           className="btn small"
           disabled={!changed || isSaving}
           onClick={() => void save(section)}
-          title={changed ? 'Save changes' : undefined}
+          title={changed ? 'Save changes' : 'All changes saved'}
           style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
         >
           <Save size={14} />
@@ -548,7 +572,7 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
                   flip={flip}
                 />
               ) : null}
-              {section.id === 'announcements' ? <UpdateChannels say={say} /> : null}
+              {section.id === 'update_channels' ? <UpdateChannels say={say} /> : null}
               {section.id === 'force_join' ? <GateChannels say={say} /> : null}
             </section>
 
