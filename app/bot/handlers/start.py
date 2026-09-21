@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from contextlib import suppress
 from html import escape
 from typing import Any
@@ -9,7 +10,7 @@ from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, ChatMemberUpdated, Message
 
 from app.bot.formatting import send_operator_html
 from app.bot.handlers.shop import product_view
@@ -23,6 +24,8 @@ from app.bot.keyboards import (
     get_persistent_reply_keyboard,
 )
 from app.services import Services
+
+logger = logging.getLogger("app.bot.start")
 
 
 def build_welcome_text(store_name: str, support_handle: str, custom_text: str = "", paused_notice: str = "") -> str:
@@ -42,7 +45,9 @@ def build_welcome_text(store_name: str, support_handle: str, custom_text: str = 
     )
     return prefix + default_text
 
+
 router = Router(name="start_router")
+
 
 async def render_main_dashboard(message: Message, services: Services, tg_user_id: int, edit: bool = False) -> None:
     """The welcome screen — clean text message with NO image, only persistent reply keyboard."""
@@ -158,6 +163,26 @@ async def handle_gate_verify(query: CallbackQuery, state: FSMContext, services: 
         await query.answer("✅ Verified successfully!")
     if query.message:
         await render_main_dashboard(query.message, services, query.from_user.id, edit=True)
+
+
+@router.chat_member()
+async def on_gate_channel_membership_changed(event: ChatMemberUpdated, services: Services):
+    """Close the gate again the moment someone leaves a channel they had to join.
+
+    A confirmed membership is cached, because checking every channel on every update would
+    mean a Telegram call for each tap. That cache is what lets someone join, walk in, leave
+    and keep browsing. Telegram reports the departure straight away when the bot is an
+    administrator of the channel, so this drops the cached pass and the next tap is checked
+    for real. Without that admin right no report arrives and the cache is the only bound.
+    """
+    status = event.new_chat_member.status
+    if status not in ("left", "kicked"):
+        return
+    user_id = event.new_chat_member.user.id
+    if not await services.gate.guards(event.chat.id, event.chat.username):
+        return
+    services.gate.forget(user_id)
+    logger.info("Gate: user %s left channel %s; cached membership dropped", user_id, event.chat.id)
 
 
 @router.callback_query(F.data == "back_to_main")

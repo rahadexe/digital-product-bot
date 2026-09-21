@@ -36,6 +36,27 @@ class GateService:
         self._active = None
         self._verified.clear()
 
+    def forget(self, tg_user_id: int) -> None:
+        """Drop a confirmed membership, so the next update is checked against Telegram again.
+
+        Telegram reports a customer leaving a channel the moment it happens, which is far
+        better than waiting out the cache. Calling this on that report closes the window in
+        which someone can join, get in, leave, and keep browsing.
+        """
+        self._verified.pop(tg_user_id, None)
+
+    async def guards(self, chat_id: int, username: str | None) -> bool:
+        """Whether this chat is one of the channels customers must join."""
+        wanted = {str(chat_id)}
+        if username:
+            wanted |= {username.lower(), f"@{username.lower()}"}
+        for channel in await self.channels():
+            for field in ("chat_id", "channel_username"):
+                value = str(channel.get(field) or "").strip().lower()
+                if value and value in wanted:
+                    return True
+        return False
+
     async def channels(self, active_only: bool = True) -> list[dict[str, Any]]:
         now = time.monotonic()
         if active_only and self._active and now - self._active[0] < self.CACHE_SECONDS:
