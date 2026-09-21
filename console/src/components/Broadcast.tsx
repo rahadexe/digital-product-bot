@@ -223,22 +223,9 @@ export function Broadcast({ say }: { say: Say }) {
           <div className="stat-card-value" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <button
               type="button"
+              className="copy-chip accent"
               onClick={() => copyCommand('/broadcast')}
               title="Click to copy /broadcast"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                background: 'var(--surface-2)',
-                border: '1px solid var(--border)',
-                borderRadius: '6px',
-                padding: '4px 10px',
-                fontSize: '13px',
-                fontFamily: 'var(--mono)',
-                color: 'var(--accent)',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
             >
               /broadcast
               {copiedCmd === '/broadcast' ? (
@@ -250,22 +237,9 @@ export function Broadcast({ say }: { say: Say }) {
             <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 500 }}>or</span>
             <button
               type="button"
+              className="copy-chip accent"
               onClick={() => copyCommand('/bc')}
               title="Click to copy /bc"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                background: 'var(--surface-2)',
-                border: '1px solid var(--border)',
-                borderRadius: '6px',
-                padding: '4px 10px',
-                fontSize: '13px',
-                fontFamily: 'var(--mono)',
-                color: 'var(--accent)',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
             >
               /bc
               {copiedCmd === '/bc' ? (
@@ -378,37 +352,33 @@ export function Broadcast({ say }: { say: Say }) {
               >
                 <button
                   type="button"
-                  className="mini ghost"
+                  className="mini ghost fmt-btn"
                   onClick={() => insertTag('<b>', '</b>')}
                   title="Bold"
-                  style={{ minWidth: '28px', height: '28px', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                 >
                   <Bold size={13} />
                 </button>
                 <button
                   type="button"
-                  className="mini ghost"
+                  className="mini ghost fmt-btn"
                   onClick={() => insertTag('<i>', '</i>')}
                   title="Italic"
-                  style={{ minWidth: '28px', height: '28px', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                 >
                   <Italic size={13} />
                 </button>
                 <button
                   type="button"
-                  className="mini ghost"
+                  className="mini ghost fmt-btn"
                   onClick={() => insertTag('<code>', '</code>')}
                   title="Code"
-                  style={{ minWidth: '28px', height: '28px', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                 >
                   <Code size={13} />
                 </button>
                 <button
                   type="button"
-                  className="mini ghost"
+                  className="mini ghost fmt-btn wide"
                   onClick={openLinkModal}
                   title="Link"
-                  style={{ height: '28px', padding: '0 8px', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px' }}
                 >
                   <Link2 size={12} />
                   <span>Link</span>

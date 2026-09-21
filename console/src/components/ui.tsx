@@ -120,14 +120,24 @@ export function FlagRow({
   onChange: (on: boolean) => void;
   danger?: boolean;
 }) {
+  // The whole row is the control. A 48x30 switch beside a full-width label reads
+  // as "tap the label" on a phone, and tapping the label did nothing.
   return (
-    <div className="flag-row">
-      <div>
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      className="flag-row"
+      onClick={() => onChange(!on)}
+    >
+      <span className="flag-row-text">
         <strong>{label}</strong>
         {hint ? <small>{hint}</small> : null}
-      </div>
-      <Switch label={label} on={on} onChange={onChange} danger={danger} />
-    </div>
+      </span>
+      <span className={`switch${on ? ' on' : ''}${danger ? ' danger' : ''}`} aria-hidden="true">
+        <span />
+      </span>
+    </button>
   );
 }
 
@@ -238,4 +248,12 @@ export function tone(status?: string | null): '' | 'good' | 'bad' | 'warn' {
     default:
       return '';
   }
+}
+
+
+export function PageLoading({ label = 'Loading…' }: { label?: string }) {
+  return <div className="page-placeholder" role="status" aria-busy="true">
+    <span className="page-placeholder-label">{label}</span>
+    {[0, 1].map((item) => <div key={item} className="page-placeholder-block" aria-hidden="true"><div className="page-placeholder-line" /><div className="page-placeholder-line" /></div>)}
+  </div>;
 }

@@ -125,6 +125,10 @@ export default function ConsolePage() {
     };
   }, [check]);
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [screen.key]);
+
   // Lock background body scroll when mobile drawer is open
   useEffect(() => {
     if (mobileMenuOpen) {
@@ -151,7 +155,7 @@ export default function ConsolePage() {
     return () => window.clearInterval(every);
   }, [signedIn]);
 
-  if (!ready) return <div className="gate" role="status">Loading console…</div>;
+  if (!ready) return <div className="gate"><div className="console-start" role="status" aria-live="polite"><Brand /><div className="console-start-progress" aria-hidden="true" /><strong>Opening your workspace</strong><span>Connecting securely…</span></div></div>;
   if (!signedIn) return <SignIn onDone={check} />;
 
   /** A screen, optionally with its tab: "orders/waiting". */

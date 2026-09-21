@@ -118,7 +118,7 @@ function TopUps({ say, waiting, onPendingChange }: { say: Say; waiting: boolean;
 
       <section className="panel">
         <div className="scroll">
-          <table>
+          <table className="mobile-records deposits-list">
             <thead>
               <tr>
                 <th>Customer</th>
@@ -294,7 +294,7 @@ function Instant({ say }: { say: Say }) {
   return (
     <section className="panel">
       <div className="scroll">
-        <table>
+        <table className="mobile-records payments-list">
           <thead>
             <tr>
               <th>Customer</th>

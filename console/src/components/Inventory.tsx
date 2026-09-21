@@ -56,7 +56,7 @@ export function Inventory({ say }: { say: Say }) {
   return (
     <>
       {/* Inventory Metric Summary Cards */}
-      <div className="stat-cards-grid">
+      <div className="stat-cards-grid compact-metrics">
         <div className="stat-card">
           <div className="stat-card-top">
             <span className="stat-card-label">Available Stock</span>
@@ -130,7 +130,7 @@ export function Inventory({ say }: { say: Say }) {
           </button>
         </header>
         <div className="scroll">
-          <table>
+          <table className="mobile-records stock-list">
             <thead>
               <tr>
                 <th>Product</th>

@@ -264,7 +264,7 @@ export function Emojis({ say }: { say: Say }) {
 
           {/* Emojis Table */}
           <div className="scroll" style={{ border: '1px solid var(--border)', borderRadius: '8px' }}>
-            <table>
+            <table className="mobile-records emoji-list">
               <thead>
                 <tr>
                   <th>Emoji Name</th>
@@ -306,21 +306,9 @@ export function Emojis({ say }: { say: Say }) {
                       <td>
                         <button
                           type="button"
+                          className="copy-chip"
                           onClick={() => copyId(item.emoji_id)}
                           title="Click to copy Emoji ID"
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            background: 'var(--surface-2)',
-                            border: '1px solid var(--border)',
-                            borderRadius: '6px',
-                            padding: '3px 8px',
-                            fontSize: '12.5px',
-                            fontFamily: 'var(--mono)',
-                            color: 'var(--text)',
-                            cursor: 'pointer',
-                          }}
                         >
                           <code>{item.emoji_id}</code>
                           {copiedId === item.emoji_id ? (

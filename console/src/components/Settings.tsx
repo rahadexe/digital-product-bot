@@ -10,7 +10,7 @@ import { AdminNotifications } from './AdminNotifications';
 import { GateChannels } from './GateChannels';
 import { PaymentMethods } from './PaymentMethods';
 import { UpdateChannels } from './UpdateChannels';
-import { FlagRow, Switch, errorText, type Say } from './ui';
+import { PageLoading, FlagRow, Switch, errorText, type Say } from './ui';
 import { Eye, EyeOff, RotateCcw, Save } from 'lucide-react';
 
 export type SettingsTab = 'general' | 'payments' | 'notifications' | 'channels' | 'access';
@@ -286,7 +286,7 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
     });
   }
 
-  if (!saved) return <p className="loading">Loading…</p>;
+  if (!saved) return <PageLoading label="Loading…" />;
 
   function renderInput(field: Field) {
     const coinName = values['binance_coin'] || 'USDT';
@@ -457,6 +457,7 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
         ))}
       </div>
 
+      <div className={`settings-sections settings-sections-${tab}`}>
       {SECTIONS.filter((section) => section.tab === tab).map((section) => {
         const on = section.master ? isOn(section.master.key) : true;
         const changed = changedIn(section).length > 0;
@@ -464,7 +465,7 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
         const toggles = section.fields.filter((field) => field.type === 'toggle');
         return (
           <Fragment key={section.id}>
-            <section className={`panel${on ? '' : ' off'}`}>
+            <section className={`panel settings-card settings-card-${section.id}${on ? '' : ' off'}`}>
               <header>
                 <div>
                   <h2>{section.title}</h2>
@@ -518,6 +519,7 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
           </Fragment>
         );
       })}
+      </div>
     </>
   );
 }

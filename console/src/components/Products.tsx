@@ -185,7 +185,7 @@ export function Products({ say }: { say: Say }) {
           </button>
         </header>
         <div className="scroll">
-          <table>
+          <table className="mobile-records products-list">
             <thead>
               <tr>
                 <th>Product</th>

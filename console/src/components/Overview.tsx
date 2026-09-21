@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { api, type OverviewStats } from '@/lib/api';
 import { useMoney } from '@/lib/currency';
-import { EmptyRow, errorText, tone, when, type Say } from './ui';
+import { PageLoading, EmptyRow, errorText, tone, when, type Say } from './ui';
 
 export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) => void }) {
   const [stats, setStats] = useState<OverviewStats | null>(null);
@@ -76,7 +76,7 @@ export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) =
   }, [stats]);
 
   if (failed && !stats) return <p className="note bad">Could not load the dashboard.</p>;
-  if (!stats) return <p className="loading">Loading dashboard…</p>;
+  if (!stats) return <PageLoading label="Loading dashboard…" />;
 
   const deliveredCount = stats.delivered_orders ?? Math.max(0, stats.total_orders - stats.waiting_orders);
 

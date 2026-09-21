@@ -211,7 +211,7 @@ export function Orders({
       </div>
 
       {/* Analytics Metric Summary Cards */}
-      <div className="stat-cards-grid">
+      <div className="stat-cards-grid compact-metrics">
         <div className="stat-card">
           <div className="stat-card-top">
             <span className="stat-card-label">Total Orders</span>
@@ -261,7 +261,7 @@ export function Orders({
           <div className="filters">
             <input
               type="search"
-              placeholder="Search buyer, product or #id"
+              aria-label="Search orders" placeholder="Search buyer, product or #id"
               value={search}
               onChange={(event) => {
                 setSearch(event.target.value);
@@ -271,7 +271,7 @@ export function Orders({
           </div>
         </header>
         <div className="scroll">
-          <table>
+          <table className="mobile-records orders-list">
             <thead>
               <tr>
                 <th>Order</th>
@@ -295,7 +295,7 @@ export function Orders({
                         #{order.id} · {money(order.price)} · {when(order.created_at)}
                       </small>
                     </td>
-                    <td>
+                    <td data-label="Customer">
                       {who(order)}
                       <small>{order.tg_user_id}</small>
                     </td>
