@@ -340,7 +340,7 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
     // that only decides whether a message gets sent changes nothing about the store, is
     // undone by tapping again, and gets flipped often — so those just go.
     if (ALERT_TOGGLES(key)) {
-      await applyFlip(key, on);
+      await applyFlip(key, on, name);
       return;
     }
 
@@ -367,21 +367,25 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
 
     const confirmed = await confirm(title, message, confirmLabel, isDanger);
     if (!confirmed) return;
-    await applyFlip(key, on);
+    await applyFlip(key, on, name);
   }
 
-  async function applyFlip(key: string, on: boolean) {
+  async function applyFlip(key: string, on: boolean, name: string) {
     const value = on ? '1' : '0';
     const before = values[key];
     setValues((current) => ({ ...current, [key]: value }));
     try {
       await api.updateSettings({ [key]: value });
       setSaved((current) => ({ ...(current ?? {}), [key]: value }));
-      say(on ? 'On.' : 'Off.');
+      // "On." alone leaves the reader to remember what they just touched, and makes a
+      // stunted little box in the corner. Name the thing that changed.
+      say(key === 'store_paused'
+        ? (on ? 'Store paused.' : 'Store is open.')
+        : `${name} is ${on ? 'on' : 'off'}.`);
       if (key === 'zinipay_enabled' || key === 'zinipay_web_gateway_enabled' || key === 'binance_enabled') void refreshGateways();
     } catch (cause) {
       setValues((current) => ({ ...current, [key]: before }));
-      say(errorText(cause, 'Could not change that.'), 'bad');
+      say(errorText(cause, `Could not change ${name}.`), 'bad');
     }
   }
 
@@ -394,10 +398,10 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
       setSaved((current) => ({ ...(current ?? {}), [key]: value }));
       resetCurrencySymbol();
       if (section.extra === 'zinipay' || section.extra === 'binance') void refreshGateways();
-      say('Saved.');
+      say(`${section.title} saved.`);
     } catch (cause) {
       setValues((current) => ({ ...current, [key]: before }));
-      say(errorText(cause, 'Could not save.'), 'bad');
+      say(errorText(cause, `Could not save ${section.title}.`), 'bad');
     } finally {
       setSavingSection('');
     }
@@ -430,9 +434,11 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
       });
       resetCurrencySymbol();
       if (section.extra === 'zinipay' || section.extra === 'binance') void refreshGateways();
-      say('Saved.');
+      // Name what was saved: several cards can be open at once, and a bare "Saved."
+      // leaves the reader checking which one it meant.
+      say(changed.length === 1 ? `${changed[0].label} saved.` : `${section.title} saved.`);
     } catch (cause) {
-      say(errorText(cause, 'Could not save.'), 'bad');
+      say(errorText(cause, `Could not save ${section.title}.`), 'bad');
     } finally {
       setSavingSection('');
     }

@@ -50,11 +50,16 @@ def _matches_receipt(data: dict[str, Any], amount: float, transaction_id: str) -
 
 
 # A bKash or Nagad receipt does not reach the gateway the instant the customer taps send:
-# the merchant SIM has to receive the SMS and the gateway has to ingest it. That regularly
-# takes half a minute. Giving up after one quick retry told paying customers their
-# transaction did not exist, and cost them one of their three attempts for it. Wait out the
-# sync instead, reporting progress, and only call it missing once these are exhausted.
-SMS_SYNC_RETRY_DELAYS = (3.0, 7.0, 12.0, 20.0)
+# the merchant SIM has to receive the SMS and the gateway has to ingest it. Giving up after
+# one three-second retry told paying customers their transaction did not exist, and cost
+# them one of their three attempts for it.
+#
+# The wait happens inside the update handler, and the dispatcher isolates a customer's
+# updates from each other, so nothing else that customer taps is answered until it returns.
+# That caps how long this may run: fifteen seconds covers the ordinary sync while keeping
+# a Cancel tap responsive. Anything slower than this still reaches an operator, because a
+# transaction that cannot be verified is routed to manual review rather than refused.
+SMS_SYNC_RETRY_DELAYS = (3.0, 5.0, 7.0)
 SMS_SYNC_WINDOW_SECONDS = sum(SMS_SYNC_RETRY_DELAYS)
 
 
