@@ -19,7 +19,6 @@ from app.bot.icons import (
     ICON_PLUS,
     ICON_SHOP,
     ICON_SPARKLES,
-    ICON_SPENT,
     ICON_STATS,
     ICON_TIMER,
     ICON_VIP,

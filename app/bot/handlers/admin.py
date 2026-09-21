@@ -442,6 +442,21 @@ async def _save_welcome_text(message: Message, text: str, services: Services):
     )
 
 
+async def _alert_once(services: Services, scope: str, key: str, text: str) -> None:
+    """Send a security alert, but not the same one over and over.
+
+    Adding the bot to a group is something anyone can do, repeatedly, and every
+    attempt used to reach the owner's Telegram. One alert per chat per hour says
+    the same thing without handing a stranger a way to flood the owner.
+    """
+    try:
+        if await services.rate_limits.consume(f"security-alert:{scope}", key, 1, 3600):
+            return
+    except Exception:
+        logger.exception("Could not check the security alert budget; sending anyway")
+    await services.notifier.send_admin(text)
+
+
 @router.my_chat_member()
 async def on_bot_chat_member_updated(event: ChatMemberUpdated, services: Services, bot: Bot):
     """
@@ -480,7 +495,7 @@ async def on_bot_chat_member_updated(event: ChatMemberUpdated, services: Service
             f"• <b>Title:</b> {html.escape(chat.title or 'Unknown')}\n"
             f"• <b>Chat ID:</b> <code>{chat.id}</code>\n"
             f"• <b>Added By:</b> <code>{actor_id}</code>\n\n"
-            f"<i>Groups are completely disabled. The bot automatically left without responding.</i>"
+            f"<i>Groups are completely disabled. The bot automatically left without responding.</i>",
         )
         return
 
@@ -545,7 +560,7 @@ async def on_bot_chat_member_updated(event: ChatMemberUpdated, services: Service
                 f"• <b>Channel ID:</b> <code>{chat.id}</code>\n"
                 f"• <b>Username:</b> @{chat_user or 'None'}\n"
                 f"• <b>Added By:</b> <code>{actor_id}</code>\n\n"
-                f"<i>The bot automatically left the channel to prevent unauthorized broadcasts.</i>"
+                f"<i>The bot automatically left the channel to prevent unauthorized broadcasts.</i>",
             )
             return
 

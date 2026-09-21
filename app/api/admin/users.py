@@ -25,12 +25,15 @@ async def list_users(
 
 @router.get("/users/{tg_user_id}")
 async def get_user(tg_user_id: int, services: ServicesDep):
-    result = await services.users.get(tg_user_id)
-    if not result:
+    # users.get() returns the customer row itself. It was read as though it were
+    # the {"user": ..., "order_count": ...} shape that users.stats() returns, so
+    # every field fell out and the profile came back empty.
+    stats = await services.users.stats(tg_user_id)
+    if not stats:
         raise HTTPException(status_code=404, detail="User not found.")
-    user_data = dict(result.get("user", {}))
-    user_data["order_count"] = result.get("order_count", 0)
-    user_data["total_spent"] = result.get("total_spent", 0)
+    user_data = dict(stats["user"])
+    user_data["order_count"] = stats["order_count"]
+    user_data["total_spent"] = stats["total_spent"]
 
     reseller_key = await services.reseller.get_latest_key(tg_user_id)
     reseller_stats = await services.reseller.get_reseller_stats(tg_user_id)
@@ -74,12 +77,14 @@ async def toggle_reseller_key(tg_user_id: int, services: ServicesDep):
 
 @router.post("/users/{tg_user_id}/reseller-key/generate", dependencies=WRITE)
 async def generate_reseller_key(tg_user_id: int, services: ServicesDep):
-    user_record = await services.users.get(tg_user_id)
-    if not user_record:
+    user = await services.users.get(tg_user_id)
+    if not user:
         raise HTTPException(status_code=404, detail="User not found.")
-    u = user_record.get("user") if "user" in user_record else user_record
-    if (u.get("rank") or "").strip().lower() != "reseller":
-        # Automatically upgrade rank to Reseller if admin generates API key
+    # Minting a key only works for a reseller, so this grants the rank. That is a
+    # pricing change as well as an access one, so it is reported back rather than
+    # done quietly.
+    upgraded = (user.get("rank") or "").strip().lower() != "reseller"
+    if upgraded:
         await services.users.set_rank(tg_user_id, "Reseller")
     raw_key, record = await services.reseller.generate_key(tg_user_id, name="Admin Key")
-    return {"success": True, "raw_key": raw_key, "reseller_key": record}
+    return {"success": True, "raw_key": raw_key, "reseller_key": record, "rank_upgraded": upgraded}

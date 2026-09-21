@@ -50,8 +50,16 @@ def _telegram_ids(value: str) -> str:
         return ""
     raw_ids = [part.strip() for part in re.split(r"[\s,;]+", value) if part.strip()]
     for pid in raw_ids:
-        if not re.fullmatch(r"-?\d{5,20}", pid):
-            raise ValueError(f"'{pid}' is not a valid Telegram user ID (must be numeric)")
+        # Positive only. A negative id is a group or a channel, and these ids are
+        # who the order and deposit alerts are sent to, which name the customer,
+        # their Telegram id, what they bought and what they paid. Sending that to
+        # a channel publishes it to everyone subscribed. Channels belong in
+        # announcement_channel, which carries no customer details.
+        if not re.fullmatch(r"\d{5,20}", pid):
+            raise ValueError(
+                f"'{pid}' is not a Telegram user ID. Groups and channels cannot be administrators, "
+                f"because admin alerts contain customer details"
+            )
     return ", ".join(raw_ids)
 
 
@@ -191,6 +199,15 @@ class SettingsService:
             except ValueError:
                 logger.warning("Stored setting %s is invalid; using its default.", key)
                 values[key] = spec.default
+                if key == "admin_tg_ids":
+                    # Falling back to "" here would mean nobody receives an alert,
+                    # silently, because one entry in the list was wrong. Keep the
+                    # entries that are valid and drop only the offending ones.
+                    salvaged = [part for part in re.split(r"[\s,;]+", raw or "")
+                                if part.isdigit() and int(part) > 0]
+                    if salvaged:
+                        logger.warning("Keeping %d valid administrator id(s) from %s.", len(salvaged), key)
+                        values[key] = ", ".join(salvaged)
         self._cache = (now, values)
         try:
             from app.bot.formatting import configure_pricing
@@ -232,8 +249,10 @@ class SettingsService:
         ids: list[int] = []
         if raw:
             for part in re.split(r"[\s,;]+", raw):
-                clean = part.lstrip("-")
-                if clean.isdigit():
+                # The validator refuses a group or channel id, and so does this:
+                # a value stored before that rule existed must not start
+                # delivering customer details to a channel.
+                if part.isdigit() and int(part) > 0:
                     ids.append(int(part))
         if not ids:
             single = int(values.get("admin_tg_id", 0)) or self.config.admin_tg_id
