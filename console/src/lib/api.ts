@@ -143,6 +143,7 @@ export interface UserSummary {
   total_balance: number;
   with_balance_count: number;
   banned_count: number;
+  reseller_count?: number;
 }
 
 export interface DepositSummary {
@@ -249,6 +250,25 @@ export interface User {
   referred_by?: number;
   is_banned: number;
   created_at: string;
+  api_key_prefix?: string | null;
+  api_key_active?: number | null;
+  api_key_last_used_at?: string | null;
+}
+
+export interface ResellerKeyInfo {
+  id: number;
+  user_id: number;
+  tg_user_id: number;
+  key_prefix: string;
+  name: string;
+  is_active: number;
+  created_at: string;
+  last_used_at?: string | null;
+}
+
+export interface ResellerStats {
+  total_orders: number;
+  total_spent: number;
 }
 
 export interface GateChannel {
@@ -526,7 +546,12 @@ export const api = {
     request<{ users: User[]; total: number; summary?: UserSummary }>(
       `/api/admin/users?search=${encodeURIComponent(search)}&limit=${limit}&offset=${offset}${filter ? `&filter=${encodeURIComponent(filter)}` : ''}`
     ),
-  user: (tgUserId: number) => request<{ user: User }>(`/api/admin/users/${tgUserId}`),
+  user: (tgUserId: number) =>
+    request<{
+      user: User;
+      reseller_key?: ResellerKeyInfo | null;
+      reseller_stats?: ResellerStats | null;
+    }>(`/api/admin/users/${tgUserId}`),
   adjustBalance: (tgUserId: number, delta: number, reason: string) =>
     request<{ success: boolean; user: User }>(`/api/admin/users/${tgUserId}/adjust-balance`, {
       method: 'POST',
@@ -541,6 +566,16 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ rank }),
     }),
+  toggleResellerKey: (tgUserId: number) =>
+    request<{ success: boolean; reseller_key: ResellerKeyInfo }>(
+      `/api/admin/users/${tgUserId}/reseller-key/toggle`,
+      { method: 'POST' }
+    ),
+  generateResellerKey: (tgUserId: number) =>
+    request<{ success: boolean; raw_key: string; reseller_key: ResellerKeyInfo }>(
+      `/api/admin/users/${tgUserId}/reseller-key/generate`,
+      { method: 'POST' }
+    ),
 
   // Gate channels
   gateChannels: () => request<GateChannel[]>('/api/admin/gate-channels'),

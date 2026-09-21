@@ -11,7 +11,10 @@ import {
   Copy,
   CreditCard,
   ExternalLink,
+  Key,
   PackageCheck,
+  Power,
+  RefreshCw,
   Send,
   ShoppingBag,
   User as UserIcon,
@@ -19,13 +22,13 @@ import {
   Users as UsersIcon,
   Wallet,
 } from 'lucide-react';
-import { api, type Order, type User, type UserSummary } from '@/lib/api';
+import { api, type Order, type ResellerKeyInfo, type ResellerStats, type User, type UserSummary } from '@/lib/api';
 import { useMoney } from '@/lib/currency';
 import { EmptyRow, Pager, errorText, tone, useConfirm, useDebounced, when, type Say } from './ui';
 
 const PAGE = 50;
 
-type UserFilter = 'all' | 'has_balance' | 'banned';
+type UserFilter = 'all' | 'reseller' | 'has_balance' | 'banned';
 
 const nameOf = (user: User) =>
   [user.first_name, user.last_name].filter(Boolean).join(' ') ||
@@ -152,6 +155,17 @@ export function Users({
         </button>
         <button
           type="button"
+          className={filter === 'reseller' ? 'active' : ''}
+          onClick={() => {
+            setFilter('reseller');
+            setOffset(0);
+          }}
+        >
+          Resellers (API)
+          {summary?.reseller_count ? <span className="count">{summary.reseller_count}</span> : null}
+        </button>
+        <button
+          type="button"
           className={filter === 'has_balance' ? 'active' : ''}
           onClick={() => {
             setFilter('has_balance');
@@ -237,7 +251,41 @@ export function Users({
                         {user.is_banned ? (
                           <span className="pill bad">banned</span>
                         ) : user.rank === 'Reseller' ? (
-                          <span className="pill info">Reseller</span>
+                          <>
+                            <span className="pill info" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                              <Briefcase size={11} /> Reseller
+                            </span>
+                            {user.api_key_prefix ? (
+                              user.api_key_active ? (
+                                <span
+                                  className="pill good"
+                                  title={`API Key Active. Last used: ${user.api_key_last_used_at ? when(user.api_key_last_used_at) : 'Never'}`}
+                                  style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                                >
+                                  <Key size={10} /> Active {user.api_key_last_used_at ? `· ${when(user.api_key_last_used_at)}` : ''}
+                                </span>
+                              ) : (
+                                <span
+                                  className="pill bad"
+                                  title="API Key is disabled"
+                                  style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                                >
+                                  <Key size={10} /> Disabled
+                                </span>
+                              )
+                            ) : null}
+                          </>
+                        ) : user.api_key_prefix ? (
+                          <>
+                            <span className="pill good">Normal</span>
+                            <span
+                              className={`pill ${user.api_key_active ? 'good' : 'bad'}`}
+                              style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                              title={`API Key ${user.api_key_active ? 'Active' : 'Disabled'}. Last used: ${user.api_key_last_used_at ? when(user.api_key_last_used_at) : 'Never'}`}
+                            >
+                              <Key size={10} /> API {user.api_key_active ? 'Active' : 'Disabled'}
+                            </span>
+                          </>
                         ) : (
                           <span className="pill good">Normal</span>
                         )}
@@ -299,6 +347,10 @@ function CustomerProfilePage({
   const [busy, setBusy] = useState(false);
   const [currentRank, setCurrentRank] = useState(initialUser?.rank || 'Standard');
   const [rankBusy, setRankBusy] = useState(false);
+  const [resellerKey, setResellerKey] = useState<ResellerKeyInfo | null>(null);
+  const [resellerStats, setResellerStats] = useState<ResellerStats | null>(null);
+  const [apiBusy, setApiBusy] = useState(false);
+  const [newlyGeneratedKey, setNewlyGeneratedKey] = useState<string | null>(null);
   const [confirm, confirmDialog] = useConfirm();
   const money = useMoney();
 
@@ -307,25 +359,23 @@ function CustomerProfilePage({
     let mounted = true;
     if (!initialUser || initialUser.tg_user_id !== userId) {
       setLoading(true);
-      api
-        .user(userId)
-        .then((res) => {
-          if (mounted && res.user) {
-            setUser(res.user);
-            setCurrentRank(res.user.rank || 'Standard');
-          }
-        })
-        .catch((err) => {
-          if (mounted) say(errorText(err), 'bad');
-        })
-        .finally(() => {
-          if (mounted) setLoading(false);
-        });
-    } else {
-      setUser(initialUser);
-      setCurrentRank(initialUser.rank || 'Standard');
-      setLoading(false);
     }
+    api
+      .user(userId)
+      .then((res) => {
+        if (mounted && res.user) {
+          setUser(res.user);
+          setCurrentRank(res.user.rank || 'Standard');
+          setResellerKey(res.reseller_key ?? null);
+          setResellerStats(res.reseller_stats ?? null);
+        }
+      })
+      .catch((err) => {
+        if (mounted) say(errorText(err), 'bad');
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
     return () => {
       mounted = false;
     };
@@ -383,6 +433,71 @@ function CustomerProfilePage({
       setCurrentRank(user.rank || 'Standard');
     } finally {
       setRankBusy(false);
+    }
+  }
+
+  async function handleToggleResellerKey() {
+    if (!user || !resellerKey) return;
+    const willEnable = !resellerKey.is_active;
+    const title = willEnable ? `Enable API access for ${nameOf(user)}?` : `Disable API access for ${nameOf(user)}?`;
+    const message = willEnable
+      ? 'The customer will immediately be able to make programmatic requests using their existing API key.'
+      : 'Any automated requests made with their API key will be immediately rejected with an authorization error.';
+    const confirmLabel = willEnable ? 'Enable API Key' : 'Disable API Key';
+
+    const ok = await confirm(title, message, confirmLabel, !willEnable);
+    if (!ok) return;
+
+    setApiBusy(true);
+    try {
+      const res = await api.toggleResellerKey(user.tg_user_id);
+      setResellerKey(res.reseller_key);
+      say(`Reseller API key ${res.reseller_key.is_active ? 'enabled' : 'disabled'}.`);
+      onUserUpdated({
+        ...user,
+        api_key_active: res.reseller_key.is_active,
+        api_key_prefix: res.reseller_key.key_prefix,
+      });
+    } catch (cause) {
+      say(errorText(cause), 'bad');
+    } finally {
+      setApiBusy(false);
+    }
+  }
+
+  async function handleGenerateResellerKey() {
+    if (!user) return;
+    const isRotating = Boolean(resellerKey);
+    const title = isRotating
+      ? `Regenerate API Key for ${nameOf(user)}?`
+      : `Generate Reseller API Key for ${nameOf(user)}?`;
+    const message = isRotating
+      ? 'Their current API key will be permanently invalidated and stopped immediately. Make sure to copy and provide them with the new key.'
+      : `An API key will be generated for ${nameOf(user)}. If their account is not already a Reseller, it will be promoted to Reseller.`;
+    const confirmLabel = isRotating ? 'Regenerate Key' : 'Generate Key';
+
+    const ok = await confirm(title, message, confirmLabel, isRotating);
+    if (!ok) return;
+
+    setApiBusy(true);
+    try {
+      const res = await api.generateResellerKey(user.tg_user_id);
+      setResellerKey(res.reseller_key);
+      setNewlyGeneratedKey(res.raw_key);
+      say('New Reseller API key generated successfully!');
+      if (currentRank !== 'Reseller') {
+        setCurrentRank('Reseller');
+      }
+      onUserUpdated({
+        ...user,
+        rank: 'Reseller',
+        api_key_active: res.reseller_key.is_active,
+        api_key_prefix: res.reseller_key.key_prefix,
+      });
+    } catch (cause) {
+      say(errorText(cause), 'bad');
+    } finally {
+      setApiBusy(false);
     }
   }
 
@@ -655,6 +770,153 @@ function CustomerProfilePage({
           </div>
         </div>
       </div>
+
+      {/* Reseller API Gateway & Usage Card */}
+      {(currentRank === 'Reseller' || Boolean(resellerKey)) && (
+        <div className="panel cust-reseller-panel">
+          <header className="cust-panel-head">
+            <div className="cust-reseller-head-left">
+              <div className="cust-reseller-badge-icon">
+                <Key size={18} />
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <h3 style={{ margin: 0 }}>Reseller API & Usage</h3>
+                  {resellerKey ? (
+                    resellerKey.is_active ? (
+                      <span className="pill good" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                        <span className="cust-status-dot green" /> API Active
+                      </span>
+                    ) : (
+                      <span className="pill bad" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                        <span className="cust-status-dot red" /> API Disabled
+                      </span>
+                    )
+                  ) : (
+                    <span className="pill" style={{ opacity: 0.7 }}>No Key Generated</span>
+                  )}
+                </div>
+                <p className="cust-panel-desc" style={{ margin: '4px 0 0 0' }}>
+                  Programmatic wholesale purchasing and inventory integration via REST API.
+                </p>
+              </div>
+            </div>
+
+            <div className="cust-reseller-head-actions">
+              <a
+                href="/api/v1/reseller/docs"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn small ghost"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                title="View interactive API Documentation"
+              >
+                <ExternalLink size={13} />
+                <span>API Documentation</span>
+              </a>
+
+              {resellerKey ? (
+                <button
+                  type="button"
+                  className={`btn small ${resellerKey.is_active ? 'danger' : 'cust-action-save-add'}`}
+                  disabled={apiBusy}
+                  onClick={() => void handleToggleResellerKey()}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Power size={13} />
+                  <span>{resellerKey.is_active ? 'Disable API Access' : 'Enable API Access'}</span>
+                </button>
+              ) : null}
+
+              <button
+                type="button"
+                className="btn small"
+                disabled={apiBusy}
+                onClick={() => void handleGenerateResellerKey()}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              >
+                <RefreshCw size={13} className={apiBusy ? 'spin' : ''} />
+                <span>{resellerKey ? 'Regenerate Key' : 'Generate API Key'}</span>
+              </button>
+            </div>
+          </header>
+
+          <div className="cust-panel-body">
+            {newlyGeneratedKey && (
+              <div className="cust-new-key-alert">
+                <div className="cust-new-key-header">
+                  <strong>⚠️ Newly Generated API Key (Copy Now)</strong>
+                  <p>This full key will not be shown again. Share this securely with the reseller.</p>
+                </div>
+                <div className="cust-new-key-row">
+                  <code>{newlyGeneratedKey}</code>
+                  <button
+                    type="button"
+                    className="btn small"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(newlyGeneratedKey);
+                      say('Copied API Key to clipboard.');
+                    }}
+                  >
+                    <Copy size={13} /> Copy Key
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="cust-reseller-stats-grid">
+              <div className="cust-reseller-stat-box">
+                <span className="label">Key Identifier</span>
+                <span className="val monospace">
+                  {resellerKey ? resellerKey.key_prefix : '—'}
+                </span>
+                <span className="sub">
+                  {resellerKey ? `Name: ${resellerKey.name}` : 'No key generated yet'}
+                </span>
+              </div>
+
+              <div className="cust-reseller-stat-box">
+                <span className="label">Last Activity (Usage)</span>
+                <span className="val">
+                  {resellerKey?.last_used_at ? when(resellerKey.last_used_at) : 'Never used'}
+                </span>
+                <span className="sub">
+                  {resellerKey?.last_used_at
+                    ? new Date(resellerKey.last_used_at).toLocaleString()
+                    : 'Awaiting first API request'}
+                </span>
+              </div>
+
+              <div className="cust-reseller-stat-box">
+                <span className="label">API Orders</span>
+                <span className="val">{resellerStats?.total_orders ?? 0}</span>
+                <span className="sub">Completed via API / Bot</span>
+              </div>
+
+              <div className="cust-reseller-stat-box">
+                <span className="label">API Volume</span>
+                <span className="val green">{money(resellerStats?.total_spent ?? 0)}</span>
+                <span className="sub">Total volume spent</span>
+              </div>
+            </div>
+
+            <div className="cust-reseller-quick-guide">
+              <div className="cust-guide-item">
+                <span className="cust-guide-tag">Endpoint</span>
+                <code>/api/v1/reseller</code>
+              </div>
+              <div className="cust-guide-item">
+                <span className="cust-guide-tag">Header</span>
+                <code>X-API-Key: {resellerKey?.key_prefix ?? 'rk_live_...'}</code>
+              </div>
+              <div className="cust-guide-item">
+                <span className="cust-guide-tag">Rate Limits</span>
+                <span>120 req/min (Read), 30 req/min (Purchase)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 4. Two-Column Workspace Grid */}
       <div className="cust-workspace-grid">

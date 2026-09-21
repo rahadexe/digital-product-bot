@@ -25,10 +25,20 @@ async def list_users(
 
 @router.get("/users/{tg_user_id}")
 async def get_user(tg_user_id: int, services: ServicesDep):
-    user = await services.users.get(tg_user_id)
-    if not user:
+    result = await services.users.get(tg_user_id)
+    if not result:
         raise HTTPException(status_code=404, detail="User not found.")
-    return {"user": user}
+    user_data = dict(result.get("user", {}))
+    user_data["order_count"] = result.get("order_count", 0)
+    user_data["total_spent"] = result.get("total_spent", 0)
+
+    reseller_key = await services.reseller.get_latest_key(tg_user_id)
+    reseller_stats = await services.reseller.get_reseller_stats(tg_user_id)
+    return {
+        "user": user_data,
+        "reseller_key": reseller_key,
+        "reseller_stats": reseller_stats,
+    }
 
 
 @router.post("/users/{tg_user_id}/adjust-balance", dependencies=WRITE)
@@ -49,3 +59,27 @@ async def set_ban(tg_user_id: int, services: ServicesDep, payload: Optional[BanP
 async def set_user_rank(tg_user_id: int, payload: UserRankPayload, services: ServicesDep):
     rank = await services.users.set_rank(tg_user_id, payload.rank)
     return {"success": True, "rank": rank}
+
+
+@router.post("/users/{tg_user_id}/reseller-key/toggle", dependencies=WRITE)
+async def toggle_reseller_key(tg_user_id: int, services: ServicesDep):
+    key = await services.reseller.get_latest_key(tg_user_id)
+    if not key:
+        raise HTTPException(status_code=404, detail="No API key found for this user.")
+    new_active = not bool(key.get("is_active"))
+    await services.reseller.set_key_status_admin(tg_user_id, new_active)
+    updated_key = await services.reseller.get_latest_key(tg_user_id)
+    return {"success": True, "reseller_key": updated_key}
+
+
+@router.post("/users/{tg_user_id}/reseller-key/generate", dependencies=WRITE)
+async def generate_reseller_key(tg_user_id: int, services: ServicesDep):
+    user_record = await services.users.get(tg_user_id)
+    if not user_record:
+        raise HTTPException(status_code=404, detail="User not found.")
+    u = user_record.get("user") if "user" in user_record else user_record
+    if (u.get("rank") or "").strip().lower() != "reseller":
+        # Automatically upgrade rank to Reseller if admin generates API key
+        await services.users.set_rank(tg_user_id, "Reseller")
+    raw_key, record = await services.reseller.generate_key(tg_user_id, name="Admin Key")
+    return {"success": True, "raw_key": raw_key, "reseller_key": record}

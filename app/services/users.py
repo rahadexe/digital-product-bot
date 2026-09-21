@@ -173,18 +173,36 @@ class UserService:
         where_clauses, params = [], []
         if search:
             params.append(f"%{search}%")
-            where_clauses.append(f"(username ILIKE ${len(params)} OR first_name ILIKE ${len(params)} OR last_name ILIKE ${len(params)} OR CAST(tg_user_id AS TEXT) LIKE ${len(params)})")
+            where_clauses.append(f"(u.username ILIKE ${len(params)} OR u.first_name ILIKE ${len(params)} OR u.last_name ILIKE ${len(params)} OR CAST(u.tg_user_id AS TEXT) LIKE ${len(params)})")
         if filter_type == "has_balance":
-            where_clauses.append("balance > 0")
+            where_clauses.append("u.balance > 0")
         elif filter_type == "banned":
-            where_clauses.append("is_banned = 1")
+            where_clauses.append("u.is_banned = 1")
+        elif filter_type == "reseller":
+            where_clauses.append("(LOWER(TRIM(COALESCE(u.rank, ''))) = 'reseller' OR u.tg_user_id IN (SELECT tg_user_id FROM reseller_api_keys))")
 
         where_sql = (" WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
 
         async with self.db.connect() as conn:
-            total = await conn.fetchval(f"SELECT COUNT(*) FROM users{where_sql}", *params)
+            total = await conn.fetchval(f"SELECT COUNT(*) FROM users u{where_sql}", *params)
             rows = await conn.fetch(
-                f"SELECT * FROM users{where_sql} ORDER BY id DESC LIMIT ${len(params) + 1} OFFSET ${len(params) + 2}",
+                f"""
+                SELECT u.*,
+                       k.key_prefix AS api_key_prefix,
+                       k.is_active AS api_key_active,
+                       k.last_used_at AS api_key_last_used_at
+                FROM users u
+                LEFT JOIN LATERAL (
+                    SELECT key_prefix, is_active, last_used_at
+                    FROM reseller_api_keys
+                    WHERE tg_user_id = u.tg_user_id
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                ) k ON true
+                {where_sql}
+                ORDER BY u.id DESC
+                LIMIT ${len(params) + 1} OFFSET ${len(params) + 2}
+                """,
                 *params,
                 limit,
                 offset,
@@ -195,7 +213,8 @@ class UserService:
                     COUNT(*) AS total_users,
                     COALESCE(SUM(balance), 0)::float AS total_balance,
                     COUNT(CASE WHEN balance > 0 THEN 1 END) AS with_balance_count,
-                    COUNT(CASE WHEN is_banned = 1 THEN 1 END) AS banned_count
+                    COUNT(CASE WHEN is_banned = 1 THEN 1 END) AS banned_count,
+                    COUNT(CASE WHEN LOWER(TRIM(COALESCE(rank, ''))) = 'reseller' OR tg_user_id IN (SELECT tg_user_id FROM reseller_api_keys) THEN 1 END) AS reseller_count
                 FROM users
                 """
             )
@@ -204,6 +223,7 @@ class UserService:
             "total_balance": round(float(summary_row["total_balance"] or 0.0), 2) if summary_row else 0.0,
             "with_balance_count": int(summary_row["with_balance_count"] or 0) if summary_row else 0,
             "banned_count": int(summary_row["banned_count"] or 0) if summary_row else 0,
+            "reseller_count": int(summary_row["reseller_count"] or 0) if summary_row else 0,
         }
         return [dict(row) for row in rows], total, summary
 

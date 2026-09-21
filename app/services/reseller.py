@@ -127,6 +127,26 @@ class ResellerService:
             )
             return True
 
+    async def set_key_status_admin(self, tg_user_id: int, is_active: bool) -> bool:
+        """Admin toggle for enabling or disabling the latest API key for a customer."""
+        async with self.db.transaction() as conn:
+            val = 1 if is_active else 0
+            await conn.execute(
+                """
+                UPDATE reseller_api_keys
+                SET is_active = $1
+                WHERE id = (
+                    SELECT id FROM reseller_api_keys
+                    WHERE tg_user_id = $2
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                )
+                """,
+                val,
+                tg_user_id,
+            )
+            return True
+
     async def get_reseller_stats(self, tg_user_id: int) -> dict[str, Any]:
         """Get total orders and total spending for a reseller."""
         async with self.db.connect() as conn:
