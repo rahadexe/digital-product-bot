@@ -206,6 +206,22 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
           </div>
         </div>
 
+        {/* MANDATORY: Order Refund Notification */}
+        <div className="mandatory-row">
+          <div className="mandatory-info">
+            <div className="mandatory-title-row">
+              <strong>Order Refund Notification</strong>
+              <span className="mandatory-badge warn">ALWAYS ON</span>
+            </div>
+            <p className="mandatory-desc">
+              Instant notification and wallet refund receipt sent to customer when an order is refunded.
+            </p>
+          </div>
+          <div className="mandatory-switch" title="Refund receipt notice. Cannot be disabled.">
+            <Switch label="Order Refund" on={true} disabled={true} onChange={() => {}} />
+          </div>
+        </div>
+
         {/* TOGGLABLE: Referral Bonus Alert */}
         <FlagRow
           label="Referral Bonus Alerts"

@@ -373,6 +373,20 @@ class PurchaseService:
         except Exception as exc:
             logger.exception("Refund of order %s failed", order_id)
             return False, f"Refund failed: {type(exc).__name__}"
+
+        symbol = escape(await self.settings.get("currency_symbol"))
+        self.notifier.in_background(
+            self.notifier.send(
+                order["tg_user_id"],
+                f"{ICON_CHECK} <b>Order Refunded</b>\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"{ICON_ORDERS} <b>Order ID:</b> <code>#{order_id}</code>\n"
+                f"{ICON_VIP} <b>Product:</b> {escape(order['product_title'])}\n"
+                f"{ICON_MONEY} <b>Refunded to Wallet:</b> <code>+{order['price']:.2f} {symbol}</code>\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"<i>টাকা আপনার ওয়ালেট ব্যালেন্সে ফেরত দেওয়া হয়েছে।</i>",
+            )
+        )
         return True, f"Successfully refunded {order['price']:.2f} to user."
 
     async def order_for_customer(self, tg_user_id: int, order_id: int) -> dict[str, Any] | None:
