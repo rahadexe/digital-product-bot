@@ -309,9 +309,8 @@ def get_support_keyboard(
     """
     Keyboard for Support.
     - Top: Support direct chat button (full width).
-    - If channel(s) exist: Guide and Channel buttons placed side-by-side in one row.
-    - If no channels: Guide button is full width.
-    - Bottom: Close button.
+    - Middle: Channel button(s) if configured.
+    - Bottom: Guide and Close buttons side-by-side in one row.
     """
     rows = []
     if support_handle:
@@ -325,44 +324,33 @@ def get_support_keyboard(
             )
         ])
 
-    guide_btn = InlineKeyboardButton(
-        text="Guide",
-        callback_data="open_guide",
-        style="primary",
-        icon_custom_emoji_id=Icons.NOTE,
-    )
-
-    valid_channels = []
     if channels:
         for ch in channels:
             title = (ch.get("title") or "Official Channel").strip()
             url = ch.get("url") or ""
             if url:
-                valid_channels.append(
+                rows.append([
                     InlineKeyboardButton(
                         text=title,
                         url=url,
                         style="success",
                         icon_custom_emoji_id=Icons.CHANNEL,
                     )
-                )
-
-    if valid_channels:
-        # Side-by-side: Guide and Official Channel in the same row
-        rows.append([guide_btn, valid_channels[0]])
-        for ch_btn in valid_channels[1:]:
-            rows.append([ch_btn])
-    else:
-        # Full width when no channels are configured
-        rows.append([guide_btn])
+                ])
 
     rows.append([
+        InlineKeyboardButton(
+            text="Guide",
+            callback_data="open_guide",
+            style="primary",
+            icon_custom_emoji_id=Icons.NOTE,
+        ),
         InlineKeyboardButton(
             text="Close",
             callback_data="close_menu",
             style="danger",
             icon_custom_emoji_id=Icons.CLOSE,
-        )
+        ),
     ])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
