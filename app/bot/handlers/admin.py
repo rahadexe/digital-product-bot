@@ -23,6 +23,7 @@ from app.bot.icons import (
     ICON_CROWN,
     ICON_ID,
     ICON_NOTE,
+    ICON_SHIELD,
     ICON_TIMER,
     ICON_WARNING,
     Icons,
@@ -493,17 +494,6 @@ async def on_bot_chat_member_updated(event: ChatMemberUpdated, services: Service
         )
         with suppress(Exception):
             await bot.leave_chat(chat.id)
-
-        # Alert store admins of unauthorized addition
-        await services.notifier.send_admin(
-            f"🛡️ <b>Security Alert: Group Invite Rejected</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"The bot was added to a group:\n"
-            f"• <b>Title:</b> {html.escape(chat.title or 'Unknown')}\n"
-            f"• <b>Chat ID:</b> <code>{chat.id}</code>\n"
-            f"• <b>Added By:</b> <code>{actor_id}</code>\n\n"
-            f"<i>Groups are completely disabled. The bot automatically left without responding.</i>",
-        )
         return
 
     # 2. CHANNEL: Only allow explicitly authorized announcement or gate channels.
@@ -558,17 +548,6 @@ async def on_bot_chat_member_updated(event: ChatMemberUpdated, services: Service
             )
             with suppress(Exception):
                 await bot.leave_chat(chat.id)
-
-            await services.notifier.send_admin(
-                f"🛡️ <b>Security Alert: Unauthorized Channel</b>\n"
-                f"━━━━━━━━━━━━━━━━━━\n"
-                f"The bot was added to an unauthorized channel:\n"
-                f"• <b>Title:</b> {html.escape(chat.title or 'Unknown')}\n"
-                f"• <b>Channel ID:</b> <code>{chat.id}</code>\n"
-                f"• <b>Username:</b> @{chat_user or 'None'}\n"
-                f"• <b>Added By:</b> <code>{actor_id}</code>\n\n"
-                f"<i>The bot automatically left the channel to prevent unauthorized broadcasts.</i>",
-            )
             return
 
         logger.info(

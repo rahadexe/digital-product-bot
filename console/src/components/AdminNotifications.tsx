@@ -199,34 +199,6 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
             </p>
           </div>
         </div>
-
-        <div className="mandatory-row">
-          <div className="mandatory-info">
-            <div className="mandatory-title-row">
-              <strong>Security: Group Invites Blocked</strong>
-              <span className="mandatory-badge security" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                <ShieldAlert size={10} /> REQUIRED · SECURITY
-              </span>
-            </div>
-            <p className="mandatory-desc">
-              Immediate alert sent to store admins when someone adds the bot to a Telegram group. The bot automatically leaves the group without responding.
-            </p>
-          </div>
-        </div>
-
-        <div className="mandatory-row">
-          <div className="mandatory-info">
-            <div className="mandatory-title-row">
-              <strong>Security: Unauthorized Channels Blocked</strong>
-              <span className="mandatory-badge security" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                <ShieldAlert size={10} /> REQUIRED · SECURITY
-              </span>
-            </div>
-            <p className="mandatory-desc">
-              Immediate alert sent to store admins when someone adds the bot to an unconfigured channel. The bot automatically leaves to protect store broadcasting.
-            </p>
-          </div>
-        </div>
       </div>
 
       {/* ── 3. Customer Notifications ──────────────────────────── */}
