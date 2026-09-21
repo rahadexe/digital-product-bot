@@ -186,16 +186,7 @@ const SECTIONS: Section[] = [
   // ── Notifications ────────────────────────────────────────
   { id: 'notifications', tab: 'notifications', title: 'Notifications', fields: [] },
   // ── Channels ─────────────────────────────────────────────
-  // Everything to do with a channel lives here. The force-join switch used to
-  // sit on another tab from the channels it requires, so turning it on meant
-  // going somewhere else to say which channels it meant.
-  {
-    id: 'force_join',
-    tab: 'channels',
-    title: 'Force join',
-    master: { key: 'force_join_enabled' },
-    fields: [],
-  },
+  // Announcements (post notifications) placed first for quick daily access.
   {
     id: 'announcements',
     tab: 'channels',
@@ -208,6 +199,13 @@ const SECTIONS: Section[] = [
         placeholder: '-1004331909607, @SecondChannel',
       },
     ],
+  },
+  {
+    id: 'force_join',
+    tab: 'channels',
+    title: 'Force join',
+    master: { key: 'force_join_enabled' },
+    fields: [],
   },
   {
     id: 'update_channels',
