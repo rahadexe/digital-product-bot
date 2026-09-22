@@ -3695,14 +3695,47 @@ ul.messages p { margin-top: 6px; color: var(--text-dim); font-size: 12.5px; whit
 .page-placeholder-line:last-child { width: 75%; }
 
 /* A calm startup state, before authenticated content is available. */
-.console-start { width: min(320px, 100%); display: grid; gap: 12px; padding: 28px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow); }
-.console-start .brand { padding: 0 0 10px; }
-.console-start strong { font-size: 14px; }
+/* Opening the console is a moment, not an event. A bordered card with a shadow reads
+   as a dialog asking for attention, and on a fast connection it appeared and vanished
+   as a flash. There is no card now, and nothing is drawn at all until the wait is long
+   enough to be worth acknowledging. */
+.console-start {
+  width: min(300px, 100%);
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  text-align: center;
+  opacity: 0;
+  animation: console-start-appear 260ms ease-out 450ms forwards;
+}
+.console-start .brand { padding: 0; }
+.console-start strong { font-size: 14.5px; font-weight: 600; }
 .console-start > span { color: var(--muted); font-size: 13px; }
-.console-start-progress { height: 4px; overflow: hidden; background: var(--accent-soft); border-radius: 4px; }
-.console-start-progress::after { content: ''; display: block; width: 35%; height: 100%; background: var(--accent); border-radius: inherit; animation: startup-progress 1.4s ease-in-out infinite alternate; }
-@keyframes startup-progress { to { transform: translateX(185%); } }
-@media (prefers-reduced-motion: reduce) { .console-start-progress::after { animation: none; width: 100%; } }
+.console-start-progress {
+  width: 140px;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.console-start-progress::after {
+  content: '';
+  display: block;
+  width: 40%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  animation: console-start-slide 1.15s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+@keyframes console-start-appear { to { opacity: 1; } }
+@keyframes console-start-slide {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(250%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .console-start { animation: none; opacity: 1; }
+  .console-start-progress::after { animation: none; width: 100%; }
+}
 @media (max-width: 760px) {
   .compact-metrics { gap: 8px; margin-bottom: 14px; }
   .compact-metrics .stat-card { min-height: 80px; padding: 12px; }
