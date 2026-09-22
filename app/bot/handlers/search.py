@@ -18,7 +18,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.bot.formatting import format_dual_price
-from app.bot.icons import ICON_CROSS, ICON_SHOP, Icons
+from app.bot.icons import ICON_CROSS, ICON_SHOP, ICON_VIP, Icons
 from app.services import Services
 
 router = Router(name="search_router")
@@ -37,7 +37,7 @@ async def prompt_search(message: Message, state: FSMContext, services: Services)
     products = await services.catalog.products(limit=3, active_only=True)
     examples = ", ".join(p["title"].strip()[:18] for p in products) if products else "Netflix, VPN"
     await message.answer(
-        f"{ICON_SHOP} <b>Find a Product</b>\n"
+        f"{ICON_VIP} <b>Find a Product</b>\n\n"
         f"Type what you are looking for.\n\n"
         f"<i>Try: {escape(examples)}</i>",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
