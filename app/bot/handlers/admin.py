@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+import io
 import logging
 import re
 import time
@@ -1933,48 +1934,110 @@ async def adm_cb_start_prod(query: CallbackQuery, state: FSMContext, services: S
             )
 
 
+async def build_stock_overview_view(services: Services, page: int = 0) -> tuple[str, InlineKeyboardMarkup]:
+    products = await services.catalog.products(active_only=False, limit=200)
+    threshold = int(await services.settings.number("low_stock_threshold") or 3)
+
+    out_of_stock = [p for p in products if p.get("stock") is not None and int(p["stock"] or 0) == 0]
+    low_stock = [p for p in products if p.get("stock") is not None and 0 < int(p["stock"] or 0) <= threshold]
+    healthy_stock = [p for p in products if p.get("stock") is None or int(p["stock"] or 0) > threshold]
+
+    # Priority sorting: out of stock first, then low stock, then healthy
+    ordered = out_of_stock + low_stock + healthy_stock
+
+    page_size = 6
+    total_pages = max(1, (len(ordered) + page_size - 1) // page_size)
+    page = max(0, min(page, total_pages - 1))
+
+    page_items = ordered[page * page_size : (page + 1) * page_size]
+
+    rows: list[list[InlineKeyboardButton]] = []
+    for p in page_items:
+        stk = p.get("stock")
+        if stk is None:
+            badge = "∞ left"
+            style = "primary"
+        elif int(stk) == 0:
+            badge = "🔴 0 left"
+            style = "danger"
+        elif int(stk) <= threshold:
+            badge = f"🟡 {stk} left"
+            style = "primary"
+        else:
+            badge = f"🟢 {stk} left"
+            style = "success"
+
+        title = p["title"][:22]
+        rows.append([
+            InlineKeyboardButton(
+                text=f"{title} · {badge}",
+                callback_data=f"adm_stock_{p['id']}",
+                style=style,
+                icon_custom_emoji_id=Icons.PLUS,
+            )
+        ])
+
+    nav_row: list[InlineKeyboardButton] = []
+    if page > 0:
+        nav_row.append(InlineKeyboardButton(text="◀️ Prev", callback_data=f"adm_stock_page_{page - 1}"))
+    if total_pages > 1:
+        nav_row.append(InlineKeyboardButton(text=f"📄 {page + 1}/{total_pages}", callback_data="adm_noop"))
+    if page < total_pages - 1:
+        nav_row.append(InlineKeyboardButton(text="Next ▶️", callback_data=f"adm_stock_page_{page + 1}"))
+    if nav_row:
+        rows.append(nav_row)
+
+    rows.append([
+        InlineKeyboardButton(text="Search by Name", callback_data="adm_stock_search", icon_custom_emoji_id=Icons.PRODUCTS),
+    ])
+    rows.append([
+        InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+        InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
+    ])
+
+    text = (
+        f"{ICON_PLUS} <b>Stock Management</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"📊 <b>Total:</b> <code>{len(products)}</code> products\n"
+        f"🔴 <b>Out of Stock:</b> <code>{len(out_of_stock)}</code> · "
+        f"🟡 <b>Low Stock:</b> <code>{len(low_stock)}</code> · "
+        f"🟢 <b>In Stock:</b> <code>{len(healthy_stock)}</code>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"<i>Select a product below to add stock, or search by name:</i>"
+    )
+    return text, InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 @router.callback_query(F.data == "adm_start_stock")
 async def adm_cb_start_stock(query: CallbackQuery, state: FSMContext, services: Services):
-    """Open on the products that are actually short.
-
-    Stock gets added because something ran out, so asking for a name first made the
-    owner type out what the shop already knows. The short ones are listed straight
-    away; searching is still there for the rest."""
     if await _deny(query, services):
         return
     await state.clear()
-    products = await services.catalog.products(active_only=False, limit=200)
-    threshold = int(await services.settings.number("low_stock_threshold") or 3)
-    short = sorted(
-        (p for p in products
-         if p.get("stock") is not None and int(p["stock"] or 0) <= threshold),
-        key=lambda p: int(p["stock"] or 0))[:8]
-
-    rows = [[InlineKeyboardButton(
-        text=f"{p['title'][:24]} · {int(p['stock'] or 0)} left",
-        callback_data=f"adm_stock_{p['id']}",
-        style="danger" if not int(p["stock"] or 0) else "success",
-        icon_custom_emoji_id=Icons.PLUS)] for p in short]
-    rows.append([InlineKeyboardButton(text="Search by Name", callback_data="adm_stock_search",
-                                      icon_custom_emoji_id=Icons.PRODUCTS)])
-    rows.append([
-        InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard",
-                             icon_custom_emoji_id=Icons.BACK),
-        InlineKeyboardButton(text="Close", callback_data="close_menu",
-                             style="danger", icon_custom_emoji_id=Icons.CLOSE),
-    ])
-
-    header = f"{ICON_WARNING} <b>These items are running low:</b>" if short else f"{ICON_CHECK} <b>All products have sufficient stock.</b>"
+    text, keyboard = await build_stock_overview_view(services, page=0)
     with suppress(TelegramBadRequest):
         await query.answer()
     if query.message:
         with suppress(TelegramBadRequest):
-            await query.message.edit_text(
-                f"{ICON_PLUS} <b>Add Stock</b>\n"
-                f"━━━━━━━━━━━━━━━━━━\n"
-                f"{header}\n\n"
-                f"<i>Select a product to restock, or search by name.</i>",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
+            await query.message.edit_text(text, reply_markup=keyboard)
+
+
+@router.callback_query(F.data.regexp(r"^adm_stock_page_\d+$"))
+async def adm_cb_stock_page(query: CallbackQuery, services: Services):
+    if await _deny(query, services):
+        return
+    page = int(query.data.removeprefix("adm_stock_page_"))
+    text, keyboard = await build_stock_overview_view(services, page=page)
+    with suppress(TelegramBadRequest):
+        await query.answer()
+    if query.message:
+        with suppress(TelegramBadRequest):
+            await query.message.edit_text(text, reply_markup=keyboard)
+
+
+@router.callback_query(F.data == "adm_noop")
+async def adm_cb_noop(query: CallbackQuery):
+    with suppress(TelegramBadRequest):
+        await query.answer()
 
 
 @router.callback_query(F.data == "adm_stock_search")
@@ -2127,12 +2190,14 @@ async def build_product_card(services: Services, product_id: int):
         [
             InlineKeyboardButton(text="Add stock", callback_data=f"adm_stock_{product_id}",
                                  style="success", icon_custom_emoji_id=Icons.PLUS),
+            InlineKeyboardButton(text="Stock Items", callback_data=f"adm_stock_items_{product_id}",
+                                 icon_custom_emoji_id=Icons.STATS),
+        ],
+        [
             InlineKeyboardButton(text="Take off sale" if live else "Put back on sale",
                                  callback_data=f"adm_prod_toggle_{product_id}",
                                  style="danger" if live else "success",
                                  icon_custom_emoji_id=Icons.CROSS if live else Icons.CHECK),
-        ],
-        [
             InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard",
                                  icon_custom_emoji_id=Icons.BACK),
         ],
@@ -2211,40 +2276,144 @@ async def adm_stock_ask(query: CallbackQuery, state: FSMContext, services: Servi
         await query.answer()
     if query.message:
         await state.update_data(panel_msg_id=query.message.message_id)
+        symbol = html.escape(await services.settings.get("currency_symbol"))
+        stock = product.get("stock")
+        stock_str = f"<code>{stock}</code> items available" if stock is not None else "<i>Unlimited / Manual</i>"
+        price_str = f"<code>{float(product['price']):.2f} {symbol}</code>"
+        status_str = "🟢 On sale" if product["is_active"] else "🔴 Hidden"
+        icon = product.get("icon") or ICON_SHOP
+
+        text = (
+            f"{ICON_PLUS} <b>Add Stock</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{icon} <b>Product:</b> {html.escape(product['title'])}\n"
+            f"{ICON_MONEY} <b>Price:</b> {price_str} · <b>Status:</b> {status_str}\n"
+            f"📊 <b>Current Stock:</b> {stock_str}\n"
+            f"━━━━━━━━━━━━━━━━━━\n\n"
+            f"📥 <b>How to add stock:</b>\n"
+            f"1️⃣ <b>Send text:</b> Paste accounts, keys, or codes directly below (one per line).\n"
+            f"2️⃣ <b>Or upload file:</b> Send a <code>.txt</code> file containing the items.\n\n"
+            f"💡 <i>Duplicates already in stock will be skipped automatically.</i>\n\n"
+            f"📋 <b>Example format:</b>\n"
+            f"<code>user1@email.com:password123</code>\n"
+            f"<code>user2@email.com:password456</code>\n\n"
+            f"<i>Send your items or file below, or tap Back:</i>"
+        )
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [
+                InlineKeyboardButton(text="View Stock Items", callback_data=f"adm_stock_items_{product_id}", icon_custom_emoji_id=Icons.STATS),
+            ],
+            [
+                InlineKeyboardButton(text="Stock Menu", callback_data="adm_start_stock", icon_custom_emoji_id=Icons.BACK),
+                InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+                InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
+            ]
+        ])
         with suppress(TelegramBadRequest):
-            await query.message.edit_text(
-                f"{ICON_PLUS} <b>Add Stock</b>\n"
-                f"━━━━━━━━━━━━━━━━━━\n"
-                f"Product: <b>{html.escape(product['title'])}</b>\n\n"
-                f"Send items to add, one item per line.\n"
-                f"<i>Duplicates already in stock will be skipped automatically.</i>\n\n"
-                f"Send /cancel to abort.",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-                    InlineKeyboardButton(text="Back", callback_data=f"adm_prod_{product_id}", icon_custom_emoji_id=Icons.BACK),
-                    InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
-                    InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
-                ]])
-            )
+            await query.message.edit_text(text, reply_markup=keyboard)
+
+
+@router.callback_query(F.data.regexp(r"^adm_stock_items_\d+$"))
+async def adm_cb_stock_items(query: CallbackQuery, services: Services):
+    if await _deny(query, services):
+        return
+    product_id = int(query.data.removeprefix("adm_stock_items_"))
+    product = await services.catalog.product(product_id)
+    if not product:
+        with suppress(TelegramBadRequest):
+            await query.answer("That product no longer exists.", show_alert=True)
+        return
+
+    items, total_count, summary = await services.inventory.items(product_id=product_id, status="available", limit=8)
+    with suppress(TelegramBadRequest):
+        await query.answer()
+
+    lines = []
+    if items:
+        for idx, it in enumerate(items, 1):
+            content = it["content"]
+            if ":" in content:
+                user_part, pass_part = content.split(":", 1)
+                masked_pass = pass_part[:2] + "***" if len(pass_part) > 2 else "***"
+                display_content = f"{html.escape(user_part)}:{masked_pass}"
+            elif len(content) > 30:
+                display_content = html.escape(content[:26]) + "..."
+            else:
+                display_content = html.escape(content)
+            lines.append(f"{idx}. <code>{display_content}</code>")
+    else:
+        lines.append("<i>No items currently in stock.</i>")
+
+    text = (
+        f"{ICON_STATS} <b>Stock Items Preview</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"📦 <b>Product:</b> {html.escape(product['title'])}\n"
+        f"📊 <b>Available:</b> <code>{summary.get('available_units', 0)}</code> · "
+        f"🛒 <b>Sold:</b> <code>{summary.get('sold_units', 0)}</code>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"<b>Current Available Items (up to 8):</b>\n"
+        + "\n".join(lines) + "\n\n"
+        f"<i>Tap below to add more stock or manage this product:</i>"
+    )
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="Add stock", callback_data=f"adm_stock_{product_id}", style="success", icon_custom_emoji_id=Icons.PLUS),
+            InlineKeyboardButton(text="Product Card", callback_data=f"adm_prod_{product_id}", icon_custom_emoji_id=Icons.PRODUCTS),
+        ],
+        [
+            InlineKeyboardButton(text="Stock Menu", callback_data="adm_start_stock", icon_custom_emoji_id=Icons.BACK),
+            InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+        ]
+    ])
+    if query.message:
+        with suppress(TelegramBadRequest):
+            await query.message.edit_text(text, reply_markup=keyboard)
 
 
 @router.message(AdminProductStates.waiting_for_stock)
 async def adm_stock_save(message: Message, state: FSMContext, services: Services):
     if not message.from_user or not await _is_admin(message.from_user.id, services):
         return
-    text = (message.text or message.caption or "").strip()
     data = await state.get_data()
     panel_msg_id = data.get("panel_msg_id")
+    product_id = int(data.get("stock_product_id") or 0)
 
     asked_at = float(data.get("stock_asked_at") or 0)
     if not asked_at or time.time() - asked_at > DELIVERY_PROMPT_SECONDS:
         await state.clear()
+        if panel_msg_id:
+            with suppress(Exception):
+                await message.delete()
+            text_stock, keyboard = await build_stock_overview_view(services)
+            with suppress(TelegramBadRequest):
+                await message.bot.edit_message_text(
+                    text=f"{ICON_WARNING} That prompt expired. Tap <b>Add stock</b> again.\n\n" + text_stock,
+                    chat_id=message.chat.id,
+                    message_id=panel_msg_id,
+                    reply_markup=keyboard,
+                )
+            return
         await message.answer(f"{ICON_WARNING} That prompt expired. Tap <b>Add stock</b> again.")
         return
-    if is_navigation(text) or text.startswith("/"):
+
+    text_input = (message.text or message.caption or "").strip()
+    if is_navigation(text_input) or text_input.startswith("/"):
         await state.clear()
         with suppress(Exception):
             await message.delete()
-        if text.lower().startswith("/cancel"):
+        if text_input.lower().startswith("/cancel"):
+            if panel_msg_id:
+                text_stock, keyboard = await build_stock_overview_view(services)
+                with suppress(TelegramBadRequest):
+                    await message.bot.edit_message_text(
+                        text=text_stock,
+                        chat_id=message.chat.id,
+                        message_id=panel_msg_id,
+                        reply_markup=keyboard,
+                    )
+            else:
+                await message.answer(f"{ICON_CROSS} Cancelled. No stock was added.")
+        elif text_input.lower().startswith("/admin"):
             if panel_msg_id:
                 text_dash, keyboard = await build_admin_dashboard(services)
                 with suppress(TelegramBadRequest):
@@ -2255,42 +2424,78 @@ async def adm_stock_save(message: Message, state: FSMContext, services: Services
                         reply_markup=keyboard,
                     )
             else:
-                await message.answer(f"{ICON_CROSS} Cancelled. No stock was added.")
+                await cmd_admin_help(message, services)
         else:
-            await navigate(text, message, state, services)
+            await navigate(text_input, message, state, services)
         return
 
-    items = [line.strip() for line in text.splitlines() if line.strip()]
+    # Extract items from either document or text
+    extracted_text = ""
+    if message.document:
+        doc = message.document
+        fname = (doc.file_name or "").lower()
+        if not (fname.endswith((".txt", ".csv", ".log", ".text")) or (doc.mime_type or "").startswith("text/")):
+            await message.answer(f"{ICON_WARNING} Please upload a <code>.txt</code> or text file, or paste items directly.")
+            return
+        try:
+            file_io = io.BytesIO()
+            await message.bot.download(doc, destination=file_io)
+            raw_bytes = file_io.getvalue()
+            try:
+                extracted_text = raw_bytes.decode("utf-8")
+            except UnicodeDecodeError:
+                extracted_text = raw_bytes.decode("latin-1", errors="ignore")
+        except Exception as exc:
+            logger.exception("Failed to download or decode stock document: %s", exc)
+            await message.answer(f"{ICON_CROSS} Failed to read uploaded file: {html.escape(str(exc))}")
+            return
+    else:
+        extracted_text = text_input
+
+    items = [line.strip() for line in extracted_text.splitlines() if line.strip()]
     if not items:
-        await message.answer(f"{ICON_WARNING} Send the items, one per line, or /cancel.")
+        await message.answer(f"{ICON_WARNING} No valid stock lines found. Send the items, one per line, upload a .txt file, or /cancel.")
         return
-    product_id = int(data.get("stock_product_id") or 0)
+
     await state.clear()
     try:
         result = await services.inventory.add_stock(product_id, items)
     except Exception as exc:
         await message.answer(f"{ICON_CROSS} Could not add stock: {html.escape(str(exc))}")
         return
+
     product = await services.catalog.product(product_id)
-    added, skipped = int(result.get("added", 0)), int(result.get("skipped", 0))
+    added = int(result.get("added", 0))
+    skipped = int(result.get("skipped", 0))
     if added:
         with suppress(Exception):
             await services.announcements.restock(product_id, added)
-    stock_count = (product or {}).get('stock', 0)
-    skipped_str = f" · Skipped: <code>{skipped}</code>" if skipped else ""
+    stock_count = (product or {}).get("stock", 0)
+
     stock_conf_text = (
-        f"{ICON_CHECK} <b>Stock Updated</b>\n"
+        f"{ICON_CHECK} <b>Stock Updated Successfully!</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"Product: <b>{html.escape((product or {}).get('title') or 'Product')}</b>\n"
-        f"Added: <code>+{added}</code>{skipped_str}\n"
-        f"Current Stock: <code>{stock_count}</code> items"
+        f"📦 <b>Product:</b> {html.escape((product or {}).get('title') or 'Product')}\n"
+        f"📥 <b>Items Received:</b> <code>{len(items)}</code>\n"
+        f"✅ <b>Successfully Added:</b> <code>+{added}</code>\n"
+        f"⏭️ <b>Duplicates Skipped:</b> <code>{skipped}</code>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"📊 <b>Total Stock Now:</b> <code>{stock_count}</code> items available"
     )
-    stock_conf_keyboard = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard",
-                             icon_custom_emoji_id=Icons.BACK),
-        InlineKeyboardButton(text="Close", callback_data="close_menu",
-                             style="danger", icon_custom_emoji_id=Icons.CLOSE),
-    ]])
+    stock_conf_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="Add More", callback_data=f"adm_stock_{product_id}", style="success", icon_custom_emoji_id=Icons.PLUS),
+            InlineKeyboardButton(text="View Items", callback_data=f"adm_stock_items_{product_id}", icon_custom_emoji_id=Icons.STATS),
+        ],
+        [
+            InlineKeyboardButton(text="Product Card", callback_data=f"adm_prod_{product_id}", icon_custom_emoji_id=Icons.PRODUCTS),
+            InlineKeyboardButton(text="Stock Menu", callback_data="adm_start_stock", icon_custom_emoji_id=Icons.BACK),
+        ],
+        [
+            InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
+        ]
+    ])
 
     if panel_msg_id:
         with suppress(Exception):
