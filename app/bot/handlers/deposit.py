@@ -174,8 +174,8 @@ async def ask_instant_amount(query: CallbackQuery, state: FSMContext, services: 
     if query.message:
         text = (
             f"{ICON_LIGHTNING} <b>{escape(instant['label'])}</b>\n\n"
-            f"Minimum: {price(symbol, instant['min_amount'], show_usd=False)}\n\n"
-            f"{ICON_MONEY} <b>কত টাকা ডিপোজিট করবেন, তা লিখুন:</b>\n"
+            f"{ICON_WARNING} <b>Minimum:</b> {price(symbol, instant['min_amount'], show_usd=False)}\n\n"
+            f"{ICON_MONEY} <b>কত টাকা অ্যাড করবেন তা লিখুন:</b>\n\n"
             f"💡 <i>(যেমন: 100)</i>"
         )
         with suppress(TelegramBadRequest):
