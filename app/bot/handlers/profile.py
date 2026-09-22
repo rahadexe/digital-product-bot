@@ -530,8 +530,8 @@ async def reseller_reveal_key_handler(event: CallbackQuery, services: Services):
 async def reseller_regen_prompt_handler(event: CallbackQuery):
     text = (
         f"{ICON_WARNING} <b>Regenerate Reseller API Key?</b>\n\n"
-        f"{ICON_WARNING} <b>Warning:</b>\n"
-        f"Generating a new API key will immediately deactivate your existing key.\n\n"
+        f"{ICON_WARNING} <b>Warning:</b>\n\n"
+        f"Generating a new API key will immediately deactivate your existing key. "
         f"Any bots or websites connected using your current key will stop working until updated with the new key.\n\n"
         f"Are you sure you want to regenerate your API key?"
     )
@@ -551,7 +551,13 @@ async def reseller_regen_prompt_handler(event: CallbackQuery):
                     callback_data="open_reseller",
                     style="primary",
                     icon_custom_emoji_id=Icons.BACK,
-                )
+                ),
+                InlineKeyboardButton(
+                    text="Close",
+                    callback_data="close_menu",
+                    style="danger",
+                    icon_custom_emoji_id=Icons.CLOSE,
+                ),
             ],
         ]
     )
