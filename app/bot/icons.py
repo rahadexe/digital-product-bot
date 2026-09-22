@@ -21,7 +21,7 @@ class Icons:
     DEPOSIT = "6233367447789899509"        # 💰 Add Balance (tongyong_renmin)
     REFER = "5379742233853451967"          # 🔗 Refer & Earn (MeshChainEmoji)
     BALANCE = "6102735781258861018"        # 💰 (Raika_Games)
-    MONEY = "5956180995924300841"          # 💵 (emoji1912)
+    MONEY = "6206155797722830770"          # 💵 (Earning_ON_World_by_TgEmojis_bot)
     SPENT = "6251349286152316652"          # 💸 (Raika_Games)
     COIN = "6251368935627692476"           # 🪙 (Raika_Games)
     ORDERS = "6084747049473940188"         # 🎁 (Raika_Games)
