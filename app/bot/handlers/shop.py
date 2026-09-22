@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import math
 import re
 from contextlib import suppress
@@ -47,6 +48,19 @@ from app.bot.keyboards import (
 from app.services import Services
 
 router = Router(name="shop_router")
+
+
+# How long the banner a purchase leaves behind stays. The receipt follows seconds later
+# through the outbox, and once it has arrived the banner is a signpost pointing at a
+# message already on screen. A minute covers a slow worker without leaving it there.
+PURCHASE_BANNER_SECONDS = 60
+
+
+async def _clear_banner(message: Message, seconds: int) -> None:
+    """Take away the "your order is below" note once the order really is below."""
+    await asyncio.sleep(seconds)
+    with suppress(Exception):
+        await message.delete()
 
 PAGE_SIZE = 10
 
@@ -1054,6 +1068,11 @@ async def execute_quantity_purchase(query: CallbackQuery, state: FSMContext, ser
             if is_waiting
             else "<i>Your order details and delivery are below 👇</i>"
         )
+        if not is_waiting:
+            # A manual order says it is being prepared, which stays true until a
+            # human sends it, so only the instant one is cleared away.
+            services.notifier.in_background(
+                _clear_banner(query.message, PURCHASE_BANNER_SECONDS))
         with suppress(TelegramBadRequest):
             await query.message.edit_text(
                 f"{success_title}\n"
@@ -1092,6 +1111,11 @@ async def execute_legacy_purchase(query: CallbackQuery, state: FSMContext, servi
             if is_waiting
             else "<i>Your order details and delivery are below 👇</i>"
         )
+        if not is_waiting:
+            # A manual order says it is being prepared, which stays true until a
+            # human sends it, so only the instant one is cleared away.
+            services.notifier.in_background(
+                _clear_banner(query.message, PURCHASE_BANNER_SECONDS))
         with suppress(TelegramBadRequest):
             await query.message.edit_text(
                 f"{success_title}\n"
