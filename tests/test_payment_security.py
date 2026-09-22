@@ -144,17 +144,17 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(status, 'pending', 'an unproven payment must wait for a human')
 
     async def test_receipt_for_a_different_amount_does_not_credit(self):
-        result = await self._claim({'success': True, 'data': {'id': 77, 'amount': 5, 'trxID': 'TRX0000001'}})
+        result = await self._claim({'success': True, 'data': {'id': 77, 'amount': 5, 'trxID': 'TRX0000001', 'provider': 'bKash'}})
         self.assertFalse(result.get('auto_verified'))
         self.assertEqual(await self.balance(), 0.0)
 
     async def test_receipt_for_a_different_transaction_does_not_credit(self):
-        result = await self._claim({'success': True, 'data': {'id': 77, 'amount': 500, 'trxID': 'SOMEONE-ELSE'}})
+        result = await self._claim({'success': True, 'data': {'id': 77, 'amount': 500, 'trxID': 'SOMEONE-ELSE', 'provider': 'bKash'}})
         self.assertFalse(result.get('auto_verified'))
         self.assertEqual(await self.balance(), 0.0)
 
     async def test_matching_receipt_credits_once(self):
-        body = {'success': True, 'data': {'id': 77, 'amount': 500, 'trxID': 'TRX0000001'}}
+        body = {'success': True, 'data': {'id': 77, 'amount': 500, 'trxID': 'TRX0000001', 'provider': 'bKash'}}
         result = await self._claim(body)
         self.assertTrue(result.get('auto_verified'), result)
         self.assertEqual(await self.balance(), 500.0)
@@ -165,10 +165,10 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await self.balance(), 500.0)
 
     async def test_transaction_already_used_by_another_customer(self):
-        await self._claim({'success': True, 'data': {'id': 77, 'amount': 500, 'trxID': 'TRX0000001'}})
+        await self._claim({'success': True, 'data': {'id': 77, 'amount': 500, 'trxID': 'TRX0000001', 'provider': 'bKash'}})
         self.assertEqual(await self.balance(), 500.0)
         await self.s.zinipay.http.aclose()
-        async with gateway({'success': True, 'data': {'id': 78, 'amount': 500, 'trxID': 'TRX0000001'}}) as client:
+        async with gateway({'success': True, 'data': {'id': 78, 'amount': 500, 'trxID': 'TRX0000001', 'provider': 'bKash'}}) as client:
             self.s.zinipay.http = client
             with self.assertRaises(DuplicateTransactionError):
                 await self.s.zinipay.claim(INTRUDER, self.method, 500, 'TRX0000001', quoted_rate=1.0)
@@ -266,7 +266,7 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
         result = await self._awaiting()
         await self._due_now(result['deposit_id'])
 
-        arrived = {'success': True, 'data': {'id': 77, 'amount': 500, 'trxID': 'TRX0000001'}}
+        arrived = {'success': True, 'data': {'id': 77, 'amount': 500, 'trxID': 'TRX0000001', 'provider': 'bKash'}}
         await self.s.zinipay.http.aclose()
         async with gateway(arrived) as client:
             self.s.zinipay.http = client
@@ -308,7 +308,7 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await self.s.deposits.cancel_awaiting_sms(result['deposit_id'], CUSTOMER))
         self.assertIsNone(await self.s.deposits.pending_for(CUSTOMER), 'they are free to submit the right one')
 
-        arrived = {'success': True, 'data': {'id': 77, 'amount': 500, 'trxID': 'TRX0000001'}}
+        arrived = {'success': True, 'data': {'id': 77, 'amount': 500, 'trxID': 'TRX0000001', 'provider': 'bKash'}}
         await self.s.zinipay.http.aclose()
         async with gateway(arrived) as client:
             self.s.zinipay.http = client
@@ -324,7 +324,7 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
     async def test_an_approved_deposit_cannot_be_cancelled_from_the_button(self):
         result = await self._awaiting()
         await self._due_now(result['deposit_id'])
-        arrived = {'success': True, 'data': {'id': 77, 'amount': 500, 'trxID': 'TRX0000001'}}
+        arrived = {'success': True, 'data': {'id': 77, 'amount': 500, 'trxID': 'TRX0000001', 'provider': 'bKash'}}
         await self.s.zinipay.http.aclose()
         async with gateway(arrived) as client:
             self.s.zinipay.http = client
@@ -351,7 +351,7 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
     async def test_an_auto_verified_deposit_does_not_page_the_owner(self):
         """It was approved before they could read it, so asking them to approve it is noise."""
         alerts = self._watch_admin()
-        result = await self._claim({'success': True, 'data': {'id': 77, 'amount': 500, 'trxID': 'TRX0000001'}})
+        result = await self._claim({'success': True, 'data': {'id': 77, 'amount': 500, 'trxID': 'TRX0000001', 'provider': 'bKash'}})
         self.assertTrue(result.get('auto_verified'), result)
         await asyncio.sleep(0.2)   # the alert would go out in the background
         self.assertEqual(alerts, [], 'nothing needed a person')
@@ -387,6 +387,92 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result.get('fallback_manual'), result)
         await asyncio.sleep(0.2)
         self.assertEqual(len(alerts), 1, alerts)
+
+    # ---- a bKash deposit is paid by a bKash transaction ----------------------
+
+    async def _claim_recording(self, body, amount=500, trx='TRX0000001', status=200):
+        """Claim, and report which gateway endpoints were called."""
+        calls = []
+
+        def answer(request):
+            calls.append(request.url.path.rsplit('/', 1)[-1])
+            return httpx.Response(status, json=body)
+
+        await self.s.zinipay.http.aclose()
+        async with httpx.AsyncClient(transport=httpx.MockTransport(answer)) as client:
+            self.s.zinipay.http = client
+            result = await self.s.zinipay.claim(CUSTOMER, self.method, amount, trx, quoted_rate=1.0)
+        return result, calls
+
+    async def test_a_nagad_transaction_cannot_pay_a_bkash_deposit(self):
+        """ZiniPay searches every wallet; the shop checks the receipt names the one chosen."""
+        nagad = {'success': True, 'data': {'id': 77, 'amount': 500, 'trxID': 'TRX0000001', 'provider': 'Nagad'}}
+        result, calls = await self._claim_recording(nagad)
+        self.assertEqual(result.get('error'), 'wrong_method', result)
+        self.assertEqual(result.get('paid_with'), 'Nagad')
+        self.assertEqual(await self.balance(), 0.0)
+        self.assertNotIn('confirm', calls, 'the transaction must not be consumed, so it can pay the right method')
+        self.assertIsNone(await self.s.deposits.pending_for(CUSTOMER))
+
+    async def test_the_wallet_name_is_compared_loosely(self):
+        from app.services.zinipay import _wallet
+        self.assertEqual({_wallet(p) for p in ('bKash', 'BKASH', 'bkash personal', 'b-Kash')}, {'bkash'})
+        self.assertEqual(_wallet('Nagad'), 'nagad')
+        self.assertEqual(_wallet('Mobile Banking'), '', 'a method that names no wallet is not checked')
+        shouting = {'success': True, 'data': {'id': 77, 'amount': 500, 'trxID': 'TRX0000001', 'provider': 'BKASH'}}
+        result, _ = await self._claim_recording(shouting)
+        self.assertTrue(result.get('auto_verified'), result)
+
+    async def test_a_receipt_that_names_no_wallet_goes_to_a_person(self):
+        silent = {'success': True, 'data': {'id': 77, 'amount': 500, 'trxID': 'TRX0000001'}}
+        result, calls = await self._claim_recording(silent)
+        self.assertTrue(result.get('fallback_manual'), result)
+        self.assertNotIn('confirm', calls)
+        self.assertEqual(await self.balance(), 0.0)
+
+    async def test_a_transaction_id_the_shop_has_seen_is_refused_at_once(self):
+        """Even a rejected one: no gateway call, so no receipt wait."""
+        await self.s.users.sync_profile(INTRUDER, first_name='Intruder')
+        earlier = await self.s.deposits.create_request(INTRUDER, self.method, 300, 'TRXSEEN0001')
+        await self.s.deposits.reject(earlier, 'Payment not received')
+        calls = []
+
+        def answer(request):
+            calls.append(request.url.path)
+            return httpx.Response(404, json={'success': False, 'message': 'Transaction not found', 'data': None})
+
+        await self.s.zinipay.http.aclose()
+        async with httpx.AsyncClient(transport=httpx.MockTransport(answer)) as client:
+            self.s.zinipay.http = client
+            with self.assertRaises(DuplicateTransactionError):
+                await self.s.zinipay.claim(CUSTOMER, self.method, 500, 'TRXSEEN0001', quoted_rate=1.0)
+        self.assertEqual(calls, [], 'the gateway was asked about a transaction id the shop already knew')
+
+    async def test_a_transaction_id_is_used_once_even_by_the_same_customer(self):
+        """deposit_transaction_unique: once, whatever became of the deposit that used it."""
+        waiting = await self._awaiting(trx='TRXMINE0001')
+        self.assertTrue(await self.s.deposits.cancel_awaiting_sms(waiting['deposit_id'], CUSTOMER))
+        body = {'success': True, 'data': {'id': 77, 'amount': 500, 'trxID': 'TRXMINE0001', 'provider': 'bKash'}}
+        with self.assertRaises(DuplicateTransactionError):
+            await self._claim_recording(body, trx='TRXMINE0001')
+        self.assertEqual(await self.balance(), 0.0)
+
+    async def test_a_late_receipt_from_the_wrong_wallet_is_not_credited(self):
+        result = await self._awaiting()
+        await self._due_now(result['deposit_id'])
+        alerts = self._watch_admin()
+        nagad = {'success': True, 'data': {'id': 77, 'amount': 500, 'trxID': 'TRX0000001', 'provider': 'Nagad'}}
+        await self.s.zinipay.http.aclose()
+        async with gateway(nagad) as client:
+            self.s.zinipay.http = client
+            await self.s.zinipay.recover()
+            await self._due_now(result['deposit_id'])
+            await self.s.zinipay.recover()           # a second pass must not alert again
+        self.assertEqual(await self.balance(), 0.0)
+        self.assertEqual(len(alerts), 1, alerts)
+        async with self.db.connect() as conn:
+            note = await conn.fetchval('SELECT admin_note FROM deposits WHERE id=$1', result['deposit_id'])
+        self.assertIn('Nagad', note)
 
     # ---- hosted invoices ------------------------------------------------------
 

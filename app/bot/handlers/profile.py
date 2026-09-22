@@ -139,7 +139,8 @@ async def show_user_profile(event: Message | CallbackQuery, state: FSMContext, s
         f"{ICON_ORDERS} <b>Total Orders:</b> {stats.get('order_count', 0)}\n"
         f"{ICON_SPENT} <b>Total Spent:</b> <code>{price(symbol, stats.get('total_spent', 0.0), usd_rate=usd_rate, show_usd=show_usd)}</code>"
     )
-    await respond(event, text, get_account_keyboard())
+    is_admin = tg_user.id in await services.settings.admin_chat_ids()
+    await respond(event, text, get_account_keyboard(is_admin=is_admin))
 
 
 @router.message(Command("referral"))

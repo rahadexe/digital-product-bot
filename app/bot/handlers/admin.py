@@ -279,7 +279,7 @@ async def handle_bc_confirm(query: CallbackQuery, state: FSMContext, services: S
                     reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                         [
                             InlineKeyboardButton(text="BC Status", callback_data="adm_view_bcstatus", icon_custom_emoji_id=Icons.TIMER),
-                            InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+                            InlineKeyboardButton(text="Back", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
                         ],
                         [
                             InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
@@ -309,95 +309,37 @@ async def handle_bc_cancel(query: CallbackQuery, state: FSMContext, services: Se
 
 
 async def build_admin_dashboard(services: Services) -> tuple[str, InlineKeyboardMarkup]:
-    recipients = await services.delivery.recipient_count()
     paused = await services.settings.flag("store_paused")
-    symbol = html.escape(await services.settings.get("currency_symbol"))
-
     stats = await services.dashboard.stats()
     waiting = stats.get("waiting_orders", 0)
     pending = stats.get("pending_deposits", 0)
+    total_needs = waiting + pending
 
-    async with services.db.connect() as conn:
-        today = await conn.fetchrow(
-            "SELECT COUNT(*) AS orders, COALESCE(SUM(price), 0) AS revenue FROM orders "
-            "WHERE status = 'completed' AND created_at >= CURRENT_DATE"
-        )
-
-    today_orders = int(today["orders"] or 0) if today else 0
-    today_rev = float(today["revenue"] or 0) if today else 0.0
-
-    jobs = []
-    if pending:
-        jobs.append(f"{pending} deposit(s) to review")
-    if waiting:
-        jobs.append(f"{waiting} order(s) to deliver")
-    needs_attention = ", ".join(jobs) or "All clear"
-
-    store_status = "<b>PAUSED</b>" if paused else "<b>Open</b>"
-    store_icon = ICON_WARNING if paused else ICON_CHECK
-
-    text = (
-        f"{ICON_CROWN} <b>Admin Control Panel</b>\n"
-        "\n"
-        f"{store_icon} <b>Store:</b> {store_status}  ·  {ICON_ACCOUNT} <b>Reach:</b> <code>{recipients}</code>\n"
-        f"{ICON_TIMER} <b>Needs attention:</b> {needs_attention}\n"
-        f"{ICON_CHECK} <b>Today:</b> <code>{today_orders}</code> order(s) · <code>{today_rev:.2f} {symbol}</code>\n\n"
-        f"<i>Select an option below to manage the store:</i>"
-    )
+    text = f"{ICON_CROWN} <b>Admin</b>"
 
     pause_text = "Resume Store" if paused else "Pause Store"
     pause_icon = Icons.CHECK if paused else Icons.WARNING
     pause_style = "success" if paused else "danger"
 
-    # One button called "Needs you" counted two different jobs together, so the number
-    # never said which one was waiting. Checking money against a receipt and sending a
-    # customer their item are different work, often at different moments.
-    deposits_text = f"Deposits ({pending})" if pending else "Deposits"
-    orders_text = f"Deliveries ({waiting})" if waiting else "Deliveries"
+    queue_text = f"Needs Attention ({total_needs})" if total_needs else "Needs Attention"
+    queue_style = "danger" if total_needs else "primary"
 
-    # Paired by the kind of job, because the rows were reading as an arbitrary list:
-    # a mass broadcast next to looking up one person, and the button that stops the
-    # whole shop beside a harmless menu. Pause now sits alone, so a stray thumb on the
-    # row above cannot reach it.
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        # what is waiting on the owner, one queue each
-        [
-            InlineKeyboardButton(text=deposits_text, callback_data="adm_queue_dep",
-                                 style="danger" if pending else "primary",
-                                 icon_custom_emoji_id=Icons.DEPOSIT),
-            InlineKeyboardButton(text=orders_text, callback_data="adm_queue_ord",
-                                 style="danger" if waiting else "primary",
-                                 icon_custom_emoji_id=Icons.ORDERS),
-        ],
-        # the catalogue
-        [
-            InlineKeyboardButton(text="Products", callback_data="adm_start_prod",
-                                 icon_custom_emoji_id=Icons.PRODUCTS),
-            InlineKeyboardButton(text="Add stock", callback_data="adm_start_stock",
-                                 icon_custom_emoji_id=Icons.PLUS),
-        ],
-        # looking something up: one customer, or how the shop is doing
-        [
-            InlineKeyboardButton(text="Find Customer", callback_data="adm_start_find",
-                                 icon_custom_emoji_id=Icons.ACCOUNT),
-            InlineKeyboardButton(text="Store Status", callback_data="adm_view_status",
-                                 icon_custom_emoji_id=Icons.STATS),
-        ],
-        # what customers read
         [
             InlineKeyboardButton(text="Broadcast", callback_data="adm_start_broadcast",
                                  icon_custom_emoji_id=Icons.CHANNEL),
             InlineKeyboardButton(text="Set Welcome", callback_data="adm_start_welcome",
                                  icon_custom_emoji_id=Icons.NOTE),
         ],
-        # alone, because it stops every sale
+        [
+            InlineKeyboardButton(text="Store Status", callback_data="adm_view_status",
+                                 icon_custom_emoji_id=Icons.STATS),
+            InlineKeyboardButton(text=queue_text, callback_data="adm_queue",
+                                 style=queue_style, icon_custom_emoji_id=Icons.TIMER),
+        ],
         [
             InlineKeyboardButton(text=pause_text, callback_data="adm_toggle_pause",
                                  style=pause_style, icon_custom_emoji_id=pause_icon),
-        ],
-        [
-            InlineKeyboardButton(text="Refresh", callback_data="adm_refresh_panel",
-                                 icon_custom_emoji_id=Icons.REFRESH),
             InlineKeyboardButton(text="Close", callback_data="close_menu",
                                  style="danger", icon_custom_emoji_id=Icons.CLOSE),
         ],
@@ -445,10 +387,12 @@ async def build_store_status_view(services: Services) -> tuple[str, InlineKeyboa
     )
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="Refresh", callback_data="adm_view_status", icon_custom_emoji_id=Icons.REFRESH),
-            InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+            InlineKeyboardButton(text="Products", callback_data="adm_start_prod", icon_custom_emoji_id=Icons.PRODUCTS),
+            InlineKeyboardButton(text="Add stock", callback_data="adm_start_stock", icon_custom_emoji_id=Icons.PLUS),
         ],
         [
+            InlineKeyboardButton(text="Refresh", callback_data="adm_view_status", icon_custom_emoji_id=Icons.REFRESH),
+            InlineKeyboardButton(text="Back", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
             InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
         ]
     ])
@@ -460,9 +404,7 @@ async def build_bcstatus_view(services: Services) -> tuple[str, InlineKeyboardMa
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="Refresh", callback_data="adm_view_bcstatus", icon_custom_emoji_id=Icons.REFRESH),
-            InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
-        ],
-        [
+            InlineKeyboardButton(text="Back", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
             InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
         ]
     ])
@@ -513,13 +455,6 @@ async def cmd_admin_help(message: Message, state: FSMContext, services: Services
     if not message.from_user or not await _is_admin(message.from_user.id, services):
         return
     await state.clear()
-    old_panel_id = _last_admin_panels.get(message.chat.id)
-    if old_panel_id:
-        with suppress(Exception):
-            await message.bot.delete_message(chat_id=message.chat.id, message_id=old_panel_id)
-    with suppress(Exception):
-        await message.delete()
-
     text, keyboard = await build_admin_dashboard(services)
     sent = await message.answer(text, reply_markup=keyboard)
     _last_admin_panels[message.chat.id] = sent.message_id
@@ -645,7 +580,7 @@ async def adm_cb_start_broadcast(query: CallbackQuery, state: FSMContext, servic
                 f"<i>Supports text, photos & HTML formatting.</i>\n\n"
                 f"Send /cancel to abort.",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-                    InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+                    InlineKeyboardButton(text="Back", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
                     InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
                 ]])
             )
@@ -679,7 +614,7 @@ async def adm_cb_start_welcome(query: CallbackQuery, state: FSMContext, services
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
                     InlineKeyboardButton(text="Use default", callback_data="adm_reset_welcome",
                                          icon_custom_emoji_id=Icons.REFRESH),
-                    InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard",
+                    InlineKeyboardButton(text="Back", callback_data="adm_dashboard",
                                          icon_custom_emoji_id=Icons.BACK),
                 ]]),
             )
@@ -716,7 +651,7 @@ async def adm_cb_start_find(query: CallbackQuery, state: FSMContext, services: S
                 f"Send Telegram ID (e.g. <code>100200300</code>) or <code>@username</code>.\n\n"
                 f"Send /cancel to abort.",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-                    InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+                    InlineKeyboardButton(text="Back", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
                     InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
                 ]])
             )
@@ -930,38 +865,23 @@ async def _save_welcome_text(message: Message, text: str, services: Services, pa
         await message.answer(f"{ICON_CROSS} Failed to update: {html.escape(str(e))}")
         return
 
-    preview_display = (
-        clean_text.replace("{store_name}", html.escape(store_name))
-        .replace("[Store Name]", html.escape(store_name))
-        .replace("{store}", html.escape(store_name))
-    )
-
-    conf_text = (
-        f"{ICON_CHECK} <b>Welcome Message Saved</b>\n"
-        "\n"
-        f"{preview_display}\n\n"
-        f"<i>Live for all customers now.</i>"
-    )
-    conf_keyboard = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
-        InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
-    ]])
+    dash_text, dash_keyboard = await build_admin_dashboard(services)
 
     if panel_msg_id:
         with suppress(Exception):
             await message.delete()
         try:
             await message.bot.edit_message_text(
-                text=conf_text,
+                text=dash_text,
                 chat_id=message.chat.id,
                 message_id=panel_msg_id,
-                reply_markup=conf_keyboard,
+                reply_markup=dash_keyboard,
             )
             return
         except Exception:
             pass
 
-    await message.answer(conf_text, reply_markup=conf_keyboard)
+    await message.answer(dash_text, reply_markup=dash_keyboard)
 
 
 async def _alert_once(services: Services, scope: str, key: str, text: str) -> None:
@@ -1326,7 +1246,7 @@ async def adm_deposit_do(query: CallbackQuery, services: Services):
         )
         reply_markup = InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(text="Pending Queue", callback_data="adm_queue_dep", icon_custom_emoji_id=Icons.DEPOSIT),
-            InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+            InlineKeyboardButton(text="Back", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
         ]])
         with suppress(TelegramBadRequest):
             await query.message.edit_text(text, reply_markup=reply_markup)
@@ -1364,7 +1284,6 @@ async def adm_order_deliver(query: CallbackQuery, state: FSMContext, services: S
                 f"<i>(Send /cancel to stop)</i>",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
                     InlineKeyboardButton(text="Back", callback_data="adm_queue_ord", icon_custom_emoji_id=Icons.BACK),
-                    InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
                     InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
                 ]])
             )
@@ -1463,7 +1382,7 @@ async def adm_order_deliver_send(message: Message, state: FSMContext, services: 
     )
     conf_keyboard = InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text="Deliveries", callback_data="adm_queue_ord", icon_custom_emoji_id=Icons.ORDERS),
-        InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+        InlineKeyboardButton(text="Back", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
     ]])
     if panel_msg_id:
         with suppress(Exception):
@@ -1545,9 +1464,13 @@ async def cmd_resume(message: Message, services: Services):
 
 async def _handle_find_customer(message: Message, term: str, services: Services, panel_msg_id: int | None = None):
     if not term:
-        text = f"{ICON_NOTE} Send <code>/find 100200300</code> or <code>/find @username</code>."
+        text = (
+            f"{ICON_ACCOUNT} <b>Find Customer</b>\n\n"
+            f"Please provide a customer ID or @username to search.\n"
+            f"Example: <code>/find 100200300</code> or <code>/find @username</code>"
+        )
         reply_markup = InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+            InlineKeyboardButton(text="Back", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
             InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
         ]])
         if panel_msg_id:
@@ -1568,10 +1491,14 @@ async def _handle_find_customer(message: Message, term: str, services: Services,
             row = await conn.fetchrow(
                 "SELECT tg_user_id FROM users WHERE lower(username) = lower($1)", term.lstrip("@"))
     if not row:
-        text = f"{ICON_CROSS} No customer matches <code>{html.escape(term)}</code>."
+        text = (
+            f"{ICON_CROSS} <b>Customer Not Found</b>\n\n"
+            f"No customer matches <code>{html.escape(term)}</code>.\n"
+            f"Please check the ID or username and try again."
+        )
         reply_markup = InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
-            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
+            InlineKeyboardButton(text="Search Again", callback_data="adm_start_find", icon_custom_emoji_id=Icons.ACCOUNT),
+            InlineKeyboardButton(text="Back", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
         ]])
         if panel_msg_id:
             with suppress(Exception):
@@ -1586,9 +1513,13 @@ async def _handle_find_customer(message: Message, term: str, services: Services,
 
     found = await services.users.stats(row["tg_user_id"])
     if not found:
-        text = f"{ICON_CROSS} That customer's record could not be read."
+        text = (
+            f"{ICON_CROSS} <b>Customer Profile Error</b>\n\n"
+            f"Could not read records for user <code>{row['tg_user_id']}</code>.\n"
+            f"Please try again or inspect in the admin console."
+        )
         reply_markup = InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+            InlineKeyboardButton(text="Back", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
             InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
         ]])
         if panel_msg_id:
@@ -1620,7 +1551,7 @@ async def _handle_find_customer(message: Message, term: str, services: Services,
             )
         ])
     buttons.append([
-        InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+        InlineKeyboardButton(text="Back", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
         InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
     ])
 
@@ -1761,13 +1692,20 @@ async def build_queue_view(services: Services, kind: str = "all") -> tuple[str, 
     elif kind == "orders":
         switch.append(InlineKeyboardButton(text="Deposits", callback_data="adm_queue_dep",
                                            icon_custom_emoji_id=Icons.DEPOSIT))
-    rows.append(switch + [
-        InlineKeyboardButton(text="Refresh", callback_data=here, icon_custom_emoji_id=Icons.REFRESH),
-        InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
-    ])
-    rows.append([
-        InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
-    ])
+    if switch:
+        rows.append(switch + [
+            InlineKeyboardButton(text="Refresh", callback_data=here, icon_custom_emoji_id=Icons.REFRESH),
+        ])
+        rows.append([
+            InlineKeyboardButton(text="Back", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
+        ])
+    else:
+        rows.append([
+            InlineKeyboardButton(text="Refresh", callback_data=here, icon_custom_emoji_id=Icons.REFRESH),
+            InlineKeyboardButton(text="Back", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
+        ])
     heading = {
         "deposits": f"{ICON_DEPOSIT} <b>Pending Deposits ({len(deposits)})</b>",
         "orders": f"{ICON_ORDERS} <b>Pending Deliveries ({len(orders)})</b>",
@@ -1890,7 +1828,7 @@ async def adm_order_refund_do(query: CallbackQuery, services: Services):
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
                     InlineKeyboardButton(text="Needs you", callback_data="adm_queue",
                                          icon_custom_emoji_id=Icons.TIMER),
-                    InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard",
+                    InlineKeyboardButton(text="Back", callback_data="adm_dashboard",
                                          icon_custom_emoji_id=Icons.BACK),
                 ]]))
 
@@ -1934,7 +1872,7 @@ async def adm_cb_start_prod(query: CallbackQuery, state: FSMContext, services: S
                 f"Send part of the product name to manage or toggle sale status.\n\n"
                 f"Send /cancel to abort.",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-                    InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+                    InlineKeyboardButton(text="Back", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
                     InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
                 ]])
             )
@@ -1997,7 +1935,7 @@ async def build_stock_overview_view(services: Services, page: int = 0) -> tuple[
         InlineKeyboardButton(text="Search by Name", callback_data="adm_stock_search", icon_custom_emoji_id=Icons.PRODUCTS),
     ])
     rows.append([
-        InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+        InlineKeyboardButton(text="Back", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
         InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
     ])
 
@@ -2064,7 +2002,7 @@ async def adm_cb_stock_search(query: CallbackQuery, state: FSMContext, services:
                 f"Send /cancel to abort.",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
                     InlineKeyboardButton(text="Back", callback_data="adm_start_stock", icon_custom_emoji_id=Icons.BACK),
-                    InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+                    InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
                 ]])
             )
 
@@ -2073,10 +2011,14 @@ async def _show_product_matches(message: Message, term: str, services: Services,
     matches = [p for p in await services.catalog.products(active_only=False, limit=200)
                if term.lower() in (p["title"] or "").lower()][:8]
     if not matches:
-        text = f"{ICON_CROSS} Nothing matches <code>{html.escape(term)}</code>."
+        text = (
+            f"{ICON_CROSS} <b>Product Not Found</b>\n\n"
+            f"No products found matching <code>{html.escape(term)}</code>.\n"
+            f"Please check the product name and try again."
+        )
         reply_markup = InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
-            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
+            InlineKeyboardButton(text="Search Again", callback_data="adm_start_prod" if not adding_stock else "adm_stock_search", icon_custom_emoji_id=Icons.PRODUCTS),
+            InlineKeyboardButton(text="Back", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
         ]])
     else:
         rows = []
@@ -2098,7 +2040,7 @@ async def _show_product_matches(message: Message, term: str, services: Services,
                     btn_kwargs["icon_custom_emoji_id"] = Icons.PRODUCTS
                 rows.append([InlineKeyboardButton(**btn_kwargs)])
         rows.append([
-            InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard",
+            InlineKeyboardButton(text="Back", callback_data="adm_dashboard",
                                  icon_custom_emoji_id=Icons.BACK),
             InlineKeyboardButton(text="Close", callback_data="close_menu",
                                  style="danger", icon_custom_emoji_id=Icons.CLOSE),
@@ -2205,7 +2147,7 @@ async def build_product_card(services: Services, product_id: int):
                                  callback_data=f"adm_prod_toggle_{product_id}",
                                  style="danger" if live else "success",
                                  icon_custom_emoji_id=Icons.CROSS if live else Icons.CHECK),
-            InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard",
+            InlineKeyboardButton(text="Back", callback_data="adm_dashboard",
                                  icon_custom_emoji_id=Icons.BACK),
         ],
     ])
@@ -2312,7 +2254,7 @@ async def adm_stock_ask(query: CallbackQuery, state: FSMContext, services: Servi
             ],
             [
                 InlineKeyboardButton(text="Stock Menu", callback_data="adm_start_stock", icon_custom_emoji_id=Icons.BACK),
-                InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+                InlineKeyboardButton(text="Back", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
                 InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
             ]
         ])
@@ -2369,7 +2311,7 @@ async def adm_cb_stock_items(query: CallbackQuery, services: Services):
         ],
         [
             InlineKeyboardButton(text="Stock Menu", callback_data="adm_start_stock", icon_custom_emoji_id=Icons.BACK),
-            InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+            InlineKeyboardButton(text="Back", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
         ]
     ])
     if query.message:
@@ -2499,7 +2441,7 @@ async def adm_stock_save(message: Message, state: FSMContext, services: Services
             InlineKeyboardButton(text="Stock Menu", callback_data="adm_start_stock", icon_custom_emoji_id=Icons.BACK),
         ],
         [
-            InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+            InlineKeyboardButton(text="Back", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
             InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
         ]
     ])
@@ -2572,7 +2514,7 @@ async def adm_ban_do(query: CallbackQuery, services: Services):
                         )
                     ],
                     [
-                        InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+                        InlineKeyboardButton(text="Back", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
                         InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
                     ]
                 ])

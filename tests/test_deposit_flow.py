@@ -9,6 +9,7 @@ the corrected transaction id arrived in an expired session.
         python -m unittest tests.test_deposit_flow -v
 """
 
+import asyncio
 import datetime
 import os
 import re
@@ -38,8 +39,8 @@ CUSTOMER = 910000111
 MISSING = ({'success': False, 'code': 'REQUEST_FAILED', 'message': 'Transaction not found', 'data': None}, 404)
 
 
-def receipt(amount, trx):
-    return ({'success': True, 'data': {'id': 77, 'amount': amount, 'trxID': trx}}, 200)
+def receipt(amount, trx, provider='bKash'):
+    return ({'success': True, 'data': {'id': 77, 'amount': amount, 'trxID': trx, 'provider': provider}}, 200)
 
 
 def plain(value):
@@ -109,6 +110,10 @@ class DepositConversation(unittest.IsolatedAsyncioTestCase):
                 patch.object(CallbackQuery, 'answer', acknowledge))
 
     async def tap(self, *, text=None, data=None):
+        # A test taps faster than any thumb; the rate limit is tested on its own.
+        for mw in list(self.dp.message.outer_middleware) + list(self.dp.callback_query.outer_middleware):
+            if getattr(mw, '_buckets', None) is not None:
+                mw._buckets.clear()
         now = datetime.datetime.now(datetime.timezone.utc)
         user = User(id=CUSTOMER, is_bot=False, first_name='Rafi')
         message = Message(message_id=1, date=now, chat=Chat(id=CUSTOMER, type='private'),
@@ -181,6 +186,35 @@ class DepositConversation(unittest.IsolatedAsyncioTestCase):
         stuck = await self.s.deposits.pending_for(CUSTOMER)
         self.assertFalse(await self.s.deposits.cancel_awaiting_sms(stuck['id'], CUSTOMER + 1))
         self.assertIsNotNone(await self.s.deposits.pending_for(CUSTOMER))
+
+    async def test_the_verifying_card_names_the_method(self):
+        await self.submit(100, 'BKCARD0001', receipt(100, 'BKCARD0001'))
+        self.assertIn('Method: bKash', plain(self.written[0]))
+
+    async def test_a_nagad_transaction_on_a_bkash_deposit_is_named_and_refused(self):
+        await self.submit(100, 'NGWRONG001', receipt(100, 'NGWRONG001', provider='Nagad'))
+        self.assertIn('ভুল পেমেন্ট মেথড', self.last())
+        self.assertIn('Nagad', self.last())
+        self.assertEqual(await self.balance(), 0.0)
+
+    async def test_a_transaction_id_already_on_record_is_refused_without_waiting(self):
+        await self.s.users.sync_profile(CUSTOMER + 5, first_name='Other')
+        earlier = await self.s.deposits.create_request(CUSTOMER + 5, self.method, 300, 'BKSEEN0001')
+        await self.s.deposits.reject(earlier, 'Payment not received')
+        started = asyncio.get_running_loop().time()
+        await self.submit(300, 'BKSEEN0001', MISSING, retries=(5.0, 5.0, 5.0))
+        self.assertLess(asyncio.get_running_loop().time() - started, 4.0, 'it waited for a receipt anyway')
+        self.assertIn('ব্যবহার', self.last())
+
+    async def test_the_third_failed_attempt_goes_to_review_instead_of_crashing(self):
+        """The hand-off to an admin passed create_request arguments it does not take."""
+        mismatch = ({'success': False, 'message': 'Transaction amount must be equal to the provided amount',
+                     'data': None}, 400)
+        for n in range(3):
+            await self.submit(100, f'BKTHIRD00{n}', mismatch, retries=())
+        pending = await self.s.deposits.pending_for(CUSTOMER)
+        self.assertIsNotNone(pending, self.last())
+        self.assertIn('রিভিউ', self.last())
 
 
 if __name__ == '__main__':

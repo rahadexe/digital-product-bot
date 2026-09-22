@@ -94,6 +94,36 @@ AWAITING_SMS_GAVE_UP = (
 ) % AWAITING_SMS_MINUTES
 
 
+# ZiniPay searches every wallet on the merchant account for a transaction id; there is
+# no request field to say "bKash only". Its receipt does name the wallet, so the shop
+# checks that itself, after verify and before confirm (verify spends nothing, confirm
+# consumes the transaction for good). Without this a customer who chose bKash could be
+# credited for a Nagad transaction, and the two statements would stop reconciling.
+_WALLETS = ("bkash", "nagad", "rocket", "upay")
+
+
+def _wallet(name: Any) -> str:
+    """The wallet a method or receipt names, as one lowercase word, or "" if none."""
+    letters = "".join(ch for ch in str(name or "").lower() if ch.isalpha())
+    return next((w for w in _WALLETS if w in letters), "")
+
+
+def _wallet_mismatch(method_name: str, receipt: dict[str, Any]) -> str | None:
+    """None when the receipt may credit this method; otherwise why not.
+
+    A method whose name names no wallet ("Mobile Banking") cannot be checked and is not
+    blocked. A receipt that names no wallet, for a method that does, cannot be trusted
+    either way and goes to a person.
+    """
+    wanted = _wallet(method_name)
+    if not wanted:
+        return None
+    got = _wallet((receipt or {}).get("provider") or (receipt or {}).get("method"))
+    if got == wanted:
+        return None
+    return "unknown" if not got else got
+
+
 class ZiniPayVerificationService:
     """Service to automatically verify bKash, Nagad, and Rocket TrxIDs via ZiniPay."""
 
@@ -113,6 +143,10 @@ class ZiniPayVerificationService:
         self.config = config
         self.timeout = timeout
         self.http = gateway_http(timeout)
+
+    async def _method_name(self, method_id: int) -> str:
+        async with self.db.connect() as conn:
+            return str(await conn.fetchval("SELECT name FROM deposit_methods WHERE id=$1", method_id) or "")
 
     async def get_api_key(self) -> str:
         """Fetch ZiniPay API key from DB settings, falling back to config / env."""
@@ -267,6 +301,12 @@ class ZiniPayVerificationService:
                 raise DuplicateTransactionError("This Transaction ID has already been credited.")
             if existing.get("tg_user_id") == tg_user_id and existing.get("status") == "pending":
                 raise InvalidInputError("You already submitted this Transaction ID. It is awaiting review.")
+            # Any other earlier use — another customer's request, or one an admin already
+            # rejected — is answered now. It used to go to the gateway and, finding
+            # nothing, made the customer sit through the fifteen-second receipt wait, only
+            # for the insert to fail anyway: deposit_transaction_unique allows a
+            # transaction id once, whatever became of the deposit that used it.
+            raise DuplicateTransactionError("This Transaction ID has already been used.")
 
         # 2. Check if ZiniPay API key is configured
         has_key = await self.is_enabled()
@@ -337,6 +377,23 @@ class ZiniPayVerificationService:
                     "deposit_id": dep_id,
                     "detail": f"Verification unavailable ({msg}). Submitted for admin review.",
                 }
+
+        method_name = await self._method_name(method_id)
+        mismatch = _wallet_mismatch(method_name, verify_res.get("raw") or {})
+        if mismatch == "unknown":
+            note = f"ZiniPay found the payment but did not say which wallet it came from; the customer chose {method_name}."
+            dep_id = await self.deposits.create_request(
+                tg_user_id, method_id, amount, clean_tx, quoted_rate=quoted_rate, admin_note=note)
+            return {"auto_verified": False, "fallback_manual": True, "deposit_id": dep_id,
+                    "detail": "Your payment is saved for review. Please do not pay again."}
+        if mismatch:
+            paid_with = str((verify_res.get("raw") or {}).get("provider") or mismatch)
+            return {
+                "auto_verified": False,
+                "error": "wrong_method",
+                "paid_with": paid_with,
+                "detail": f"This transaction was made with {paid_with}, not {method_name}.",
+            }
 
         # Reserve locally before the irreversible external confirmation. Every crash
         # after this point leaves a reviewable deposit and a durable attempt.
@@ -414,6 +471,19 @@ class ZiniPayVerificationService:
         verify_res = await self.verify(amount, clean_tx)
         if not verify_res.get("ok"):
             return False
+        mismatch = _wallet_mismatch(row.get("method_name") or "", verify_res.get("raw") or {})
+        if mismatch:
+            paid_with = str((verify_res.get("raw") or {}).get("provider") or "an unnamed wallet")
+            note = (f"The receipt arrived, but it is a {paid_with} transaction and the customer chose "
+                    f"{row.get('method_name')}. Not credited.")
+            async with self.db.transaction() as conn:
+                # 'review' also takes it off the re-check list, so this is said once.
+                await conn.execute(
+                    "UPDATE payment_verification_attempts SET status='review',note=$2,updated_at=now() WHERE deposit_id=$1",
+                    deposit_id, note)
+                await conn.execute("UPDATE deposits SET admin_note=$2 WHERE id=$1 AND status='pending'", deposit_id, note)
+            await self.deposits.alert_admin_needs_review(deposit_id, note)
+            return False
         verify_id = verify_res.get("id")
         if verify_id is None:
             return False
@@ -456,7 +526,7 @@ class ZiniPayVerificationService:
         """Ask the gateway again for receipts that had not synced when they were submitted."""
         async with self.db.transaction() as conn:
             due = [dict(r) for r in await conn.fetch(
-                "SELECT d.id, d.amount, d.transaction_id, "
+                "SELECT d.id, d.amount, d.transaction_id, d.method_name, "
                 "a.created_at < now()-$1*interval '1 minute' AS expired "
                 "FROM payment_verification_attempts a JOIN deposits d ON d.id=a.deposit_id "
                 "WHERE a.status='awaiting_sms' AND d.status='pending' AND d.next_check_at<=now() "
