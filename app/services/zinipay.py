@@ -359,6 +359,11 @@ class ZiniPayVerificationService:
                     admin_note=AWAITING_SMS_NOTE, notify_admin=False,
                 )
                 await self._mark_awaiting(dep_id)
+                # Told now, not in ten minutes. Most of these credit themselves within a
+                # minute or two, but the money is already sent and the owner should be
+                # able to see it sitting there rather than hear about it once the
+                # automatic attempt has given up.
+                await self.deposits.alert_admin_needs_review(dep_id, AWAITING_SMS_NOTE)
                 return {
                     "auto_verified": False,
                     "pending_sync": True,
@@ -463,7 +468,8 @@ class ZiniPayVerificationService:
                 "UPDATE deposits SET admin_note=$2 WHERE id=$1 AND status='pending'",
                 deposit_id, AWAITING_SMS_GAVE_UP,
             )
-        await self.deposits.alert_admin_needs_review(deposit_id, AWAITING_SMS_GAVE_UP)
+        # No second alert: the owner was told when it was filed and the card is already
+        # in front of them. This only sharpens the note they read when they open it.
 
     async def _finish_awaiting(self, row: dict[str, Any]) -> bool:
         """The receipt has landed: consume it at the gateway and credit the wallet."""

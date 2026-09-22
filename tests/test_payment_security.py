@@ -357,13 +357,16 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0.2)   # the alert would go out in the background
         self.assertEqual(alerts, [], 'nothing needed a person')
 
-    async def test_a_payment_waiting_for_its_receipt_does_not_page_the_owner_yet(self):
+    async def test_a_payment_waiting_for_its_receipt_reaches_the_owner_at_once(self):
+        """The money is already sent; the owner should see it, not hear about it later."""
         alerts = self._watch_admin()
         await self._awaiting()
         await asyncio.sleep(0.2)
-        self.assertEqual(alerts, [], 'it will most likely credit itself')
+        self.assertEqual(len(alerts), 1, alerts)
+        self.assertIn('Deposit Request', alerts[0])
 
-    async def test_giving_up_on_a_receipt_pages_the_owner_once(self):
+    async def test_giving_up_on_a_receipt_does_not_page_the_owner_again(self):
+        """They were told when it was filed; the note on the card is what changes."""
         result = await self._awaiting()
         async with self.db.connect() as conn:
             await conn.execute("UPDATE deposits SET next_check_at=now()-interval '1 minute' WHERE id=$1",
@@ -377,8 +380,10 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
             self.s.zinipay.http = client
             await self.s.zinipay.recover()
         await asyncio.sleep(0.2)
-        self.assertEqual(len(alerts), 1, alerts)
-        self.assertIn('Deposit Request', alerts[0])
+        self.assertEqual(alerts, [], 'one deposit, one alert')
+        async with self.db.connect() as conn:
+            note = await conn.fetchval('SELECT admin_note FROM deposits WHERE id=$1', result['deposit_id'])
+        self.assertIn('mistyped', note, 'but the card now says what happened')
 
     async def test_a_gateway_that_cannot_answer_still_pages_the_owner(self):
         """Nothing automatic can happen here, so the deposit needs a person straight away."""
