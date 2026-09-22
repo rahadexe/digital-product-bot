@@ -579,16 +579,6 @@ async def handle_noop(query: CallbackQuery):
 
 @router.callback_query(F.data == "close_menu")
 async def handle_close_menu(query: CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    chat_id = query.message.chat.id if query.message and query.message.chat else 0
-    bot = query.bot
-    if bot and chat_id:
-        for key in ("prompt_msg_id", "search_prompt_id", "search_card_id"):
-            msg_id = data.get(key)
-            if msg_id and (not query.message or msg_id != query.message.message_id):
-                with suppress(Exception):
-                    await bot.delete_message(chat_id=chat_id, message_id=msg_id)
-
     await state.clear()
     with suppress(TelegramBadRequest):
         await query.answer()

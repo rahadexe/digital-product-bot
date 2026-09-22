@@ -12,7 +12,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, ForceReply, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.bot.formatting import callback_int, price, respond
 from app.bot.handlers.navigation import is_navigation, navigate
@@ -79,53 +79,14 @@ class DepositStates(StatesGroup):
     waiting_for_instant_amount = State()
 
 
-async def _clear_input_prompt(event: Message | CallbackQuery, state: FSMContext) -> None:
-    """Delete the active ForceReply prompt message if one exists, closing the soft keyboard."""
-    data = await state.get_data()
-    old_prompt_id = data.get("prompt_msg_id")
-    bot = event.bot
-    chat_id = 0
-    if isinstance(event, CallbackQuery) and event.message and event.message.chat:
-        chat_id = event.message.chat.id
-    elif isinstance(event, Message) and event.chat:
-        chat_id = event.chat.id
-    if old_prompt_id and bot and chat_id:
-        with suppress(Exception):
-            await bot.delete_message(chat_id=chat_id, message_id=old_prompt_id)
-    await state.update_data(prompt_msg_id=None)
-
-
-async def _send_input_prompt(
-    event: Message | CallbackQuery,
-    text: str,
-    placeholder: str,
-    state: FSMContext,
-) -> None:
-    """Send a ForceReply message to automatically open the mobile soft keyboard with a helpful placeholder."""
-    await _clear_input_prompt(event, state)
-    msg = event.message if isinstance(event, CallbackQuery) else event
-    if msg:
-        prompt_msg = await msg.answer(
-            text,
-            reply_markup=ForceReply(
-                selective=True,
-                input_field_placeholder=placeholder[:64],
-            ),
-        )
-        if prompt_msg:
-            await state.update_data(prompt_msg_id=prompt_msg.message_id)
-
-
 @router.message(Command("cancel"))
 async def cmd_cancel(message: Message, state: FSMContext):
-    await _clear_input_prompt(message, state)
     await state.clear()
     await message.answer(f"{ICON_CROSS} Current operation cancelled.")
 
 
 @router.callback_query(F.data == "cancel_deposit")
 async def cancel_deposit_flow(query: CallbackQuery, state: FSMContext):
-    await _clear_input_prompt(query, state)
     await state.clear()
     with suppress(TelegramBadRequest):
         await query.answer()
@@ -141,7 +102,6 @@ async def cancel_deposit_flow(query: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data == "open_deposit_from_account")
 async def show_deposit_methods(event: Message | CallbackQuery, state: FSMContext, services: Services):
     """Render deposit methods matching Screenshot 4."""
-    await _clear_input_prompt(event, state)
     await state.clear()
     user = event.from_user
     if not user:
@@ -224,12 +184,6 @@ async def ask_instant_amount(query: CallbackQuery, state: FSMContext, services: 
                 text,
                 reply_markup=get_cancel_keyboard(),
             )
-        await _send_input_prompt(
-            query,
-            f"{ICON_MONEY} <b>কত টাকা অ্যাড করবেন তা লিখুন:</b>",
-            "যেমন: 100",
-            state,
-        )
 
 
 def _instant_keyboard(invoice: dict) -> InlineKeyboardMarkup:
@@ -266,22 +220,14 @@ async def _render_instant_invoice(invoice: dict, services: Services) -> tuple[st
 async def create_instant_payment(message: Message, state: FSMContext, services: Services):
     raw_text = (message.text or "").strip()
     if is_navigation(raw_text):
-        await _clear_input_prompt(message, state)
         await navigate(raw_text, message, state, services)
         return
     try:
         clean_amount = raw_text.replace("৳", "").replace("$", "").replace(",", "").strip()
         invoice = await services.payments.create_invoice(message.from_user.id, clean_amount)
     except ValueError as exc:
-        await _send_input_prompt(
-            message,
-            f"{ICON_WARNING} {escape(str(exc))}\n\nঅনুগ্রহ করে সঠিক পরিমাণ লিখুন:",
-            "যেমন: 100",
-            state,
-        )
+        await message.answer(f"{ICON_WARNING} {escape(str(exc))}", reply_markup=get_cancel_keyboard())
         return
-
-    await _clear_input_prompt(message, state)
     text, keyboard = await _render_instant_invoice(invoice, services)
     await message.answer(text, reply_markup=keyboard)
 
@@ -549,12 +495,6 @@ async def handle_deposit_method_select(query: CallbackQuery, state: FSMContext, 
         if query.message:
             with suppress(TelegramBadRequest):
                 await query.message.edit_text(text, reply_markup=kb)
-        await _send_input_prompt(
-            query,
-            "👇 <b>Send your Binance Order ID below:</b>",
-            "Enter Order ID (e.g. 238194729)...",
-            state,
-        )
         return
 
     type_label, action_label = get_account_type_labels(account_type)
@@ -680,12 +620,6 @@ async def ask_deposit_input(query: CallbackQuery, state: FSMContext, services: S
         if query.message:
             with suppress(TelegramBadRequest):
                 await query.message.edit_text(text, reply_markup=kb)
-        await _send_input_prompt(
-            query,
-            "👇 <b>Send your Binance Order ID below:</b>",
-            "Enter Order ID (e.g. 238194729)...",
-            state,
-        )
         return
 
     min_dep = data.get("min_deposit", 1.0)
@@ -715,12 +649,6 @@ async def ask_deposit_input(query: CallbackQuery, state: FSMContext, services: S
     if query.message:
         with suppress(TelegramBadRequest):
             await query.message.edit_text(text, reply_markup=reply_kb)
-    await _send_input_prompt(
-        query,
-        f"{ICON_MONEY} <b>কত টাকা পাঠিয়েছেন তা নিচে লিখুন:</b>",
-        "যেমন: 100",
-        state,
-    )
 
 
 
@@ -745,7 +673,6 @@ async def handle_method_selected_input(message: Message, state: FSMContext, serv
 async def process_binance_amount(message: Message, state: FSMContext, services: Services):
     raw_text = (message.text or "").strip()
     if is_navigation(raw_text):
-        await _clear_input_prompt(message, state)
         await navigate(raw_text, message, state, services)
         return
 
@@ -767,7 +694,6 @@ async def process_binance_amount(message: Message, state: FSMContext, services: 
             f"{ICON_WARNING} Please enter a valid USDT amount (e.g. <code>10</code> or <code>25.5</code>):",
             reply_markup=get_deposit_amount_keyboard(account_info, method_id, is_binance=True),
         )
-        await _send_input_prompt(message, "✍️ Please enter a valid USDT amount:", "e.g. 10", state)
         return
 
     if amount_num < min_coin:
@@ -776,7 +702,6 @@ async def process_binance_amount(message: Message, state: FSMContext, services: 
             f"Please enter at least <b>{min_coin:g} USDT</b>:",
             reply_markup=get_deposit_amount_keyboard(account_info, method_id, is_binance=True),
         )
-        await _send_input_prompt(message, f"✍️ Please enter at least {min_coin:g} USDT:", f"{min_coin:g}", state)
         return
 
     await state.update_data(binance_usdt=amount_num)
@@ -794,19 +719,12 @@ async def process_binance_amount(message: Message, state: FSMContext, services: 
         f"↳ <b>Or Sender UID:</b> <code>580150694</code> (your Binance UID)",
         reply_markup=get_deposit_txid_keyboard(),
     )
-    await _send_input_prompt(
-        message,
-        "✍️ Enter Binance Order ID or Sender UID:",
-        "e.g. 454711565717520384",
-        state,
-    )
 
 
 @router.message(DepositStates.waiting_for_binance_ref)
 async def process_binance_ref(message: Message, state: FSMContext, services: Services):
     raw_text = (message.text or "").strip()
     if is_navigation(raw_text):
-        await _clear_input_prompt(message, state)
         await navigate(raw_text, message, state, services)
         return
 
@@ -819,15 +737,8 @@ async def process_binance_ref(message: Message, state: FSMContext, services: Ser
             f"<i>💡 (e.g., <code>454711565717520384</code>)</i>",
             reply_markup=get_deposit_txid_keyboard(),
         )
-        await _send_input_prompt(
-            message,
-            "✍️ Enter valid Binance Order ID or UID:",
-            "e.g. 454711565717520384",
-            state,
-        )
         return
 
-    await _clear_input_prompt(message, state)
     data = await state.get_data()
     method_id = data.get("method_id")
     expected_usdt = data.get("binance_usdt")
@@ -970,7 +881,6 @@ async def claim_binance_payment(
 async def process_deposit_amount(message: Message, state: FSMContext, services: Services):
     raw_text = (message.text or "").strip()
     if is_navigation(raw_text):
-        await _clear_input_prompt(message, state)
         await navigate(raw_text, message, state, services)
         return
 
@@ -990,7 +900,6 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
             f"{ICON_WARNING} সঠিক সংখ্যা লিখুন (যেমন: <code>500</code>):",
             reply_markup=get_deposit_amount_keyboard(account_info, method_id, is_binance=False),
         )
-        await _send_input_prompt(message, "✍️ সঠিক সংখ্যা লিখুন:", "যেমন: 500", state)
         return
 
     if amount_num < min_dep:
@@ -998,7 +907,6 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
             f"{ICON_WARNING} সর্বনিম্ন ডিপোজিট {price(symbol, min_dep)}। সঠিক পরিমাণ লিখুন:",
             reply_markup=get_deposit_amount_keyboard(account_info, method_id, is_binance=False),
         )
-        await _send_input_prompt(message, f"✍️ সর্বনিম্ন {price(symbol, min_dep, show_usd=False)} লিখুন:", f"যেমন: {int(min_dep)}", state)
         return
 
     # The ceiling used to be enforced only once the customer came back with a
@@ -1011,7 +919,6 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
             f"অনুগ্রহ করে এর মধ্যে একটি পরিমাণ লিখুন:",
             reply_markup=get_deposit_amount_keyboard(account_info, method_id, is_binance=False),
         )
-        await _send_input_prompt(message, f"✍️ সর্বোচ্চ {price(symbol, max_dep, show_usd=False)} এর মধ্যে লিখুন:", "যেমন: 1000", state)
         return
 
     await state.update_data(manual_amount=amount_num)
@@ -1034,19 +941,12 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
         f"💡 <i>(যেমন: <code>BLA7X8Y9Z0</code>)</i>",
         reply_markup=get_deposit_txid_keyboard(is_bangla=True),
     )
-    await _send_input_prompt(
-        message,
-        f"✍️ আপনার {escape(method_name)} TrxID লিখুন:",
-        "যেমন: BLA7X8Y9Z0",
-        state,
-    )
 
 
 @router.message(DepositStates.waiting_for_txid)
 async def process_deposit_txid(message: Message, state: FSMContext, services: Services):
     raw_text = (message.text or "").strip()
     if is_navigation(raw_text):
-        await _clear_input_prompt(message, state)
         await navigate(raw_text, message, state, services)
         return
 
@@ -1065,17 +965,14 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                 f"{ICON_CROSS} Invalid Transaction ID format. Please enter a valid Reference/TrxID from your receipt.",
                 reply_markup=get_deposit_txid_keyboard(is_bangla=False),
             )
-            await _send_input_prompt(message, "✍️ Please enter a valid Reference/TrxID:", "e.g. 238194729", state)
         else:
             await message.answer(
                 f"{ICON_CROSS} ভুল Transaction ID ফরম্যাট। আপনার SMS/রিসিট থেকে সঠিক TrxID দিন।\n\n"
                 f"💡 <i>(যেমন: <code>BLA7X8Y9Z0</code>)</i>",
                 reply_markup=get_deposit_txid_keyboard(is_bangla=True),
             )
-            await _send_input_prompt(message, "✍️ SMS/রিসিট থেকে সঠিক TrxID লিখুন:", "যেমন: BLA7X8Y9Z0", state)
         return
 
-    await _clear_input_prompt(message, state)
     user_id = message.from_user.id
 
     # Fast pre-check: if user already has an active pending deposit, avoid hitting external verification APIs
@@ -1294,12 +1191,9 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             return
 
         if res.get("pending_sync"):
-            # The transaction is still syncing with the gateway. Drop the step so a
-            # stray message is not read as another TrxID, but keep what the customer
-            # already told us: the Fix button puts them back on this same deposit, and
-            # clear() threw away the method and the amount, so the corrected TrxID
-            # landed in an expired session and nothing was credited.
-            await state.set_state(None)
+            # The transaction is still syncing with the gateway.
+            # Clear user state so further inputs aren't mistakenly treated as new TrxIDs.
+            await state.clear()
             dep_id = res.get("deposit_id")
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="TrxID ভুল হয়েছে? ঠিক করুন",
@@ -1650,12 +1544,6 @@ async def fix_awaiting_transaction_id(query: CallbackQuery, state: FSMContext, s
                 f"💡 <i>(যেমন: <code>BLA7X8Y9Z0</code>)</i>",
                 reply_markup=get_deposit_txid_keyboard(is_bangla=True),
             )
-    await _send_input_prompt(
-        query,
-        "✍️ <b>সঠিক Transaction ID টি লিখে পাঠান:</b>",
-        "যেমন: BLA7X8Y9Z0",
-        state,
-    )
 @router.callback_query(F.data.startswith("back_to_dep_req_"))
 async def back_to_deposit_request(query: CallbackQuery, services: Services):
     raw_id = query.data.removeprefix("back_to_dep_req_")

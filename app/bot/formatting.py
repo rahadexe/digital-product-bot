@@ -14,15 +14,8 @@ from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 TELEGRAM_TEXT_LIMIT = 4000
 
 
-async def respond(
-    event: Message | CallbackQuery,
-    text: str,
-    keyboard: InlineKeyboardMarkup | None = None,
-    *,
-    reply_markup: InlineKeyboardMarkup | None = None,
-) -> None:
+async def respond(event: Message | CallbackQuery, text: str, keyboard: InlineKeyboardMarkup | None = None) -> None:
     """Replace the message behind a pressed button, or reply to a typed message or command."""
-    kb = keyboard if keyboard is not None else reply_markup
     if isinstance(event, CallbackQuery):
         # Both calls go to Telegram; sent together they cost one round trip instead of two.
         async def acknowledge() -> None:
@@ -32,11 +25,11 @@ async def respond(
         async def replace() -> None:
             if event.message:
                 with suppress(TelegramBadRequest):
-                    await event.message.edit_text(text, reply_markup=kb)
+                    await event.message.edit_text(text, reply_markup=keyboard)
 
         await asyncio.gather(acknowledge(), replace())
     else:
-        await event.answer(text, reply_markup=kb)
+        await event.answer(text, reply_markup=keyboard)
 
 
 _DEFAULT_USD_RATE: float = 125.0

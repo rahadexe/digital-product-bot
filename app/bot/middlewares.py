@@ -4,7 +4,6 @@ import asyncio
 import time
 from collections import OrderedDict
 from contextlib import suppress
-from typing import Any
 
 from aiogram import BaseMiddleware
 from aiogram.exceptions import TelegramAPIError
@@ -22,43 +21,19 @@ SLOW_DOWN_TEXT = "⏳ Too many requests. Please wait a few seconds and try again
 class Throttle(BaseMiddleware):
     """Drops a customer's updates beyond what a person can tap, before they cost any database or Telegram work.
 
-    1. Same-action debounce: If the exact same button or command is pressed repeatedly in rapid succession
-       (within SAME_ACTION_COOLDOWN seconds), duplicate updates are dropped immediately without processing.
-       This prevents accidental double-taps or rapid key spamming from creating duplicate messages or duplicate actions.
-    2. Rate-limit burst bucket: Each customer has a bucket of BURST taps that refills at RATE per second.
-       While empty, updates are dropped and the user is warned at most once per NOTICE_SECONDS.
+    Each customer has a bucket of BURST taps that refills at RATE per second. While it is empty, updates are
+    ignored and the customer is told to slow down at most once every NOTICE_SECONDS, so a flood cannot make
+    the bot flood Telegram with replies either. Buckets live in memory, which suits the single bot process.
     """
 
     RATE = 2.0
     BURST = 8
     NOTICE_SECONDS = 10.0
-    SAME_ACTION_COOLDOWN = 2.0
     TRACKED_USERS = 20000
-    TRACKED_ACTIONS = 50000
 
     def __init__(self) -> None:
         # user id -> (tokens, refilled_at, last_notice_at)
         self._buckets: OrderedDict[int, tuple[float, float, float]] = OrderedDict()
-        # (user_id, action_key) -> last_tap_time
-        self._last_actions: OrderedDict[tuple[int, str], float] = OrderedDict()
-
-    def _extract_action(self, event: Any) -> str | None:
-        text = getattr(event, "text", None)
-        if text:
-            return f"msg:{text.strip()}"
-        data = getattr(event, "data", None)
-        if data:
-            return f"cb:{data.strip()}"
-        return None
-
-    def _is_duplicate_tap(self, user_id: int, action: str, now: float) -> bool:
-        key = (user_id, action)
-        last_tap = self._last_actions.get(key)
-        self._last_actions[key] = now
-        self._last_actions.move_to_end(key)
-        while len(self._last_actions) > self.TRACKED_ACTIONS:
-            self._last_actions.popitem(last=False)
-        return last_tap is not None and (now - last_tap) < self.SAME_ACTION_COOLDOWN
 
     def _take(self, user_id: int, now: float) -> tuple[bool, bool]:
         """Whether this update may run, and whether the customer should be told to slow down."""
@@ -80,16 +55,7 @@ class Throttle(BaseMiddleware):
         user = event.from_user
         if not user:
             return await handler(event, data)
-
-        action = self._extract_action(event)
-        now = time.monotonic()
-        if action and self._is_duplicate_tap(user.id, action, now):
-            if isinstance(event, CallbackQuery) or (hasattr(event, "data") and not getattr(event, "text", None) and hasattr(event, "answer")):
-                with suppress(Exception):
-                    await event.answer()
-            return None
-
-        allowed, notify = self._take(user.id, now)
+        allowed, notify = self._take(user.id, time.monotonic())
         if allowed:
             return await handler(event, data)
         # Working through a queue of deposits or orders is two taps each, so an owner
