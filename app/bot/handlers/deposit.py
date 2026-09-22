@@ -846,26 +846,19 @@ async def claim_binance_payment(
                 ]
             ]
         )
-        expected_text = f"<b>Expected:</b> <code>{expected_usdt:g} USDT</code>\n" if expected_usdt else ""
         if result.get("needs_person"):
-            # Binance answered, and the answer was no. Telling the customer to wait a
-            # minute for a credit that is never coming is worse than telling them what
-            # is wrong, which is usually something only they can fix.
+            # Binance answered, and the answer was no. The reason goes to the admin note;
+            # the customer only needs to know it is saved and not to pay twice.
             text = (
-                f"{ICON_WARNING} <b>This Payment Needs a Check</b>\n\n"
-                f"<b>Reference:</b> <code>{escape(ref)}</code>\n"
-                f"{expected_text}\n"
-                f"{escape(str(result.get('detail') or 'Binance could not confirm this transfer.'), quote=False)}\n\n"
-                f"<i>Your request is saved and an admin can see it. "
-                f"Please do not send the payment again.</i>"
-            ).replace("Needs review: ", "")
+                f"{ICON_WARNING} <b>Couldn't verify this payment</b>\n"
+                f"Order ID: <code>{escape(ref)}</code>\n\n"
+                f"An admin will check it. Please don't pay again."
+            )
         else:
             text = (
-                f"{ICON_TIMER} <b>Payment Verification in Progress...</b>\n\n"
-                f"<b>Reference:</b> <code>{escape(ref)}</code>\n"
-                f"{expected_text}\n"
-                f"Searching Binance for your transfer. If you just sent it, please allow 1–2 minutes.\n\n"
-                f"<i>Your balance will be credited automatically once confirmed.</i>"
+                f"{ICON_TIMER} <b>Checking payment...</b>\n"
+                f"Order ID: <code>{escape(ref)}</code>\n\n"
+                f"Your balance is added as soon as it's confirmed."
             )
         await _safe_edit_or_answer(status_msg, message, text, reply_markup=keyboard)
 
@@ -962,8 +955,8 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             )
         else:
             await message.answer(
-                f"{ICON_CROSS} ভুল Transaction ID ফরম্যাট। আপনার SMS/রিসিট থেকে সঠিক TrxID দিন।\n\n"
-                f"💡 <i>(যেমন: <code>BLA7X8Y9Z0</code>)</i>",
+                f"{ICON_CROSS} TrxID ঠিক নেই। SMS থেকে TrxID দিন।\n"
+                f"💡 <i>যেমন: <code>BLA7X8Y9Z0</code></i>",
                 reply_markup=get_deposit_txid_keyboard(is_bangla=True),
             )
         return
@@ -978,18 +971,9 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             [InlineKeyboardButton(text="📜 Deposit History", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER)],
             [InlineKeyboardButton(text="🏠 Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)],
         ]
-        if is_binance:
-            text = (
-                f"{ICON_TIMER} <b>Pending Deposit Exists</b>\n\n"
-                f"You already have a deposit request waiting for review.\n"
-                f"Please wait for it to be processed before submitting a new one."
-            )
-        else:
-            text = (
-                f"{ICON_TIMER} <b>পেন্ডিং ডিপোজিট আছে</b>\n\n"
-                f"আপনার একটি ডিপোজিট রিকোয়েস্ট ইতোমধ্যে অপেক্ষায় আছে।\n"
-                f"নতুন রিকোয়েস্ট পাঠানোর আগে পূর্বের রিকোয়েস্ট কনফার্ম হওয়া পর্যন্ত অপেক্ষা করুন।"
-            )
+        text = (f"{ICON_TIMER} A deposit of yours is still being checked. Please wait for it to finish."
+                if is_binance else
+                f"{ICON_TIMER} আগের একটা ডিপোজিট এখনো চেক হচ্ছে। সেটা শেষ হলে আবার চেষ্টা করুন।")
         await message.answer(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
         return
 
@@ -1005,22 +989,12 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         if support_user:
             clean_sup = support_user.lstrip("@")
             kb.insert(0, [InlineKeyboardButton(text="Support", url=f"https://t.me/{clean_sup}", icon_custom_emoji_id=Icons.SUPPORT)])
-        if is_binance:
-            await message.answer(
-                f"{ICON_CROSS} <b>Verification Paused!</b>\n\n"
-                f"{ICON_WARNING} You entered incorrect Transaction IDs {MAX_VERIFY_ATTEMPTS} times.\n"
-                f"For security, verification is paused for <b>{rem_min} minute(s)</b>.\n\n"
-                f"If you made a valid payment, please contact our support team.",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
-            )
-        else:
-            await message.answer(
-                f"{ICON_CROSS} <b>ভেরিফিকেশন সাময়িক স্থগিত!</b>\n\n"
-                f"{ICON_WARNING} আপনি পরপর {MAX_VERIFY_ATTEMPTS} বার ভুল Transaction ID দিয়েছেন।\n"
-                f"নিরাপত্তার জন্য পরবর্তী <b>{rem_min} মিনিট</b> ডিপোজিট ভেরিফাই করা যাবে না।\n\n"
-                f"আপনার পেমেন্ট সঠিক হলে অনুগ্রহ করে সাপোর্টে যোগাযোগ করুন।",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
-            )
+        await message.answer(
+            f"{ICON_CROSS} Too many wrong TrxIDs. Try again in {rem_min} minute(s)."
+            if is_binance else
+            f"{ICON_CROSS} অনেকবার ভুল TrxID দিয়েছেন। {rem_min} মিনিট পর আবার চেষ্টা করুন।",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
+        )
         return
 
     if not method_id or not amount_num:
@@ -1035,18 +1009,15 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
     symbol = await services.settings.get("currency_symbol")
 
     status_msg = await message.answer(
-        f"{ICON_TIMER} <b>Verifying transaction...</b>\n\n"
-        f"<b>Method:</b> {escape(method_name)}\n"
-        f"<b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
-        f"<b>Amount:</b> <code>{price(symbol, amount_num)}</code>\n\n"
-        f"<i>Please wait a moment, verifying payment...</i>"
-        if is_binance
-        else
-        f"{ICON_TIMER} <b>ট্রানজ্যাকশন যাচাই করা হচ্ছে...</b>\n\n"
-        f"<b>Method:</b> {escape(method_name)}\n"
-        f"<b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
-        f"<b>Amount:</b> {price(symbol, amount_num, show_usd=False)}\n\n"
-        f"<i>অনুগ্রহপূর্বক অপেক্ষা করুন, ভেরিফাই করা হচ্ছে...</i>"
+        f"{ICON_TIMER} <b>Checking payment...</b>\n"
+        f"Method: {escape(method_name)}\n"
+        f"Amount: {price(symbol, amount_num)}\n"
+        f"TrxID: <code>{escape(clean_tx)}</code>"
+        if is_binance else
+        f"{ICON_TIMER} <b>পেমেন্ট চেক হচ্ছে...</b>\n"
+        f"মেথড: {escape(method_name)}\n"
+        f"টাকা: {price(symbol, amount_num, show_usd=False)}\n"
+        f"TrxID: <code>{escape(clean_tx)}</code>"
     )
 
     logger.info("Processing deposit verification for user %s", message.from_user.id)
@@ -1056,18 +1027,15 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         await _safe_edit_or_answer(
             status_msg,
             message,
-            f"{ICON_TIMER} <b>Verifying payment...</b>\n\n"
-            f"<b>Method:</b> {escape(method_name)}\n"
-            f"<b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
-            f"<b>Amount:</b> <code>{price(symbol, amount_num)}</code>\n\n"
-            f"<i>Please wait a moment, verifying transaction ({int(waited)}/{int(total)}s)...</i>"
-            if is_binance
-            else
-            f"{ICON_TIMER} <b>পেমেন্ট যাচাই করা হচ্ছে...</b>\n\n"
-            f"<b>Method:</b> {escape(method_name)}\n"
-            f"<b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
-            f"<b>Amount:</b> {price(symbol, amount_num, show_usd=False)}\n\n"
-            f"<i>অনুগ্রহপূর্বক কিছুক্ষণ অপেক্ষা করুন, ভেরিফাই করা হচ্ছে ({int(waited)}/{int(total)} সেকেন্ড)...</i>",
+            f"{ICON_TIMER} <b>Checking payment... ({int(waited)}/{int(total)}s)</b>\n"
+            f"Method: {escape(method_name)}\n"
+            f"Amount: {price(symbol, amount_num)}\n"
+            f"TrxID: <code>{escape(clean_tx)}</code>"
+            if is_binance else
+            f"{ICON_TIMER} <b>পেমেন্ট চেক হচ্ছে... ({int(waited)}/{int(total)})</b>\n"
+            f"মেথড: {escape(method_name)}\n"
+            f"টাকা: {price(symbol, amount_num, show_usd=False)}\n"
+            f"TrxID: <code>{escape(clean_tx)}</code>",
         )
 
     # If ZiniPay auto-verify is configured, attempt automated verification
@@ -1091,24 +1059,9 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             # same receipt twice, and locks them out of a deposit they are entitled to make.
             # The attempt budget is there to stop TrxIDs being guessed against the gateway,
             # and nothing on this path reaches the gateway.
-            if is_binance:
-                text = (
-                    f"{ICON_CROSS} <b>This TrxID is Already Used</b>\n\n"
-                    f"This Transaction ID (<code>{escape(clean_tx)}</code>) has already been used.\n\n"
-                    f"{ICON_NEXT} <b>What to do:</b>\n"
-                    f"1. Send the TrxID from your newest payment receipt.\n"
-                    f"2. If you entered the wrong amount, tap <b>Change Amount</b> below to fix it.\n\n"
-                    f"{ICON_WARNING} If you need help, contact support."
-                )
-            else:
-                text = (
-                    f"{ICON_CROSS} <b>এই TrxID অলরেডি ব্যবহার হয়ে গেছে</b>\n\n"
-                    f"এই Transaction ID (<code>{escape(clean_tx)}</code>) আগেই একবার ব্যবহার করা হয়েছে।\n\n"
-                    f"{ICON_NEXT} <b>আপনার করণীয়:</b>\n"
-                    f"১. নতুন পেমেন্ট করে থাকলে SMS বা রিসিট দেখে সঠিক TrxID দিন।\n"
-                    f"২. টাকার পরিমাণ ভুল লিখে থাকলে নিচে <b>Change Amount</b> বাটনে চাপ দিয়ে সঠিক পরিমাণ বসিয়ে পুনরায় চেষ্টা করুন।\n\n"
-                    f"{ICON_WARNING} কোনো সমস্যা মনে হলে সাপোর্টে যোগাযোগ করুন।"
-                )
+            text = (f"{ICON_CROSS} This TrxID has already been used. Send a new one."
+                    if is_binance else
+                    f"{ICON_CROSS} এই TrxID আগেই ব্যবহার হয়েছে। নতুন TrxID দিন।")
             await _safe_edit_or_answer(
                 status_msg,
                 message,
@@ -1122,18 +1075,9 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                 [InlineKeyboardButton(text="📜 Deposit History", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER)],
                 [InlineKeyboardButton(text="🏠 Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)],
             ]
-            if is_binance:
-                text = (
-                    f"{ICON_TIMER} <b>Pending Deposit Exists</b>\n\n"
-                    f"You already have a deposit request waiting for review.\n"
-                    f"Please wait for it to be processed before submitting a new one."
-                )
-            else:
-                text = (
-                    f"{ICON_TIMER} <b>পেন্ডিং ডিপোজিট আছে</b>\n\n"
-                    f"আপনার একটি ডিপোজিট রিকোয়েস্ট অলরেডি রিভিউ এর জন্য অপেক্ষায় আছে।\n"
-                    f"নতুন রিকোয়েস্ট পাঠানোর আগে পূর্বের রিকোয়েস্ট কনফার্ম হওয়া পর্যন্ত অপেক্ষা করুন।"
-                )
+            text = (f"{ICON_TIMER} A deposit of yours is still being checked. Please wait for it to finish."
+                    if is_binance else
+                    f"{ICON_TIMER} আগের একটা ডিপোজিট এখনো চেক হচ্ছে। সেটা শেষ হলে আবার চেষ্টা করুন।")
             await _safe_edit_or_answer(
                 status_msg,
                 message,
@@ -1160,24 +1104,17 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                     ]
                 ]
             )
-            if is_binance:
-                text = (
-                    f"{ICON_CHECK} <b>Deposit Successful!</b>\n\n"
-                    f"{ICON_DEPOSIT} <b>Method:</b> {escape(provider)}\n"
-                    f"{ICON_MONEY} <b>Amount:</b> <code>{price(symbol, amount_num)}</code>\n"
-                    f"{ICON_BALANCE} <b>Balance:</b> <code>{price(symbol, user_balance)}</code>\n"
-                    f"{ICON_KEY} <b>TrxID:</b> <code>{escape(clean_tx)}</code>\n\n"
-                    f"<i>Your balance has been credited automatically. Thank you!</i>"
-                )
-            else:
-                text = (
-                    f"{ICON_CHECK} <b>ডিপোজিট সফল!</b>\n\n"
-                    f"↳ <b>Method:</b> {escape(provider)}\n"
-                    f"↳ <b>Amount:</b> {price(symbol, amount_num, show_usd=False)}\n"
-                    f"↳ <b>Current Balance:</b> {price(symbol, user_balance, show_usd=False)}\n"
-                    f"↳ <b>Transaction ID:</b> <code>{escape(clean_tx)}</code>\n\n"
-                    f"আপনার ওয়ালেটে স্বয়ংক্রিয়ভাবে টাকা যোগ হয়েছে। ধন্যবাদ!"
-                )
+            text = (
+                f"{ICON_CHECK} <b>Deposit successful!</b>\n"
+                f"Method: {escape(provider)}\n"
+                f"Added: {price(symbol, amount_num)}\n"
+                f"Current balance: {price(symbol, user_balance)}"
+                if is_binance else
+                f"{ICON_CHECK} <b>ডিপোজিট সফল!</b>\n"
+                f"মেথড: {escape(provider)}\n"
+                f"যোগ হয়েছে: {price(symbol, amount_num, show_usd=False)}\n"
+                f"বর্তমান ব্যালেন্স: {price(symbol, user_balance, show_usd=False)}"
+            )
             await _safe_edit_or_answer(status_msg, message, text, reply_markup=keyboard)
             return
 
@@ -1191,33 +1128,26 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             await state.set_state(None)
             dep_id = res.get("deposit_id")
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="TrxID ভুল হয়েছে? ঠিক করুন",
+                [InlineKeyboardButton(text="TrxID ঠিক করুন",
                                       callback_data=f"dep_fix_trx_{dep_id}",
                                       style="primary", icon_custom_emoji_id=Icons.BACK)],
                 [InlineKeyboardButton(text="Deposit History",
                                       callback_data=f"open_deposits_dep_{dep_id}" if dep_id else "open_deposits",
                                       icon_custom_emoji_id=Icons.TIMER)],
             ])
-            if is_binance:
-                text = (
-                    f"{ICON_TIMER} <b>Payment Verification in Progress</b>\n\n"
-                    f"↳ <b>Method:</b> {escape(method_name)}\n"
-                    f"↳ <b>Amount:</b> {price(symbol, amount_num)}\n"
-                    f"↳ <b>Transaction ID:</b> <code>{escape(clean_tx)}</code>\n\n"
-                    f"Please wait a moment while your payment is being verified. "
-                    f"Your balance will be added automatically once confirmed.\n\n"
-                    f"<i>(If you entered the wrong Transaction ID, tap the button below to fix it)</i>"
-                )
-            else:
-                text = (
-                    f"{ICON_TIMER} <b>পেমেন্ট যাচাই করা হচ্ছে</b>\n\n"
-                    f"↳ <b>Method:</b> {escape(method_name)}\n"
-                    f"↳ <b>Amount:</b> {price(symbol, amount_num, show_usd=False)}\n"
-                    f"↳ <b>Transaction ID:</b> <code>{escape(clean_tx)}</code>\n\n"
-                    f"অনুগ্রহপূর্বক কিছুক্ষণ অপেক্ষা করুন, আপনার পেমেন্টটি ভেরিফাই করা হচ্ছে। "
-                    f"যাচাই সম্পন্ন হলে স্বয়ংক্রিয়ভাবে আপনার ওয়ালেটে টাকা যুক্ত হয়ে যাবে।\n\n"
-                    f"<i>(TrxID ভুল লিখে থাকলে নিচের বাটনে চাপ দিয়ে ঠিক করে নিন)</i>"
-                )
+            text = (
+                f"{ICON_TIMER} <b>Checking payment...</b>\n"
+                f"Method: {escape(method_name)}\n"
+                f"Amount: {price(symbol, amount_num)}\n"
+                f"TrxID: <code>{escape(clean_tx)}</code>\n\n"
+                f"Your balance is added as soon as it's confirmed. Please don't pay again."
+                if is_binance else
+                f"{ICON_TIMER} <b>পেমেন্ট চেক হচ্ছে...</b>\n"
+                f"মেথড: {escape(method_name)}\n"
+                f"টাকা: {price(symbol, amount_num, show_usd=False)}\n"
+                f"TrxID: <code>{escape(clean_tx)}</code>\n\n"
+                f"কনফার্ম হলেই ব্যালেন্সে যোগ হবে। আবার টাকা পাঠাবেন না।"
+            )
             await _safe_edit_or_answer(status_msg, message, text, reply_markup=keyboard)
             return
 
@@ -1263,26 +1193,17 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                             ]
                         ]
                     )
-                    if is_binance:
-                        success_text = (
-                            f"{ICON_CHECK} <b>Deposit Request Submitted for Review!</b>\n\n"
-                            f"{ICON_DEPOSIT} <b>Method:</b> {escape(method_name)}\n"
-                            f"{ICON_MONEY} <b>Amount:</b> <code>{price(symbol, amount_num)}</code>\n"
-                            f"{ICON_KEY} <b>Reference:</b> <code>{escape(clean_tx)}</code>\n"
-                            f"{ICON_NOTE} <b>Request ID:</b> <code>#{dep_id}</code>\n\n"
-                            f"{ICON_WARNING} Automated gateway verification timed out.\n\n"
-                            f"{ICON_CHECK} <b>Your funds are completely safe!</b> Your request has been forwarded to admin review. Our team will verify and credit your balance shortly."
-                        )
-                    else:
-                        success_text = (
-                            f"{ICON_CHECK} <b>ডিপোজিট রিকোয়েস্ট অ্যাডমিন রিভিউতে জমা হয়েছে!</b>\n\n"
-                            f"↳ <b>Method:</b> {escape(method_name)}\n"
-                            f"↳ <b>Amount:</b> {price(symbol, amount_num, show_usd=False)}\n"
-                            f"↳ <b>Transaction ID:</b> <code>{escape(clean_tx)}</code>\n"
-                            f"↳ <b>Request ID:</b> <code>#{dep_id}</code>\n\n"
-                            f"{ICON_CHECK} <b>আপনার ডিপোজিট রিকোয়েস্টটি গ্রহণ করা হয়েছে।</b>\n\n"
-                            f"আমাদের অ্যাডমিন ভেরিফাই করে খুব দ্রুত আপনার ওয়ালেটে ব্যালেন্স যুক্ত করে দেবেন। চিন্তার কোনো কারণ নেই, আপনার টাকা সম্পূর্ণ নিরাপদ!"
-                        )
+                    success_text = (
+                        f"{ICON_CHECK} <b>Request submitted</b>\n"
+                        f"Method: {escape(method_name)}\n"
+                        f"Amount: {price(symbol, amount_num)}\n"
+                        f"An admin will check it and add your balance."
+                        if is_binance else
+                        f"{ICON_CHECK} <b>রিকোয়েস্ট জমা হয়েছে</b>\n"
+                        f"মেথড: {escape(method_name)}\n"
+                        f"টাকা: {price(symbol, amount_num, show_usd=False)}\n"
+                        f"অ্যাডমিন চেক করে ব্যালেন্স যোগ করবেন।"
+                    )
                     await _safe_edit_or_answer(status_msg, message, success_text, reply_markup=keyboard)
                     return
                 except DuplicateTransactionError:
@@ -1294,9 +1215,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                     await _safe_edit_or_answer(
                         status_msg,
                         message,
-                        f"{ICON_CROSS} <b>পেমেন্ট ইতোমধ্যে প্রসেস হয়েছে</b>\n\n"
-                        f"এই Transaction ID (<code>{escape(clean_tx)}</code>) দিয়ে আগেই ব্যালেন্স নেওয়া হয়েছে।\n\n"
-                        f"যদি কোনো সমস্যা থাকে, অনুগ্রহ করে সাপোর্ট অ্যাডমিনের সাথে যোগাযোগ করুন।",
+                        f"{ICON_CROSS} এই TrxID আগেই ব্যবহার হয়েছে।",
                         reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
                     )
                     return
@@ -1304,8 +1223,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                     await _safe_edit_or_answer(
                         status_msg,
                         message,
-                        f"{ICON_TIMER} <b>পেন্ডিং ডিপোজিট আছে</b>\n\n"
-                        f"আপনার একটি ডিপোজিট রিকোয়েস্ট ইতোমধ্যে রিভিউ এর জন্য অপেক্ষায় আছে। পূর্বের রিকোয়েস্ট কনফার্ম হওয়া পর্যন্ত অপেক্ষা করুন।",
+                        f"{ICON_TIMER} আগের একটা ডিপোজিট এখনো চেক হচ্ছে। সেটা শেষ হলে আবার চেষ্টা করুন।",
                         reply_markup=InlineKeyboardMarkup(
                             inline_keyboard=[
                                 [InlineKeyboardButton(text="📜 Deposit History", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER)],
@@ -1320,64 +1238,18 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
 
             # Attempts 1 and 2 (remaining_attempts > 0)
             err_type = res.get("error", "not_found")
+            left = (f"\n<i>Tries left: {remaining_attempts}</i>" if is_binance
+                    else f"\n<i>আর {remaining_attempts} বার চেষ্টা করা যাবে।</i>")
             if is_binance:
-                error_msg = (
-                    f"{ICON_CROSS} <b>Verification Failed ({len(fails)}/{MAX_VERIFY_ATTEMPTS})</b>\n\n"
-                    f"{escape(res.get('detail', ''))}\n\n"
-                    f"{ICON_WARNING} You have <b>{remaining_attempts} attempt(s)</b> remaining.\n\n"
-                    f"Please verify your Reference/TrxID and try again, or click <b>Change Amount</b>:"
-                )
+                error_msg = f"{ICON_CROSS} Couldn't verify this TrxID. Check it and try again.{left}"
             elif err_type == "amount_mismatch":
-                error_msg = (
-                    f"{ICON_CROSS} <b>টাকার পরিমাণ মেলেনি ({len(fails)}/{MAX_VERIFY_ATTEMPTS})</b>\n\n"
-                    f"↳ <b>Method:</b> {escape(method_name)}\n"
-                    f"↳ <b>Amount:</b> {price(symbol, amount_num, show_usd=False)}\n"
-                    f"↳ <b>Transaction ID:</b> <code>{escape(clean_tx)}</code>\n\n"
-                    f"{ICON_QUESTION} <b>কেন এই সমস্যা হতে পারে?</b>\n"
-                    f"আপনি {escape(method_name)} এ যে পরিমাণ টাকা পাঠিয়েছেন, এখানে তার চেয়ে ভিন্ন পরিমাণ লিখেছেন।\n\n"
-                    f"{ICON_NEXT} <b>এখন আপনার করণীয়:</b>\n"
-                    f"১. নিচে <b>Change Amount</b> বাটনে চাপ দিয়ে সঠিক পরিমাণ লিখুন।\n"
-                    f"২. অথবা আপনার SMS রিসিট দেখে সঠিক TrxID টি মিলিয়ে পুনরায় দিন।\n\n"
-                    f"{ICON_WARNING} আর {remaining_attempts} বার চেষ্টা করতে পারবেন। ৩ বার না পেলে এটি স্বয়ংক্রিয়ভাবে অ্যাডমিন রিভিউতে জমা হবে।"
-                )
-            elif err_type == "wrong_method":
-                paid_with = escape(str(res.get("paid_with") or "অন্য"))
-                error_msg = (
-                    f"{ICON_CROSS} <b>ভুল পেমেন্ট মেথড ({len(fails)}/{MAX_VERIFY_ATTEMPTS})</b>\n\n"
-                    f"↳ <b>আপনি বেছেছেন:</b> {escape(method_name)}\n"
-                    f"↳ <b>এই TrxID টি:</b> {paid_with} এর লেনদেন\n"
-                    f"↳ <b>Transaction ID:</b> <code>{escape(clean_tx)}</code>\n\n"
-                    f"{ICON_NEXT} <b>এখন আপনার করণীয়:</b>\n"
-                    f"১. যে মেথডে টাকা পাঠিয়েছেন ({paid_with}), Add Balance থেকে সেটা বেছে নিয়ে আবার চেষ্টা করুন।\n"
-                    f"২. অথবা {escape(method_name)} এর সঠিক TrxID দিন।\n\n"
-                    f"{ICON_WARNING} আর {remaining_attempts} বার চেষ্টা করতে পারবেন।"
-                )
+                error_msg = f"{ICON_CROSS} টাকার পরিমাণ মেলেনি। Change Amount চেপে সঠিক পরিমাণ দিন।{left}"
             elif err_type == "already_used":
-                error_msg = (
-                    f"{ICON_CROSS} <b>TrxID অলরেডি ব্যবহার হয়ে গেছে ({len(fails)}/{MAX_VERIFY_ATTEMPTS})</b>\n\n"
-                    f"↳ <b>Method:</b> {escape(method_name)}\n"
-                    f"↳ <b>Transaction ID:</b> <code>{escape(clean_tx)}</code>\n\n"
-                    f"{ICON_QUESTION} <b>কেন এই সমস্যা হতে পারে?</b>\n"
-                    f"এই Transaction ID টি দিয়ে ইতিপূর্বে ব্যালেন্স নেওয়া হয়েছে।\n\n"
-                    f"{ICON_NEXT} <b>এখন আপনার করণীয়:</b>\n"
-                    f"১. আপনার SMS বা রিসিট চেক করে সর্বশেষ নতুন TrxID দিন।\n"
-                    f"২. টাকার পরিমাণ ভুল লিখে থাকলে নিচে <b>Change Amount</b> বাটনে চাপ দিয়ে সঠিক পরিমাণ বসিয়ে পুনরায় চেষ্টা করুন।\n\n"
-                    f"{ICON_WARNING} আর {remaining_attempts} বার চেষ্টা করতে পারবেন।"
-                )
-            else:  # "not_found" and other errors
-                error_msg = (
-                    f"{ICON_CROSS} <b>ট্রানজ্যাকশন পাওয়া যায়নি ({len(fails)}/{MAX_VERIFY_ATTEMPTS})</b>\n\n"
-                    f"↳ <b>Method:</b> {escape(method_name)}\n"
-                    f"↳ <b>Amount:</b> {price(symbol, amount_num, show_usd=False)}\n"
-                    f"↳ <b>Transaction ID:</b> <code>{escape(clean_tx)}</code>\n\n"
-                    f"{ICON_QUESTION} <b>কেন এই সমস্যা হতে পারে?</b>\n"
-                    f"TrxID লেখার সময় কোনো অক্ষর বা সংখ্যা ভুল হতে পারে।\n\n"
-                    f"{ICON_NEXT} <b>এখন আপনার করণীয়:</b>\n"
-                    f"১. আপনার পেমেন্ট SMS বা স্টেটমেন্ট দেখে সঠিক TrxID টি মিলিয়ে আবার লিখুন।\n"
-                    f"২. টাকা এইমাত্র পাঠিয়ে থাকলে আরও এক মিনিট পর আবার চেষ্টা করুন।\n"
-                    f"৩. টাকার পরিমাণ ভুল দিয়ে থাকলে নিচে <b>Change Amount</b> বাটনে চাপুন।\n\n"
-                    f"{ICON_WARNING} আর {remaining_attempts} বার চেষ্টা করতে পারবেন। ৩ বার না পেলে এটি স্বয়ংক্রিয়ভাবে অ্যাডমিন রিভিউতে জমা হবে।"
-                )
+                error_msg = f"{ICON_CROSS} এই TrxID আগেই ব্যবহার হয়েছে। নতুন TrxID দিন।{left}"
+            else:
+                # A receipt from another wallet, one the gateway never saw, anything else:
+                # to the customer it is simply the wrong TrxID. The admin note keeps the detail.
+                error_msg = f"{ICON_CROSS} TrxID ভুল। SMS দেখে সঠিক TrxID দিন।{left}"
 
             await _safe_edit_or_answer(
                 status_msg,
@@ -1402,22 +1274,17 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                     ]
                 ]
             )
-            if is_binance:
-                text = (
-                    f"{ICON_CHECK} <b>Deposit Request Submitted!</b>\n\n"
-                    f"{ICON_DEPOSIT} <b>Method:</b> {escape(method_name)}\n"
-                    f"{ICON_MONEY} <b>Amount:</b> <code>{price(symbol, amount_num)}</code>\n"
-                    f"{ICON_KEY} <b>Reference:</b> <code>{escape(clean_tx)}</code>\n\n"
-                    f"<i>Your payment request has been submitted for admin review. Balance will be added once verified.</i>"
-                )
-            else:
-                text = (
-                    f"{ICON_CHECK} <b>ডিপোজিট রিকোয়েস্ট জমা হয়েছে!</b>\n\n"
-                    f"{ICON_DEPOSIT} <b>মেথড:</b> {escape(method_name)}\n"
-                    f"{ICON_MONEY} <b>পরিমাণ:</b> <code>{price(symbol, amount_num, show_usd=False)}</code>\n"
-                    f"{ICON_KEY} <b>TrxID:</b> <code>{escape(clean_tx)}</code>\n\n"
-                    f"<i>আপনার পেমেন্ট রিকোয়েস্ট অ্যাডমিন রিভিউ এর জন্য জমা হয়েছে। যাচাই হলে ব্যালেন্স যোগ হবে।</i>"
-                )
+            text = (
+                f"{ICON_CHECK} <b>Request submitted</b>\n"
+                f"Method: {escape(method_name)}\n"
+                f"Amount: {price(symbol, amount_num)}\n"
+                f"An admin will check it and add your balance."
+                if is_binance else
+                f"{ICON_CHECK} <b>রিকোয়েস্ট জমা হয়েছে</b>\n"
+                f"মেথড: {escape(method_name)}\n"
+                f"টাকা: {price(symbol, amount_num, show_usd=False)}\n"
+                f"অ্যাডমিন চেক করে ব্যালেন্স যোগ করবেন।"
+            )
             await _safe_edit_or_answer(
                 status_msg,
                 message,
@@ -1439,9 +1306,9 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         await _safe_edit_or_answer(
             status_msg,
             message,
-            f"{ICON_CROSS} This Transaction ID has already been submitted."
+            f"{ICON_CROSS} This TrxID has already been used."
             if is_binance
-            else f"{ICON_CROSS} এই Transaction ID আগেই জমা দেওয়া হয়েছে! আপনার রিসিট চেক করুন।",
+            else f"{ICON_CROSS} এই TrxID আগেই ব্যবহার হয়েছে।",
             reply_markup=get_deposit_txid_keyboard(is_bangla=not is_binance),
         )
         return
@@ -1450,12 +1317,10 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         await _safe_edit_or_answer(
             status_msg,
             message,
-            f"{ICON_TIMER} <b>Pending Deposit Exists</b>\n\nYou already have a deposit request waiting for review."
+            f"{ICON_TIMER} A deposit of yours is still being checked. Please wait for it to finish."
             if is_binance
             else
-            f"{ICON_TIMER} <b>পেন্ডিং ডিপোজিট আছে</b>\n\n"
-            f"আপনার একটি ডিপোজিট রিকোয়েস্ট রিভিউ এর জন্য অপেক্ষায় আছে।\n"
-            f"নতুন রিকোয়েস্ট পাঠানোর আগে পূর্বের রিকোয়েস্ট কনফার্ম হওয়া পর্যন্ত অপেক্ষা করুন।",
+            f"{ICON_TIMER} আগের একটা ডিপোজিট এখনো চেক হচ্ছে। সেটা শেষ হলে আবার চেষ্টা করুন।",
             reply_markup=InlineKeyboardMarkup(
                 inline_keyboard=[
                     [InlineKeyboardButton(text="📜 Deposit History", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER)],
@@ -1483,22 +1348,17 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         ]
     )
 
-    if is_binance:
-        text = (
-            f"{ICON_CHECK} <b>Deposit Request Submitted!</b>\n\n"
-            f"{ICON_DEPOSIT} <b>Method:</b> {escape(method_name)}\n"
-            f"{ICON_MONEY} <b>Amount:</b> <code>{price(symbol, amount_num)}</code>\n"
-            f"{ICON_KEY} <b>Reference:</b> <code>{escape(clean_tx)}</code>\n\n"
-            f"<i>Balance will be added to your wallet once approved by admin.</i>"
-        )
-    else:
-        text = (
-            f"{ICON_CHECK} <b>ডিপোজিট রিকোয়েস্ট জমা হয়েছে!</b>\n\n"
-            f"{ICON_DEPOSIT} <b>মেথড:</b> {escape(method_name)}\n"
-            f"{ICON_MONEY} <b>পরিমাণ:</b> <code>{price(symbol, amount_num, show_usd=False)}</code>\n"
-            f"{ICON_KEY} <b>TrxID:</b> <code>{escape(clean_tx)}</code>\n\n"
-            f"<i>অ্যাডমিন যাচাই করলে আপনার ওয়ালেটে ব্যালেন্স যোগ হবে।</i>"
-        )
+    text = (
+        f"{ICON_CHECK} <b>Request submitted</b>\n"
+        f"Method: {escape(method_name)}\n"
+        f"Amount: {price(symbol, amount_num)}\n"
+        f"An admin will check it and add your balance."
+        if is_binance else
+        f"{ICON_CHECK} <b>রিকোয়েস্ট জমা হয়েছে</b>\n"
+        f"মেথড: {escape(method_name)}\n"
+        f"টাকা: {price(symbol, amount_num, show_usd=False)}\n"
+        f"অ্যাডমিন চেক করে ব্যালেন্স যোগ করবেন।"
+    )
 
     await _safe_edit_or_answer(
         status_msg,
@@ -1518,7 +1378,7 @@ async def fix_awaiting_transaction_id(query: CallbackQuery, state: FSMContext, s
     cancelled = await services.deposits.cancel_awaiting_sms(deposit_id, query.from_user.id)
     if not cancelled:
         with suppress(TelegramBadRequest):
-            await query.answer("এই ডিপোজিটটি আর বাতিল করা যাবে না — স্ট্যাটাস দেখুন।", show_alert=True)
+            await query.answer("এটা আর বাতিল করা যাবে না।", show_alert=True)
         return
     with suppress(TelegramBadRequest):
         await query.answer()
@@ -1526,9 +1386,8 @@ async def fix_awaiting_transaction_id(query: CallbackQuery, state: FSMContext, s
     if query.message:
         with suppress(TelegramBadRequest):
             await query.message.edit_text(
-                f"{ICON_NEXT} <b>ঠিক আছে, আগের রিকোয়েস্টটি বাতিল করা হয়েছে।</b>\n\n"
-                f"এখন আপনার SMS বা রিসিট দেখে <b>সঠিক Transaction ID</b> টি লিখে পাঠান:\n\n"
-                f"💡 <i>(যেমন: <code>BLA7X8Y9Z0</code>)</i>",
+                f"{ICON_NEXT} ঠিক আছে। সঠিক TrxID দিন:\n"
+                f"💡 <i>যেমন: <code>BLA7X8Y9Z0</code></i>",
                 reply_markup=get_deposit_txid_keyboard(is_bangla=True),
             )
 @router.callback_query(F.data.startswith("back_to_dep_req_"))

@@ -189,12 +189,13 @@ class DepositConversation(unittest.IsolatedAsyncioTestCase):
 
     async def test_the_verifying_card_names_the_method(self):
         await self.submit(100, 'BKCARD0001', receipt(100, 'BKCARD0001'))
-        self.assertIn('Method: bKash', plain(self.written[0]))
+        self.assertIn('মেথড: bKash', plain(self.written[0]))
 
-    async def test_a_nagad_transaction_on_a_bkash_deposit_is_named_and_refused(self):
+    async def test_a_nagad_transaction_on_a_bkash_deposit_is_just_a_wrong_trxid(self):
+        """Refused, and the customer is told only that the TrxID is wrong: no talk of wallets."""
         await self.submit(100, 'NGWRONG001', receipt(100, 'NGWRONG001', provider='Nagad'))
-        self.assertIn('ভুল পেমেন্ট মেথড', self.last())
-        self.assertIn('Nagad', self.last())
+        self.assertIn('TrxID ভুল', self.last())
+        self.assertNotIn('Nagad', self.last())
         self.assertEqual(await self.balance(), 0.0)
 
     async def test_a_transaction_id_already_on_record_is_refused_without_waiting(self):
@@ -214,7 +215,7 @@ class DepositConversation(unittest.IsolatedAsyncioTestCase):
             await self.submit(100, f'BKTHIRD00{n}', mismatch, retries=())
         pending = await self.s.deposits.pending_for(CUSTOMER)
         self.assertIsNotNone(pending, self.last())
-        self.assertIn('রিভিউ', self.last())
+        self.assertIn('অ্যাডমিন', self.last())
 
 
 if __name__ == '__main__':
