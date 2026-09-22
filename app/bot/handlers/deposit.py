@@ -852,16 +852,27 @@ async def claim_binance_payment(
             ]
         )
         expected_text = f"<b>Expected:</b> <code>{expected_usdt:g} USDT</code>\n" if expected_usdt else ""
-        await _safe_edit_or_answer(
-            status_msg,
-            message,
-            f"{ICON_TIMER} <b>Payment Verification in Progress...</b>\n\n"
-            f"<b>Reference:</b> <code>{escape(ref)}</code>\n"
-            f"{expected_text}\n"
-            f"Searching Binance for your transfer. If you just sent it, please allow 1–2 minutes.\n\n"
-            f"<i>Your balance will be credited automatically once confirmed.</i>",
-            reply_markup=keyboard,
-        )
+        if result.get("needs_person"):
+            # Binance answered, and the answer was no. Telling the customer to wait a
+            # minute for a credit that is never coming is worse than telling them what
+            # is wrong, which is usually something only they can fix.
+            text = (
+                f"{ICON_WARNING} <b>This Payment Needs a Check</b>\n\n"
+                f"<b>Reference:</b> <code>{escape(ref)}</code>\n"
+                f"{expected_text}\n"
+                f"{escape(str(result.get('detail') or 'Binance could not confirm this transfer.'), quote=False)}\n\n"
+                f"<i>Your request is saved and an admin can see it. "
+                f"Please do not send the payment again.</i>"
+            ).replace("Needs review: ", "")
+        else:
+            text = (
+                f"{ICON_TIMER} <b>Payment Verification in Progress...</b>\n\n"
+                f"<b>Reference:</b> <code>{escape(ref)}</code>\n"
+                f"{expected_text}\n"
+                f"Searching Binance for your transfer. If you just sent it, please allow 1–2 minutes.\n\n"
+                f"<i>Your balance will be credited automatically once confirmed.</i>"
+            )
+        await _safe_edit_or_answer(status_msg, message, text, reply_markup=keyboard)
 
 
 # --- Manual Flow Handlers (bKash / Nagad / Rocket) ---
@@ -962,8 +973,32 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             )
         return
 
-    now = time.time()
     user_id = message.from_user.id
+
+    # Fast pre-check: if user already has an active pending deposit, avoid hitting external verification APIs
+    existing_pending = await services.deposits.pending_for(user_id)
+    if existing_pending:
+        await state.clear()
+        kb = [
+            [InlineKeyboardButton(text="📜 Deposit History", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER)],
+            [InlineKeyboardButton(text="🏠 Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)],
+        ]
+        if is_binance:
+            text = (
+                f"{ICON_TIMER} <b>Pending Deposit Exists</b>\n\n"
+                f"You already have a deposit request waiting for review.\n"
+                f"Please wait for it to be processed before submitting a new one."
+            )
+        else:
+            text = (
+                f"{ICON_TIMER} <b>পেন্ডিং ডিপোজিট আছে</b>\n\n"
+                f"আপনার একটি ডিপোজিট রিকোয়েস্ট ইতোমধ্যে অপেক্ষায় আছে।\n"
+                f"নতুন রিকোয়েস্ট পাঠানোর আগে পূর্বের রিকোয়েস্ট কনফার্ম হওয়া পর্যন্ত অপেক্ষা করুন।"
+            )
+        await message.answer(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
+        return
+
+    now = time.time()
     fails = await services.deposits.verification_failures(user_id)
 
     if len(fails) >= MAX_VERIFY_ATTEMPTS:
@@ -1008,36 +1043,34 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         f"{ICON_TIMER} <b>Verifying transaction...</b>\n\n"
         f"<b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
         f"<b>Amount:</b> <code>{price(symbol, amount_num)}</code>\n\n"
-        f"<i>Checking payment gateway, please wait...</i>"
+        f"<i>Please wait a moment, verifying payment...</i>"
         if is_binance
         else
         f"{ICON_TIMER} <b>ট্রানজ্যাকশন যাচাই করা হচ্ছে...</b>\n\n"
         f"<b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
         f"<b>Amount:</b> {price(symbol, amount_num, show_usd=False)}\n\n"
-        f"<i>যাচাই করা হচ্ছে, একটু অপেক্ষা করুন...</i>"
+        f"<i>অনুগ্রহপূর্বক অপেক্ষা করুন, ভেরিফাই করা হচ্ছে...</i>"
     )
 
     logger.info("Processing deposit verification for user %s", message.from_user.id)
 
     async def on_sync_wait(waited: float, total: float) -> None:
-        """Keep the customer company while the receipt SMS reaches the gateway."""
+        """Keep the customer company while the transaction is being verified."""
         await _safe_edit_or_answer(
             status_msg,
             message,
-            f"{ICON_TIMER} <b>Waiting for your receipt...</b>\n"
+            f"{ICON_TIMER} <b>Verifying payment...</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"<b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
             f"<b>Amount:</b> <code>{price(symbol, amount_num)}</code>\n\n"
-            f"<i>The bank SMS has not reached the gateway yet. Checking again "
-            f"({int(waited)}/{int(total)}s). Please do not pay again.</i>"
+            f"<i>Please wait a moment, verifying transaction ({int(waited)}/{int(total)}s)...</i>"
             if is_binance
             else
-            f"{ICON_TIMER} <b>পেমেন্টের SMS-এর জন্য অপেক্ষা করা হচ্ছে...</b>\n"
+            f"{ICON_TIMER} <b>পেমেন্ট যাচাই করা হচ্ছে...</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"<b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
             f"<b>Amount:</b> {price(symbol, amount_num, show_usd=False)}\n\n"
-            f"<i>ব্যাংকের SMS গেটওয়েতে পৌঁছাতে কিছুটা সময় লাগে। আবার চেক করা হচ্ছে "
-            f"({int(waited)}/{int(total)} সেকেন্ড)। অনুগ্রহ করে আবার টাকা পাঠাবেন না।</i>",
+            f"<i>অনুগ্রহপূর্বক কিছুক্ষণ অপেক্ষা করুন, ভেরিফাই করা হচ্ছে ({int(waited)}/{int(total)} সেকেন্ড)...</i>",
         )
 
     # If ZiniPay auto-verify is configured, attempt automated verification
@@ -1158,9 +1191,9 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             return
 
         if res.get("pending_sync"):
-            # Not a failure and not the customer's mistake: the bank SMS is still on its
-            # way to the gateway. Nothing is counted against them and there is nothing to
-            # retype — the worker credits the wallet as soon as the receipt lands.
+            # The transaction is still syncing with the gateway.
+            # Clear user state so further inputs aren't mistakenly treated as new TrxIDs.
+            await state.clear()
             dep_id = res.get("deposit_id")
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="TrxID ভুল হয়েছে? ঠিক করুন",
@@ -1172,29 +1205,27 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             ])
             if is_binance:
                 text = (
-                    f"{ICON_TIMER} <b>Payment Received — Confirming</b>\n"
+                    f"{ICON_TIMER} <b>Payment Verification in Progress</b>\n"
                     f"━━━━━━━━━━━━━━━━━━\n"
                     f"↳ <b>Method:</b> {escape(method_name)}\n"
                     f"↳ <b>Amount:</b> {price(symbol, amount_num)}\n"
                     f"↳ <b>Transaction ID:</b> <code>{escape(clean_tx)}</code>\n"
                     f"━━━━━━━━━━━━━━━━━━\n"
-                    f"The receipt has not reached the gateway yet. We keep checking, and your "
-                    f"balance is added automatically as soon as it arrives — usually a minute or two.\n\n"
-                    f"{ICON_WARNING} <b>Please do not pay again.</b>"
+                    f"Please wait a moment while your payment is being verified. "
+                    f"Your balance will be added automatically once confirmed.\n\n"
+                    f"<i>(If you entered the wrong Transaction ID, tap the button below to fix it)</i>"
                 )
             else:
                 text = (
-                    f"{ICON_TIMER} <b>পেমেন্ট জমা হয়েছে — কনফার্ম করা হচ্ছে</b>\n"
+                    f"{ICON_TIMER} <b>পেমেন্ট যাচাই করা হচ্ছে</b>\n"
                     f"━━━━━━━━━━━━━━━━━━\n"
                     f"↳ <b>Method:</b> {escape(method_name)}\n"
                     f"↳ <b>Amount:</b> {price(symbol, amount_num, show_usd=False)}\n"
                     f"↳ <b>Transaction ID:</b> <code>{escape(clean_tx)}</code>\n"
                     f"━━━━━━━━━━━━━━━━━━\n"
-                    f"আপনার SMS এখনো গেটওয়েতে পৌঁছায়নি। আমরা নিজে থেকেই বারবার চেক করছি — "
-                    f"SMS আসামাত্র <b>স্বয়ংক্রিয়ভাবে</b> আপনার ব্যালেন্সে টাকা যোগ হয়ে যাবে "
-                    f"(সাধারণত ১-২ মিনিট)।\n\n"
-                    f"{ICON_WARNING} <b>অনুগ্রহ করে আবার টাকা পাঠাবেন না।</b>\n"
-                    f"<i>TrxID ভুল লিখে থাকলে নিচের বাটনে চাপ দিয়ে ঠিক করে নিন।</i>"
+                    f"অনুগ্রহপূর্বক কিছুক্ষণ অপেক্ষা করুন, আপনার পেমেন্টটি ভেরিফাই করা হচ্ছে। "
+                    f"যাচাই সম্পন্ন হলে স্বয়ংক্রিয়ভাবে আপনার ওয়ালেটে টাকা যুক্ত হয়ে যাবে।\n\n"
+                    f"<i>(TrxID ভুল লিখে থাকলে নিচের বাটনে চাপ দিয়ে ঠিক করে নিন)</i>"
                 )
             await _safe_edit_or_answer(status_msg, message, text, reply_markup=keyboard)
             return
@@ -1259,9 +1290,8 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                             f"↳ <b>Transaction ID:</b> <code>{escape(clean_tx)}</code>\n"
                             f"↳ <b>Request ID:</b> <code>#{dep_id}</code>\n"
                             f"━━━━━━━━━━━━━━━━━━\n"
-                            f"{ICON_WARNING} গেটওয়ে থেকে ট্রানজ্যাকশনটি তাৎক্ষণিক স্বয়ংক্রিয়ভাবে ডিটেক্ট হয়নি।\n\n"
-                            f"{ICON_CHECK} <b>চিন্তার কোনো কারণ নেই, আপনার টাকা সম্পূর্ণ নিরাপদ!</b>\n"
-                            f"আপনার ডিপোজিট রিকোয়েস্টটি আমাদের অ্যাডমিন প্যানেলে জমা হয়েছে। অ্যাডমিন ম্যানুয়ালি চেক করে খুব দ্রুত আপনার ওয়ালেটে ব্যালেন্স যুক্ত করে দেবেন।"
+                            f"{ICON_CHECK} <b>আপনার ডিপোজিট রিকোয়েস্টটি গ্রহণ করা হয়েছে।</b>\n\n"
+                            f"আমাদের অ্যাডমিন ভেরিফাই করে খুব দ্রুত আপনার ওয়ালেটে ব্যালেন্স যুক্ত করে দেবেন। চিন্তার কোনো কারণ নেই, আপনার টাকা সম্পূর্ণ নিরাপদ!"
                         )
                     await _safe_edit_or_answer(status_msg, message, success_text, reply_markup=keyboard)
                     return
