@@ -8,10 +8,12 @@ the shape of a helper.
         python -m unittest tests.test_payment_security -v
 """
 
+import datetime
 import os
 import unittest
 import uuid
 from decimal import Decimal
+from unittest.mock import patch
 from urllib.parse import urlsplit
 
 import asyncpg
@@ -21,6 +23,8 @@ from app.core.config import Settings
 from app.db import Database
 from app.db.migrations import migrate
 from app.services import build_services
+from app.services import zinipay as zinipay_module
+from app.services.binance import PAID_BEFORE_CLAIM_HOURS, BinanceDepositService
 from app.services.deposits import DuplicateTransactionError
 from app.services.errors import InvalidInputError
 from app.services.zinipay import _matches_receipt
@@ -57,6 +61,34 @@ class ReceiptMatching(unittest.TestCase):
         self.assertFalse(_matches_receipt({'amount': None, 'trxID': 'ABC123'}, 50, 'ABC123'))
         self.assertFalse(_matches_receipt({'amount': 'NaN', 'trxID': 'ABC123'}, 50, 'ABC123'))
 
+
+
+class BinanceClaimWindow(unittest.TestCase):
+    """How old a Binance transfer may be and still be credited without a human."""
+
+    @staticmethod
+    def _claimed_now(hours_before):
+        now = datetime.datetime.now(datetime.timezone.utc)
+        paid = now - datetime.timedelta(hours=hours_before)
+        return BinanceDepositService._arrived_in_time({'created_at': now}, int(paid.timestamp() * 1000))
+
+    def test_a_payment_made_just_now_is_in_time(self):
+        self.assertTrue(self._claimed_now(0))
+
+    def test_a_payment_from_yesterday_is_still_in_time(self):
+        # One day used to be the whole allowance, so paying at night and claiming the
+        # next evening became a manual ticket.
+        self.assertTrue(self._claimed_now(30))
+        self.assertTrue(self._claimed_now(PAID_BEFORE_CLAIM_HOURS - 1))
+
+    def test_old_history_is_left_for_a_human(self):
+        self.assertFalse(self._claimed_now(PAID_BEFORE_CLAIM_HOURS + 1))
+        self.assertFalse(self._claimed_now(24 * 14))
+
+    def test_a_transfer_binance_gives_no_time_for_is_allowed(self):
+        now = datetime.datetime.now(datetime.timezone.utc)
+        self.assertTrue(BinanceDepositService._arrived_in_time({'created_at': now}, 0))
+        self.assertFalse(BinanceDepositService._arrived_in_time({'created_at': now}, 'nonsense'))
 
 @unittest.skipUnless(DSN, 'Set TEST_DATABASE_URL to a disposable local PostgreSQL instance')
 class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
@@ -135,6 +167,62 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(DuplicateTransactionError):
                 await self.s.zinipay.claim(INTRUDER, self.method, 500, 'TRX0000001', quoted_rate=1.0)
         self.assertEqual(await self.balance(INTRUDER), 0.0)
+
+    # ---- what the gateway says when it refuses --------------------------------
+
+    async def _verify(self, body, status):
+        await self.s.zinipay.http.aclose()
+        async with gateway(body, status) as client:
+            self.s.zinipay.http = client
+            return await self.s.zinipay.verify(500, 'TRX0000001')
+
+    async def test_a_refusal_is_read_not_discarded(self):
+        """ZiniPay answers every refusal with "data": null.
+
+        Insisting that "data" be an object turned all of these into one useless
+        "Malformed gateway response", so the caller could not tell a receipt that has
+        not synced yet from a wrong amount, and never retried.
+        """
+        cases = {
+            'not_found': ({'success': False, 'code': 'REQUEST_FAILED',
+                           'message': 'Transaction not found', 'data': None}, 404),
+            'amount_mismatch': ({'success': False,
+                                 'message': 'Amount must be equal to the receipt', 'data': None}, 400),
+            'already_used': ({'success': False,
+                              'message': 'This transaction is already used', 'data': None}, 400),
+            'credits_error': ({'success': False, 'code': 'INSUFFICIENT_CREDITS',
+                               'message': '', 'data': None}, 402),
+        }
+        for expected, (body, status) in cases.items():
+            with self.subTest(expected):
+                result = await self._verify(body, status)
+                self.assertFalse(result['ok'])
+                self.assertEqual(result['reason'], expected)
+
+    async def test_a_body_that_cannot_be_read_is_still_refused(self):
+        self.assertEqual((await self._verify({'success': False, 'data': ['not', 'an', 'object']}, 400))['reason'], 'error')
+        self.assertEqual((await self._verify(['not an object at all'], 400))['reason'], 'error')
+
+    async def test_a_receipt_that_has_not_synced_yet_is_waited_for(self):
+        """The bank SMS reaches the gateway seconds after the customer pays."""
+        body = {'success': False, 'code': 'REQUEST_FAILED', 'message': 'Transaction not found', 'data': None}
+        waits = []
+
+        async def on_wait(waited, total):
+            waits.append((waited, total))
+
+        with patch.object(zinipay_module, 'SMS_SYNC_RETRY_DELAYS', (0.01, 0.01, 0.01)):
+            await self.s.zinipay.http.aclose()
+            async with gateway(body, 404) as client:
+                self.s.zinipay.http = client
+                result = await self.s.zinipay.claim(CUSTOMER, self.method, 500, 'TRX0000001',
+                                                    quoted_rate=1.0, on_sync_wait=on_wait)
+
+        self.assertEqual(len(waits), 3, 'the customer should be told we are still checking')
+        self.assertEqual(result.get('error'), 'not_found')
+        self.assertFalse(result.get('fallback_manual'), 'a missing receipt is not an admin job yet')
+        self.assertEqual(await self.balance(), 0.0)
+        self.assertIsNone(await self.s.deposits.pending_for(CUSTOMER))
 
     # ---- hosted invoices ------------------------------------------------------
 

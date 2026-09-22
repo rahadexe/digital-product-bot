@@ -22,6 +22,7 @@ from app.bot.icons import (
     ICON_CHECK,
     ICON_CROSS,
     ICON_DEPOSIT,
+    ICON_ID,
     ICON_KEY,
     ICON_LIGHTNING,
     ICON_MONEY,
