@@ -28,7 +28,6 @@ from app.bot.icons import (
     ICON_COIN,
     ICON_CROSS,
     ICON_CROWN,
-    ICON_DEPOSIT,
     ICON_GLOBE,
     ICON_ID,
     ICON_KEY,

@@ -13,6 +13,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, ChatMemberUpdated, Message
 
 from app.bot.formatting import send_operator_html
+from app.bot.handlers.search import forget_search_origin
 from app.bot.handlers.shop import product_view
 from app.bot.icons import (
     ICON_LOCK,
@@ -138,6 +139,7 @@ async def handle_start(message: Message, state: FSMContext, services: Services):
     if product_id:
         product = await services.catalog.product(product_id)
         if product and product["is_active"]:
+            forget_search_origin(tg_user.id, product["id"])
             text, keyboard = await product_view(services, product, tg_user.id)
             await message.answer(text, reply_markup=keyboard)
             return

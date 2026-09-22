@@ -45,8 +45,7 @@ async def test_admin_notification(services: ServicesDep):
     for cid in chat_ids:
         ok = await services.notifier.send(
             cid,
-            f"{ICON_CHECK} <b>Alerts are reaching you</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{ICON_CHECK} <b>Alerts are reaching you</b>\n\n"
             f"<i>Sent from the console to check this Telegram account.</i>",
         )
         results.append({

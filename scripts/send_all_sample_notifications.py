@@ -68,9 +68,9 @@ async def send_all():
         chat_id=TARGET_TG_ID,
         text=(
             "🚀 <b>Live Notification Preview Test</b>\n"
-            "━━━━━━━━━━━━━━━━━━\n"
+            "\n"
             "বটের মধ্যে যত ধরনের নোটিফিকেশন (অ্যাডমিন অ্যালার্ট, কাস্টমার রিসিট, ডিপোজিট, পেমেন্ট, রেফারেল, চ্যানেল পোস্ট ও এরর) রয়েছে—সবগুলোর লাইভ প্রিভিউ নিচে পাঠানো হচ্ছে যাতে আপনি সবগুলো পরীক্ষা করতে পারেন।\n"
-            "━━━━━━━━━━━━━━━━━━"
+            "\n"
         ),
     )
     await asyncio.sleep(1.5)
@@ -82,7 +82,7 @@ async def send_all():
         "1️⃣ [Admin Alert] New Order Received (Instant Delivered)",
         (
             f"{ICON_SHOP} <b>New Order Received</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
+            "\n"
             f"{ICON_ORDERS} <b>Order ID:</b> <code>#1042</code>\n"
             f"{ICON_ACCOUNT} <b>Customer:</b> @sample_customer (<code>{TARGET_TG_ID}</code>)\n"
             f"{ICON_VIP} <b>Product:</b> NordVPN 1 Month Premium\n"
@@ -103,7 +103,7 @@ async def send_all():
         "2️⃣ [Admin Alert] Manual Order Action Required (Direct Fulfillment Button)",
         (
             f"{ICON_TIMER} <b>Manual Order Action Required</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
+            "\n"
             f"{ICON_ORDERS} <b>Order ID:</b> <code>#1043</code>\n"
             f"{ICON_ACCOUNT} <b>Customer:</b> @sample_customer (<code>{TARGET_TG_ID}</code>)\n"
             f"{ICON_VIP} <b>Product:</b> Canva Pro Lifetime (Manual Invite)\n"
@@ -118,7 +118,7 @@ async def send_all():
         "3️⃣ [Customer Notice] Order Waiting Notice (Under Preparation)",
         (
             f"{ICON_TIMER} <b>Order #1043: Canva Pro Lifetime</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
+            "\n"
             f"{ICON_CHECK} <b>Payment Received!</b>\n\n"
             f"Your order is being prepared and will be delivered directly here shortly."
         ),
@@ -152,7 +152,7 @@ async def send_all():
         "5️⃣ [Admin Alert] New Deposit Request (Manual bKash/Nagad)",
         (
             f"{ICON_DEPOSIT} <b>New Deposit Request #205</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
+            "\n"
             f"{ICON_ACCOUNT} <b>Customer:</b> @sample_customer (<code>{TARGET_TG_ID}</code>)\n"
             f"{ICON_DEPOSIT} <b>Method:</b> bKash Personal\n"
             f"{ICON_MONEY} <b>Credit Amount:</b> <code>500.00 ৳</code>\n"
@@ -166,7 +166,7 @@ async def send_all():
         "6️⃣ [Customer Notice] Deposit Request Approved",
         (
             f"{ICON_CHECK} <b>Deposit Approved!</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
+            "\n"
             f"{ICON_MONEY} <b>Amount Credited:</b> <code>500.00 ৳</code>\n"
             f"{ICON_DEPOSIT} <b>Payment Method:</b> bKash Personal\n"
             f"{ICON_BALANCE} <b>Updated Balance:</b> <code>4930.00 ৳</code>"
@@ -179,10 +179,10 @@ async def send_all():
         "7️⃣ [Customer Notice] Deposit Request Rejected",
         (
             f"{ICON_WARNING} <b>Deposit Request Rejected</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
+            "\n"
             f"{ICON_MONEY} <b>Requested Amount:</b> <code>500.00 ৳</code>\n"
             f"{ICON_NOTE} <b>Reason:</b> Transaction ID could not be found in bKash statement.\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
+            "\n"
             f"<i>ভুল মনে হলে পেমেন্ট প্রুফসহ সাপোর্টে যোগাযোগ করুন।</i>"
         ),
         None
@@ -193,7 +193,7 @@ async def send_all():
         "8️⃣ [Customer Notice] Automatic Payment Successful (ZiniPay / Binance)",
         (
             f"{ICON_CHECK} <b>Payment Successful!</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
+            "\n"
             f"{ICON_MONEY} <b>Credited:</b> <code>1000.00 ৳</code>\n"
             f"{ICON_BALANCE} <b>New Balance:</b> <code>5430.00 ৳</code>"
         ),
@@ -205,7 +205,7 @@ async def send_all():
         "9️⃣ [Admin Alert] Automatic Deposit Received",
         (
             f"{ICON_DEPOSIT} <b>Automatic Deposit #301</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
+            "\n"
             f"{ICON_ACCOUNT} <b>Customer:</b> <code>{TARGET_TG_ID}</code>\n"
             f"{ICON_MONEY} <b>Credit:</b> <code>1000.00 ৳</code> (Paid 1000.00 BDT)\n"
             f"{ICON_DEPOSIT} <b>Gateway:</b> bKash Auto (ZiniPay)\n"
@@ -219,7 +219,7 @@ async def send_all():
         "🔟 [Admin Alert] New Customer Joined Bot",
         (
             f"{ICON_ACCOUNT} <b>New Customer Joined</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
+            "\n"
             f"{ICON_ACCOUNT} <b>Name:</b> Rahad Hasan\n"
             f"💬 <b>Username:</b> @sample_customer\n"
             f"{ICON_ID} <b>Telegram ID:</b> <code>{TARGET_TG_ID}</code>"
@@ -232,7 +232,7 @@ async def send_all():
         "1️⃣1️⃣ [Customer Notice] Referral Bonus Received (Referrer Alert)",
         (
             f"{ICON_ORDERS} <b>Referral Bonus Received!</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
+            "\n"
             f"{ICON_ACCOUNT} <b>Friend:</b> Tanvir Ahmed\n"
             f"{ICON_COIN} <b>Bonus Credited:</b> <code>+3.00 ৳</code>"
         ),
@@ -244,7 +244,7 @@ async def send_all():
         "1️⃣2️⃣ [Customer Notice] Wallet Balance Adjusted by Admin Console",
         (
             f"{ICON_DEPOSIT} <b>Wallet Balance Updated</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
+            "\n"
             f"{ICON_COIN} <b>Credit Added:</b> <code>+100.00 ৳</code>\n"
             f"{ICON_BALANCE} <b>Current Balance:</b> <code>4530.00 ৳</code>\n"
             f"{ICON_NOTE} <b>Reason:</b> Promotional Referral Cashback"
@@ -257,7 +257,7 @@ async def send_all():
         "1️⃣3️⃣ [Admin Alert] Stock Added to Catalog",
         (
             f"{ICON_ORDERS} <b>Stock Added (Restock Alert)</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
+            "\n"
             f"{ICON_VIP} <b>Product:</b> 💎 Spotify 1 Month Family Member\n"
             f"➕ <b>Added Stock:</b> <code>50</code> item(s)\n"
             f"📦 <b>Total Stock:</b> <code>75</code> units\n"
@@ -276,7 +276,7 @@ async def send_all():
         "1️⃣4️⃣ [Channel / Subscriber Alert] Fresh Stock Broadcast Announcement",
         (
             f"{ICON_ORDERS} <b>Fresh Restock Alert!</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
+            "\n"
             f"{ICON_VIP} <b>Product:</b> 💎 <b>Spotify 1 Month Family Member</b>\n"
             f"{ICON_SPARKLES} <b>Fresh Stock:</b> <code>50 units</code>\n"
             f"📦 <b>Available:</b> <code>75 accounts</code>\n"
@@ -291,7 +291,7 @@ async def send_all():
         "1️⃣5️⃣ [Channel / Subscriber Alert] Price Drop Announcement",
         (
             f"{ICON_FIRE} <b>Special Price Drop!</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
+            "\n"
             f"{ICON_VIP} <b>Product:</b> ⚡ <b>ChatGPT Plus 1 Month Private</b>\n"
             f"💸 <b>Previous Price:</b> <s>2500.00 ৳</s>\n"
             f"{ICON_MONEY} <b>Discounted Price:</b> <code>2100.00 ৳</code>\n"
@@ -309,7 +309,7 @@ async def send_all():
         "1️⃣6️⃣ [Channel / Subscriber Alert] Featured Product Promotion",
         (
             f"{ICON_FIRE} <b>Featured Product</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
+            "\n"
             f"{ICON_VIP} <b>Product:</b> ⚡ <b>ExpressVPN 1 Year Premium Key</b>\n"
             f"📝 Ultra-fast servers in 94 countries, unlimited bandwidth, high privacy.\n"
             f"📦 <b>Available Stock:</b> <code>12 units</code>\n"
@@ -328,7 +328,7 @@ async def send_all():
         "1️⃣7️⃣ [Customer Gate] Mandatory Force Join Channel Verification",
         (
             f"{ICON_CHANNEL} <b>Join Our Channels to Continue</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
+            "\n"
             f"To access <b>Premium Haven</b>, browse products, and receive referral bonuses, please join our official update channels below:"
         ),
         InlineKeyboardMarkup(
@@ -372,7 +372,7 @@ async def send_all():
         chat_id=TARGET_TG_ID,
         text=(
             "✅ <b>সকল নোটিফিকেশন সফলভাবে আপডেট করে পাঠানো সম্পন্ন হয়েছে!</b>\n"
-            "━━━━━━━━━━━━━━━━━━\n"
+            "\n"
             "• ম্যানুয়াল অর্ডার ও ডিপোজিট নোটিফিকেশন থেকে টেক্সট লিংক রিমুভ করে সরাসরি কাস্টম ইমোজি যুক্ত বাটন দেওয়া হয়েছে।\n"
             "• চ্যানেল রিস্টক ও অফার পোস্টগুলোতে সাধারণ কার্টের বদলে প্রিমিয়াম থ্রিডি কার্ট ইমোজি ও সরাসরি বাই ডিপলিংক যুক্ত করা হয়েছে।\n"
             "• অপ্রয়োজনীয় টেক্সটগুলো সম্পূর্ণ রিমুভ করে কার্ডগুলোকে ক্লিন ও আধুনিক করা হয়েছে।\n"

@@ -63,7 +63,7 @@ class SearchMode(unittest.IsolatedAsyncioTestCase):
         await self.s.catalog.create_product(cat, 'Nord VPN', price=160, delivery_type='manual')
         await self.s.catalog.create_product(cat, 'HMA VPN', price=120, delivery_type='manual')
         await self.s.deposits.create_method('bKash', '01790038892', min_deposit=10)
-        self.screen, self.written = {}, []
+        self.screen, self.written, self.callbacks = {}, [], []
 
     async def asyncTearDown(self):
         await self.bot.session.close()
@@ -78,6 +78,7 @@ class SearchMode(unittest.IsolatedAsyncioTestCase):
 
         def labels(kw):
             rows = getattr(kw.get('reply_markup'), 'inline_keyboard', None) or []
+            self.callbacks = [b.callback_data for row in rows for b in row if b.callback_data] or self.callbacks
             return ' '.join(b.text for row in rows for b in row)
 
         async def answer(message, text=None, **kw):
@@ -121,10 +122,37 @@ class SearchMode(unittest.IsolatedAsyncioTestCase):
         await self.tap(text='Search')
         self.assertIn('HMA VPN', await self.tap(text='হামা'))
 
-    async def test_text_without_the_button_is_not_searched(self):
-        reply = await self.tap(text='nord')
-        self.assertFalse(searched(reply), reply)
-        self.assertIn('Search', reply, 'but it points the way instead of staying silent')
+    async def test_text_without_the_button_gets_no_reply_at_all(self):
+        self.assertEqual(await self.tap(text='nord'), '')
+        self.assertEqual(await self.tap(text='asdkjh random'), '')
+
+    def button(self, prefix):
+        return next(c for c in self.callbacks if c.startswith(prefix))
+
+    async def test_back_from_a_search_result_returns_to_the_results(self):
+        await self.tap(text='Search')
+        await self.tap(text='nord')
+        await self.tap(data=self.button('sprod_'))
+        back = self.button('sback_')
+        reply = await self.tap(data=back)
+        self.assertIn('match', reply)
+        self.assertIn('Nord VPN', reply)
+
+    async def test_back_still_returns_to_the_results_after_changing_quantity(self):
+        await self.tap(text='Search')
+        await self.tap(text='nord')
+        await self.tap(data=self.button('sprod_'))
+        plus = max((c for c in self.callbacks if c.startswith('qty_set_')),
+                   key=lambda c: int(c.rsplit('_', 1)[1]))          # the + button
+        self.assertIn('Quantity: 2', await self.tap(data=plus))
+        self.assertTrue(any(c.startswith('sback_') for c in self.callbacks), self.callbacks)
+
+    async def test_the_same_product_from_its_category_goes_back_to_the_category(self):
+        await self.tap(text='Search')
+        await self.tap(text='nord')
+        product_id = self.button('sprod_').removeprefix('sprod_')
+        await self.tap(data=f'prod_{product_id}')
+        self.assertFalse(any(c.startswith('sback_') for c in self.callbacks), self.callbacks)
 
     async def test_one_search_per_tap(self):
         await self.tap(text='Search')

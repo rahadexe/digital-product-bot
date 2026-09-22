@@ -7,11 +7,14 @@ typed next searched, which read as a mode that never switched off.
 
 Now Search arms a single search. The next text is the search term; results come with a
 Search again button for a second one. Tapping anything else first disarms it
-(EndSearchWhenLeaving), so search never outlives the screen that asked for it.
+(EndSearchWhenLeaving), so search never outlives the screen that asked for it. A product
+opened from the results has a Back button that returns to them. Text typed without
+tapping Search gets no reply at all.
 """
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from contextlib import suppress
 from contextvars import ContextVar
 from html import escape
@@ -110,12 +113,13 @@ async def search_again(query: CallbackQuery, state: FSMContext, services: Servic
             await query.message.edit_text(_prompt_text(await _examples(services)), reply_markup=_PROMPT_KEYBOARD)
 
 
-def _product_button(product: dict, symbol: str, usd_rate: float | None, show_usd: bool) -> InlineKeyboardButton:
+def _product_button(product: dict, symbol: str, usd_rate: float | None, show_usd: bool,
+                    callback: str = "prod") -> InlineKeyboardButton:
     emoji_id = str(product.get("custom_emoji_id") or "")
     price = format_dual_price(product["price"], symbol, usd_rate=usd_rate, show_usd=show_usd)
     label = f"{product['title'][:26]} · {price}"
     return InlineKeyboardButton(
-        text=label[:64], callback_data=f"prod_{product['id']}",
+        text=label[:64], callback_data=f"{callback}_{product['id']}",
         icon_custom_emoji_id=emoji_id if emoji_id.isdigit() else Icons.CART,
     )
 
@@ -126,15 +130,33 @@ _CLOSING_ROW = [
 ]
 
 
-@router.message(SearchStates.waiting_for_term, F.text)
-async def search_products(message: Message, state: FSMContext, services: Services) -> None:
-    _search_handled.set(True)
-    # One search per tap of Search; "Search again" arms the next one.
-    await state.clear()
-    term = (message.text or "").strip()
-    if not term or term.startswith("/") or len(term) > MAX_TERM:
-        return
+# Which product screens were opened from a search, and with what term, so their Back
+# button returns to the results instead of the product's category. Keyed by customer
+# and product because the product screen is redrawn on every +/- tap and only knows
+# those two. In memory: after a restart Back falls back to the category, which is
+# where it always went before. Bounded so a busy shop cannot grow it without limit.
+_OPENED_FROM_SEARCH: OrderedDict[tuple[int, int], str] = OrderedDict()
+_LAST_TERM: OrderedDict[int, str] = OrderedDict()
+_REMEMBERED = 20000
 
+
+def _remember(store: OrderedDict, key, value) -> None:
+    store[key] = value
+    store.move_to_end(key)
+    while len(store) > _REMEMBERED:
+        store.popitem(last=False)
+
+
+def opened_from_search(tg_user_id: int, product_id: int) -> bool:
+    return (tg_user_id, product_id) in _OPENED_FROM_SEARCH
+
+
+def forget_search_origin(tg_user_id: int, product_id: int) -> None:
+    """The product was reached some other way, so its Back goes to the category again."""
+    _OPENED_FROM_SEARCH.pop((tg_user_id, product_id), None)
+
+
+async def _results(services: Services, term: str) -> tuple[str, InlineKeyboardMarkup]:
     matches = await services.catalog.search(term, limit=RESULTS)
     values = await services.settings.values()
     symbol = values.get("currency_symbol", "৳")
@@ -143,39 +165,65 @@ async def search_products(message: Message, state: FSMContext, services: Service
 
     if not matches:
         recent_products = await services.catalog.products(limit=5, active_only=True)
-        rows = [[_product_button(p, symbol, usd_rate, show_usd)] for p in recent_products]
+        rows = [[_product_button(p, symbol, usd_rate, show_usd, "sprod")] for p in recent_products]
         rows.append(_CLOSING_ROW)
-        await message.answer(
-            f"{ICON_CROSS} <b>Please try a different name:</b>",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=rows),
-        )
-        return
+        return f"{ICON_CROSS} <b>Please try a different name:</b>", InlineKeyboardMarkup(inline_keyboard=rows)
 
-    rows = [[_product_button(p, symbol, usd_rate, show_usd)] for p in matches]
+    rows = [[_product_button(p, symbol, usd_rate, show_usd, "sprod")] for p in matches]
     rows.append(_CLOSING_ROW)
     shown = escape(term[:40])
     more = ("\n<i>Showing the closest matches. Type more of the name to narrow it.</i>"
             if len(matches) >= RESULTS else "")
+    text = (f"{ICON_SHOP} <b>{len(matches)} match{'es' if len(matches) != 1 else ''} "
+            f"for “{shown}”</b>{more}")
+    return text, InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+@router.message(SearchStates.waiting_for_term, F.text)
+async def search_products(message: Message, state: FSMContext, services: Services) -> None:
+    _search_handled.set(True)
+    # One search per tap of Search; "Search again" arms the next one.
+    await state.clear()
+    term = (message.text or "").strip()
+    if not term or term.startswith("/") or len(term) > MAX_TERM or not message.from_user:
+        return
+    _remember(_LAST_TERM, message.from_user.id, term)
+    text, keyboard = await _results(services, term)
     with suppress(TelegramBadRequest):
-        await message.answer(
-            f"{ICON_SHOP} <b>{len(matches)} match{'es' if len(matches) != 1 else ''} "
-            f"for “{shown}”</b>{more}",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=rows),
-        )
+        await message.answer(text, reply_markup=keyboard)
 
 
-@router.message(F.text)
-async def not_a_command(message: Message, state: FSMContext) -> None:
-    """Text nobody asked for. It is no longer searched, but silence reads as a broken bot."""
-    if await state.get_state() is not None:
-        # A prompt is waiting on this customer; its own handler owns what they type.
+@router.callback_query(F.data.regexp(r"^sprod_\d+$"))
+async def open_search_result(query: CallbackQuery, state: FSMContext, services: Services) -> None:
+    """A product opened from the results: the same screen, with Back leading to the results."""
+    _search_handled.set(True)
+    from app.bot.handlers.shop import show_product  # shop imports this module
+
+    product_id = int(query.data.removeprefix("sprod_"))
+    term = _LAST_TERM.get(query.from_user.id)
+    if term:
+        _remember(_OPENED_FROM_SEARCH, (query.from_user.id, product_id), term)
+    await show_product(query, state, services, product_id)
+
+
+@router.callback_query(F.data.regexp(r"^sback_\d+$"))
+async def back_to_results(query: CallbackQuery, state: FSMContext, services: Services) -> None:
+    _search_handled.set(True)
+    product_id = int(query.data.removeprefix("sback_"))
+    term = _OPENED_FROM_SEARCH.get((query.from_user.id, product_id))
+    if not term:
+        # Forgotten across a restart: go where Back went before search existed.
+        from app.bot.handlers.shop import show_product
+        await show_product(query, state, services, product_id, category_back=True)
         return
-    text = (message.text or "").strip()
-    if not text or text.startswith("/"):
-        return
-    await message.answer(
-        "মেনু থেকে একটা অপশন বেছে নিন। কোনো product খুঁজতে চাইলে <b>Search</b> চাপুন।",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text="Search", callback_data="search_again", icon_custom_emoji_id=Icons.REFRESH)
-        ]]),
-    )
+    await state.clear()
+    text, keyboard = await _results(services, term)
+    with suppress(TelegramBadRequest):
+        await query.answer()
+    if query.message:
+        with suppress(TelegramBadRequest):
+            await query.message.edit_text(text, reply_markup=keyboard)
+
+# Anything else a customer types gets no reply at all. There is deliberately no
+# catch-all handler here: text no router claims is dropped by the dispatcher without
+# a database write or a message back.

@@ -20,6 +20,7 @@ from aiogram.types import (
 )
 
 from app.bot.formatting import callback_int, format_dual_price, respond
+from app.bot.handlers import search
 from app.bot.handlers.navigation import is_navigation, navigate
 from app.bot.icons import (
     ICON_BALANCE,
@@ -331,6 +332,10 @@ async def product_view(
     )
 
     back_target = f"cat_{cat_id}" if cat_id else "shop_uncat"
+    # Opened from search results: Back returns to them. Every redraw of this screen
+    # (the +/- buttons, a typed quantity) comes through here, so it stays that way.
+    if search.opened_from_search(tg_user_id, product["id"]):
+        back_target = f"sback_{product['id']}"
 
     bot_username = await services.notifier.bot_username()
     product_link = f"https://t.me/{bot_username}?start=prod_{product['id']}" if bot_username else ""
@@ -685,8 +690,16 @@ async def paginate_products(query: CallbackQuery, state: FSMContext, services: S
 # as a number.
 @router.callback_query(F.data.regexp(r"^prod_\d+$"))
 async def show_product_detail(query: CallbackQuery, state: FSMContext, services: Services):
-    await state.clear()
     product_id = callback_int(query.data, "prod_")
+    await show_product(query, state, services, product_id, category_back=True)
+
+
+async def show_product(query: CallbackQuery, state: FSMContext, services: Services,
+                       product_id: int | None, *, category_back: bool = False) -> None:
+    """Draw one product. category_back: reached from a category, so Back goes there."""
+    await state.clear()
+    if category_back and product_id is not None:
+        search.forget_search_origin(query.from_user.id, product_id)
     product = await services.catalog.product(product_id) if product_id is not None else None
     if not product or not product["is_active"]:
         with suppress(TelegramBadRequest):
