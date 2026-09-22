@@ -516,7 +516,7 @@ async def ask_deposit_input(query: CallbackQuery, state: FSMContext, services: S
         f"💸 <b>Transaction:</b> {action_label}\n\n"
         f"{ICON_WARNING} <b>Minimum:</b> {price(symbol, min_dep, usd_rate=usd_rate, show_usd=effective_show_usd)}\n\n"
         f"{ICON_MONEY} <b>টাকার পরিমাণ লিখুন:</b>\n\n"
-        f"<i>যেমন: <code>100</code></i>"
+        f"💡 <i>(যেমন: <code>100</code>)</i>"
     )
     reply_kb = get_deposit_amount_keyboard(account_info, method_id, is_binance=False)
 
@@ -793,7 +793,7 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
         f"{ICON_MONEY} <b>Amount:</b> {price(symbol, amount_num, show_usd=False)}\n"
         f"📱 <b>Number:</b> <code>{escape(account_info)}</code> ({action_label})\n\n"
         f"{ICON_NOTE} <b>Transaction ID (TrxID) দিন:</b>\n\n"
-        f"<i>যেমন: <code>BLA7X8Y9Z0</code></i>",
+        f"💡 <i>(যেমন: <code>BLA7X8Y9Z0</code>)</i>",
         reply_markup=get_deposit_txid_keyboard(is_bangla=True),
     )
 
@@ -823,7 +823,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         else:
             await message.answer(
                 f"{ICON_CROSS} ভুল Transaction ID ফরম্যাট। আপনার SMS/রিসিট থেকে সঠিক TrxID দিন।\n\n"
-                f"<i>যেমন: <code>BLA7X8Y9Z0</code></i>",
+                f"💡 <i>(যেমন: <code>BLA7X8Y9Z0</code>)</i>",
                 reply_markup=get_deposit_txid_keyboard(is_bangla=True),
             )
         return
