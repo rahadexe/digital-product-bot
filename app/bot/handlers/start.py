@@ -29,7 +29,7 @@ logger = logging.getLogger("app.bot.start")
 
 
 def build_welcome_text(store_name: str, support_handle: str, custom_text: str = "", paused_notice: str = "") -> str:
-    prefix = f"{ICON_WARNING} <b>Maintenance Notice:</b> {escape(paused_notice)}\n━━━━━━━━━━━━━━━━━━\n\n" if paused_notice else ""
+    prefix = f"{ICON_WARNING} <b>Maintenance Notice:</b> {escape(paused_notice)}\n\n" if paused_notice else ""
     if custom_text:
         formatted = (
             custom_text
@@ -79,8 +79,7 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
 def gate_text(missing: list[dict[str, Any]]) -> str:
     titles = "\n".join(f"• <b>{escape(ch.get('title') or ch.get('channel_username') or 'Official Channel')}</b>" for ch in missing)
     return (
-        f"{ICON_LOCK} <b>Access Required: Join Our Channel(s)</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
+        f"{ICON_LOCK} <b>Access Required: Join Our Channel(s)</b>\n\n"
         f"To access <b>Premium Haven</b> and explore our services, please join our official Telegram channel(s) below:\n\n"
         f"{titles}\n\n"
         f"<i>Tap the button(s) below to join, then click <b>Joined</b> to unlock the bot!</i>"

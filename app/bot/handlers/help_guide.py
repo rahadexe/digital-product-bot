@@ -39,15 +39,13 @@ async def show_support_info(event: Message | CallbackQuery, state: FSMContext, s
     channels = await services.update_channels.channels(active_only=True)
     if handle:
         text = (
-            f"{ICON_SUPPORT} <b>Support</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n\n"
+            f"{ICON_SUPPORT} <b>Support</b>\n\n"
             f"🇬🇧 For any questions, order assistance, or deposit issues, reach out to our support team.\n\n"
             f"🇧🇩 যেকোনো প্রশ্ন, অর্ডার সহায়তা বা ডিপোজিট সমস্যার জন্য আমাদের সাপোর্ট টিমের সাথে যোগাযোগ করুন।"
         )
     else:
         text = (
-            f"{ICON_SUPPORT} <b>Support</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n\n"
+            f"{ICON_SUPPORT} <b>Support</b>\n\n"
             f"🇬🇧 Our support team will be available here shortly.\n\n"
             f"🇧🇩 আমাদের সাপোর্ট টিম শীঘ্রই এখানে উপলব্ধ হবে।"
         )
@@ -55,8 +53,7 @@ async def show_support_info(event: Message | CallbackQuery, state: FSMContext, s
 
 
 GUIDE_TEXT_EN = (
-    f"{ICON_NOTE} <b>How to use this bot</b>\n"
-    f"━━━━━━━━━━━━━━━━━━\n\n"
+    f"{ICON_NOTE} <b>How to use this bot</b>\n\n"
     f"{ICON_DEPOSIT} <b>1. Add money</b>\n"
     f"Tap <b>Add Balance</b> and pick how you want to pay. Send the amount, submit the"
     f" transaction ID, and your wallet is topped up.\n\n"
@@ -77,8 +74,7 @@ GUIDE_TEXT_EN = (
 )
 
 GUIDE_TEXT_BN = (
-    f"{ICON_NOTE} <b>বট ব্যবহারের নিয়মাবলী</b>\n"
-    f"━━━━━━━━━━━━━━━━━━\n\n"
+    f"{ICON_NOTE} <b>বট ব্যবহারের নিয়মাবলী</b>\n\n"
     f"{ICON_DEPOSIT} <b>১. ব্যালেন্স যোগ করুন</b>\n"
     f"কীবোর্ড থেকে <b>Add Balance</b> চাপুন এবং পেমেন্ট মেথড বেছে নিন। টাকা পাঠিয়ে Transaction ID বা প্রমাণ দিলে স্বয়ংক্রিয়ভাবে ওয়ালেটে ব্যালেন্স যুক্ত হয়ে যাবে।\n\n"
     f"{ICON_SHOP} <b>২. পছন্দের প্রোডাক্ট নির্বাচন</b>\n"

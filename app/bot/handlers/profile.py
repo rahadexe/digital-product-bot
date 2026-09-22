@@ -131,8 +131,7 @@ async def show_user_profile(event: Message | CallbackQuery, state: FSMContext, s
         account_type = "Normal"
 
     text = (
-        f"{ICON_ACCOUNT} <b>My Profile</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n\n"
+        f"{ICON_ACCOUNT} <b>My Profile</b>\n\n"
         f"{ICON_ACCOUNT} <b>Name:</b> {user_name}\n"
         f"{ICON_ID} <b>User ID:</b> <code>{tg_user.id}</code>\n"
         f"{ICON_RESELLER} <b>Account Type:</b> <b>{account_type}</b>\n\n"
@@ -191,8 +190,7 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
     )
 
     text = (
-        f"{ICON_REFER} <b>Refer & Earn</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n\n"
+        f"{ICON_REFER} <b>Refer & Earn</b>\n\n"
         f"{ICON_ACCOUNT} <b>Total Refers:</b> <code>{total_invited}</code>\n"
         f"{ICON_COIN} <b>Reward Per Refer:</b> <code>{reward_display}</code>\n"
         f"{ICON_BALANCE} <b>Total Earned:</b> <code>{earned_display}</code>\n\n"
@@ -775,8 +773,7 @@ async def view_order_detail(query: CallbackQuery, state: FSMContext, services: S
     usd_rate = await services.settings.number("usd_rate")
     show_usd = await services.settings.flag("show_usd_price")
     text = (
-        f"{ICON_ORDERS} <b>Order #{order['id']} Details</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n\n"
+        f"{ICON_ORDERS} <b>Order #{order['id']} Details</b>\n\n"
         f"{ICON_VIP} <b>Product:</b> {escape(order['product_title'])}\n"
         f"{ICON_MONEY} <b>Price Paid:</b> <code>{price(symbol, order['price'], usd_rate=usd_rate, show_usd=show_usd)}</code>\n"
         f"{ICON_TIMER} <b>Date:</b> {date}\n"

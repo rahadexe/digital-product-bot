@@ -307,8 +307,7 @@ async def product_view(
         price_rate_line = f"{ICON_MONEY} <b>Price Rate:</b> <code>{unit_price_str}</code>\n"
 
     text = (
-        f"{ICON_BALANCE} <b>Your Balance:</b> <code>{balance_str}</code>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
+        f"{ICON_BALANCE} <b>Your Balance:</b> <code>{balance_str}</code>\n\n"
         f"{cat_icon_display} <b>Category:</b> {escape(category_name)}\n"
         f"{prod_icon_display} <b>Package:</b> <b>{clean_title}</b>\n"
         f"{price_rate_line}"
@@ -327,8 +326,7 @@ async def product_view(
     )
 
     text += (
-        f"━━━━━━━━━━━━━━━━━━\n"
-        f"{ICON_CART} <b>Quantity:</b> <code>{quantity}</code>\n"
+        f"\n{ICON_CART} <b>Quantity:</b> <code>{quantity}</code>\n"
         f"{ICON_DEPOSIT} <b>Total Price:</b> <code>{total_price_str}</code>"
     )
 
@@ -728,8 +726,7 @@ async def show_product_description(query: CallbackQuery, state: FSMContext, serv
         icon = tg_icon(str(custom_emoji_id).strip(), icon)
 
     text = (
-        f"{ICON_NOTE} <b>Description</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
+        f"{ICON_NOTE} <b>Description</b>\n\n"
         f"{icon} <b>{escape(product['title'])}</b>\n\n"
         f"{escape(desc)}"
     )
@@ -853,15 +850,13 @@ async def get_keypad_view_text(
         desc_line = f"{ICON_NOTE} <b>Description:</b> {escape(desc)}\n"
 
     return (
-        f"{ICON_BALANCE} <b>Your Balance:</b> <code>{balance_str}</code>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
+        f"{ICON_BALANCE} <b>Your Balance:</b> <code>{balance_str}</code>\n\n"
         f"{cat_icon_display} <b>Category:</b> {escape(category_name)}\n"
         f"{prod_icon_display} <b>Package:</b> <b>{clean_title}</b>\n"
         f"{ICON_MONEY} <b>Price Rate:</b> <code>{unit_price_str}</code>\n"
         f"{ICON_STATS} <b>Available Stock:</b> {stock_text}\n"
         f"{duration_line}"
-        f"{desc_line}"
-        f"━━━━━━━━━━━━━━━━━━\n"
+        f"{desc_line}\n"
         f"💡 <b>How to use:</b> tap the digits below or send a number, then tap <b>Confirm</b>.\n\n"
         f"🔢 <b>Current Quantity:</b> <code>{buffer}</code>"
     )
@@ -1075,8 +1070,7 @@ async def execute_quantity_purchase(query: CallbackQuery, state: FSMContext, ser
                 _clear_banner(query.message, PURCHASE_BANNER_SECONDS))
         with suppress(TelegramBadRequest):
             await query.message.edit_text(
-                f"{success_title}\n"
-                f"━━━━━━━━━━━━━━━━━━\n"
+                f"{success_title}\n\n"
                 f"{ICON_ORDERS} <b>{escape(order.get('product_title', 'Product'))}</b>\n\n"
                 f"{below_text}",
                 reply_markup=None,
@@ -1118,8 +1112,7 @@ async def execute_legacy_purchase(query: CallbackQuery, state: FSMContext, servi
                 _clear_banner(query.message, PURCHASE_BANNER_SECONDS))
         with suppress(TelegramBadRequest):
             await query.message.edit_text(
-                f"{success_title}\n"
-                f"━━━━━━━━━━━━━━━━━━\n"
+                f"{success_title}\n\n"
                 f"{ICON_ORDERS} <b>{escape(order.get('product_title', 'Product'))}</b>\n\n"
                 f"{below_text}",
                 reply_markup=None,
