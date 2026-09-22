@@ -2073,23 +2073,24 @@ async def _show_product_matches(message: Message, term: str, services: Services,
             InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
         ]])
     else:
-        symbol = html.escape(await services.settings.get("currency_symbol"))
-        lines, rows = [], []
+        rows = []
         for p in matches:
-            mark = ICON_CHECK if p["is_active"] else ICON_CROSS
-            stock = p.get("stock")
-            lines.append(f"{mark} {html.escape(p['title'])[:30]} · <code>{float(p['price']):.2f} {symbol}</code>"
-                         + (f" · {stock} left" if stock is not None else ""))
             if adding_stock:
                 rows.append([InlineKeyboardButton(
                     text=f"Add to {p['title'][:22]}", callback_data=f"adm_stock_{p['id']}",
                     style="success", icon_custom_emoji_id=Icons.PLUS)])
             else:
-                rows.append([InlineKeyboardButton(
-                    text=p['title'][:26],
-                    callback_data=f"adm_prod_{p['id']}",
-                    style="success" if p["is_active"] else "danger",
-                    icon_custom_emoji_id=Icons.PRODUCTS)])
+                emoji_id = str(p.get("custom_emoji_id") or "")
+                btn_kwargs = {
+                    "text": p['title'][:28],
+                    "callback_data": f"adm_prod_{p['id']}",
+                    "style": "success" if p["is_active"] else "danger",
+                }
+                if emoji_id.isdigit():
+                    btn_kwargs["icon_custom_emoji_id"] = emoji_id
+                else:
+                    btn_kwargs["icon_custom_emoji_id"] = Icons.PRODUCTS
+                rows.append([InlineKeyboardButton(**btn_kwargs)])
         rows.append([
             InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard",
                                  icon_custom_emoji_id=Icons.BACK),
@@ -2099,7 +2100,7 @@ async def _show_product_matches(message: Message, term: str, services: Services,
         text = (
             f"{ICON_SHOP} <b>Product Matches</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            + "\n".join(lines)
+            f"<i>Select a product from the list below:</i>"
         )
         reply_markup = InlineKeyboardMarkup(inline_keyboard=rows)
 
