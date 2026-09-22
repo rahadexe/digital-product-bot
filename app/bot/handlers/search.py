@@ -17,7 +17,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 
-from app.bot.formatting import delete_active_menu, format_dual_price, respond
+from app.bot.formatting import format_dual_price, respond
 from app.bot.icons import ICON_CROSS, ICON_SHOP, Icons
 from app.services import Services
 

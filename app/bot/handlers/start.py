@@ -12,7 +12,7 @@ from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, ChatMemberUpdated, Message
 
-from app.bot.formatting import delete_active_menu, send_operator_html
+from app.bot.formatting import send_operator_html
 from app.bot.handlers.shop import product_view
 from app.bot.icons import (
     ICON_LOCK,
@@ -68,9 +68,6 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
         has_unpinned=bool(unpinned_categories),
         is_reseller=is_reseller,
     )
-
-    if message and message.chat:
-        await delete_active_menu(message.bot, message.chat.id)
 
     if edit and message:
         with suppress(TelegramBadRequest):

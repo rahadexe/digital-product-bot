@@ -19,7 +19,7 @@ from aiogram.types import (
     Message,
 )
 
-from app.bot.formatting import callback_int, clear_active_menu, format_dual_price, respond
+from app.bot.formatting import callback_int, format_dual_price, respond
 from app.bot.handlers.navigation import is_navigation, navigate
 from app.bot.icons import (
     ICON_BALANCE,
@@ -583,7 +583,6 @@ async def handle_close_menu(query: CallbackQuery, state: FSMContext):
     with suppress(TelegramBadRequest):
         await query.answer()
     if query.message:
-        clear_active_menu(query.message.chat.id)
         with suppress(TelegramBadRequest):
             await query.message.delete()
 
