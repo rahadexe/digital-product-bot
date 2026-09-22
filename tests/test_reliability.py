@@ -67,7 +67,8 @@ class ReliabilityTests(unittest.IsolatedAsyncioTestCase):
 
     async def enable_zini(self):
         await self.s.settings.update({'zinipay_enabled': '1', 'zinipay_api_key': 'test-key'})
-        self.s.zinipay.verify = AsyncMock(return_value={'ok': True, 'id': 42})
+        # verify() hands back the gateway's receipt as 'raw'; it names the wallet.
+        self.s.zinipay.verify = AsyncMock(return_value={'ok': True, 'id': 42, 'raw': {'provider': 'bKash'}})
         self.s.zinipay.confirm = AsyncMock(return_value={'ok': True, 'provider': 'bKash'})
 
     async def test_migrations_repeat_and_cleanup(self):
