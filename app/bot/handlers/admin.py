@@ -460,22 +460,35 @@ async def cmd_broadcast_status(message: Message, services: Services):
     await message.answer(text, reply_markup=keyboard)
 
 
+_last_admin_panels: dict[int, int] = {}
+
+
 @router.message(Command("admin"))
 async def cmd_admin_help(message: Message, services: Services):
     if not message.from_user or not await _is_admin(message.from_user.id, services):
         return
+    old_panel_id = _last_admin_panels.get(message.chat.id)
+    if old_panel_id:
+        with suppress(Exception):
+            await message.bot.delete_message(chat_id=message.chat.id, message_id=old_panel_id)
+    with suppress(Exception):
+        await message.delete()
+
     text, keyboard = await build_admin_dashboard(services)
-    await message.answer(text, reply_markup=keyboard)
+    sent = await message.answer(text, reply_markup=keyboard)
+    _last_admin_panels[message.chat.id] = sent.message_id
 
 
 @router.callback_query(F.data.in_({"adm_dashboard", "adm_refresh_panel"}))
-async def adm_cb_dashboard(query: CallbackQuery, services: Services):
+async def adm_cb_dashboard(query: CallbackQuery, state: FSMContext, services: Services):
     if await _deny(query, services):
         return
+    await state.clear()
     text, keyboard = await build_admin_dashboard(services)
     with suppress(TelegramBadRequest):
         await query.answer("Updated" if query.data == "adm_refresh_panel" else None)
     if query.message:
+        _last_admin_panels[query.message.chat.id] = query.message.message_id
         with suppress(TelegramBadRequest):
             await query.message.edit_text(text, reply_markup=keyboard)
 
@@ -528,17 +541,20 @@ async def adm_cb_start_broadcast(query: CallbackQuery, state: FSMContext, servic
         await query.answer()
     recipients = await services.delivery.recipient_count()
     if query.message:
-        await query.message.answer(
-            f"{ICON_CHANNEL} <b>Broadcast Message</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"Active recipients: <b>{recipients}</b>\n\n"
-            f"Send or forward the message to broadcast.\n"
-            f"<i>Supports text, photos & HTML formatting.</i>\n\n"
-            f"Send /cancel to abort.",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-                InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
-            ]])
-        )
+        await state.update_data(panel_msg_id=query.message.message_id)
+        with suppress(TelegramBadRequest):
+            await query.message.edit_text(
+                f"{ICON_CHANNEL} <b>Broadcast Message</b>\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"Active recipients: <b>{recipients}</b>\n\n"
+                f"Send or forward the message to broadcast.\n"
+                f"<i>Supports text, photos & HTML formatting.</i>\n\n"
+                f"Send /cancel to abort.",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+                    InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
+                ]])
+            )
 
 
 @router.callback_query(F.data == "adm_start_welcome")
@@ -557,20 +573,22 @@ async def adm_cb_start_welcome(query: CallbackQuery, state: FSMContext, services
     with suppress(TelegramBadRequest):
         await query.answer()
     if query.message:
-        await query.message.answer(
-            f"{ICON_NOTE} <b>Set Welcome Message</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"{status_hint}"
-            f"Send new greeting text below.\n"
-            f"• Use <code>{{store_name}}</code> for store name\n"
-            f"• Send /cancel to abort",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-                InlineKeyboardButton(text="Use default", callback_data="adm_reset_welcome",
-                                     icon_custom_emoji_id=Icons.REFRESH),
-                InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger",
-                                     icon_custom_emoji_id=Icons.CLOSE),
-            ]]),
-        )
+        await state.update_data(panel_msg_id=query.message.message_id)
+        with suppress(TelegramBadRequest):
+            await query.message.edit_text(
+                f"{ICON_NOTE} <b>Set Welcome Message</b>\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"{status_hint}"
+                f"Send new greeting text below.\n"
+                f"• Use <code>{{store_name}}</code> for store name\n"
+                f"• Send /cancel to abort",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(text="Use default", callback_data="adm_reset_welcome",
+                                         icon_custom_emoji_id=Icons.REFRESH),
+                    InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard",
+                                         icon_custom_emoji_id=Icons.BACK),
+                ]]),
+            )
 
 
 @router.callback_query(F.data == "adm_reset_welcome")
@@ -585,7 +603,7 @@ async def adm_cb_reset_welcome(query: CallbackQuery, state: FSMContext, services
     if query.message:
         text, keyboard = await build_admin_dashboard(services)
         with suppress(TelegramBadRequest):
-            await query.message.answer(text, reply_markup=keyboard)
+            await query.message.edit_text(text, reply_markup=keyboard)
 
 
 @router.callback_query(F.data == "adm_start_find")
@@ -596,15 +614,18 @@ async def adm_cb_start_find(query: CallbackQuery, state: FSMContext, services: S
     with suppress(TelegramBadRequest):
         await query.answer()
     if query.message:
-        await query.message.answer(
-            f"{ICON_ACCOUNT} <b>Find Customer</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"Send Telegram ID (e.g. <code>100200300</code>) or <code>@username</code>.\n\n"
-            f"Send /cancel to abort.",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-                InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
-            ]])
-        )
+        await state.update_data(panel_msg_id=query.message.message_id)
+        with suppress(TelegramBadRequest):
+            await query.message.edit_text(
+                f"{ICON_ACCOUNT} <b>Find Customer</b>\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"Send Telegram ID (e.g. <code>100200300</code>) or <code>@username</code>.\n\n"
+                f"Send /cancel to abort.",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+                    InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
+                ]])
+            )
 
 
 @router.message(Command("resetwelcome", "rw"))
@@ -690,16 +711,32 @@ async def process_welcome_input(message: Message, state: FSMContext, services: S
         return
 
     raw_text = (message.text or "").strip()
+    data = await state.get_data()
+    panel_msg_id = data.get("panel_msg_id")
 
     # A menu button is plain text, and would otherwise be saved as the welcome message.
     if raw_text in NAVIGATION_TEXTS:
+        await state.clear()
         await navigate(raw_text, message, state, services)
         return
 
     # Reset keywords
     if raw_text.lower() in ("reset", "default", "clear"):
         await state.clear()
-        await cmd_reset_welcome(message, services)
+        await services.settings.update({"welcome_text": ""})
+        with suppress(Exception):
+            await message.delete()
+        if panel_msg_id:
+            text, keyboard = await build_admin_dashboard(services)
+            with suppress(TelegramBadRequest):
+                await message.bot.edit_message_text(
+                    text=text,
+                    chat_id=message.chat.id,
+                    message_id=panel_msg_id,
+                    reply_markup=keyboard,
+                )
+        else:
+            await cmd_reset_welcome(message, services)
         return
 
     # Intercept commands typed while waiting for welcome input
@@ -707,7 +744,36 @@ async def process_welcome_input(message: Message, state: FSMContext, services: S
         cmd = raw_text.split()[0].lower().lstrip("/")
         if cmd in ("cancel",):
             await state.clear()
-            await message.answer(f"{ICON_CROSS} Cancelled.")
+            with suppress(Exception):
+                await message.delete()
+            if panel_msg_id:
+                text, keyboard = await build_admin_dashboard(services)
+                with suppress(TelegramBadRequest):
+                    await message.bot.edit_message_text(
+                        text=text,
+                        chat_id=message.chat.id,
+                        message_id=panel_msg_id,
+                        reply_markup=keyboard,
+                    )
+            else:
+                await message.answer(f"{ICON_CROSS} Cancelled.")
+            return
+
+        if cmd in ("admin",):
+            await state.clear()
+            with suppress(Exception):
+                await message.delete()
+            if panel_msg_id:
+                text, keyboard = await build_admin_dashboard(services)
+                with suppress(TelegramBadRequest):
+                    await message.bot.edit_message_text(
+                        text=text,
+                        chat_id=message.chat.id,
+                        message_id=panel_msg_id,
+                        reply_markup=keyboard,
+                    )
+            else:
+                await cmd_admin_help(message, services)
             return
 
         if cmd in ("resetwelcome", "rw"):
@@ -719,11 +785,6 @@ async def process_welcome_input(message: Message, state: FSMContext, services: S
             await state.clear()
             from app.bot.handlers.start import render_main_dashboard
             await render_main_dashboard(message, services, message.from_user.id)
-            return
-
-        if cmd in ("admin",):
-            await state.clear()
-            await cmd_admin_help(message, services)
             return
 
         if cmd in ("setwelcome", "welcome", "sw"):
@@ -752,11 +813,11 @@ async def process_welcome_input(message: Message, state: FSMContext, services: S
         await message.answer(f"{ICON_WARNING} Please send text message, or /cancel.")
         return
 
-    await _save_welcome_text(message, text.strip(), services)
     await state.clear()
+    await _save_welcome_text(message, text.strip(), services, panel_msg_id=panel_msg_id)
 
 
-async def _save_welcome_text(message: Message, text: str, services: Services):
+async def _save_welcome_text(message: Message, text: str, services: Services, panel_msg_id: int | None = None):
     clean_text = text.strip()
     if clean_text.startswith("/"):
         await message.answer(
@@ -781,16 +842,32 @@ async def _save_welcome_text(message: Message, text: str, services: Services):
         .replace("{store}", html.escape(store_name))
     )
 
-    await message.answer(
+    conf_text = (
         f"{ICON_CHECK} <b>Welcome Message Saved</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"{preview_display}\n\n"
-        f"<i>Live for all customers now.</i>",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
-            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
-        ]])
+        f"<i>Live for all customers now.</i>"
     )
+    conf_keyboard = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+        InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
+    ]])
+
+    if panel_msg_id:
+        with suppress(Exception):
+            await message.delete()
+        try:
+            await message.bot.edit_message_text(
+                text=conf_text,
+                chat_id=message.chat.id,
+                message_id=panel_msg_id,
+                reply_markup=conf_keyboard,
+            )
+            return
+        except Exception:
+            pass
+
+    await message.answer(conf_text, reply_markup=conf_keyboard)
 
 
 async def _alert_once(services: Services, scope: str, key: str, text: str) -> None:
@@ -1296,9 +1373,22 @@ async def cmd_resume(message: Message, services: Services):
     )
 
 
-async def _handle_find_customer(message: Message, term: str, services: Services):
+async def _handle_find_customer(message: Message, term: str, services: Services, panel_msg_id: int | None = None):
     if not term:
-        await message.answer(f"{ICON_NOTE} Send <code>/find 100200300</code> or <code>/find @username</code>.")
+        text = f"{ICON_NOTE} Send <code>/find 100200300</code> or <code>/find @username</code>."
+        reply_markup = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
+        ]])
+        if panel_msg_id:
+            with suppress(Exception):
+                await message.delete()
+            try:
+                await message.bot.edit_message_text(text=text, chat_id=message.chat.id, message_id=panel_msg_id, reply_markup=reply_markup)
+                return
+            except Exception:
+                pass
+        await message.answer(text, reply_markup=reply_markup)
         return
 
     async with services.db.connect() as conn:
@@ -1308,12 +1398,38 @@ async def _handle_find_customer(message: Message, term: str, services: Services)
             row = await conn.fetchrow(
                 "SELECT tg_user_id FROM users WHERE lower(username) = lower($1)", term.lstrip("@"))
     if not row:
-        await message.answer(f"{ICON_CROSS} No customer matches <code>{html.escape(term)}</code>.")
+        text = f"{ICON_CROSS} No customer matches <code>{html.escape(term)}</code>."
+        reply_markup = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
+        ]])
+        if panel_msg_id:
+            with suppress(Exception):
+                await message.delete()
+            try:
+                await message.bot.edit_message_text(text=text, chat_id=message.chat.id, message_id=panel_msg_id, reply_markup=reply_markup)
+                return
+            except Exception:
+                pass
+        await message.answer(text, reply_markup=reply_markup)
         return
 
     found = await services.users.stats(row["tg_user_id"])
     if not found:
-        await message.answer(f"{ICON_CROSS} That customer's record could not be read.")
+        text = f"{ICON_CROSS} That customer's record could not be read."
+        reply_markup = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
+        ]])
+        if panel_msg_id:
+            with suppress(Exception):
+                await message.delete()
+            try:
+                await message.bot.edit_message_text(text=text, chat_id=message.chat.id, message_id=panel_msg_id, reply_markup=reply_markup)
+                return
+            except Exception:
+                pass
+        await message.answer(text, reply_markup=reply_markup)
         return
     user = found["user"]
     is_admin_target = int(user["tg_user_id"]) in await services.settings.admin_chat_ids()
@@ -1338,7 +1454,7 @@ async def _handle_find_customer(message: Message, term: str, services: Services)
         InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
     ])
 
-    await message.answer(
+    text = (
         f"{ICON_ACCOUNT} <b>Customer Profile</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"👤 <b>Name:</b> {name} ({handle})\n"
@@ -1346,9 +1462,18 @@ async def _handle_find_customer(message: Message, term: str, services: Services)
         f"👑 <b>Rank:</b> {html.escape(user.get('rank') or 'Standard')}{banned_tag}\n"
         f"💵 <b>Balance:</b> <code>{float(user.get('balance') or 0):.2f} {symbol}</code>\n"
         f"📦 <b>Orders:</b> <code>{found['order_count']}</code> · <b>Spent:</b> <code>{float(found['total_spent'] or 0):.2f} {symbol}</code>"
-        + (f"\n\n{ICON_CROWN} <i>Administrator account.</i>" if is_admin_target else ""),
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
+        + (f"\n\n{ICON_CROWN} <i>Administrator account.</i>" if is_admin_target else "")
     )
+    reply_markup = InlineKeyboardMarkup(inline_keyboard=buttons)
+    if panel_msg_id:
+        with suppress(Exception):
+            await message.delete()
+        try:
+            await message.bot.edit_message_text(text=text, chat_id=message.chat.id, message_id=panel_msg_id, reply_markup=reply_markup)
+            return
+        except Exception:
+            pass
+    await message.answer(text, reply_markup=reply_markup)
 
 
 @router.message(Command("find", "customer"))
@@ -1366,23 +1491,36 @@ async def adm_find_input(message: Message, state: FSMContext, services: Services
     if not message.from_user or not await _is_admin(message.from_user.id, services):
         return
     text = (message.text or "").strip()
+    data = await state.get_data()
+    panel_msg_id = data.get("panel_msg_id")
+
     if is_navigation(text):
+        await state.clear()
         await navigate(text, message, state, services)
         return
     if text.startswith("/"):
-        await state.clear()
         cmd = text.split()[0].lower().lstrip("/").split("@")[0]
-        if cmd == "cancel":
-            await message.answer(f"{ICON_CROSS} Cancelled.")
-            return
-        elif cmd in ("admin",):
-            await cmd_admin_help(message, services)
+        await state.clear()
+        with suppress(Exception):
+            await message.delete()
+        if cmd in ("cancel", "admin"):
+            if panel_msg_id:
+                text_dash, keyboard = await build_admin_dashboard(services)
+                with suppress(TelegramBadRequest):
+                    await message.bot.edit_message_text(
+                        text=text_dash,
+                        chat_id=message.chat.id,
+                        message_id=panel_msg_id,
+                        reply_markup=keyboard,
+                    )
+            else:
+                await cmd_admin_help(message, services)
             return
         elif cmd in ("status", "st"):
             await cmd_status(message, services)
             return
     await state.clear()
-    await _handle_find_customer(message, text, services)
+    await _handle_find_customer(message, text, services, panel_msg_id=panel_msg_id)
 
 
 # ──── The work queue ──────────────────────────────────────────────────
@@ -1618,15 +1756,18 @@ async def adm_cb_start_prod(query: CallbackQuery, state: FSMContext, services: S
     with suppress(TelegramBadRequest):
         await query.answer()
     if query.message:
-        await query.message.answer(
-            f"{ICON_SHOP} <b>Find Product</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"Send part of the product name to manage or toggle sale status.\n\n"
-            f"Send /cancel to abort.",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-                InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
-            ]])
-        )
+        await state.update_data(panel_msg_id=query.message.message_id)
+        with suppress(TelegramBadRequest):
+            await query.message.edit_text(
+                f"{ICON_SHOP} <b>Find Product</b>\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"Send part of the product name to manage or toggle sale status.\n\n"
+                f"Send /cancel to abort.",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+                    InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
+                ]])
+            )
 
 
 @router.callback_query(F.data == "adm_start_stock")
@@ -1682,51 +1823,74 @@ async def adm_cb_stock_search(query: CallbackQuery, state: FSMContext, services:
     with suppress(TelegramBadRequest):
         await query.answer()
     if query.message:
-        await query.message.answer(
-            f"{ICON_PLUS} <b>Add Stock · Search</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"Send part of the product name to find and restock.\n\n"
-            f"Send /cancel to abort.",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-                InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
-            ]])
-        )
+        await state.update_data(panel_msg_id=query.message.message_id)
+        with suppress(TelegramBadRequest):
+            await query.message.edit_text(
+                f"{ICON_PLUS} <b>Add Stock · Search</b>\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"Send part of the product name to find and restock.\n\n"
+                f"Send /cancel to abort.",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(text="Back", callback_data="adm_start_stock", icon_custom_emoji_id=Icons.BACK),
+                    InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+                ]])
+            )
 
 async def _show_product_matches(message: Message, term: str, services: Services,
-                               adding_stock: bool) -> None:
+                               adding_stock: bool, panel_msg_id: int | None = None) -> None:
     matches = [p for p in await services.catalog.products(active_only=False, limit=200)
                if term.lower() in (p["title"] or "").lower()][:8]
     if not matches:
-        await message.answer(f"{ICON_CROSS} Nothing matches <code>{html.escape(term)}</code>.")
-        return
-    symbol = html.escape(await services.settings.get("currency_symbol"))
-    lines, rows = [], []
-    for p in matches:
-        mark = ICON_CHECK if p["is_active"] else ICON_CROSS
-        stock = p.get("stock")
-        lines.append(f"{mark} {html.escape(p['title'])[:30]} · <code>{float(p['price']):.2f} {symbol}</code>"
-                     + (f" · {stock} left" if stock is not None else ""))
-        if adding_stock:
-            rows.append([InlineKeyboardButton(
-                text=f"Add to {p['title'][:22]}", callback_data=f"adm_stock_{p['id']}",
-                style="success", icon_custom_emoji_id=Icons.PLUS)])
-        else:
-            rows.append([InlineKeyboardButton(
-                text=p['title'][:26],
-                callback_data=f"adm_prod_{p['id']}",
-                style="success" if p["is_active"] else "danger",
-                icon_custom_emoji_id=Icons.PRODUCTS)])
-    rows.append([
-        InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard",
-                             icon_custom_emoji_id=Icons.BACK),
-        InlineKeyboardButton(text="Close", callback_data="close_menu",
-                             style="danger", icon_custom_emoji_id=Icons.CLOSE),
-    ])
-    await message.answer(
-        f"{ICON_SHOP} <b>Product Matches</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
-        + "\n".join(lines),
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
+        text = f"{ICON_CROSS} Nothing matches <code>{html.escape(term)}</code>."
+        reply_markup = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
+        ]])
+    else:
+        symbol = html.escape(await services.settings.get("currency_symbol"))
+        lines, rows = [], []
+        for p in matches:
+            mark = ICON_CHECK if p["is_active"] else ICON_CROSS
+            stock = p.get("stock")
+            lines.append(f"{mark} {html.escape(p['title'])[:30]} · <code>{float(p['price']):.2f} {symbol}</code>"
+                         + (f" · {stock} left" if stock is not None else ""))
+            if adding_stock:
+                rows.append([InlineKeyboardButton(
+                    text=f"Add to {p['title'][:22]}", callback_data=f"adm_stock_{p['id']}",
+                    style="success", icon_custom_emoji_id=Icons.PLUS)])
+            else:
+                rows.append([InlineKeyboardButton(
+                    text=p['title'][:26],
+                    callback_data=f"adm_prod_{p['id']}",
+                    style="success" if p["is_active"] else "danger",
+                    icon_custom_emoji_id=Icons.PRODUCTS)])
+        rows.append([
+            InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard",
+                                 icon_custom_emoji_id=Icons.BACK),
+            InlineKeyboardButton(text="Close", callback_data="close_menu",
+                                 style="danger", icon_custom_emoji_id=Icons.CLOSE),
+        ])
+        text = (
+            f"{ICON_SHOP} <b>Product Matches</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            + "\n".join(lines)
+        )
+        reply_markup = InlineKeyboardMarkup(inline_keyboard=rows)
+
+    if panel_msg_id:
+        with suppress(Exception):
+            await message.delete()
+        try:
+            await message.bot.edit_message_text(
+                text=text,
+                chat_id=message.chat.id,
+                message_id=panel_msg_id,
+                reply_markup=reply_markup,
+            )
+            return
+        except Exception:
+            pass
+    await message.answer(text, reply_markup=reply_markup)
 
 
 @router.message(AdminProductStates.waiting_for_search)
@@ -1734,16 +1898,38 @@ async def adm_product_search(message: Message, state: FSMContext, services: Serv
     if not message.from_user or not await _is_admin(message.from_user.id, services):
         return
     text = (message.text or "").strip()
+    data = await state.get_data()
+    panel_msg_id = data.get("panel_msg_id")
+    adding = bool(data.get("adding_stock"))
+
     if is_navigation(text):
+        await state.clear()
         await navigate(text, message, state, services)
         return
-    data = await state.get_data()
-    adding = bool(data.get("adding_stock"))
+    if text.startswith("/"):
+        cmd = text.split()[0].lower().lstrip("/").split("@")[0]
+        await state.clear()
+        with suppress(Exception):
+            await message.delete()
+        if cmd in ("cancel", "admin"):
+            if panel_msg_id:
+                text_dash, keyboard = await build_admin_dashboard(services)
+                with suppress(TelegramBadRequest):
+                    await message.bot.edit_message_text(
+                        text=text_dash,
+                        chat_id=message.chat.id,
+                        message_id=panel_msg_id,
+                        reply_markup=keyboard,
+                    )
+            else:
+                await cmd_admin_help(message, services)
+            return
+
     await state.clear()
     if not text:
         await message.answer(f"{ICON_WARNING} Send part of the product's name.")
         return
-    await _show_product_matches(message, text, services, adding)
+    await _show_product_matches(message, text, services, adding, panel_msg_id=panel_msg_id)
 
 
 
@@ -1861,17 +2047,21 @@ async def adm_stock_ask(query: CallbackQuery, state: FSMContext, services: Servi
     with suppress(TelegramBadRequest):
         await query.answer()
     if query.message:
-        await query.message.answer(
-            f"{ICON_PLUS} <b>Add Stock</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"Product: <b>{html.escape(product['title'])}</b>\n\n"
-            f"Send items to add, one item per line.\n"
-            f"<i>Duplicates already in stock will be skipped automatically.</i>\n\n"
-            f"Send /cancel to abort.",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-                InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
-            ]])
-        )
+        await state.update_data(panel_msg_id=query.message.message_id)
+        with suppress(TelegramBadRequest):
+            await query.message.edit_text(
+                f"{ICON_PLUS} <b>Add Stock</b>\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"Product: <b>{html.escape(product['title'])}</b>\n\n"
+                f"Send items to add, one item per line.\n"
+                f"<i>Duplicates already in stock will be skipped automatically.</i>\n\n"
+                f"Send /cancel to abort.",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(text="Back", callback_data=f"adm_prod_{product_id}", icon_custom_emoji_id=Icons.BACK),
+                    InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+                    InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
+                ]])
+            )
 
 
 @router.message(AdminProductStates.waiting_for_stock)
@@ -1880,6 +2070,7 @@ async def adm_stock_save(message: Message, state: FSMContext, services: Services
         return
     text = (message.text or message.caption or "").strip()
     data = await state.get_data()
+    panel_msg_id = data.get("panel_msg_id")
 
     asked_at = float(data.get("stock_asked_at") or 0)
     if not asked_at or time.time() - asked_at > DELIVERY_PROMPT_SECONDS:
@@ -1888,8 +2079,20 @@ async def adm_stock_save(message: Message, state: FSMContext, services: Services
         return
     if is_navigation(text) or text.startswith("/"):
         await state.clear()
+        with suppress(Exception):
+            await message.delete()
         if text.lower().startswith("/cancel"):
-            await message.answer(f"{ICON_CROSS} Cancelled. No stock was added.")
+            if panel_msg_id:
+                text_dash, keyboard = await build_admin_dashboard(services)
+                with suppress(TelegramBadRequest):
+                    await message.bot.edit_message_text(
+                        text=text_dash,
+                        chat_id=message.chat.id,
+                        message_id=panel_msg_id,
+                        reply_markup=keyboard,
+                    )
+            else:
+                await message.answer(f"{ICON_CROSS} Cancelled. No stock was added.")
         else:
             await navigate(text, message, state, services)
         return
@@ -1912,18 +2115,35 @@ async def adm_stock_save(message: Message, state: FSMContext, services: Services
             await services.announcements.restock(product_id, added)
     stock_count = (product or {}).get('stock', 0)
     skipped_str = f" · Skipped: <code>{skipped}</code>" if skipped else ""
-    await message.answer(
+    stock_conf_text = (
         f"{ICON_CHECK} <b>Stock Updated</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"Product: <b>{html.escape((product or {}).get('title') or 'Product')}</b>\n"
         f"Added: <code>+{added}</code>{skipped_str}\n"
-        f"Current Stock: <code>{stock_count}</code> items",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard",
-                                 icon_custom_emoji_id=Icons.BACK),
-            InlineKeyboardButton(text="Close", callback_data="close_menu",
-                                 style="danger", icon_custom_emoji_id=Icons.CLOSE),
-        ]]))
+        f"Current Stock: <code>{stock_count}</code> items"
+    )
+    stock_conf_keyboard = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard",
+                             icon_custom_emoji_id=Icons.BACK),
+        InlineKeyboardButton(text="Close", callback_data="close_menu",
+                             style="danger", icon_custom_emoji_id=Icons.CLOSE),
+    ]])
+
+    if panel_msg_id:
+        with suppress(Exception):
+            await message.delete()
+        try:
+            await message.bot.edit_message_text(
+                text=stock_conf_text,
+                chat_id=message.chat.id,
+                message_id=panel_msg_id,
+                reply_markup=stock_conf_keyboard,
+            )
+            return
+        except Exception:
+            pass
+
+    await message.answer(stock_conf_text, reply_markup=stock_conf_keyboard)
 
 
 @router.callback_query(F.data.regexp(r"^adm_ban_ask_\d+$"))
