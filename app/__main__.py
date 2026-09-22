@@ -28,6 +28,8 @@ def main() -> None:
         pass
     except Exception:
         logging.getLogger("app").critical("SubsMarket stopped after a fatal error.", exc_info=True)
+        sys.stderr.flush()
+        sys.stdout.flush()
         sys.exit(1)
 
 

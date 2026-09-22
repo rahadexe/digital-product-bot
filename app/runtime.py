@@ -63,11 +63,13 @@ async def supervise(services: Services, components: list[Coroutine[Any, Any, Non
     tasks = [asyncio.create_task(component) for component in components]
     services.runtime.tasks.extend(tasks)
     try:
-        # Components retry their own transient failures; one finishing means the process should stop.
         done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
         for task in done:
             if not task.cancelled() and task.exception():
+                logger.critical("Supervised component failed: %s", task.exception(), exc_info=task.exception())
                 raise task.exception()
+            elif not task.cancelled():
+                logger.warning("Supervised component finished unexpectedly: %s", task)
     finally:
         for task in tasks:
             task.cancel()
