@@ -10,7 +10,7 @@ from aiogram.fsm.storage.base import BaseStorage
 from aiogram.fsm.storage.memory import MemoryStorage, SimpleEventIsolation
 from aiogram.types import ErrorEvent
 
-from app.bot.handlers import admin, deposit, help_guide, profile, shop, start
+from app.bot.handlers import admin, deposit, help_guide, profile, search, shop, start
 from app.bot.middlewares import StoreAccess, Throttle
 from app.services import Services
 
@@ -40,5 +40,8 @@ def create_dispatcher(services: Services, storage: BaseStorage | None = None) ->
     dispatcher.message.outer_middleware(access)
     dispatcher.callback_query.outer_middleware(access)
     dispatcher.errors.register(on_error)
-    dispatcher.include_routers(admin.router, start.router, shop.router, deposit.router, profile.router, help_guide.router)
+    # search.router is last on purpose: it answers any text nothing else claimed, so it
+    # must never be given the chance to claim text that belongs to another handler.
+    dispatcher.include_routers(admin.router, start.router, shop.router, deposit.router,
+                               profile.router, help_guide.router, search.router)
     return dispatcher

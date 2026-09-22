@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import time
 from typing import Any
@@ -11,6 +12,7 @@ import asyncpg
 from app.core.money import money
 from app.db import Database, affected
 from app.services.audit import record
+from app.services.bengali import latin_forms
 from app.services.errors import InvalidInputError
 
 # Free seats in local stock; shared accounts contribute their remaining seat capacity.
@@ -20,6 +22,9 @@ STOCK_SQL = """(
 LISTING_SQL = (
     f"SELECT p.*, c.name AS category_name, {STOCK_SQL} AS stock FROM products p LEFT JOIN categories c ON c.id = p.category_id"
 )
+
+logger = logging.getLogger("app.services.catalog")
+
 
 PRODUCT_FIELDS = ("category_id", "title", "description", "price", "reseller_price", "icon", "duration_label", "sort_order", "is_active", "delivery_type", "custom_emoji_id")
 
@@ -209,6 +214,54 @@ class CatalogService:
             if len(self._products_cache) >= 256:
                 self._products_cache.pop(next(iter(self._products_cache)))
         self._products_cache[cache_key] = (now, rows)
+        return [dict(row) for row in rows]
+
+    async def search(self, term: str, limit: int = 8) -> list[dict[str, Any]]:
+        """Products a customer might mean by what they typed.
+
+        Three passes, widening only when the narrower one finds nothing: the words as
+        written, then the same reading in Latin for a Bengali query, then trigram
+        similarity for a misspelling. Similarity needs pg_trgm, which migration 0028
+        installs when the database role allows it; where it does not exist the first two
+        passes still work, so this degrades rather than fails."""
+        term = (term or '').strip()
+        if len(term) < 2:
+            return []
+        forms = latin_forms(term)[:4]
+
+        async with self.db.connect() as conn:
+            for form in forms:
+                rows = await conn.fetch(
+                    f'SELECT * FROM ({LISTING_SQL} WHERE p.is_active = 1) AS listing '
+                    'WHERE title ILIKE $1 ORDER BY '
+                    "(delivery_type = 'manual' OR stock > 0) DESC, length(title), sort_order, id "
+                    'LIMIT $2',
+                    f'%{form}%', limit)
+                if rows:
+                    return [dict(row) for row in rows]
+
+            # Every word of the query, so 'netflix private' still finds it when the
+            # title has something between them.
+            words = [w for form in forms for w in form.split() if len(w) > 2][:6]
+            if words:
+                rows = await conn.fetch(
+                    f'SELECT * FROM ({LISTING_SQL} WHERE p.is_active = 1) AS listing '
+                    'WHERE title ILIKE ANY($1::text[]) ORDER BY '
+                    "(delivery_type = 'manual' OR stock > 0) DESC, length(title), sort_order, id "
+                    'LIMIT $2',
+                    [f'%{w}%' for w in words], limit)
+                if rows:
+                    return [dict(row) for row in rows]
+
+            try:
+                rows = await conn.fetch(
+                    f'SELECT * FROM ({LISTING_SQL} WHERE p.is_active = 1) AS listing '
+                    'WHERE similarity(title, $1) > 0.25 '
+                    'ORDER BY similarity(title, $1) DESC, sort_order, id LIMIT $2',
+                    forms[-1], limit)
+            except Exception:
+                logger.info('Similarity search unavailable; pg_trgm is not installed')
+                return []
         return [dict(row) for row in rows]
 
     async def product(self, product_id: int) -> dict[str, Any] | None:
