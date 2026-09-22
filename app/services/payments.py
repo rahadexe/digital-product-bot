@@ -424,6 +424,44 @@ class PaymentService:
             return _public(row)
         return _public(await self._apply(row["id"], result))
 
+    async def get(self, reference: str, tg_user_id: int | None = None) -> dict[str, Any] | None:
+        async with self.db.connect() as conn:
+            row = await conn.fetchrow("SELECT * FROM payment_invoices WHERE reference = $1", reference)
+        if not row or (tg_user_id is not None and row["tg_user_id"] != tg_user_id):
+            return None
+        return _public(row)
+
+    async def cancel_invoice(self, reference: str, tg_user_id: int | None = None) -> dict[str, Any] | None:
+        """Cancel an unpaid invoice.
+
+        If already completed, returns the invoice without cancelling.
+        Otherwise sets status='expired', last_error='Cancelled by customer'.
+        """
+        invoice = await self.refresh(reference, tg_user_id=tg_user_id)
+        if invoice and invoice.get("status") == "completed":
+            return invoice
+
+        async with self.db.transaction() as conn:
+            row = await conn.fetchrow(
+                "SELECT * FROM payment_invoices WHERE reference = $1 FOR UPDATE",
+                reference,
+            )
+            if not row or (tg_user_id is not None and row["tg_user_id"] != tg_user_id):
+                return None
+            if row["status"] in ("completed", "expired", "failed"):
+                return _public(row)
+            updated = await conn.fetchrow(
+                "UPDATE payment_invoices SET status = 'expired', last_error = 'Cancelled by customer', updated_at = now() "
+                "WHERE id = $1 RETURNING *",
+                row["id"],
+            )
+            await record(
+                conn,
+                "payment_invoice_cancelled",
+                f"ZiniPay {reference} cancelled by customer {tg_user_id or row['tg_user_id']}",
+            )
+            return _public(updated)
+
     async def handle_webhook(self, invoice_id: str, reference: str) -> None:
         """A callback only names an invoice; ZiniPay is then asked directly before anything changes."""
         if not invoice_id and not reference:
