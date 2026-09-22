@@ -19,7 +19,6 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.bot.formatting import format_dual_price
 from app.bot.icons import ICON_CROSS, ICON_SHOP, Icons
-from app.bot.keyboards import get_categories_keyboard
 from app.services import Services
 
 router = Router(name="search_router")
@@ -35,14 +34,13 @@ async def prompt_search(message: Message, state: FSMContext, services: Services)
     handler below exactly as it would have anyway, so tapping the button and simply
     typing lead to the same place."""
     await state.clear()
-    categories = await services.catalog.categories(active_only=True)
-    examples = ", ".join(c["name"].strip()[:18] for c in categories[:3]) or "Netflix, VPN"
+    products = await services.catalog.products(limit=3, active_only=True)
+    examples = ", ".join(p["title"].strip()[:18] for p in products) if products else "Netflix, VPN"
     await message.answer(
         f"{ICON_SHOP} <b>Find a Product</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"Type what you are looking for.\n\n"
-        f"<i>Try: {escape(examples)}</i>\n"
-        f"<i>বাংলায় লিখলেও খুঁজে পাবেন।</i>\n\n"
+        f"<i>Try: {escape(examples)}</i>\n\n"
         f"Send /cancel to abort.",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
@@ -70,16 +68,27 @@ async def search_products(message: Message, state: FSMContext, services: Service
     shown = escape(term[:40])
 
     if not matches:
-        categories = await services.catalog.categories(active_only=True)
-        # The same keyboard the shop builds, so each category keeps the emoji it was
-        # given in the console. Building the rows here by hand meant one generic icon
-        # on every row, which is not what the owner chose.
-        keyboard = get_categories_keyboard(categories, show_all_option=False)
+        recent_products = await services.catalog.products(limit=4, active_only=True)
+        rows = []
+        for product in recent_products:
+            emoji_id = str(product.get("custom_emoji_id") or "")
+            price = format_dual_price(product["price"], symbol, usd_rate=usd_rate, show_usd=show_usd)
+            label = f"{product['title'][:26]} · {price}"
+            btn: dict = {"text": label[:64], "callback_data": f"prod_{product['id']}"}
+            if emoji_id.isdigit():
+                btn["icon_custom_emoji_id"] = emoji_id
+            else:
+                btn["icon_custom_emoji_id"] = Icons.CART
+            rows.append([InlineKeyboardButton(**btn)])
+
+        rows.append([
+            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
+        ])
         await message.answer(
             f"{ICON_CROSS} <b>Nothing found for “{shown}”</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"<i>Try a shorter word, or pick a category:</i>",
-            reply_markup=keyboard if categories else None,
+            f"<i>Try searching with a different product name:</i>",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=rows) if rows else None,
         )
         return
 

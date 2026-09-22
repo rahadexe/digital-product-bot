@@ -30,7 +30,6 @@ from app.bot.icons import (
     ICON_PLUS,
     ICON_SHIELD,
     ICON_SHOP,
-    ICON_SPARKLES,
     ICON_STATS,
     ICON_TIMER,
     ICON_WARNING,
@@ -60,8 +59,6 @@ class AdminFindStates(StatesGroup):
 class AdminProductStates(StatesGroup):
     waiting_for_search = State()
     waiting_for_stock = State()
-    waiting_for_name = State()
-    waiting_for_price = State()
 
 
 async def _is_admin(user_id: int, services: Services) -> bool:
@@ -1640,33 +1637,6 @@ async def adm_product_search(message: Message, state: FSMContext, services: Serv
     await _show_product_matches(message, text, services, adding)
 
 
-def split_typed_name(message: Message) -> tuple[str, str, str]:
-    """Pull a name, its fallback glyph and its premium emoji id out of one typed line.
-
-    The owner types the name the way they want it read, premium emoji and all, and
-    Telegram reports the emoji separately as an entity. Offsets are counted in UTF-16
-    units, not characters, so the text is sliced in that encoding or an emoji halfway
-    through a name would cut the wrong place."""
-    text = message.text or message.caption or ""
-    units = text.encode("utf-16-le")
-    emoji_id, glyph, spans = "", "", []
-    for entity in message.entities or message.caption_entities or []:
-        if getattr(entity, "type", None) != "custom_emoji":
-            continue
-        eid = getattr(entity, "custom_emoji_id", None)
-        if not eid:
-            continue
-        start, end = entity.offset * 2, (entity.offset + entity.length) * 2
-        if not emoji_id:
-            emoji_id, glyph = str(eid), units[start:end].decode("utf-16-le", "ignore")
-        spans.append((start, end))
-    keep, last = [], 0
-    for start, end in sorted(spans):
-        keep.append(units[last:start])
-        last = end
-    keep.append(units[last:])
-    title = b"".join(keep).decode("utf-16-le", "ignore").strip()
-    return title, glyph.strip(), emoji_id
 
 
 async def build_product_card(services: Services, product_id: int):
@@ -1692,17 +1662,14 @@ async def build_product_card(services: Services, product_id: int):
         f"{ICON_ORDERS} <b>Sold:</b> <code>{sold['orders']}</code> · <code>{sold['revenue']:.2f} {symbol}</code>\n"
         f"<b>Status:</b> {status_str}"
     )
+    # Only what cannot wait for a laptop: stock running out stops sales, and a product
+    # that is wrong has to leave the shop now. Naming and pricing are desk work, done
+    # once and more easily on a big screen, so they stay in the console.
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="Rename", callback_data=f"adm_prod_name_{product_id}",
-                                 icon_custom_emoji_id=Icons.NOTE),
-            InlineKeyboardButton(text="Change Price", callback_data=f"adm_prod_price_{product_id}",
-                                 icon_custom_emoji_id=Icons.MONEY),
-        ],
-        [
-            InlineKeyboardButton(text="Add Stock", callback_data=f"adm_stock_{product_id}",
+            InlineKeyboardButton(text="Add stock", callback_data=f"adm_stock_{product_id}",
                                  style="success", icon_custom_emoji_id=Icons.PLUS),
-            InlineKeyboardButton(text="Hide Product" if live else "Show Product",
+            InlineKeyboardButton(text="Take off sale" if live else "Put back on sale",
                                  callback_data=f"adm_prod_toggle_{product_id}",
                                  style="danger" if live else "success",
                                  icon_custom_emoji_id=Icons.CROSS if live else Icons.CHECK),
@@ -1710,8 +1677,6 @@ async def build_product_card(services: Services, product_id: int):
         [
             InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard",
                                  icon_custom_emoji_id=Icons.BACK),
-            InlineKeyboardButton(text="Close", callback_data="close_menu",
-                                 style="danger", icon_custom_emoji_id=Icons.CLOSE),
         ],
     ])
     return text, keyboard
@@ -1734,182 +1699,14 @@ async def adm_product_card(query: CallbackQuery, state: FSMContext, services: Se
             await query.message.edit_text(text, reply_markup=keyboard)
 
 
-@router.callback_query(F.data.regexp(r"^adm_prod_name_\d+$"))
-async def adm_product_rename_ask(query: CallbackQuery, state: FSMContext, services: Services):
-    if await _deny(query, services):
-        return
-    product_id = int(query.data.removeprefix("adm_prod_name_"))
-    product = await services.catalog.product(product_id)
-    if not product:
-        with suppress(TelegramBadRequest):
-            await query.answer("That product no longer exists.", show_alert=True)
-        return
-    await state.set_state(AdminProductStates.waiting_for_name)
-    await state.update_data(prod_id=product_id, prod_asked_at=time.time())
-    with suppress(TelegramBadRequest):
-        await query.answer()
-    if query.message:
-        await query.message.answer(
-            f"{ICON_NOTE} <b>Rename Product</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"Product: <b>{html.escape(product['title'])}</b>\n\n"
-            f"Send the new product name.\n"
-            f"<i>Custom emoji in text will be saved as its icon.</i>\n\n"
-            f"Send /cancel to abort.",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-                InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
-            ]])
-        )
 
 
-@router.message(AdminProductStates.waiting_for_name)
-async def adm_product_rename_save(message: Message, state: FSMContext, services: Services):
-    if not message.from_user or not await _is_admin(message.from_user.id, services):
-        return
-    data = await state.get_data()
-    asked_at = float(data.get("prod_asked_at") or 0)
-    if not asked_at or time.time() - asked_at > DELIVERY_PROMPT_SECONDS:
-        await state.clear()
-        await message.answer(f"{ICON_WARNING} That prompt expired. Open the product again.")
-        return
-    raw_text = (message.text or "").strip()
-    if is_navigation(raw_text) or raw_text.startswith("/"):
-        await state.clear()
-        if raw_text.lower().startswith("/cancel"):
-            await message.answer(f"{ICON_CROSS} Cancelled. The name is unchanged.")
-        else:
-            await navigate(raw_text, message, state, services)
-        return
-
-    title, glyph, emoji_id = split_typed_name(message)
-    if not title:
-        await message.answer(
-            f"{ICON_WARNING} A name needs some words, not only an emoji. Send it again, or /cancel.")
-        return
-    if len(title) > 120:
-        await message.answer(f"{ICON_WARNING} That name is too long. Keep it under 120 characters.")
-        return
-
-    product_id = int(data.get("prod_id") or 0)
-    await state.clear()
-    fields: dict = {"title": title}
-    if emoji_id:
-        fields["custom_emoji_id"] = emoji_id
-        fields["icon"] = glyph
-    await services.catalog.update_product(product_id, **fields)
-    text, keyboard = await build_product_card(services, product_id)
-    if not text:
-        await message.answer(f"{ICON_CROSS} That product no longer exists.")
-        return
-    kept = (f"{ICON_SPARKLES} <i>Custom emoji saved as product icon.</i>\n\n" if emoji_id else "")
-    await message.answer(
-        f"{ICON_CHECK} <b>Product Renamed</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
-        + kept + text,
-        reply_markup=keyboard)
 
 
-@router.callback_query(F.data.regexp(r"^adm_prod_price_\d+$"))
-async def adm_product_price_ask(query: CallbackQuery, state: FSMContext, services: Services):
-    if await _deny(query, services):
-        return
-    product_id = int(query.data.removeprefix("adm_prod_price_"))
-    product = await services.catalog.product(product_id)
-    if not product:
-        with suppress(TelegramBadRequest):
-            await query.answer("That product no longer exists.", show_alert=True)
-        return
-    symbol = html.escape(await services.settings.get("currency_symbol"))
-    await state.set_state(AdminProductStates.waiting_for_price)
-    await state.update_data(prod_id=product_id, prod_asked_at=time.time())
-    with suppress(TelegramBadRequest):
-        await query.answer()
-    if query.message:
-        await query.message.answer(
-            f"{ICON_MONEY} <b>Change Price</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"Product: <b>{html.escape(product['title'])}</b>\n"
-            f"Current: <code>{float(product['price']):.2f} {symbol}</code>\n\n"
-            f"Send the new price (e.g. <code>85</code>).\n\n"
-            f"Send /cancel to abort.",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-                InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
-            ]])
-        )
 
 
-@router.message(AdminProductStates.waiting_for_price)
-async def adm_product_price_save(message: Message, state: FSMContext, services: Services):
-    if not message.from_user or not await _is_admin(message.from_user.id, services):
-        return
-    data = await state.get_data()
-    asked_at = float(data.get("prod_asked_at") or 0)
-    if not asked_at or time.time() - asked_at > DELIVERY_PROMPT_SECONDS:
-        await state.clear()
-        await message.answer(f"{ICON_WARNING} That prompt expired. Open the product again.")
-        return
-    text = (message.text or "").strip()
-    if is_navigation(text) or text.startswith("/"):
-        await state.clear()
-        if text.lower().startswith("/cancel"):
-            await message.answer(f"{ICON_CROSS} Cancelled. The price is unchanged.")
-        else:
-            await navigate(text, message, state, services)
-        return
-    try:
-        new_price = float(text.replace(",", "").strip())
-        if new_price <= 0:
-            raise ValueError
-    except ValueError:
-        await message.answer(f"{ICON_WARNING} Send a valid number (e.g. <code>85</code>), or /cancel.")
-        return
-
-    product_id = int(data.get("prod_id") or 0)
-    product = await services.catalog.product(product_id)
-    if not product:
-        await state.clear()
-        await message.answer(f"{ICON_CROSS} That product no longer exists.")
-        return
-    symbol = html.escape(await services.settings.get("currency_symbol"))
-    old_price = float(product["price"])
-    await state.clear()
-    await message.answer(
-        f"{ICON_WARNING} <b>Confirm Price Change</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
-        f"{ICON_SHOP} <b>{html.escape(product['title'])}</b>\n"
-        f"Price: <code>{old_price:.2f} {symbol}</code> ➔ <code>{new_price:.2f} {symbol}</code>\n\n"
-        f"<i>Customers will see the new price immediately.</i>",
-        reply_markup=_confirm_keyboard(f"adm_prod_setp_{product_id}_{round(new_price * 100)}",
-                                      f"Confirm ({new_price:.2f} {symbol})",
-                                      danger=new_price < old_price))
 
 
-@router.callback_query(F.data.regexp(r"^adm_prod_setp_\d+_\d+$"))
-async def adm_product_price_do(query: CallbackQuery, services: Services):
-    if await _deny(query, services):
-        return
-    _, raw_id, raw_cents = query.data.removeprefix("adm_prod_setp_").rpartition("_")[0], *query.data.removeprefix("adm_prod_setp_").rsplit("_", 1)
-    product_id, new_price = int(raw_id), int(raw_cents) / 100
-    old_price = await services.catalog.update_product(product_id, price=new_price)
-    if old_price is None:
-        with suppress(TelegramBadRequest):
-            await query.answer("That product no longer exists.", show_alert=True)
-        return
-    announced = False
-    if float(old_price) != new_price:
-        with suppress(Exception):
-            announced = await services.announcements.price_change(product_id, float(old_price), new_price)
-    with suppress(TelegramBadRequest):
-        await query.answer("Price updated.")
-    text, keyboard = await build_product_card(services, product_id)
-    if query.message and text:
-        with suppress(TelegramBadRequest):
-            await query.message.edit_text(
-                f"{ICON_CHECK} <b>Price Updated</b>\n"
-                f"━━━━━━━━━━━━━━━━━━\n"
-                + (f"{ICON_CHANNEL} <i>Posted to channel.</i>\n\n" if announced else "\n")
-                + text,
-                reply_markup=keyboard)
 
 
 @router.callback_query(F.data.regexp(r"^adm_prod_toggle_\d+$"))
