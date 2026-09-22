@@ -14,9 +14,41 @@ from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 TELEGRAM_TEXT_LIMIT = 4000
 
 
-async def respond(event: Message | CallbackQuery, text: str, keyboard: InlineKeyboardMarkup | None = None) -> None:
-    """Replace the message behind a pressed button, or reply to a typed message or command."""
+_ACTIVE_MENU_MESSAGES: dict[int, int] = {}
+_MAX_TRACKED_CHATS = 20000
+
+
+def clear_active_menu(chat_id: int) -> None:
+    """Clear tracking for this chat's active menu message."""
+    _ACTIVE_MENU_MESSAGES.pop(chat_id, None)
+
+
+async def delete_active_menu(bot: Any, chat_id: int) -> None:
+    """Delete the active menu message for this chat if one exists."""
+    old_msg_id = _ACTIVE_MENU_MESSAGES.pop(chat_id, None)
+    if old_msg_id and bot:
+        with suppress(Exception):
+            await bot.delete_message(chat_id=chat_id, message_id=old_msg_id)
+
+
+async def respond(
+    event: Message | CallbackQuery,
+    text: str,
+    keyboard: InlineKeyboardMarkup | None = None,
+    *,
+    delete_trigger: bool = True,
+) -> None:
+    """Replace the message behind a pressed button, or reply to a typed message or command.
+
+    Option A Auto-Cleanup: When a user taps a bottom reply keyboard button, delete their previous
+    active menu box and delete the incoming user command message so that the chat stays clean and free
+    of duplicate menu blocks.
+    """
     if isinstance(event, CallbackQuery):
+        chat_id = event.message.chat.id if event.message and event.message.chat else 0
+        if event.message and chat_id:
+            _ACTIVE_MENU_MESSAGES[chat_id] = event.message.message_id
+
         # Both calls go to Telegram; sent together they cost one round trip instead of two.
         async def acknowledge() -> None:
             with suppress(TelegramBadRequest):
@@ -29,7 +61,26 @@ async def respond(event: Message | CallbackQuery, text: str, keyboard: InlineKey
 
         await asyncio.gather(acknowledge(), replace())
     else:
-        await event.answer(text, reply_markup=keyboard)
+        chat_id = event.chat.id if event.chat else 0
+
+        # 1. Delete previous active menu message in this chat
+        if chat_id:
+            await delete_active_menu(event.bot, chat_id)
+
+        # 2. Delete the user's incoming button command message (e.g. "Buy VPN", "Proxy Shop")
+        if delete_trigger:
+            with suppress(Exception):
+                await event.delete()
+
+        # 3. Send the new menu message and track it
+        new_msg = await event.answer(text, reply_markup=keyboard)
+        if chat_id and new_msg:
+            msg_id = getattr(new_msg, "message_id", None)
+            if msg_id is not None:
+                if len(_ACTIVE_MENU_MESSAGES) >= _MAX_TRACKED_CHATS:
+                    for _ in range(1000):
+                        _ACTIVE_MENU_MESSAGES.pop(next(iter(_ACTIVE_MENU_MESSAGES)), None)
+                _ACTIVE_MENU_MESSAGES[chat_id] = msg_id
 
 
 _DEFAULT_USD_RATE: float = 125.0
