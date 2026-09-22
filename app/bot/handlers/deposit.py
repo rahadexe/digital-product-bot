@@ -515,7 +515,7 @@ async def ask_deposit_input(query: CallbackQuery, state: FSMContext, services: S
         f"🏦 <b>Account Type:</b> {type_label}\n"
         f"💸 <b>Transaction:</b> {action_label}\n\n"
         f"{ICON_WARNING} <b>Minimum:</b> {price(symbol, min_dep, usd_rate=usd_rate, show_usd=effective_show_usd)}\n\n"
-        f"{ICON_MONEY} <b>কত টাকা পাঠিয়েছেন তা নিচের Message বক্সে লিখুন:</b>\n\n"
+        f"{ICON_MONEY} <b>কত টাকা পাঠিয়েছেন তা নিচে লিখুন:</b>\n\n"
         f"💡 <i>(যেমন: <code>100</code>)</i>"
     )
     reply_kb = get_deposit_amount_keyboard(account_info, method_id, is_binance=False)
