@@ -16,7 +16,6 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 
 from app.bot.formatting import callback_int, price, respond
 from app.bot.handlers.navigation import is_navigation, navigate
-from app.bot.handlers.start import render_main_dashboard
 from app.bot.icons import (
     ICON_BALANCE,
     ICON_BINANCE,
@@ -80,19 +79,19 @@ class DepositStates(StatesGroup):
 
 
 @router.message(Command("cancel"))
-async def cmd_cancel(message: Message, state: FSMContext, services: Services):
+async def cmd_cancel(message: Message, state: FSMContext):
     await state.clear()
     await message.answer(f"{ICON_CROSS} Current operation cancelled.")
-    await render_main_dashboard(message, services, message.from_user.id)
 
 
 @router.callback_query(F.data == "cancel_deposit")
-async def cancel_deposit_flow(query: CallbackQuery, state: FSMContext, services: Services):
+async def cancel_deposit_flow(query: CallbackQuery, state: FSMContext):
     await state.clear()
     with suppress(TelegramBadRequest):
-        await query.answer("Cancelled.")
+        await query.answer()
     if query.message:
-        await render_main_dashboard(query.message, services, query.from_user.id, edit=True)
+        with suppress(TelegramBadRequest):
+            await query.message.delete()
 
 
 @router.message(Command("deposit"))
@@ -192,7 +191,7 @@ def _instant_keyboard(invoice: dict) -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text=f"Pay ৳{invoice['pay_amount']:.2f}", url=invoice["payment_url"], style="success", icon_custom_emoji_id=Icons.DEPOSIT)]
         )
     rows.append(
-        [InlineKeyboardButton(text="I've Paid — Check", callback_data=f"inst_chk_{invoice['reference']}", style="primary", icon_custom_emoji_id=Icons.CHECK)]
+        [InlineKeyboardButton(text="I've Paid", callback_data=f"inst_chk_{invoice['reference']}", style="primary", icon_custom_emoji_id=Icons.CHECK)]
     )
     rows.append([InlineKeyboardButton(text="Back", callback_data="open_deposit", style="danger", icon_custom_emoji_id=Icons.BACK)])
     return InlineKeyboardMarkup(inline_keyboard=rows)
@@ -210,14 +209,19 @@ async def create_instant_payment(message: Message, state: FSMContext, services: 
     except ValueError as exc:
         await message.answer(f"{ICON_WARNING} {escape(str(exc))}", reply_markup=get_cancel_keyboard())
         return
-    await state.clear()
     symbol = await services.settings.get("currency_symbol")
     usd_rate = await services.settings.number("usd_rate")
     show_usd = await services.settings.flag("show_usd_price")
+    formatted_amount = price(symbol, invoice["pay_amount"], usd_rate=usd_rate, show_usd=show_usd)
+    ref = escape(str(invoice.get("reference") or invoice.get("id") or ""))
+    ref_suffix = f" #{ref}" if ref else ""
     await message.answer(
-        f"{ICON_NOTE} <b>Payment Invoice: {price(symbol, invoice['credit_amount'], usd_rate=usd_rate, show_usd=show_usd)}</b>\n"
-        f"Payable Amount: <b>{symbol}{invoice['pay_amount']:.2f}</b>\n\n"
-        "Tap the Pay button below to complete payment. Your balance will be credited automatically upon confirmation.",
+        f"{ICON_NOTE} <b>Payment Invoice{ref_suffix}</b>\n\n"
+        f"{ICON_MONEY} <b>Payable Amount:</b> <code>{formatted_amount}</code>\n"
+        f"{ICON_LIGHTNING} <b>Method:</b> Instant Auto Gateway\n"
+        f"{ICON_TIMER} <b>Status:</b> Waiting for Payment\n\n"
+        f"🇬🇧 Tap the <b>Pay</b> button below to open the payment page. You can complete payment using any preferred method (bKash, Nagad, Rocket, Cards), and your balance will be added automatically.\n\n"
+        f"🇧🇩 নিচের <b>Pay</b> বাটনে ট্যাপ করলে পেমেন্ট পেজে নিয়ে যাবে। সেখান থেকে আপনার পছন্দ অনুযায়ী যেকোনো মেথডে (bKash, Nagad, Rocket ইত্যাদি) পেমেন্ট সম্পন্ন করতে পারবেন এবং অটোমেটিক ব্যালেন্স যুক্ত হয়ে যাবে।",
         reply_markup=_instant_keyboard(invoice),
     )
 
@@ -348,11 +352,17 @@ async def handle_deposit_method_select(query: CallbackQuery, state: FSMContext, 
                 ],
                 [
                     InlineKeyboardButton(
-                        text="Cancel",
+                        text="Back",
                         callback_data="open_deposit",
+                        style="primary",
+                        icon_custom_emoji_id=Icons.BACK,
+                    ),
+                    InlineKeyboardButton(
+                        text="Close",
+                        callback_data="close_menu",
                         style="danger",
-                        icon_custom_emoji_id=Icons.CROSS,
-                    )
+                        icon_custom_emoji_id=Icons.CLOSE,
+                    ),
                 ],
             ]
         )
@@ -467,11 +477,17 @@ async def ask_deposit_input(query: CallbackQuery, state: FSMContext, services: S
                 ],
                 [
                     InlineKeyboardButton(
-                        text="Cancel",
+                        text="Back",
                         callback_data="open_deposit",
+                        style="primary",
+                        icon_custom_emoji_id=Icons.BACK,
+                    ),
+                    InlineKeyboardButton(
+                        text="Close",
+                        callback_data="close_menu",
                         style="danger",
-                        icon_custom_emoji_id=Icons.CROSS,
-                    )
+                        icon_custom_emoji_id=Icons.CLOSE,
+                    ),
                 ],
             ]
         )

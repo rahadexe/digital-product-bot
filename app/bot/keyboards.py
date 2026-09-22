@@ -547,7 +547,9 @@ def get_quantity_selector_keyboard(
         buttons.append([
             InlineKeyboardButton(
                 text=f"Confirm ({price_formatted})",
-                callback_data=f"buy_qty_{product_id}_{quantity}_{uuid4().hex[:12]}",
+                # The unit price this button was drawn with, in whole cents. An old message
+                # still shows the old price; the handler compares before charging.
+                callback_data=f"buy_qty_{product_id}_{quantity}_{uuid4().hex[:12]}_{round(unit_price * 100)}",
                 style="success",
                 icon_custom_emoji_id=Icons.CONFIRM,
             )
@@ -810,8 +812,8 @@ def get_cancel_keyboard(back_target: str | None = "open_deposit") -> InlineKeybo
         )
     row.append(
         InlineKeyboardButton(
-            text="Cancel",
-            callback_data="cancel_deposit",
+            text="Close",
+            callback_data="close_menu",
             style="danger",
             icon_custom_emoji_id=Icons.CLOSE,
         )
@@ -820,7 +822,7 @@ def get_cancel_keyboard(back_target: str | None = "open_deposit") -> InlineKeybo
 
 
 def get_deposit_amount_keyboard(account_info: str, method_id: int, is_binance: bool = False) -> InlineKeyboardMarkup:
-    """Buttons on the Enter Amount screen: copy number/UID, Back to invoice, Cancel."""
+    """Buttons on the Enter Amount screen: copy number/UID, Back to invoice, Close."""
     destination = str(account_info or "").strip()
     buttons = []
     if destination:
@@ -844,8 +846,8 @@ def get_deposit_amount_keyboard(account_info: str, method_id: int, is_binance: b
     ])
     buttons.append([
         InlineKeyboardButton(
-            text="Cancel",
-            callback_data="cancel_deposit",
+            text="Close",
+            callback_data="close_menu",
             style="danger",
             icon_custom_emoji_id=Icons.CLOSE,
         ),
@@ -854,9 +856,9 @@ def get_deposit_amount_keyboard(account_info: str, method_id: int, is_binance: b
 
 
 def get_deposit_txid_keyboard(is_bangla: bool = False) -> InlineKeyboardMarkup:
-    """Buttons on the Enter TrxID screen: Back to change amount, Cancel."""
+    """Buttons on the Enter TrxID screen: Back to change amount, Close."""
     change_text = "Change Amount"
-    cancel_text = "Cancel"
+    cancel_text = "Close"
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -870,7 +872,7 @@ def get_deposit_txid_keyboard(is_bangla: bool = False) -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton(
                     text=cancel_text,
-                    callback_data="cancel_deposit",
+                    callback_data="close_menu",
                     style="danger",
                     icon_custom_emoji_id=Icons.CLOSE,
                 ),

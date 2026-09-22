@@ -19,6 +19,7 @@ from aiogram.types import (
 )
 
 from app.bot.formatting import callback_int, format_dual_price, respond
+from app.bot.handlers.navigation import is_navigation, navigate
 from app.bot.icons import (
     ICON_BALANCE,
     ICON_CART,
@@ -563,7 +564,8 @@ async def handle_noop(query: CallbackQuery):
 
 
 @router.callback_query(F.data == "close_menu")
-async def handle_close_menu(query: CallbackQuery):
+async def handle_close_menu(query: CallbackQuery, state: FSMContext):
+    await state.clear()
     with suppress(TelegramBadRequest):
         await query.answer()
     if query.message:
@@ -968,17 +970,11 @@ async def handle_keypad_action(query: CallbackQuery, state: FSMContext, services
 async def process_custom_quantity(message: Message, state: FSMContext, services: Services):
     """Processes user text input for custom quantity."""
     text = (message.text or "").strip()
-    if text.startswith("/"):
-        await state.clear()
-        cmd = text.split()[0].lower().lstrip("/")
-        if cmd == "start":
-            from app.bot.handlers.start import render_main_dashboard
-            await render_main_dashboard(message, services, message.from_user.id)
-            return
-        if cmd == "cancel":
-            await message.answer(f"{ICON_CROSS} Operation cancelled.")
-            return
-        await message.answer(f"{ICON_CROSS} Operation cancelled.")
+    # The menu buttons send plain text, so without this a customer who reached this prompt
+    # is trapped: every button they press is read as a quantity, fails, and prints the same
+    # complaint. Tapping a menu button means they want to leave, so let them.
+    if is_navigation(text):
+        await navigate(text, message, state, services)
         return
 
     if not text.isdigit() or int(text) < 1:
@@ -1017,6 +1013,27 @@ async def execute_quantity_purchase(query: CallbackQuery, state: FSMContext, ser
     product_id = int(parts[2])
     quantity = int(parts[3])
     token = parts[4]
+
+    # Scrolling back to an older message shows an older price, and the charge always
+    # comes from the database. Rather than quietly take a different amount than the one
+    # on screen, show the product again at today's price and let them decide.
+    shown_cents = int(parts[5]) if len(parts) > 5 and parts[5].isdigit() else None
+    if shown_cents is not None:
+        product = await services.catalog.product(product_id)
+        if product and round(float(product["price"]) * 100) != shown_cents:
+            symbol = await services.settings.get("currency_symbol")
+            was = shown_cents / 100
+            now = float(product["price"])
+            with suppress(TelegramBadRequest):
+                await query.answer(
+                    f"Price changed: {was:.2f} -> {now:.2f} {symbol}. Nothing was charged.",
+                    show_alert=True,
+                )
+            view_text, keyboard = await product_view(services, product, query.from_user.id, quantity=quantity)
+            if query.message:
+                with suppress(TelegramBadRequest):
+                    await query.message.edit_text(view_text, reply_markup=keyboard)
+            return
 
     success, message, order = await services.purchases.purchase(
         query.from_user.id, product_id, quantity=quantity, request_id=f"bot-{token}"
