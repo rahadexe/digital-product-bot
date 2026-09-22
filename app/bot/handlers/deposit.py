@@ -764,6 +764,18 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
         )
         return
 
+    # The ceiling used to be enforced only once the customer came back with a
+    # transaction ID — after the bot had shown them the number and the amount to send.
+    # Someone following those instructions would have paid before being refused.
+    max_dep = await services.settings.number("max_deposit_limit")
+    if max_dep and amount_num > max_dep:
+        await message.answer(
+            f"{ICON_WARNING} সর্বোচ্চ ডিপোজিট {price(symbol, max_dep)}। এর বেশি লাগলে সাপোর্টে যোগাযোগ করুন।\n\n"
+            f"অনুগ্রহ করে এর মধ্যে একটি পরিমাণ লিখুন:",
+            reply_markup=get_deposit_amount_keyboard(account_info, method_id, is_binance=False),
+        )
+        return
+
     await state.update_data(manual_amount=amount_num)
     await state.set_state(DepositStates.waiting_for_txid)
 
