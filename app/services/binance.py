@@ -9,6 +9,7 @@ wrong or unknown transaction never credits a wallet.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import logging
@@ -49,6 +50,13 @@ LOOKBACK_DAYS = 7
 # _already_credited, not this window; this only keeps genuinely old history out of an automatic credit.
 PAID_BEFORE_CLAIM_HOURS = 72
 MAX_CHECKS_PER_RUN = 20
+# Binance Pay transfers show in the history within seconds. A reference still missing after
+# these waits was mistyped, not delayed; it is refused rather than filed, because a filed
+# request holds the customer's one pending deposit until an admin rejects it.
+PAY_LOOKUP_RETRY_DELAYS = (3.0, 4.0)
+# Order ids are 18 digits and transaction ids longer. Anything shorter is a Binance UID, which
+# names a sender, not a payment: those are still filed for an admin to match by hand.
+MIN_PAYMENT_REFERENCE = 15
 # Networks Binance names for the chains customers use for USDT.
 NETWORKS = {"TRX": "TRC20", "BSC": "BEP20", "ETH": "ERC20"}
 
@@ -319,6 +327,11 @@ class BinanceDepositService:
         min_dep = float(method["min_deposit"])
         base_amount = money(expected_usdt * rate) if (expected_usdt and expected_usdt > 0) else money(min_dep * rate)
 
+        if method["auto_verify"] == PAY_PROVIDER and len(reference.strip()) >= MIN_PAYMENT_REFERENCE:
+            refused = await self._refuse_unusable_pay_reference(reference)
+            if refused:
+                return {"deposit_id": None, "checked": True, "credited": False, **refused}
+
         deposit_id = await self.deposits.create_request(tg_user_id, method_id, base_amount, reference,
                                                         quoted_rate=rate, notify_admin=False)
         async with self.db.transaction() as conn:
@@ -334,6 +347,46 @@ class BinanceDepositService:
         if not result.get("credited"):
             await self.deposits.alert_admin_needs_review(deposit_id, str(result.get("detail") or ""))
         return {"deposit_id": deposit_id, **result}
+
+    async def _refuse_unusable_pay_reference(self, reference: str) -> dict[str, Any] | None:
+        """Why this Binance Pay reference can never be credited, or None if it might be.
+
+        Checked before anything is filed. A made-up or mistyped order id, and one already
+        credited to somebody, used to become a pending request that told the customer to
+        wait for a credit that was never coming, and locked their deposits until an admin
+        rejected it. A reference Binance cannot be asked about is not refused here: that
+        goes the old way, to a person.
+        """
+        key, secret = await self._credentials()
+        if not key or not secret:
+            return None
+        coin = (await self.settings.values())["binance_coin"]
+        wanted = reference.strip().lower()
+        for attempt in range(len(PAY_LOOKUP_RETRY_DELAYS) + 1):
+            if attempt:
+                await asyncio.sleep(PAY_LOOKUP_RETRY_DELAYS[attempt - 1])
+            try:
+                # A fresh client each time: the client caches the history for 15 seconds.
+                history = await self.client(key, secret).pay_transactions(start_time=self._since())
+            except BinanceError:
+                return None
+            matches = [
+                row for row in history
+                if wanted in {str(row.get("orderId") or "").strip().lower(),
+                              str(row.get("transactionId") or "").strip().lower()}
+                and str(row.get("orderType") or "").upper() in PAY_INCOMING
+                and money(row.get("amount") or 0) > 0
+                and str(row.get("currency") or "").upper() == coin.upper()
+            ]
+            if matches:
+                break
+        else:
+            return {"error": "not_found", "detail": "Binance has no incoming transfer with this reference."}
+        for row in matches:
+            ids = [str(row.get(k) or "").strip() for k in ("transactionId", "orderId")]
+            if not any([await self._already_credited(i) for i in ids if i]):
+                return None
+        return {"error": "already_used", "detail": "This transfer has already been credited."}
 
     async def _already_credited(self, transaction_id: str, exclude_deposit_id: int | None = None) -> bool:
         query = "SELECT 1 FROM deposits WHERE lower(btrim(transaction_id)) = lower(btrim($1)) AND status = 'approved'"

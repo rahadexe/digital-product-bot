@@ -807,6 +807,18 @@ async def claim_binance_payment(
         await _safe_edit_or_answer(status_msg, message, f"{ICON_CROSS} {escape(str(exc))}")
         return
 
+    if result.get("error") in ("not_found", "already_used"):
+        # Nothing was filed, so the customer can simply send the right one; the step stays open.
+        await _safe_edit_or_answer(
+            status_msg,
+            message,
+            f"{ICON_CROSS} This Order ID has already been used. Send the Order ID of your new payment."
+            if result["error"] == "already_used" else
+            f"{ICON_CROSS} Order ID not found. Check it in Binance and send it again.",
+            reply_markup=get_deposit_txid_keyboard(),
+        )
+        return
+
     await state.clear()
     symbol = await services.settings.get("currency_symbol")
 

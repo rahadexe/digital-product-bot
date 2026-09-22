@@ -24,6 +24,7 @@ import httpx
 from app.core.config import Settings
 from app.db import Database
 from app.db.migrations import migrate
+from app.services import binance as binance_module
 from app.services import build_services
 from app.services import zinipay as zinipay_module
 from app.services.binance import PAID_BEFORE_CLAIM_HOURS, BinanceDepositService
@@ -473,6 +474,57 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
         async with self.db.connect() as conn:
             note = await conn.fetchval('SELECT admin_note FROM deposits WHERE id=$1', result['deposit_id'])
         self.assertIn('Nagad', note)
+
+    # ---- Binance Pay: a reference that can never be credited is not filed ------
+
+    async def _binance(self, history):
+        """Binance switched on, answering with this Pay history; returns its method id."""
+        await self.s.settings.update({'binance_enabled': '1', 'binance_api_key': 'k' * 64,
+                                      'binance_api_secret': 's' * 64, 'binance_pay_id': '750176717',
+                                      'binance_pay_rate': '125', 'binance_pay_min': '0.2'})
+        self._pay = patch('app.services.binance.BinanceClient.pay_transactions', return_value=history)
+        self._pay.start()
+        self.addCleanup(self._pay.stop)
+        self._delays = patch.object(binance_module, 'PAY_LOOKUP_RETRY_DELAYS', (0.0, 0.0))
+        self._delays.start()
+        self.addCleanup(self._delays.stop)
+        return (await self.s.deposits.get_or_create_binance_method())['id']
+
+    @staticmethod
+    def _transfer(order_id, usdt='2', minutes_ago=2):
+        now_ms = int(datetime.datetime.now(datetime.timezone.utc).timestamp() * 1000)
+        return {'orderId': order_id, 'transactionId': f'P_{order_id[-6:]}', 'amount': usdt, 'currency': 'USDT',
+                'orderType': 'C2C', 'transactionTime': now_ms - minutes_ago * 60_000}
+
+    async def test_binance_credits_a_recent_transfer(self):
+        method = await self._binance([self._transfer('455551124534788096')])
+        result = await self.s.binance.claim(CUSTOMER, method, '455551124534788096')
+        self.assertTrue(result.get('credited'), result)
+        self.assertEqual(await self.balance(), 250.0)
+
+    async def test_binance_refuses_a_made_up_order_id_without_filing_it(self):
+        """Filing it told the customer to wait, and held their one pending deposit."""
+        method = await self._binance([self._transfer('455551124534788096')])
+        result = await self.s.binance.claim(CUSTOMER, method, '999999999999999999')
+        self.assertEqual(result.get('error'), 'not_found', result)
+        self.assertIsNone(await self.s.deposits.pending_for(CUSTOMER), 'the customer is not locked out')
+        self.assertEqual(await self.balance(), 0.0)
+
+    async def test_binance_refuses_a_transfer_already_credited_to_someone_else(self):
+        method = await self._binance([self._transfer('455551124534788096')])
+        first = await self.s.binance.claim(CUSTOMER, method, '455551124534788096')
+        self.assertTrue(first.get('credited'), first)
+        second = await self.s.binance.claim(INTRUDER, method, '455551124534788096')
+        self.assertEqual(second.get('error'), 'already_used', second)
+        self.assertIsNone(await self.s.deposits.pending_for(INTRUDER))
+        self.assertEqual(await self.balance(INTRUDER), 0.0)
+
+    async def test_binance_still_sends_a_uid_to_a_person(self):
+        """A UID names a sender, not a payment; an admin matches it by hand, as before."""
+        method = await self._binance([self._transfer('455551124534788096')])
+        result = await self.s.binance.claim(CUSTOMER, method, '580150694')
+        self.assertIsNone(result.get('error'), result)
+        self.assertIsNotNone(await self.s.deposits.pending_for(CUSTOMER))
 
     # ---- hosted invoices ------------------------------------------------------
 
