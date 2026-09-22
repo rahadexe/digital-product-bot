@@ -57,7 +57,7 @@ def get_persistent_reply_keyboard(
     # alone on a line of its own.
     reseller_text = "Reseller Panel" if is_reseller else "Apply as a Reseller"
     system_buttons = [
-        KeyboardButton(text="Search Products", style="primary", icon_custom_emoji_id=Icons.QUESTION),
+        KeyboardButton(text="Search", style="primary", icon_custom_emoji_id=Icons.QUESTION),
         KeyboardButton(text="Add Balance", style="primary", icon_custom_emoji_id=Icons.DEPOSIT),
         KeyboardButton(text="Refer & Earn", style="success", icon_custom_emoji_id=Icons.REFER),
         KeyboardButton(text="My Profile", style="primary", icon_custom_emoji_id=Icons.ACCOUNT),
