@@ -40,9 +40,14 @@ from app.services.settings import SettingsService
 
 logger = logging.getLogger("app.services.payments")
 
-# How long a confirmation stays before taking itself away. Long enough that anyone who
-# looks at their phone within the hour still sees it.
-CONFIRMATION_LIFETIME_SECONDS = 60 * 60
+# How long a confirmation stays before taking itself away.
+#
+# Not instantly: Telegram has already pushed a notification by then, so a customer who
+# opens it would find nothing there and ask support where their money went. This is the
+# web-checkout confirmation, sent when the gateway confirms — usually while the customer
+# is still waiting, but the webhook can arrive a few minutes late, or the poller can be
+# what credits it. Ten minutes covers stepping away without letting every top-up pile up.
+CONFIRMATION_LIFETIME_SECONDS = 10 * 60
 
 PROVIDER = "zinipay"
 ZINIPAY_API = "https://api.zinipay.com/v1/payment"
