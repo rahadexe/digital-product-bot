@@ -263,6 +263,7 @@ class DepositService:
         quoted_rate: float | None = None,
         admin_note: str = "",
         verification_id: str | None = None,
+        notify_admin: bool = True,
     ) -> int:
         paused = await self.settings.paused_message()
         if paused:
@@ -310,8 +311,31 @@ class DepositService:
                 raise PendingDepositError("You already have a deposit waiting for review.") from exc
             raise DuplicateTransactionError("This transaction ID has already been submitted.") from exc
 
-        self.notifier.in_background(self._notify_new_request(deposit_id, tg_user_id, user["username"], quote, clean_tx, admin_note=admin_note))
+        # An automatic verification calls this first and credits the wallet a moment
+        # later, so alerting here put "New Deposit Request — Approve / Reject" in front
+        # of an owner for a deposit that was already approved by the time they read it.
+        # Those paths alert from alert_admin_needs_review instead, once it is clear a
+        # person is actually needed.
+        if notify_admin:
+            self.notifier.in_background(self._notify_new_request(deposit_id, tg_user_id, user["username"], quote, clean_tx, admin_note=admin_note))
         return deposit_id
+
+    async def alert_admin_needs_review(self, deposit_id: int, note: str = "") -> None:
+        """Automatic verification has finished trying: now it is somebody's job."""
+        async with self.db.connect() as conn:
+            row = await conn.fetchrow(
+                "SELECT d.*, u.username FROM deposits d LEFT JOIN users u ON u.id = d.user_id "
+                "WHERE d.id = $1 AND d.status = 'pending'", deposit_id)
+        if not row:
+            return
+        quote = {
+            "method_name": row["method_name"],
+            "amount": float(row["amount"]),
+            "pay_amount": float(row["pay_amount"] or row["amount"]),
+            "rate": float(row["rate_to_currency"] or 1),
+        }
+        await self._notify_new_request(deposit_id, row["tg_user_id"], row["username"], quote,
+                                       row["transaction_id"], admin_note=note or row["admin_note"] or "")
 
     async def _notify_new_request(
         self,

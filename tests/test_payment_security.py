@@ -8,8 +8,10 @@ the shape of a helper.
         python -m unittest tests.test_payment_security -v
 """
 
+import asyncio
 import datetime
 import os
+import re
 import unittest
 import uuid
 from decimal import Decimal
@@ -34,6 +36,9 @@ CUSTOMER = 100200300
 INTRUDER = 100200999
 
 
+def plain_text(value):
+    """The words of a message, without the markup."""
+    return re.sub(r'<[^>]+>', '', value or '')
 def gateway(body, status=200):
     """An httpx client that answers every call with one body."""
     return httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(status, json=body)))
@@ -110,6 +115,7 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
         self.method = await self.s.deposits.create_method('bKash', '01700000000')
 
     async def asyncTearDown(self):
+        self.s.notifier.bot = None   # a stand-in bot has no session to close
         await self.s.close()
         admin = Database(DSN)
         async with admin.connect() as conn:
@@ -325,6 +331,62 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
             await self.s.zinipay.recover()
         self.assertFalse(await self.s.deposits.cancel_awaiting_sms(result['deposit_id'], CUSTOMER))
         self.assertEqual(await self.balance(), 500.0)
+
+    # ---- how often an owner is interrupted ------------------------------------
+
+    def _watch_admin(self):
+        """Collect the admin alerts a flow sends."""
+        seen = []
+
+        async def spy(text, event='general', keyboard=None):
+            seen.append(plain_text(text).splitlines()[0][:60])
+            return True
+
+        self.s.notifier.send_admin = spy
+        # in_background drops its work when there is no bot, and the alert on a
+        # brand-new request goes out that way.
+        self.s.notifier.bot = self.s.notifier.bot or object()
+        return seen
+
+    async def test_an_auto_verified_deposit_does_not_page_the_owner(self):
+        """It was approved before they could read it, so asking them to approve it is noise."""
+        alerts = self._watch_admin()
+        result = await self._claim({'success': True, 'data': {'id': 77, 'amount': 500, 'trxID': 'TRX0000001'}})
+        self.assertTrue(result.get('auto_verified'), result)
+        await asyncio.sleep(0.2)   # the alert would go out in the background
+        self.assertEqual(alerts, [], 'nothing needed a person')
+
+    async def test_a_payment_waiting_for_its_receipt_does_not_page_the_owner_yet(self):
+        alerts = self._watch_admin()
+        await self._awaiting()
+        await asyncio.sleep(0.2)
+        self.assertEqual(alerts, [], 'it will most likely credit itself')
+
+    async def test_giving_up_on_a_receipt_pages_the_owner_once(self):
+        result = await self._awaiting()
+        async with self.db.connect() as conn:
+            await conn.execute("UPDATE deposits SET next_check_at=now()-interval '1 minute' WHERE id=$1",
+                               result['deposit_id'])
+            await conn.execute("UPDATE payment_verification_attempts SET created_at=now()-interval '1 hour' "
+                               'WHERE deposit_id=$1', result['deposit_id'])
+        alerts = self._watch_admin()
+        missing = {'success': False, 'code': 'REQUEST_FAILED', 'message': 'Transaction not found', 'data': None}
+        await self.s.zinipay.http.aclose()
+        async with gateway(missing, 404) as client:
+            self.s.zinipay.http = client
+            await self.s.zinipay.recover()
+        await asyncio.sleep(0.2)
+        self.assertEqual(len(alerts), 1, alerts)
+        self.assertIn('Deposit Request', alerts[0])
+
+    async def test_a_gateway_that_cannot_answer_still_pages_the_owner(self):
+        """Nothing automatic can happen here, so the deposit needs a person straight away."""
+        alerts = self._watch_admin()
+        broken = {'success': False, 'code': 'INSUFFICIENT_CREDITS', 'message': 'Out of credits', 'data': None}
+        result = await self._claim(broken)
+        self.assertTrue(result.get('fallback_manual'), result)
+        await asyncio.sleep(0.2)
+        self.assertEqual(len(alerts), 1, alerts)
 
     # ---- hosted invoices ------------------------------------------------------
 

@@ -316,7 +316,7 @@ class ZiniPayVerificationService:
             elif reason == "not_found":
                 dep_id = await self.deposits.create_request(
                     tg_user_id, method_id, amount, clean_tx, quoted_rate=quoted_rate,
-                    admin_note=AWAITING_SMS_NOTE,
+                    admin_note=AWAITING_SMS_NOTE, notify_admin=False,
                 )
                 await self._mark_awaiting(dep_id)
                 return {
@@ -346,6 +346,7 @@ class ZiniPayVerificationService:
         dep_id = await self.deposits.create_request(
             tg_user_id, method_id, amount, clean_tx, quoted_rate=quoted_rate,
             verification_id=str(verify_id), admin_note="Automatic verification in progress.",
+            notify_admin=False,
         )
         async with self.db.transaction() as conn:
             await conn.execute(
@@ -364,6 +365,7 @@ class ZiniPayVerificationService:
             )
             await conn.execute("UPDATE deposits SET admin_note=$2 WHERE id=$1 AND status='pending'", dep_id, note)
         if not confirm_res.get("ok"):
+            await self.deposits.alert_admin_needs_review(dep_id, note)
             return {"auto_verified": False, "fallback_manual": True, "deposit_id": dep_id,
                     "detail": "Your payment is saved for review. Please do not pay again."}
 
@@ -373,6 +375,7 @@ class ZiniPayVerificationService:
             if persisted == "approved":
                 await conn.execute("UPDATE payment_verification_attempts SET status='completed',updated_at=now() WHERE deposit_id=$1", dep_id)
         if persisted != "approved":
+            await self.deposits.alert_admin_needs_review(dep_id, app_msg)
             return {"auto_verified": False, "fallback_manual": True, "deposit_id": dep_id,
                     "detail": "Payment confirmation is saved. " + app_msg}
         return {"auto_verified": True, "credited": True, "deposit_id": dep_id, "amount": amount,
@@ -403,6 +406,7 @@ class ZiniPayVerificationService:
                 "UPDATE deposits SET admin_note=$2 WHERE id=$1 AND status='pending'",
                 deposit_id, AWAITING_SMS_GAVE_UP,
             )
+        await self.deposits.alert_admin_needs_review(deposit_id, AWAITING_SMS_GAVE_UP)
 
     async def _finish_awaiting(self, row: dict[str, Any]) -> bool:
         """The receipt has landed: consume it at the gateway and credit the wallet."""
@@ -428,6 +432,7 @@ class ZiniPayVerificationService:
                     "UPDATE payment_verification_attempts SET status='review',note=$2,updated_at=now() WHERE deposit_id=$1",
                     deposit_id, note)
                 await conn.execute("UPDATE deposits SET admin_note=$2 WHERE id=$1 AND status='pending'", deposit_id, note)
+            await self.deposits.alert_admin_needs_review(deposit_id, note)
             return False
         note = f"Auto-verified via ZiniPay ({provider}), receipt arrived after the customer submitted it"
         # Recorded as confirmed before the wallet is touched: approve() refuses a deposit

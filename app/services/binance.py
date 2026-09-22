@@ -319,7 +319,8 @@ class BinanceDepositService:
         min_dep = float(method["min_deposit"])
         base_amount = money(expected_usdt * rate) if (expected_usdt and expected_usdt > 0) else money(min_dep * rate)
 
-        deposit_id = await self.deposits.create_request(tg_user_id, method_id, base_amount, reference, quoted_rate=rate)
+        deposit_id = await self.deposits.create_request(tg_user_id, method_id, base_amount, reference,
+                                                        quoted_rate=rate, notify_admin=False)
         async with self.db.transaction() as conn:
             await conn.execute(
                 "UPDATE deposits SET admin_note = $1 WHERE id = $2 AND status = 'pending'",
@@ -327,6 +328,11 @@ class BinanceDepositService:
                 deposit_id,
             )
         result = await self.check(deposit_id, notify_customer=False)
+        # Binance answers in a second or two, so the outcome is known by now. Alerting
+        # before the check meant an owner was asked to approve payments Binance had
+        # already confirmed; alerting after means one message, and it says what is wrong.
+        if not result.get("credited"):
+            await self.deposits.alert_admin_needs_review(deposit_id, str(result.get("detail") or ""))
         return {"deposit_id": deposit_id, **result}
 
     async def _already_credited(self, transaction_id: str, exclude_deposit_id: int | None = None) -> bool:
@@ -450,6 +456,7 @@ class BinanceDepositService:
         return {
             "checked": True,
             "credited": False,
+            "needs_person": bool(stale),
             "detail": (
                 f"Transfer '{reference}' was found on Binance, but it was paid more than "
                 f"{PAID_BEFORE_CLAIM_HOURS} hours before this request. Please send a new payment "
@@ -524,4 +531,8 @@ class BinanceDepositService:
                 deposit["id"],
             )
             await record(conn, "deposit_check_flagged", f"Deposit #{deposit['id']}: {reason}")
-        return {"checked": True, "credited": False, "detail": f"Needs review: {reason}."}
+        # needs_person separates "we are still looking" from "looking will not help":
+        # the caller told the customer to wait a minute for both, and one of them was
+        # never going to arrive.
+        return {"checked": True, "credited": False, "needs_person": True,
+                "detail": f"Needs review: {reason}."}
