@@ -85,9 +85,7 @@ async def search_products(message: Message, state: FSMContext, services: Service
             InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
         ])
         await message.answer(
-            f"{ICON_CROSS} <b>Nothing found for “{shown}”</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"<i>Try searching with a different product name:</i>",
+            f"{ICON_CROSS} <b>Nothing found, try a different name:</b>",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=rows) if rows else None,
         )
         return
