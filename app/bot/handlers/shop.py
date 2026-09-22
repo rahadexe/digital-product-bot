@@ -237,6 +237,21 @@ def is_redundant_description(title: str, description: str) -> bool:
     return False
 
 
+def unit_price_for(product: dict[str, Any], user: dict[str, Any] | None) -> float:
+    """What this customer pays for one: the reseller rate when they have one, else the price.
+
+    The product screen, the quantity buttons and the check that the price has not moved
+    since the screen was drawn all have to agree. They did not: the check compared the
+    price on the button with the shop price, so a reseller with a rate of their own was
+    told "Price changed" on every attempt and could never buy.
+    """
+    is_reseller = (user.get("rank") or "").strip().lower() == "reseller" if user else False
+    reseller_price = product.get("reseller_price")
+    if is_reseller and reseller_price is not None and float(reseller_price) > 0:
+        return float(reseller_price)
+    return float(product["price"])
+
+
 async def product_view(
     services: Services,
     product: dict[str, Any],
@@ -290,10 +305,7 @@ async def product_view(
     reseller_price = product.get("reseller_price")
     has_reseller_rate = is_reseller and reseller_price is not None and float(reseller_price) > 0
 
-    if has_reseller_rate:
-        unit_price = float(reseller_price)
-    else:
-        unit_price = float(product["price"])
+    unit_price = unit_price_for(product, user)
     total_price = round(unit_price * quantity, 2)
 
     unit_price_str = format_dual_price(unit_price, symbol, usd_rate=usd_rate, show_usd=show_usd)
@@ -1042,10 +1054,11 @@ async def execute_quantity_purchase(query: CallbackQuery, state: FSMContext, ser
     shown_cents = int(parts[5]) if len(parts) > 5 and parts[5].isdigit() else None
     if shown_cents is not None:
         product = await services.catalog.product(product_id)
-        if product and round(float(product["price"]) * 100) != shown_cents:
+        buyer = await services.users.get(query.from_user.id)
+        now = unit_price_for(product, buyer) if product else 0.0
+        if product and round(now * 100) != shown_cents:
             symbol = await services.settings.get("currency_symbol")
             was = shown_cents / 100
-            now = float(product["price"])
             with suppress(TelegramBadRequest):
                 await query.answer(
                     f"Price changed: {was:.2f} -> {now:.2f} {symbol}. Nothing was charged.",
