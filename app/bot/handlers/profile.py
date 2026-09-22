@@ -451,8 +451,8 @@ async def reseller_generate_key_handler(event: CallbackQuery, services: Services
         f"{ICON_KEY} <b>Your Secret API Key:</b>\n"
         f"<code>{raw_key}</code>\n\n"
         f"{ICON_WARNING} <b>Important Security Notice:</b>\n"
-        f"• এই এপিআই কি-টি সম্পূর্ণ গোপন রাখুন। এর মাধ্যমে আপনার ওয়ালেট ব্যালেন্স ব্যবহার করে কেনাকাটা করা সম্ভব।\n"
-        f"• এটি শুধুমাত্র একবারই সম্পূর্ণ প্রদর্শিত হবে। কপি করে নিরাপদ স্থানে সংরক্ষণ করুন।\n\n"
+        f"• Keep this API key confidential. Anyone with this key can make purchases using your wallet balance.\n"
+        f"• It will only be displayed once. Copy and store it safely.\n\n"
         f"{ICON_GLOBE} <b>API Base URL:</b>\n{endpoint_text}"
     )
 
@@ -498,7 +498,7 @@ async def reseller_reveal_key_handler(event: CallbackQuery, services: Services):
         f"{ICON_LOCK} <b>Active Key Prefix:</b> <code>{active_key['key_prefix']}</code>\n"
         f"{ICON_TIMER} <b>Created At:</b> {active_key['created_at'].strftime('%Y-%m-%d %H:%M') if active_key.get('created_at') else 'N/A'}\n"
         f"{ICON_STATS} <b>Last Used:</b> {active_key['last_used_at'].strftime('%Y-%m-%d %H:%M') if active_key.get('last_used_at') else 'Never'}\n\n"
-        f"{ICON_SHIELD} <i>সর্বোচ্চ নিরাপত্তার জন্য সম্পূর্ণ সিক্রেট কি ডাটাবেজে এনক্রিপ্ট/হ্যাশ আকারে সংরক্ষিত থাকে। আপনি যদি আপনার পূর্বের কি হারিয়ে ফেলেন, তবে নিচে থেকে নতুন কি জেনারেট (Regenerate) করতে পারবেন।</i>"
+        f"{ICON_SHIELD} <i>For maximum security, your complete secret key is securely hashed in the database. If you lost your key, you can regenerate a new one below.</i>"
     )
 
     kb = InlineKeyboardMarkup(
@@ -530,10 +530,10 @@ async def reseller_reveal_key_handler(event: CallbackQuery, services: Services):
 async def reseller_regen_prompt_handler(event: CallbackQuery):
     text = (
         f"{ICON_WARNING} <b>Regenerate Reseller API Key?</b>\n\n"
-        f"{ICON_WARNING} <b>সতর্কতা:</b>\n"
-        f"নতুন এপিআই কি তৈরি করলে আপনার আগের কি-টি সাথে সাথে নিষ্ক্রিয় (Deactivate) হয়ে যাবে।\n\n"
-        f"আপনার যেসকল বট বা ওয়েবসাইটে আগের কি ইন্টিগ্রেট করা আছে, সেগুলোতে নতুন কি আপডেট না করা পর্যন্ত অর্ডার পাঠানো বন্ধ থাকবে।\n\n"
-        f"আপনি কি নিশ্চিত যে নতুন কি তৈরি করতে চান?"
+        f"{ICON_WARNING} <b>Warning:</b>\n"
+        f"Generating a new API key will immediately deactivate your existing key.\n\n"
+        f"Any bots or websites connected using your current key will stop working until updated with the new key.\n\n"
+        f"Are you sure you want to regenerate your API key?"
     )
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
@@ -547,10 +547,10 @@ async def reseller_regen_prompt_handler(event: CallbackQuery):
             ],
             [
                 InlineKeyboardButton(
-                    text="Cancel",
+                    text="Back",
                     callback_data="open_reseller",
                     style="primary",
-                    icon_custom_emoji_id=Icons.CROSS,
+                    icon_custom_emoji_id=Icons.BACK,
                 )
             ],
         ]
@@ -576,7 +576,7 @@ async def reseller_regen_confirm_handler(event: CallbackQuery, services: Service
         f"{ICON_CHECK} <b>New API Key Generated Successfully!</b>\n\n"
         f"{ICON_KEY} <b>Your New Secret API Key:</b>\n"
         f"<code>{raw_key}</code>\n\n"
-        f"{ICON_WARNING} আপনার আগের এপিআই কি নিষ্ক্রিয় করা হয়েছে। আপনার বট বা ওয়েবসাইটে এই নতুন কি-টি কনফিগার করুন।"
+        f"{ICON_WARNING} <i>Your previous API key has been deactivated. Configure this new key in your bot or website.</i>"
     )
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
