@@ -19,6 +19,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.bot.formatting import format_dual_price
 from app.bot.icons import ICON_CROSS, ICON_SHOP, Icons
+from app.bot.keyboards import get_categories_keyboard
 from app.services import Services
 
 router = Router(name="search_router")
@@ -70,14 +71,15 @@ async def search_products(message: Message, state: FSMContext, services: Service
 
     if not matches:
         categories = await services.catalog.categories(active_only=True)
-        rows = [[InlineKeyboardButton(text=c["name"][:28], callback_data=f"cat_{c['id']}",
-                                      icon_custom_emoji_id=Icons.PRODUCTS)]
-                for c in categories[:6]]
+        # The same keyboard the shop builds, so each category keeps the emoji it was
+        # given in the console. Building the rows here by hand meant one generic icon
+        # on every row, which is not what the owner chose.
+        keyboard = get_categories_keyboard(categories, show_all_option=False)
         await message.answer(
             f"{ICON_CROSS} <b>Nothing found for “{shown}”</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"<i>Try a shorter word, or pick a category:</i>",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=rows) if rows else None,
+            reply_markup=keyboard if categories else None,
         )
         return
 
