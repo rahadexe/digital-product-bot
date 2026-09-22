@@ -107,6 +107,12 @@ def build_services(
     users = UserService(db, settings, notifier)
     reseller = ResellerService(db, settings, catalog, users)
 
+    limits = RateLimits(db)
+    purchases = PurchaseService(db, settings, delivery, notifier)
+    # Stock warnings need a quiet period; the limiter is the only thing that remembers
+    # across restarts and replicas.
+    purchases.rate_limits = limits
+
     return Services(
         config=config,
         db=db,
@@ -117,7 +123,7 @@ def build_services(
         catalog=catalog,
         inventory=InventoryService(db),
         delivery=delivery,
-        purchases=PurchaseService(db, settings, delivery, notifier),
+        purchases=purchases,
         deposits=deposits,
         payments=PaymentService(db, settings, notifier, config),
         binance=BinanceDepositService(db, settings, deposits, notifier, config),
@@ -128,5 +134,5 @@ def build_services(
         dashboard=DashboardService(db),
         admin_access=AdminAccessService(db),
         reseller=reseller,
-        rate_limits=RateLimits(db),
+        rate_limits=limits,
     )

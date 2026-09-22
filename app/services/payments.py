@@ -40,6 +40,10 @@ from app.services.settings import SettingsService
 
 logger = logging.getLogger("app.services.payments")
 
+# How long a confirmation stays before taking itself away. Long enough that anyone who
+# looks at their phone within the hour still sees it.
+CONFIRMATION_LIFETIME_SECONDS = 60 * 60
+
 PROVIDER = "zinipay"
 ZINIPAY_API = "https://api.zinipay.com/v1/payment"
 LOCAL_CURRENCY = "BDT"
@@ -575,11 +579,15 @@ class PaymentService:
     async def _notify_completed(self, row: Any, balance: Any, deposit_id: int) -> None:
         symbol = escape(await self.settings.get("currency_symbol"))
         credit = float(row["credit_amount"])
+        # A confirmation, not a record: the amount is in Deposit History and the balance
+        # is on the profile. Left in place it is one more message between the customer
+        # and the ones that matter, every time they top up.
         await self.notifier.send(
             row["tg_user_id"],
             f"{ICON_CHECK} <b>Payment Successful!</b>\n\n"
             f"{ICON_MONEY} <b>Amount:</b> <code>{credit:.2f} {symbol}</code>\n"
             f"{ICON_BALANCE} <b>Balance:</b> <code>{float(balance or 0):.2f} {symbol}</code>",
+            clears_after=CONFIRMATION_LIFETIME_SECONDS,
         )
         pay_amt = float(row["pay_amount"] or 0)
         paid_line = f" (Paid {pay_amt:.2f} {LOCAL_CURRENCY})" if abs(credit - pay_amt) > 0.01 else ""

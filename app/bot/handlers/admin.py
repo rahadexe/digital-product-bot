@@ -310,40 +310,53 @@ async def build_admin_dashboard(services: Services) -> tuple[str, InlineKeyboard
     pause_icon = Icons.CHECK if paused else Icons.WARNING
     pause_style = "success" if paused else "danger"
 
+    total_waiting = pending + waiting
+    needs_btn_text = f"Needs you ({total_waiting})" if total_waiting else "Needs you"
+
+    # Paired by the kind of job, because the rows were reading as an arbitrary list:
+    # a mass broadcast next to looking up one person, and the button that stops the
+    # whole shop beside a harmless menu. Pause now sits alone, so a stray thumb on the
+    # row above cannot reach it.
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        # what is happening right now
         [
-            InlineKeyboardButton(text="Store Status", callback_data="adm_view_status", icon_custom_emoji_id=Icons.STATS),
-            InlineKeyboardButton(text=pause_text, callback_data="adm_toggle_pause", style=pause_style, icon_custom_emoji_id=pause_icon),
+            InlineKeyboardButton(text=needs_btn_text, callback_data="adm_queue",
+                                 style="danger" if total_waiting else "primary",
+                                 icon_custom_emoji_id=Icons.TIMER),
+            InlineKeyboardButton(text="Store Status", callback_data="adm_view_status",
+                                 icon_custom_emoji_id=Icons.STATS),
         ],
+        # the catalogue
         [
-            InlineKeyboardButton(text="Broadcast", callback_data="adm_start_broadcast", icon_custom_emoji_id=Icons.CHANNEL),
-            InlineKeyboardButton(text="BC Status", callback_data="adm_view_bcstatus", icon_custom_emoji_id=Icons.TIMER),
+            InlineKeyboardButton(text="Products", callback_data="adm_start_prod",
+                                 icon_custom_emoji_id=Icons.PRODUCTS),
+            InlineKeyboardButton(text="Add stock", callback_data="adm_start_stock",
+                                 icon_custom_emoji_id=Icons.PLUS),
         ],
+        # chasing one particular thing: a customer, or a payment that has not landed
         [
-            InlineKeyboardButton(text="Find Customer", callback_data="adm_start_find", icon_custom_emoji_id=Icons.ACCOUNT),
-            InlineKeyboardButton(text="Set Welcome", callback_data="adm_start_welcome", icon_custom_emoji_id=Icons.NOTE),
-        ],
-        [
-            InlineKeyboardButton(text=f"Deposits ({pending})" if pending else "Deposits",
-                                 callback_data="adm_queue_dep",
-                                 style="danger" if pending else "primary",
+            InlineKeyboardButton(text="Find Customer", callback_data="adm_start_find",
+                                 icon_custom_emoji_id=Icons.ACCOUNT),
+            InlineKeyboardButton(text="Re-check payments", callback_data="adm_recheck",
                                  icon_custom_emoji_id=Icons.DEPOSIT),
-            InlineKeyboardButton(text=f"Deliveries ({waiting})" if waiting else "Deliveries",
-                                 callback_data="adm_queue_ord",
-                                 style="danger" if waiting else "primary",
-                                 icon_custom_emoji_id=Icons.ORDERS),
+        ],
+        # what customers read
+        [
+            InlineKeyboardButton(text="Broadcast", callback_data="adm_start_broadcast",
+                                 icon_custom_emoji_id=Icons.CHANNEL),
+            InlineKeyboardButton(text="Set Welcome", callback_data="adm_start_welcome",
+                                 icon_custom_emoji_id=Icons.NOTE),
+        ],
+        # alone, because it stops every sale
+        [
+            InlineKeyboardButton(text=pause_text, callback_data="adm_toggle_pause",
+                                 style=pause_style, icon_custom_emoji_id=pause_icon),
         ],
         [
-            InlineKeyboardButton(text="Products", callback_data="adm_start_prod", icon_custom_emoji_id=Icons.PRODUCTS),
-            InlineKeyboardButton(text="Add stock", callback_data="adm_start_stock", icon_custom_emoji_id=Icons.PLUS),
-        ],
-        [
-            InlineKeyboardButton(text="Re-check payments", callback_data="adm_recheck", icon_custom_emoji_id=Icons.DEPOSIT),
-            InlineKeyboardButton(text="Find Customer", callback_data="adm_start_find", icon_custom_emoji_id=Icons.ACCOUNT),
-        ],
-        [
-            InlineKeyboardButton(text="Refresh", callback_data="adm_refresh_panel", icon_custom_emoji_id=Icons.REFRESH),
-            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
+            InlineKeyboardButton(text="Refresh", callback_data="adm_refresh_panel",
+                                 icon_custom_emoji_id=Icons.REFRESH),
+            InlineKeyboardButton(text="Close", callback_data="close_menu",
+                                 style="danger", icon_custom_emoji_id=Icons.CLOSE),
         ],
     ])
     return text, keyboard

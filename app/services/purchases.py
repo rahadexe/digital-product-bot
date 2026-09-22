@@ -65,6 +65,10 @@ class PurchaseService:
         self.settings = settings
         self.delivery = delivery
         self.notifier = notifier
+        # Stock warnings fire on the way down, once per sale. Without a quiet period
+        # a product falling from three to nothing sends four separate messages, and
+        # a catalogue of thirty buries the owner. Set by build_services.
+        self.rate_limits = None
 
     async def purchase(self, tg_user_id: int, product_id: int, quantity: int = 1, request_id: str | None = None, *, require_reseller: bool = False, reseller_key_id: int | None = None) -> PurchaseResult:
         """
@@ -289,7 +293,11 @@ class PurchaseService:
         )
 
         # Dedicated Low Stock & Out of Stock Alert for store administrators
-        if rem_stock is not None:
+        # Ask the budget only when there is actually something to say, or a sale that
+        # leaves plenty of stock would spend the quiet period and silence the warning
+        # that matters a few sales later.
+        worth_saying = rem_stock is not None and (rem_stock == 0 or rem_stock <= threshold)
+        if worth_saying and await self._stock_alert_is_due(prod_id, rem_stock):
             if rem_stock == 0:
                 # The alert is the moment stock is on the owner's mind, so the fix
                 # belongs on it rather than behind a browser and a login.
@@ -303,7 +311,7 @@ class PurchaseService:
                     rows.append([InlineKeyboardButton(
                         text="Open in console",
                         url=f"{console}/#inventory",
-                        icon_custom_emoji_id=Icons.SHOP,
+                        icon_custom_emoji_id=Icons.PRODUCTS,
                     )])
                 low_stock_kb = InlineKeyboardMarkup(inline_keyboard=rows)
                 alert_text = (
@@ -330,7 +338,7 @@ class PurchaseService:
                     rows.append([InlineKeyboardButton(
                         text="Open in console",
                         url=f"{console}/#inventory",
-                        icon_custom_emoji_id=Icons.SHOP,
+                        icon_custom_emoji_id=Icons.PRODUCTS,
                     )])
                 low_stock_kb = InlineKeyboardMarkup(inline_keyboard=rows)
                 alert_text = (
@@ -344,6 +352,25 @@ class PurchaseService:
                     event="low_stock",
                     keyboard=low_stock_kb,
                 )
+
+    STOCK_ALERT_QUIET_SECONDS = 6 * 60 * 60
+
+    async def _stock_alert_is_due(self, product_id: Any, remaining: int) -> bool:
+        """One warning per product per quiet period, and one more when it hits zero.
+
+        The warning fires on every sale while stock sits at or below the threshold, so a
+        product falling from three to nothing used to send four messages. Selling out is
+        counted separately, because that is a different thing to know and must not be
+        swallowed by the warning that came before it."""
+        if self.rate_limits is None:
+            return True
+        scope = "stock-empty" if remaining == 0 else "stock-low"
+        try:
+            return not await self.rate_limits.consume(
+                scope, str(product_id), 1, self.STOCK_ALERT_QUIET_SECONDS)
+        except Exception:
+            logger.exception("Could not check the stock alert budget; alerting anyway")
+            return True
 
     # --- orders that are paid but not delivered ---
 

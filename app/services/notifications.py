@@ -83,15 +83,34 @@ class Notifier:
         if self._pending:
             await asyncio.wait(set(self._pending), timeout=timeout)
 
-    async def send(self, chat_id: int | str, text: str, keyboard: InlineKeyboardMarkup | None = None) -> bool:
+    async def send(self, chat_id: int | str, text: str, keyboard: InlineKeyboardMarkup | None = None,
+                   *, clears_after: int = 0) -> bool:
+        """Send a message, optionally one that takes itself away again.
+
+        ``clears_after`` is for the notices that say something happened rather than
+        carrying anything worth keeping: a payment confirmed, a purchase gone through.
+        The balance and the order are both somewhere better, and a chat that fills up
+        with them buries the messages that do matter. Anything a customer might need
+        later — credentials, a receipt — is sent without it."""
         if not self.bot or not chat_id:
             return False
         try:
-            await self.bot.send_message(chat_id=chat_id, text=text, reply_markup=keyboard)
+            message = await self.bot.send_message(chat_id=chat_id, text=text, reply_markup=keyboard)
+            if clears_after > 0:
+                self.in_background(self._clear_later(chat_id, message.message_id, clears_after))
             return True
         except Exception as exc:
             logger.warning("Could not send Telegram message to %s: %s", chat_id, type(exc).__name__)
             return False
+
+    async def _clear_later(self, chat_id: int | str, message_id: int, seconds: int) -> None:
+        """Telegram only lets a bot delete its own message for 48 hours; well within that."""
+        await asyncio.sleep(seconds)
+        try:
+            await self.bot.delete_message(chat_id=chat_id, message_id=message_id)
+        except Exception:
+            # Already gone, or the customer cleared the chat. Nothing to repair.
+            pass
 
     async def send_admin(self, text: str, event: str = "general", keyboard: InlineKeyboardMarkup | None = None) -> bool:
         """
