@@ -38,11 +38,10 @@ def build_welcome_text(store_name: str, support_handle: str, custom_text: str = 
             .replace("{store}", escape(store_name))
         )
         return prefix + formatted
-    default_text = (
-        f"{ICON_SPARKLES} Welcome to <b>{escape(store_name)}</b>!\n"
-        f"<i>YOUR DIGITAL PREMIUM SERVICES.</i>\n\n"
-        f"Please select an option from the keyboard menu below 👇"
-    )
+    # One line, because the console promises one line and the keyboard is already on
+    # screen: the tagline said nothing about this shop and the pointer named buttons
+    # the customer can see. Anyone who wants more writes their own in Settings.
+    default_text = f"{ICON_SPARKLES} Welcome to <b>{escape(store_name)}</b>!"
     return prefix + default_text
 
 

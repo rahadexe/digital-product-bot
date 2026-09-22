@@ -493,11 +493,11 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
       const storeName = values['store_name']?.trim() || 'Premium Haven';
       const placeholder =
         field.key === 'welcome_text'
-          ? `Welcome to ${storeName}`
+          ? `✨ Welcome to ${storeName}!`
           : field.placeholder;
       const hint =
         field.key === 'welcome_text'
-          ? `Default: "Welcome to ${storeName}". Admins can also set or reset this directly in Telegram using /setwelcome.`
+          ? `Default: "✨ Welcome to ${storeName}!". Admins can also set or reset this directly in Telegram using /setwelcome.`
           : field.hint;
 
       return (
