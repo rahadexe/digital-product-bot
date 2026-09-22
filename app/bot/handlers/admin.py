@@ -24,6 +24,7 @@ from app.bot.icons import (
     ICON_CROWN,
     ICON_DEPOSIT,
     ICON_ID,
+    ICON_KEY,
     ICON_MONEY,
     ICON_NOTE,
     ICON_ORDERS,
@@ -963,6 +964,51 @@ async def adm_cancel(query: CallbackQuery, state: FSMContext, services: Services
             await query.message.edit_reply_markup(reply_markup=None)
 
 
+def _format_deposit_card(deposit: dict, symbol: str) -> tuple[str, InlineKeyboardMarkup]:
+    cust_handle = f"@{html.escape(deposit['username'])}" if deposit.get("username") else "No username"
+    amount = f"{float(deposit['amount']):.2f} {symbol}"
+    method_name = html.escape(str(deposit.get("method_name") or "N/A"))
+    trx_id = html.escape(str(deposit.get("transaction_id") or "N/A"))
+    dep_id = deposit["id"]
+
+    text = (
+        f"{ICON_DEPOSIT} <b>Deposit Request #{dep_id}</b>\n\n"
+        f"{ICON_ACCOUNT} <b>Customer:</b> {cust_handle}\n"
+        f"{ICON_ID} <b>Customer ID:</b> <code>{deposit['tg_user_id']}</code>\n"
+        f"{ICON_DEPOSIT} <b>Method:</b> {method_name}\n"
+        f"{ICON_MONEY} <b>Amount:</b> <code>{amount}</code>\n"
+        f"{ICON_KEY} <b>TrxID:</b> <code>{trx_id}</code>"
+    )
+    if deposit.get("admin_note"):
+        text += f"\n⚠️ <b>Note:</b> <i>{html.escape(deposit['admin_note'])}</i>"
+
+    from app.core.config import get_settings
+    console = get_settings().console_url
+    rows = [[
+        InlineKeyboardButton(
+            text="Approve",
+            callback_data=f"adm_dep_ask_approve_{dep_id}",
+            style="success",
+            icon_custom_emoji_id=Icons.CONFIRM,
+        ),
+        InlineKeyboardButton(
+            text="Reject",
+            callback_data=f"adm_dep_ask_reject_{dep_id}",
+            style="danger",
+            icon_custom_emoji_id=Icons.CROSS,
+        ),
+    ]]
+    if console:
+        rows.append([
+            InlineKeyboardButton(
+                text="Open in Console",
+                url=f"{console}/#deposits",
+                icon_custom_emoji_id=Icons.DEPOSIT,
+            )
+        ])
+    return text, InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 async def _deposit_summary(services: Services, deposit_id: int) -> dict | None:
     async with services.db.connect() as conn:
         row = await conn.fetchrow(
@@ -991,34 +1037,66 @@ async def adm_deposit_ask(query: CallbackQuery, services: Services):
     symbol = html.escape(await services.settings.get("currency_symbol"))
     cust_handle = f"@{html.escape(deposit['username'])}" if deposit.get("username") else "No username"
     amount = f"{float(deposit['amount']):.2f} {symbol}"
+    method_name = html.escape(str(deposit.get("method_name") or "N/A"))
+    trx_id = html.escape(str(deposit.get("transaction_id") or "N/A"))
+
     if action == "approve":
         text = (
             f"{ICON_WARNING} <b>Confirm Deposit Approval</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"👤 <b>Customer:</b> {cust_handle}\n"
-            f"🆔 <b>Customer ID:</b> <code>{deposit['tg_user_id']}</code>\n"
-            f"💵 <b>Amount:</b> <code>{amount}</code>\n"
-            f"🔐 <b>TrxID:</b> <code>{html.escape(str(deposit['transaction_id']))}</code>\n\n"
+            f"{ICON_ACCOUNT} <b>Customer:</b> {cust_handle}\n"
+            f"{ICON_ID} <b>Customer ID:</b> <code>{deposit['tg_user_id']}</code>\n"
+            f"{ICON_DEPOSIT} <b>Method:</b> {method_name}\n"
+            f"{ICON_MONEY} <b>Amount:</b> <code>{amount}</code>\n"
+            f"{ICON_KEY} <b>TrxID:</b> <code>{trx_id}</code>\n\n"
             f"<i>Check money arrived before approving.</i>"
         )
         keyboard = InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text=f"Confirm ({amount})", callback_data=f"adm_dep_do_approve_{raw_id}", style="success", icon_custom_emoji_id=Icons.CHECK),
-            InlineKeyboardButton(text="Cancel", callback_data="adm_cancel", style="primary", icon_custom_emoji_id=Icons.BACK),
+            InlineKeyboardButton(text="Confirm", callback_data=f"adm_dep_do_approve_{raw_id}", style="success", icon_custom_emoji_id=Icons.CONFIRM),
+            InlineKeyboardButton(text="Back", callback_data=f"adm_dep_back_{raw_id}", style="primary", icon_custom_emoji_id=Icons.BACK),
         ]])
     else:
         text = (
             f"{ICON_WARNING} <b>Confirm Deposit Rejection</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
-            f"👤 <b>Customer:</b> {cust_handle}\n"
-            f"🆔 <b>Customer ID:</b> <code>{deposit['tg_user_id']}</code>\n"
-            f"💵 <b>Amount:</b> <code>{amount}</code>\n\n"
+            f"{ICON_ACCOUNT} <b>Customer:</b> {cust_handle}\n"
+            f"{ICON_ID} <b>Customer ID:</b> <code>{deposit['tg_user_id']}</code>\n"
+            f"{ICON_DEPOSIT} <b>Method:</b> {method_name}\n"
+            f"{ICON_MONEY} <b>Amount:</b> <code>{amount}</code>\n"
+            f"{ICON_KEY} <b>TrxID:</b> <code>{trx_id}</code>\n\n"
             f"<i>Customer will be told it could not be verified.</i>"
         )
         keyboard = InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text="Confirm Reject", callback_data=f"adm_dep_do_reject_{raw_id}", style="danger", icon_custom_emoji_id=Icons.CROSS),
-            InlineKeyboardButton(text="Cancel", callback_data="adm_cancel", style="primary", icon_custom_emoji_id=Icons.BACK),
+            InlineKeyboardButton(text="Confirm", callback_data=f"adm_dep_do_reject_{raw_id}", style="danger", icon_custom_emoji_id=Icons.CROSS),
+            InlineKeyboardButton(text="Back", callback_data=f"adm_dep_back_{raw_id}", style="primary", icon_custom_emoji_id=Icons.BACK),
         ]])
 
+    with suppress(TelegramBadRequest):
+        await query.answer()
+    if query.message:
+        with suppress(TelegramBadRequest):
+            await query.message.edit_text(text, reply_markup=keyboard)
+
+
+@router.callback_query(F.data.startswith("adm_dep_back_"))
+async def adm_dep_back(query: CallbackQuery, services: Services):
+    if await _deny(query, services):
+        return
+    raw_id = query.data.removeprefix("adm_dep_back_")
+    if not raw_id.isdigit():
+        return
+    deposit = await _deposit_summary(services, int(raw_id))
+    if not deposit:
+        with suppress(TelegramBadRequest):
+            await query.answer("That deposit no longer exists.", show_alert=True)
+        return
+    if deposit["status"] != "pending":
+        with suppress(TelegramBadRequest):
+            await query.answer(f"Already {deposit['status']}.", show_alert=True)
+        return
+
+    symbol = html.escape(await services.settings.get("currency_symbol"))
+    text, keyboard = _format_deposit_card(deposit, symbol)
     with suppress(TelegramBadRequest):
         await query.answer()
     if query.message:
@@ -1034,6 +1112,12 @@ async def adm_deposit_do(query: CallbackQuery, services: Services):
     deposit_id = int(raw_id)
     by = query.from_user.id if query.from_user else 0
 
+    deposit = await _deposit_summary(services, deposit_id)
+    if not deposit:
+        with suppress(TelegramBadRequest):
+            await query.answer("That deposit no longer exists.", show_alert=True)
+        return
+
     if action == "approve":
         ok, message, _ = await services.deposits.approve(deposit_id, f"Approved from Telegram by {by}")
     else:
@@ -1042,13 +1126,34 @@ async def adm_deposit_do(query: CallbackQuery, services: Services):
     with suppress(TelegramBadRequest):
         await query.answer(message[:180], show_alert=not ok)
     if query.message:
-        icon = ICON_CHECK if ok else ICON_CROSS
-        verb = "Credited" if action == "approve" else "Rejected"
-        line = f"{icon} <b>Deposit #{deposit_id} {verb.lower()}</b>" if ok else f"{ICON_CROSS} <b>Deposit #{deposit_id}</b>"
-        with suppress(TelegramBadRequest):
-            await query.message.edit_text(
-                f"{line}\n━━━━━━━━━━━━━━━━━━\n{html.escape(message)}", reply_markup=None
+        symbol = html.escape(await services.settings.get("currency_symbol"))
+        cust_handle = f"@{html.escape(deposit['username'])}" if deposit.get("username") else "No username"
+        amount = f"{float(deposit['amount']):.2f} {symbol}"
+        method_name = html.escape(str(deposit.get("method_name") or "N/A"))
+        trx_id = html.escape(str(deposit.get("transaction_id") or "N/A"))
+
+        if ok:
+            header = (
+                f"{ICON_CHECK} <b>Deposit #{deposit_id} Approved</b>"
+                if action == "approve"
+                else f"{ICON_CROSS} <b>Deposit #{deposit_id} Rejected</b>"
             )
+        else:
+            header = f"{ICON_WARNING} <b>Deposit #{deposit_id}</b>"
+
+        text = (
+            f"{header}\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{ICON_ACCOUNT} <b>Customer:</b> {cust_handle}\n"
+            f"{ICON_ID} <b>Customer ID:</b> <code>{deposit['tg_user_id']}</code>\n"
+            f"{ICON_DEPOSIT} <b>Method:</b> {method_name}\n"
+            f"{ICON_MONEY} <b>Amount:</b> <code>{amount}</code>\n"
+            f"{ICON_KEY} <b>TrxID:</b> <code>{trx_id}</code>\n"
+            f"━━━━━━━━━━━━━━━━━━\n\n"
+            f"<i>{html.escape(message)}</i>"
+        )
+        with suppress(TelegramBadRequest):
+            await query.message.edit_text(text, reply_markup=None)
 
 
 @router.callback_query(F.data.regexp(r"^adm_ord_deliver_\d+$"))
