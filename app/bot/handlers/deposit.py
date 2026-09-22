@@ -173,12 +173,10 @@ async def ask_instant_amount(query: CallbackQuery, state: FSMContext, services: 
     await state.set_state(DepositStates.waiting_for_instant_amount)
     if query.message:
         text = (
-            f"{ICON_LIGHTNING} <b>{escape(instant['label'])}</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"{ICON_WARNING} <b>সর্বনিম্ন ডিপোজিট:</b> <code>{price(symbol, instant['min_amount'], show_usd=False)}</code>\n"
-            f"━━━━━━━━━━━━━━━━━━\n\n"
-            f"{ICON_MONEY} <b>কত টাকা ডিপোজিট করতে চান তা নিচে লিখুন:</b>\n"
-            f"💡 <i>(টাকায় লিখবেন, যেমন: 100)</i>"
+            f"{ICON_LIGHTNING} <b>{escape(instant['label'])}</b>\n\n"
+            f"Minimum: {price(symbol, instant['min_amount'], show_usd=False)}\n\n"
+            f"{ICON_MONEY} <b>কত টাকা ডিপোজিট করবেন, তা লিখুন:</b>\n"
+            f"💡 <i>(যেমন: 100)</i>"
         )
         with suppress(TelegramBadRequest):
             await query.message.edit_text(
