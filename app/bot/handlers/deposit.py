@@ -170,18 +170,21 @@ async def ask_instant_amount(query: CallbackQuery, state: FSMContext, services: 
     with suppress(TelegramBadRequest):
         await query.answer()
     symbol = await services.settings.get("currency_symbol")
-    usd_rate = await services.settings.number("usd_rate")
-    show_usd = await services.settings.flag("show_usd_price")
     await state.set_state(DepositStates.waiting_for_instant_amount)
     if query.message:
+        text = (
+            f"{ICON_LIGHTNING} <b>{escape(instant['label'])}</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{ICON_WARNING} <b>সর্বনিম্ন ডিপোজিট:</b> <code>{price(symbol, instant['min_amount'], show_usd=False)}</code>\n"
+            f"━━━━━━━━━━━━━━━━━━\n\n"
+            f"{ICON_MONEY} <b>কত টাকা ডিপোজিট করতে চান তা নিচে লিখুন:</b>\n"
+            f"💡 <i>(টাকায় লিখবেন, যেমন: 100)</i>"
+        )
         with suppress(TelegramBadRequest):
             await query.message.edit_text(
-                f"{ICON_LIGHTNING} <b>{escape(instant['label'])}</b>\n"
-                f"Minimum {price(symbol, instant['min_amount'], usd_rate=usd_rate, show_usd=show_usd)}\n\n"
-                "Enter amount to deposit (e.g. <code>100</code>):",
+                text,
                 reply_markup=get_cancel_keyboard(),
             )
-
 
 
 def _instant_keyboard(invoice: dict) -> InlineKeyboardMarkup:
@@ -210,9 +213,7 @@ async def create_instant_payment(message: Message, state: FSMContext, services: 
         await message.answer(f"{ICON_WARNING} {escape(str(exc))}", reply_markup=get_cancel_keyboard())
         return
     symbol = await services.settings.get("currency_symbol")
-    usd_rate = await services.settings.number("usd_rate")
-    show_usd = await services.settings.flag("show_usd_price")
-    formatted_amount = price(symbol, invoice["pay_amount"], usd_rate=usd_rate, show_usd=show_usd)
+    formatted_amount = price(symbol, invoice["pay_amount"], show_usd=False)
     ref = escape(str(invoice.get("reference") or invoice.get("id") or ""))
     ref_suffix = f" #{ref}" if ref else ""
     await message.answer(
@@ -220,8 +221,7 @@ async def create_instant_payment(message: Message, state: FSMContext, services: 
         f"{ICON_MONEY} <b>Payable Amount:</b> <code>{formatted_amount}</code>\n"
         f"{ICON_LIGHTNING} <b>Method:</b> Instant Auto Gateway\n"
         f"{ICON_TIMER} <b>Status:</b> Waiting for Payment\n\n"
-        f"🇬🇧 Tap the <b>Pay</b> button below to open the payment page. You can complete payment using any preferred method (bKash, Nagad, Rocket, Cards), and your balance will be added automatically.\n\n"
-        f"🇧🇩 নিচের <b>Pay</b> বাটনে ট্যাপ করলে পেমেন্ট পেজে নিয়ে যাবে। সেখান থেকে আপনার পছন্দ অনুযায়ী যেকোনো মেথডে (bKash, Nagad, Rocket ইত্যাদি) পেমেন্ট সম্পন্ন করতে পারবেন এবং অটোমেটিক ব্যালেন্স যুক্ত হয়ে যাবে।",
+        f"🇧🇩 নিচের <b>Pay</b> বাটনে ক্লিক করে পেমেন্ট সম্পন্ন করুন (bKash, Nagad, Rocket ইত্যাদি দিয়ে পেমেন্ট করা যাবে)। পেমেন্ট সফল হলে সাথে সাথে অটোমেটিক ব্যালেন্স যোগ হয়ে যাবে।",
         reply_markup=_instant_keyboard(invoice),
     )
 
