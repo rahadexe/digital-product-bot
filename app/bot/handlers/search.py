@@ -27,6 +27,31 @@ MAX_TERM = 64
 RESULTS = 8
 
 
+async def prompt_search(message: Message, state: FSMContext, services: Services) -> None:
+    """What the Search button does: say that typing is the search.
+
+    No conversation state is started. The next thing they type falls through to the
+    handler below exactly as it would have anyway, so tapping the button and simply
+    typing lead to the same place."""
+    await state.clear()
+    categories = await services.catalog.categories(active_only=True)
+    examples = ", ".join(c["name"].strip()[:18] for c in categories[:3]) or "Netflix, VPN"
+    await message.answer(
+        f"{ICON_SHOP} <b>Find a Product</b>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"Type what you are looking for.\n\n"
+        f"<i>Try: {escape(examples)}</i>\n"
+        f"<i>বাংলায় লিখলেও খুঁজে পাবেন।</i>\n\n"
+        f"Send /cancel to abort.",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
+        ]]))
+
+
+@router.message(F.text.in_({"Search Products", "Search"}))
+async def search_button(message: Message, state: FSMContext, services: Services) -> None:
+    await prompt_search(message, state, services)
+
 @router.message(F.text)
 async def search_products(message: Message, state: FSMContext, services: Services) -> None:
     if await state.get_state() is not None:

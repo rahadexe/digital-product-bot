@@ -25,6 +25,8 @@ NAVIGATION_TEXTS = {
     "Other Product": "other_products",
     "Premium Products": "other_products",
     "Mail Box": "mailbox",
+    "Search Products": "search",
+    "Search": "search",
     "Add Balance": "deposit",
     "Refer & Earn": "referral",
     "My Profile": "account",
@@ -110,7 +112,7 @@ def is_navigation(text: str) -> bool:
 async def navigate(text: str, message: Message, state: FSMContext, services: Services) -> None:
     """Leave the current conversation and run the action behind a menu button or command."""
     # Imported here because every handler module imports this one.
-    from app.bot.handlers import deposit, help_guide, profile, shop, start
+    from app.bot.handlers import deposit, help_guide, profile, search, shop, start
 
     await state.clear()
     action = NAVIGATION_TEXTS.get(text) or COMMAND_ACTIONS.get(text.split()[0].split("@")[0], "start")
@@ -136,6 +138,7 @@ async def navigate(text: str, message: Message, state: FSMContext, services: Ser
         "premium": "shop.show_other_products_hub",
         "referral": "profile.show_referral_info",
         "reseller": "profile.show_reseller_info",
+        "search": "search.prompt_search",
         "shop": "shop.show_shop_entry",
         "deposit": "deposit.show_deposit_methods",
         "account": "profile.show_user_profile",
@@ -145,7 +148,7 @@ async def navigate(text: str, message: Message, state: FSMContext, services: Ser
         "channel": "help_guide.show_channel_info",
     }
     modules = {"shop": shop, "profile": profile, "deposit": deposit,
-               "help_guide": help_guide, "start": start}
+               "help_guide": help_guide, "start": start, "search": search}
     target = handlers.get(action)
     handler = None
     if target:

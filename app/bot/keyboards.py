@@ -52,20 +52,20 @@ def get_persistent_reply_keyboard(
     for i in range(0, len(cat_buttons), 2):
         rows.append(cat_buttons[i : i + 2])
 
-    # System rows
-    rows.append([
+    # Search sits with the shop buttons, where someone looking for a product already is.
+    # The rest are laid out as pairs rather than fixed rows, so none of them is ever left
+    # alone on a line of its own.
+    reseller_text = "Reseller Panel" if is_reseller else "Apply as a Reseller"
+    system_buttons = [
+        KeyboardButton(text="Search Products", style="primary", icon_custom_emoji_id=Icons.QUESTION),
         KeyboardButton(text="Add Balance", style="primary", icon_custom_emoji_id=Icons.DEPOSIT),
         KeyboardButton(text="Refer & Earn", style="success", icon_custom_emoji_id=Icons.REFER),
-    ])
-    rows.append([
         KeyboardButton(text="My Profile", style="primary", icon_custom_emoji_id=Icons.ACCOUNT),
         KeyboardButton(text="Support", style="primary", icon_custom_emoji_id=Icons.SUPPORT),
-    ])
-    reseller_text = "Reseller Panel" if is_reseller else "Apply as a Reseller"
-    rows.append([
         KeyboardButton(text=reseller_text, style="success", icon_custom_emoji_id=Icons.RESELLER),
-    ])
-
+    ]
+    for i in range(0, len(system_buttons), 2):
+        rows.append(system_buttons[i : i + 2])
     return ReplyKeyboardMarkup(
         keyboard=rows,
         resize_keyboard=True,
