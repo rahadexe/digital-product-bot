@@ -206,7 +206,7 @@ class BinanceDepositService:
                 {
                     "id": m["id"],
                     "name": m["name"],
-                    "kind": "Binance Pay" if m["auto_verify"] == PAY_PROVIDER else "On-chain",
+                    "kind": "Binance" if m["auto_verify"] == PAY_PROVIDER else "On-chain",
                     "network": m["auto_verify_network"] or ("Binance ID" if m["auto_verify"] == PAY_PROVIDER else "any"),
                     "is_active": m["is_active"],
                 }
@@ -440,7 +440,7 @@ class BinanceDepositService:
                 received=received,
                 coin=coin,
                 transaction_id=transaction_id,
-                note=f"Confirmed on Binance Pay: {received:g} {coin} (Order: {order_id}, Payer: {payer_num})",
+                note=f"Confirmed on Binance: {received:g} {coin} (Order: {order_id}, Payer: {payer_num})",
                 notify_customer=notify_customer,
             )
         return {

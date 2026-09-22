@@ -324,14 +324,22 @@ async def handle_deposit_method_select(query: CallbackQuery, state: FSMContext, 
         name_line = f"<b>Binance Name:</b> <code>{escape(binance_name)}</code>\n" if binance_name else ""
 
         text = (
-            f"{ICON_BINANCE} <b>Binance Pay Deposit</b>\n\n"
-            f"<b>Pay ID:</b> <code>{escape(pay_id)}</code>\n"
-            f"{name_line}\n"
-            f"1️⃣ Send any USDT amount to the Pay ID above\n"
-            f"2️⃣ Paste your Order ID below\n\n"
-            f"❗️ <i>Only up to 3 decimal places will be credited to your wallet.</i>\n\n"
-            f"🥷 <i>Only payments started after opening this screen and completed within 30 minutes will be credited.</i>\n\n"
-            f"<b>Please send your Order ID below:</b>"
+            f"{ICON_BINANCE} <b>Binance Deposit</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{ICON_ID} <b>Binance ID:</b> <code>{escape(pay_id)}</code>\n"
+            f"{name_line}"
+            f"━━━━━━━━━━━━━━━━━━\n\n"
+            f"📋 <b>পেমেন্ট করার ধাপসমূহ:</b>\n"
+            f"১️⃣ প্রথমে <b>Binance</b> অ্যাপে ঢুকুন।\n"
+            f"২️⃣ এরপর নিচের <b>Assets</b> (বা Wallets) সেকশনে যান।\n"
+            f"৩️⃣ <b>Assets</b> থেকে <b>Send</b>-এ ক্লিক করুন।\n"
+            f"৪️⃣ কারেন্সি হিসেবে <b>USDT</b> সিলেক্ট করুন।\n"
+            f"৫️⃣ এরপর <b>Send to a Binance User</b> (বা Send via ID)-এ ক্লিক করুন।\n"
+            f"৬️⃣ উপরে দেওয়া <b>Binance ID</b>-টি দিন এবং অ্যামাউন্ট বসান।\n"
+            f"৭️⃣ সবকিছু চেক করে পেমেন্ট <b>Confirm</b> করে দিন।\n"
+            f"━━━━━━━━━━━━━━━━━━\n\n"
+            f"💡 <i>কনফার্ম করার পর সেখানে একটি <b>Order ID</b> পাওয়া যাবে, সেই Order ID-টি কপি করে নিচে লিখে সেন্ড করুন। তাহলে এটি অটোমেটিক প্রসেস হয়ে ব্যালেন্স যোগ হবে।</i>\n\n"
+            f"👇 <b>নিচে আপনার Order ID লিখে সেন্ড করুন:</b>"
         )
         await state.set_state(DepositStates.waiting_for_binance_ref)
         await state.update_data(
@@ -404,13 +412,13 @@ async def binance_help_order_id_handler(query: CallbackQuery, state: FSMContext,
 
     text = (
         f"{ICON_QUESTION} <b>Where to find your Order ID?</b>\n\n"
-        f"1. Open the <b>Binance App</b> on your phone\n"
-        f"2. Tap <b>Pay</b> (top right or under Services)\n"
-        f"3. Tap the <b>Payment History</b> icon (top right corner)\n"
-        f"4. Select the payment you just sent to our Pay ID\n"
-        f"5. Look for <b>Order ID</b> (a 18-19 digit number)\n"
-        f"6. Tap the copy icon next to the Order ID and send it here in the chat!\n\n"
-        f"<i>Example Order ID: <code>454711565717520384</code></i>"
+        f"১️⃣ আপনার ফোনের <b>Binance App</b> ওপেন করুন।\n"
+        f"২️⃣ নিচের ডানপাশে <b>Assets</b> (বা Wallets) সেকশনে যান।\n"
+        f"৩️⃣ ওপরের ডানপাশে <b>History</b> (ঘড়ির মতো আইকন) এ ট্যাপ করুন।\n"
+        f"৪️⃣ আপনি এইমাত্র যে পেমেন্টটি পাঠিয়েছেন সেটিতে চাপ দিন।\n"
+        f"৫️⃣ সেখানে <b>Order ID</b> (১৮-১৯ সংখ্যার নাম্বার) দেখতে পাবেন।\n"
+        f"৬️⃣ Order ID-টির পাশে কপি বাটনে চাপ দিয়ে কপি করুন এবং নিচে সেন্ড করুন।\n\n"
+        f"💡 (যেমন: <code>454711565717520384</code>)"
     )
     back_target = f"dep_method_{method_id}" if method_id else "open_deposit"
     kb = InlineKeyboardMarkup(
@@ -586,10 +594,10 @@ async def process_binance_amount(message: Message, state: FSMContext, services: 
         f"{ICON_NOTE} <b>Payment Reference</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"↳ <b>Amount:</b> <b>{amount_num:g} USDT</b> (~{price(symbol, bdt_approx)})\n"
-        f"↳ <b>Binance UID:</b> <code>{escape(account_info)}</code>\n"
+        f"↳ <b>Binance ID:</b> <code>{escape(account_info)}</code>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"Enter your <b>Binance Pay Order ID</b> or your <b>Binance UID</b>:\n\n"
-        f"↳ <b>Order ID:</b> <code>454711565717520384</code> (from Pay receipt)\n"
+        f"Enter your <b>Binance Order ID</b> or your <b>Binance UID</b>:\n\n"
+        f"↳ <b>Order ID:</b> <code>454711565717520384</code>\n"
         f"↳ <b>Or Sender UID:</b> <code>580150694</code> (your Binance UID)",
         reply_markup=get_deposit_txid_keyboard(),
     )
@@ -607,8 +615,8 @@ async def process_binance_ref(message: Message, state: FSMContext, services: Ser
 
     if not TRANSACTION_ID_REGEX.fullmatch(clean_ref):
         await message.answer(
-            f"{ICON_CROSS} Invalid reference format. Please enter a valid Binance Pay Order ID or sender Binance UID:\n\n"
-            f"<i>Example: <code>454711565717520384</code> or <code>580150694</code></i>",
+            f"{ICON_CROSS} Invalid reference format. Please enter a valid Binance Order ID or sender Binance UID:\n\n"
+            f"<i>💡 (যেমন: <code>454711565717520384</code>)</i>",
             reply_markup=get_deposit_txid_keyboard(),
         )
         return
@@ -643,7 +651,7 @@ async def claim_binance_payment(
     status_msg = await message.answer(
         f"{ICON_TIMER} <b>Verifying Binance payment...</b>\n\n"
         f"<b>Reference:</b> <code>{escape(ref)}</code>\n\n"
-        f"<i>Checking Binance Pay records, please wait...</i>"
+        f"<i>Checking Binance records, please wait...</i>"
     )
     try:
         result = await services.binance.claim(message.from_user.id, method_id, ref, expected_usdt=expected_usdt)

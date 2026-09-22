@@ -513,7 +513,7 @@ async def reseller_documentation_page(request: Request, services: ServicesDep):
         <div class="step-num">3</div>
         <div class="step-content">
           <h3>Top Up Your Wallet Balance</h3>
-          <p>Every purchase via the API deducts funds from your wallet balance at your discounted reseller rate. Deposit via bKash, Nagad, Binance Pay, or USDT inside the bot.</p>
+          <p>Every purchase via the API deducts funds from your wallet balance at your discounted reseller rate. Deposit via bKash, Nagad, Binance, or USDT inside the bot.</p>
         </div>
       </div>
     </div>
