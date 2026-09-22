@@ -27,6 +27,23 @@ logger = logging.getLogger(__name__)
 ZINIPAY_TRX_API = "https://api.zinipay.com/v1/trx"
 
 
+def _readable(body: Any) -> bool:
+    """True when the body is something the error parsing below can read.
+
+    ZiniPay answers every failure with ``"data": null`` — not found, amount mismatch,
+    already used, out of credits, all of them. Requiring ``data`` to be an object threw
+    all of that away and reported "Malformed gateway response" instead, so the caller
+    never saw ``not_found`` and never waited for the receipt SMS to sync. A null payload
+    is a perfectly readable refusal; only a body that is not an object at all, or one
+    whose ``data`` is neither null nor an object, is beyond use here. Nothing is credited
+    on this relaxation: the success path still needs ``_matches_receipt`` to agree.
+    """
+    if not isinstance(body, dict):
+        return False
+    payload = body.get("data")
+    return payload is None or isinstance(payload, dict)
+
+
 def _matches_receipt(data: dict[str, Any], amount: float, transaction_id: str) -> bool:
     """A receipt must state what was paid and which transaction paid it.
 
@@ -125,7 +142,7 @@ class ZiniPayVerificationService:
             logger.warning("ZiniPay verify connection error: %s", exc)
             return {"ok": False, "reason": "connection_error", "message": f"Connection error: {exc}"}
 
-        if not isinstance(data, dict) or not isinstance(data.get('data', {}), dict):
+        if not _readable(data):
             return {'ok': False, 'reason': 'error', 'message': 'Malformed gateway response.'}
         # Handle successful verification
         is_success = bool(data.get("success") is True or data.get("status") is True or (status == 200 and data.get("data") and not data.get("error") and not data.get("code")))
@@ -192,7 +209,7 @@ class ZiniPayVerificationService:
             logger.warning("ZiniPay confirm connection error: %s", exc)
             return {"ok": False, "message": f"Connection error: {exc}"}
 
-        if not isinstance(data, dict) or not isinstance(data.get('data', {}), dict):
+        if not _readable(data):
             return {'ok': False, 'message': 'Malformed gateway confirmation.'}
         is_success = bool(data.get("success") is True or data.get("status") is True or (status == 200 and data.get("data") and not data.get("error") and not data.get("code")))
         if status == 200 and is_success:

@@ -44,7 +44,10 @@ STATUS_SUCCESS = 1
 LOOKBACK_DAYS = 7
 # A payment is credited only when it arrived shortly before the customer claimed it. Someone copying an old
 # transaction from a block explorer (or the shop's own transfers into Binance) is sent to the admin instead.
-PAID_BEFORE_CLAIM_HOURS = 24
+# Three days rather than one: a customer who pays at night and comes back after the weekend is making an
+# honest claim, and one day turned that into a manual ticket. What stops a payment being claimed twice is
+# _already_credited, not this window; this only keeps genuinely old history out of an automatic credit.
+PAID_BEFORE_CLAIM_HOURS = 72
 MAX_CHECKS_PER_RUN = 20
 # Networks Binance names for the chains customers use for USDT.
 NETWORKS = {"TRX": "TRC20", "BSC": "BEP20", "ETH": "ERC20"}
@@ -392,9 +395,10 @@ class BinanceDepositService:
     ) -> dict[str, Any]:
         """Binance Pay: matching by Binance UID, Counterparty ID, Order ID, or Transaction ID."""
         reference = str(deposit["transaction_id"]).strip().lower()
+        history = await client.pay_transactions(start_time=self._since())
         arrivals = [
             row
-            for row in await client.pay_transactions(start_time=self._since())
+            for row in history
             if str(row.get("orderType") or "").upper() in PAY_INCOMING
             and money(row.get("amount") or 0) > 0
             and str(row.get("currency") or "").upper() == coin.upper()
@@ -406,7 +410,7 @@ class BinanceDepositService:
         # customer to wait a minute for a payment they made last week helps nobody.
         stale = [
             row
-            for row in await client.pay_transactions(start_time=self._since())
+            for row in history
             if reference in {str(row.get("orderId") or "").strip().lower(),
                              str(row.get("transactionId") or "").strip().lower()}
             and not self._arrived_in_time(deposit, row.get("transactionTime"))
