@@ -417,6 +417,16 @@ class DepositService:
             )
         return [dict(row) for row in rows]
 
+    async def get_for_customer(self, tg_user_id: int, deposit_id: int) -> dict[str, Any] | None:
+        """Fetch a specific deposit belonging to a customer."""
+        async with self.db.connect() as conn:
+            row = await conn.fetchrow(
+                f"SELECT {CUSTOMER_DEPOSIT_COLUMNS} FROM deposits WHERE tg_user_id = $1 AND id = $2",
+                tg_user_id,
+                deposit_id,
+            )
+            return dict(row) if row else None
+
     async def count_for_user(self, tg_user_id: int) -> int:
         """Total deposit requests submitted by a user."""
         async with self.db.connect() as conn:

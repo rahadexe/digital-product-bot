@@ -798,6 +798,16 @@ DEPOSIT_STATUS_BADGES = {
 }
 
 
+@router.message(F.text.in_({
+    "Balance History",
+    "balance history",
+    "📊 Balance History",
+    "ব্যালেন্স হিস্ট্রি",
+    "লেনদেন হিস্ট্রি",
+    "লেনদেন",
+}))
+@router.message(F.text.casefold() == "balance history")
+@router.message(F.text.casefold() == "deposit history")
 @router.callback_query(F.data == "open_deposits")
 @router.callback_query(F.data.startswith("open_deposits_dep_"))
 @router.callback_query(F.data.startswith("dep_page_"))
@@ -822,7 +832,7 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
                 dep_id_ref = int(parts[1])
 
     total_count = await services.deposits.count_for_user(tg_user.id)
-    total_pages = max(1, (total_count + DEPOSITS_PAGE_SIZE - 1) // DEPOSITS_PAGE_SIZE) if total_count > 0 else 1
+    total_pages = max(1, math.ceil(total_count / DEPOSITS_PAGE_SIZE)) if total_count > 0 else 1
     page = min(page, total_pages)
     offset = (page - 1) * DEPOSITS_PAGE_SIZE
 
@@ -837,44 +847,49 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
             f"{ICON_STATS} <b>Balance History</b>\n\n"
             f"<i>You have no balance transaction records yet.</i>"
         )
-        if dep_id_ref:
-            keyboard = InlineKeyboardMarkup(
-                inline_keyboard=[[
-                    InlineKeyboardButton(text="Back", callback_data=back_cb, style="danger", icon_custom_emoji_id=Icons.BACK),
-                ]]
-            )
-        else:
-            keyboard = InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [
-                        InlineKeyboardButton(text="Add Balance", callback_data="open_deposit_from_history", style="success", icon_custom_emoji_id=Icons.DEPOSIT),
-                        InlineKeyboardButton(text="Back", callback_data=back_cb, style="danger", icon_custom_emoji_id=Icons.BACK),
-                    ],
-                ]
-            )
+        buttons = []
+        if not dep_id_ref:
+            buttons.append([
+                InlineKeyboardButton(text="Add Balance", callback_data="open_deposit_from_history", style="success", icon_custom_emoji_id=Icons.DEPOSIT),
+            ])
+        buttons.append([
+            InlineKeyboardButton(text="Back", callback_data=back_cb, style="primary", icon_custom_emoji_id=Icons.BACK),
+            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
+        ])
+        keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
     else:
         page_suffix = f" (Page {page}/{total_pages})" if total_pages > 1 else ""
-        text = f"{ICON_STATS} <b>Balance History{page_suffix}</b>\n\n"
-        items = []
-        for deposit in deposits:
-            created = deposit["created_at"]
-            date = created.strftime("%Y-%m-%d %H:%M") if isinstance(created, datetime) else str(created)[:16]
-            status_badge = DEPOSIT_STATUS_BADGES.get(deposit["status"], f"<b>{escape(str(deposit['status']).title())}</b>")
-            entry = (
-                f"{ICON_DEPOSIT} <b>#{deposit['id']}</b> · <code>{price(symbol, deposit['amount'], usd_rate=usd_rate, show_usd=show_usd)}</code> · <b>{escape(deposit['method_name'])}</b>\n"
-                f"↳ {status_badge} · <code>{date}</code>"
-            )
-            if deposit["status"] == "rejected" and deposit.get("admin_note"):
-                entry += f"\n   <i>Note: {escape(deposit['admin_note'])}</i>"
-            items.append(entry)
-        text += "\n\n".join(items)
+        text = f"{ICON_STATS} <b>Balance History{page_suffix}</b>"
 
         def page_cb(p: int) -> str:
             return f"dep_page_{p}_{dep_id_ref}" if dep_id_ref else f"dep_page_{p}"
 
         buttons = []
+        for deposit in deposits:
+            price_str = format_dual_price(deposit["amount"], symbol, usd_rate=usd_rate, show_usd=show_usd)
+            method = deposit["method_name"].strip()
+            max_method_len = max(10, 58 - len(str(deposit['id'])) - len(price_str) - 6)
+            method_short = method[:max_method_len].strip()
+            label = f"#{deposit['id']} · {method_short} · {price_str}"
+
+            if deposit["status"] == "approved":
+                status_icon = Icons.CHECK
+            elif deposit["status"] == "pending":
+                status_icon = Icons.TIMER
+            else:
+                status_icon = Icons.CROSS
+
+            cb_data = f"vdep_{deposit['id']}_{page}_{dep_id_ref or 0}"
+            buttons.append([
+                InlineKeyboardButton(
+                    text=label[:64],
+                    callback_data=cb_data,
+                    style="primary",
+                    icon_custom_emoji_id=status_icon,
+                )
+            ])
+
         if total_pages > 1:
-            nav_row = []
             if page == 1:
                 nav_row = [
                     InlineKeyboardButton(text="Refresh", callback_data=page_cb(page), style="success", icon_custom_emoji_id=Icons.REFRESH),
@@ -894,19 +909,122 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
                     InlineKeyboardButton(text="Next", callback_data=page_cb(page + 1), style="primary", icon_custom_emoji_id=Icons.NEXT),
                 ]
             buttons.append(nav_row)
-
-        if dep_id_ref:
-            buttons.append([
-                InlineKeyboardButton(text="Back", callback_data=back_cb, style="danger", icon_custom_emoji_id=Icons.BACK),
-            ])
         else:
             buttons.append([
-                InlineKeyboardButton(text="Add Balance", callback_data="open_deposit_from_history", style="success", icon_custom_emoji_id=Icons.DEPOSIT),
-                InlineKeyboardButton(text="Back", callback_data=back_cb, style="danger", icon_custom_emoji_id=Icons.BACK),
+                InlineKeyboardButton(text="Refresh", callback_data=page_cb(1), style="success", icon_custom_emoji_id=Icons.REFRESH),
             ])
+
+        if not dep_id_ref:
+            buttons.append([
+                InlineKeyboardButton(text="Add Balance", callback_data="open_deposit_from_history", style="success", icon_custom_emoji_id=Icons.DEPOSIT),
+            ])
+        buttons.append([
+            InlineKeyboardButton(text="Back", callback_data=back_cb, style="primary", icon_custom_emoji_id=Icons.BACK),
+            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
+        ])
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
     await respond(event, text, keyboard)
+
+
+@router.callback_query(F.data.startswith("vdep_"))
+async def view_deposit_detail(query: CallbackQuery, state: FSMContext, services: Services):
+    await state.clear()
+    raw = query.data.removeprefix("vdep_")
+    parts = raw.split("_")
+    deposit_id = int(parts[0]) if parts and parts[0].isdigit() else None
+    page = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 1
+    dep_id_ref = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() and int(parts[2]) > 0 else None
+
+    if not deposit_id:
+        with suppress(TelegramBadRequest):
+            await query.answer("Deposit record not found.", show_alert=True)
+        return
+
+    deposit = await services.deposits.get_for_customer(query.from_user.id, deposit_id)
+    if not deposit:
+        with suppress(TelegramBadRequest):
+            await query.answer("Deposit record not found.", show_alert=True)
+        return
+
+    with suppress(TelegramBadRequest):
+        await query.answer()
+    if not query.message:
+        return
+
+    symbol = await services.settings.get("currency_symbol")
+    usd_rate = await services.settings.number("usd_rate")
+    show_usd = await services.settings.flag("show_usd_price")
+
+    amount_str = format_dual_price(deposit["amount"], symbol, usd_rate=usd_rate, show_usd=show_usd)
+    created = deposit["created_at"]
+    date_str = created.strftime("%Y-%m-%d %H:%M") if isinstance(created, datetime) else str(created)[:16]
+
+    if deposit["status"] == "approved":
+        status_line = f"{ICON_CHECK} <b>Status:</b> <code>APPROVED</code>\n<i>Your payment was verified and balance was added to your account.</i>"
+    elif deposit["status"] == "rejected":
+        status_line = f"{ICON_CROSS} <b>Status:</b> <code>REJECTED</code>\n<i>This deposit request was rejected.</i>"
+        if deposit.get("admin_note"):
+            status_line += f"\n{ICON_NOTE} <b>Admin Note:</b> <i>{escape(deposit['admin_note'])}</i>"
+    else:
+        status_line = f"{ICON_TIMER} <b>Status:</b> <code>PENDING REVIEW</code>\n<i>Your payment submission is being reviewed by our team.</i>"
+
+    text = (
+        f"{ICON_STATS} <b>Deposit #{deposit['id']} Details</b>\n\n"
+        f"{status_line}\n\n"
+        f"{ICON_BALANCE} <b>Amount:</b> <code>{amount_str}</code>\n"
+        f"{ICON_ACCOUNT} <b>Method:</b> {escape(deposit['method_name'])}\n"
+        f"{ICON_KEY} <b>Transaction ID:</b> <code>{escape(deposit['transaction_id'])}</code>\n"
+        f"{ICON_TIMER} <b>Submitted:</b> <code>{date_str}</code>"
+    )
+
+    if deposit.get("reviewed_at"):
+        rev = deposit["reviewed_at"]
+        rev_str = rev.strftime("%Y-%m-%d %H:%M") if isinstance(rev, datetime) else str(rev)[:16]
+        rev_icon = ICON_CHECK if deposit["status"] == "approved" else ICON_CROSS
+        text += f"\n{rev_icon} <b>Reviewed:</b> <code>{rev_str}</code>"
+
+    back_to_history_cb = f"dep_page_{page}_{dep_id_ref}" if dep_id_ref else f"dep_page_{page}"
+
+    detail_buttons = []
+    trx_id = (deposit.get("transaction_id") or "").strip()
+    if trx_id:
+        detail_buttons.append([
+            InlineKeyboardButton(
+                text="Copy TrxID",
+                copy_text=CopyTextButton(text=trx_id),
+                style="primary",
+                icon_custom_emoji_id=Icons.KEY,
+            )
+        ])
+
+    if deposit["status"] == "rejected":
+        detail_buttons.append([
+            InlineKeyboardButton(
+                text="Add Balance",
+                callback_data="open_deposit_from_history",
+                style="success",
+                icon_custom_emoji_id=Icons.DEPOSIT,
+            )
+        ])
+
+    detail_buttons.append([
+        InlineKeyboardButton(
+            text="Back",
+            callback_data=back_to_history_cb,
+            style="primary",
+            icon_custom_emoji_id=Icons.BACK,
+        ),
+        InlineKeyboardButton(
+            text="Close",
+            callback_data="close_menu",
+            style="danger",
+            icon_custom_emoji_id=Icons.CLOSE,
+        ),
+    ])
+
+    with suppress(TelegramBadRequest):
+        await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=detail_buttons))
 
 
 
