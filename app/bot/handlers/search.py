@@ -38,10 +38,8 @@ async def prompt_search(message: Message, state: FSMContext, services: Services)
     examples = ", ".join(p["title"].strip()[:18] for p in products) if products else "Netflix, VPN"
     await message.answer(
         f"{ICON_SHOP} <b>Find a Product</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
         f"Type what you are looking for.\n\n"
-        f"<i>Try: {escape(examples)}</i>\n\n"
-        f"Send /cancel to abort.",
+        f"<i>Try: {escape(examples)}</i>",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
         ]]))
