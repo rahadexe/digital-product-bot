@@ -444,6 +444,31 @@ class DepositService:
         }
         return [dict(row) for row in rows], total, summary
 
+    async def cancel_awaiting_sms(self, deposit_id: int, tg_user_id: int) -> bool:
+        """The customer says they mistyped the TrxID, so stop waiting for a receipt that will never come.
+
+        Narrow on purpose: only their own deposit, only while it is still pending, and only
+        one the bot filed because the gateway had not seen the receipt yet. A deposit an
+        operator is in the middle of approving is not reachable from here.
+        """
+        async with self.db.transaction() as conn:
+            cancelled = await conn.fetchval(
+                "UPDATE deposits SET status='rejected', admin_note=$3, reviewed_at=now() "
+                "WHERE id=$1 AND tg_user_id=$2 AND status='pending' AND EXISTS ("
+                "  SELECT 1 FROM payment_verification_attempts a "
+                "  WHERE a.deposit_id=deposits.id AND a.status='awaiting_sms') RETURNING id",
+                deposit_id, tg_user_id, "Cancelled by the customer to correct the transaction ID.",
+            )
+            if cancelled:
+                await conn.execute(
+                    "UPDATE payment_verification_attempts SET status='review',"
+                    "note='Cancelled by the customer to correct the transaction ID.',updated_at=now() "
+                    "WHERE deposit_id=$1", deposit_id,
+                )
+                await record(conn, "deposit_cancelled_by_customer",
+                             f"Deposit #{deposit_id}: cancelled by the customer to correct the TrxID.")
+        return bool(cancelled)
+
     async def approve(
         self, deposit_id: int, admin_note: str = "", notify_customer: bool = True
     ) -> tuple[bool, str, dict[str, Any] | None]:

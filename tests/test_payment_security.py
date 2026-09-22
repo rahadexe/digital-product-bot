@@ -224,6 +224,109 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await self.balance(), 0.0)
         self.assertIsNone(await self.s.deposits.pending_for(CUSTOMER))
 
+    # ---- a receipt that arrives after the customer does -----------------------
+
+    async def _awaiting(self, amount=500, trx='TRX0000001'):
+        """Submit a TrxID the gateway has not seen yet."""
+        missing = {'success': False, 'code': 'REQUEST_FAILED', 'message': 'Transaction not found', 'data': None}
+        with patch.object(zinipay_module, 'SMS_SYNC_RETRY_DELAYS', (0.01,)):
+            await self.s.zinipay.http.aclose()
+            async with gateway(missing, 404) as client:
+                self.s.zinipay.http = client
+                return await self.s.zinipay.claim(CUSTOMER, self.method, amount, trx, quoted_rate=1.0)
+
+    async def _due_now(self, deposit_id):
+        async with self.db.connect() as conn:
+            await conn.execute("UPDATE deposits SET next_check_at=now()-interval '1 minute' WHERE id=$1", deposit_id)
+
+    async def test_a_receipt_still_in_transit_is_filed_not_refused(self):
+        """The bank SMS reaches the gateway after the customer submits the TrxID.
+
+        Telling them it does not exist, and spending one of three attempts on it, was
+        wrong about the most ordinary case there is.
+        """
+        result = await self._awaiting()
+        self.assertTrue(result.get('pending_sync'), result)
+        self.assertIsNone(result.get('error'), 'this is not the customer getting something wrong')
+        self.assertEqual(await self.balance(), 0.0, 'nothing is credited on no evidence')
+
+        pending = await self.s.deposits.pending_for(CUSTOMER)
+        self.assertIsNotNone(pending, 'the payment is on record so it cannot be lost')
+        async with self.db.connect() as conn:
+            state = await conn.fetchval('SELECT status FROM payment_verification_attempts WHERE deposit_id=$1',
+                                        result['deposit_id'])
+        self.assertEqual(state, 'awaiting_sms')
+
+    async def test_the_wallet_is_credited_once_the_receipt_lands(self):
+        result = await self._awaiting()
+        await self._due_now(result['deposit_id'])
+
+        arrived = {'success': True, 'data': {'id': 77, 'amount': 500, 'trxID': 'TRX0000001'}}
+        await self.s.zinipay.http.aclose()
+        async with gateway(arrived) as client:
+            self.s.zinipay.http = client
+            await self.s.zinipay.recover()
+
+        self.assertEqual(await self.balance(), 500.0, 'nobody had to touch this')
+        async with self.db.connect() as conn:
+            row = await conn.fetchrow('SELECT d.status, a.status AS attempt FROM deposits d '
+                                      'JOIN payment_verification_attempts a ON a.deposit_id=d.id WHERE d.id=$1',
+                                      result['deposit_id'])
+        self.assertEqual(row['status'], 'approved')
+        self.assertEqual(row['attempt'], 'completed')
+
+    async def test_a_receipt_that_never_arrives_goes_to_a_person(self):
+        result = await self._awaiting()
+        async with self.db.connect() as conn:
+            await conn.execute("UPDATE deposits SET next_check_at=now()-interval '1 minute' WHERE id=$1",
+                               result['deposit_id'])
+            await conn.execute("UPDATE payment_verification_attempts SET created_at=now()-interval '1 hour' "
+                               'WHERE deposit_id=$1', result['deposit_id'])
+
+        missing = {'success': False, 'code': 'REQUEST_FAILED', 'message': 'Transaction not found', 'data': None}
+        await self.s.zinipay.http.aclose()
+        async with gateway(missing, 404) as client:
+            self.s.zinipay.http = client
+            await self.s.zinipay.recover()
+
+        self.assertEqual(await self.balance(), 0.0)
+        async with self.db.connect() as conn:
+            row = await conn.fetchrow('SELECT d.status, d.admin_note, a.status AS attempt FROM deposits d '
+                                      'JOIN payment_verification_attempts a ON a.deposit_id=d.id WHERE d.id=$1',
+                                      result['deposit_id'])
+        self.assertEqual(row['status'], 'pending', 'still the customer money, waiting on a human')
+        self.assertEqual(row['attempt'], 'review')
+        self.assertIn('mistyped', row['admin_note'])
+
+    async def test_a_customer_can_take_back_a_mistyped_transaction_id(self):
+        result = await self._awaiting(trx='TRX0000OOPS')
+        self.assertTrue(await self.s.deposits.cancel_awaiting_sms(result['deposit_id'], CUSTOMER))
+        self.assertIsNone(await self.s.deposits.pending_for(CUSTOMER), 'they are free to submit the right one')
+
+        arrived = {'success': True, 'data': {'id': 77, 'amount': 500, 'trxID': 'TRX0000001'}}
+        await self.s.zinipay.http.aclose()
+        async with gateway(arrived) as client:
+            self.s.zinipay.http = client
+            second = await self.s.zinipay.claim(CUSTOMER, self.method, 500, 'TRX0000001', quoted_rate=1.0)
+        self.assertTrue(second.get('auto_verified'), second)
+        self.assertEqual(await self.balance(), 500.0)
+
+    async def test_nobody_else_can_cancel_your_deposit(self):
+        result = await self._awaiting()
+        self.assertFalse(await self.s.deposits.cancel_awaiting_sms(result['deposit_id'], INTRUDER))
+        self.assertIsNotNone(await self.s.deposits.pending_for(CUSTOMER))
+
+    async def test_an_approved_deposit_cannot_be_cancelled_from_the_button(self):
+        result = await self._awaiting()
+        await self._due_now(result['deposit_id'])
+        arrived = {'success': True, 'data': {'id': 77, 'amount': 500, 'trxID': 'TRX0000001'}}
+        await self.s.zinipay.http.aclose()
+        async with gateway(arrived) as client:
+            self.s.zinipay.http = client
+            await self.s.zinipay.recover()
+        self.assertFalse(await self.s.deposits.cancel_awaiting_sms(result['deposit_id'], CUSTOMER))
+        self.assertEqual(await self.balance(), 500.0)
+
     # ---- hosted invoices ------------------------------------------------------
 
     async def _invoice(self, amount=500):

@@ -447,17 +447,17 @@ async def handle_deposit_method_select(query: CallbackQuery, state: FSMContext, 
             f"{ICON_ID} <b>Binance ID:</b> <code>{escape(pay_id)}</code>\n"
             f"{name_line}"
             f"━━━━━━━━━━━━━━━━━━\n\n"
-            f"📋 <b>পেমেন্ট করার ধাপসমূহ:</b>\n"
-            f"১️⃣ প্রথমে <b>Binance</b> অ্যাপে ঢুকুন।\n"
-            f"২️⃣ এরপর নিচের <b>Assets</b> (বা Wallets) সেকশনে যান।\n"
-            f"৩️⃣ <b>Assets</b> থেকে <b>Send</b>-এ ক্লিক করুন।\n"
-            f"৪️⃣ কারেন্সি হিসেবে <b>USDT</b> সিলেক্ট করুন।\n"
-            f"৫️⃣ এরপর <b>Send to a Binance User</b> (বা Send via ID)-এ ক্লিক করুন।\n"
-            f"৬️⃣ উপরে দেওয়া <b>Binance ID</b>-টি দিন এবং অ্যামাউন্ট বসান।\n"
-            f"৭️⃣ সবকিছু চেক করে পেমেন্ট <b>Confirm</b> করে দিন।\n"
+            f"📋 <b>Step-by-Step Payment Guide:</b>\n"
+            f"1️⃣ Open the <b>Binance</b> app.\n"
+            f"2️⃣ Go to <b>Assets</b> (or <b>Wallets</b>) at the bottom.\n"
+            f"3️⃣ Tap <b>Send</b>.\n"
+            f"4️⃣ Select <b>USDT</b> as the cryptocurrency.\n"
+            f"5️⃣ Choose <b>Send to Binance User</b> (or <b>Send via Email / Phone / ID</b>).\n"
+            f"6️⃣ Enter the <b>Binance ID</b> above and input the amount.\n"
+            f"7️⃣ Review details and <b>Confirm</b> the payment.\n"
             f"━━━━━━━━━━━━━━━━━━\n\n"
-            f"💡 <i>কনফার্ম করার পর সেখানে একটি <b>Order ID</b> পাওয়া যাবে, সেই Order ID-টি কপি করে নিচে লিখে সেন্ড করুন। তাহলে এটি অটোমেটিক প্রসেস হয়ে ব্যালেন্স যোগ হবে।</i>\n\n"
-            f"👇 <b>নিচে আপনার Order ID লিখে সেন্ড করুন:</b>"
+            f"💡 <i>After confirmation, you will receive an <b>Order ID</b>. Copy and send the Order ID below to automatically verify and credit your balance.</i>\n\n"
+            f"👇 <b>Send your Binance Order ID below:</b>"
         )
         await state.set_state(DepositStates.waiting_for_binance_ref)
         await state.update_data(
@@ -530,13 +530,13 @@ async def binance_help_order_id_handler(query: CallbackQuery, state: FSMContext,
 
     text = (
         f"{ICON_QUESTION} <b>Where to find your Order ID?</b>\n\n"
-        f"১️⃣ আপনার ফোনের <b>Binance App</b> ওপেন করুন।\n"
-        f"২️⃣ নিচের ডানপাশে <b>Assets</b> (বা Wallets) সেকশনে যান।\n"
-        f"৩️⃣ ওপরের ডানপাশে <b>History</b> (ঘড়ির মতো আইকন) এ ট্যাপ করুন।\n"
-        f"৪️⃣ আপনি এইমাত্র যে পেমেন্টটি পাঠিয়েছেন সেটিতে চাপ দিন।\n"
-        f"৫️⃣ সেখানে <b>Order ID</b> (১৮-১৯ সংখ্যার নাম্বার) দেখতে পাবেন।\n"
-        f"৬️⃣ Order ID-টির পাশে কপি বাটনে চাপ দিয়ে কপি করুন এবং নিচে সেন্ড করুন।\n\n"
-        f"💡 (যেমন: <code>454711565717520384</code>)"
+        f"1️⃣ Open the <b>Binance App</b> on your phone.\n"
+        f"2️⃣ Tap <b>Assets</b> (or <b>Wallets</b>) at the bottom right.\n"
+        f"3️⃣ Tap the <b>History</b> icon (clock symbol) at the top right.\n"
+        f"4️⃣ Select the transfer you just sent.\n"
+        f"5️⃣ Look for the <b>Order ID</b> (an 18–19 digit number).\n"
+        f"6️⃣ Copy the <b>Order ID</b> and paste it here in the bot.\n\n"
+        f"💡 <i>(e.g., <code>454711565717520384</code>)</i>"
     )
     back_target = f"dep_method_{method_id}" if method_id else "open_deposit"
     kb = InlineKeyboardMarkup(
@@ -734,7 +734,7 @@ async def process_binance_ref(message: Message, state: FSMContext, services: Ser
     if not TRANSACTION_ID_REGEX.fullmatch(clean_ref):
         await message.answer(
             f"{ICON_CROSS} Invalid reference format. Please enter a valid Binance Order ID or sender Binance UID:\n\n"
-            f"<i>💡 (যেমন: <code>454711565717520384</code>)</i>",
+            f"<i>💡 (e.g., <code>454711565717520384</code>)</i>",
             reply_markup=get_deposit_txid_keyboard(),
         )
         return
@@ -754,6 +754,14 @@ async def process_binance_ref(message: Message, state: FSMContext, services: Ser
 async def _safe_edit_or_answer(status_msg: Message, user_msg: Message, text: str, reply_markup=None):
     try:
         await status_msg.edit_text(text, reply_markup=reply_markup)
+    except TelegramBadRequest as exc:
+        # Telegram refuses an edit that would change nothing. That is not a failure —
+        # what this call wanted to say is already on screen — but answering instead
+        # posted a second copy, so a three-step wait left the customer looking at the
+        # same card three times over.
+        if "message is not modified" in str(exc).lower():
+            return
+        await user_msg.answer(text, reply_markup=reply_markup)
     except Exception:
         await user_msg.answer(text, reply_markup=reply_markup)
 
@@ -1020,16 +1028,16 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             f"━━━━━━━━━━━━━━━━━━\n"
             f"<b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
             f"<b>Amount:</b> <code>{price(symbol, amount_num)}</code>\n\n"
-            f"<i>The bank SMS has not reached the gateway yet. Checking again — "
-            f"up to {int(total)} seconds. Please do not pay again.</i>"
+            f"<i>The bank SMS has not reached the gateway yet. Checking again "
+            f"({int(waited)}/{int(total)}s). Please do not pay again.</i>"
             if is_binance
             else
             f"{ICON_TIMER} <b>পেমেন্টের SMS-এর জন্য অপেক্ষা করা হচ্ছে...</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"<b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
             f"<b>Amount:</b> {price(symbol, amount_num, show_usd=False)}\n\n"
-            f"<i>ব্যাংকের SMS গেটওয়েতে পৌঁছাতে কিছুটা সময় লাগে। আবার চেক করা হচ্ছে — "
-            f"সর্বোচ্চ {int(total)} সেকেন্ড। অনুগ্রহ করে আবার টাকা পাঠাবেন না।</i>",
+            f"<i>ব্যাংকের SMS গেটওয়েতে পৌঁছাতে কিছুটা সময় লাগে। আবার চেক করা হচ্ছে "
+            f"({int(waited)}/{int(total)} সেকেন্ড)। অনুগ্রহ করে আবার টাকা পাঠাবেন না।</i>",
         )
 
     # If ZiniPay auto-verify is configured, attempt automated verification
@@ -1145,6 +1153,48 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                     f"↳ <b>Transaction ID:</b> <code>{escape(clean_tx)}</code>\n"
                     f"━━━━━━━━━━━━━━━━━━\n"
                     f"আপনার ওয়ালেটে স্বয়ংক্রিয়ভাবে টাকা যোগ হয়েছে। ধন্যবাদ!"
+                )
+            await _safe_edit_or_answer(status_msg, message, text, reply_markup=keyboard)
+            return
+
+        if res.get("pending_sync"):
+            # Not a failure and not the customer's mistake: the bank SMS is still on its
+            # way to the gateway. Nothing is counted against them and there is nothing to
+            # retype — the worker credits the wallet as soon as the receipt lands.
+            dep_id = res.get("deposit_id")
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="TrxID ভুল হয়েছে? ঠিক করুন",
+                                      callback_data=f"dep_fix_trx_{dep_id}",
+                                      style="primary", icon_custom_emoji_id=Icons.BACK)],
+                [InlineKeyboardButton(text="Deposit History",
+                                      callback_data=f"open_deposits_dep_{dep_id}" if dep_id else "open_deposits",
+                                      icon_custom_emoji_id=Icons.TIMER)],
+            ])
+            if is_binance:
+                text = (
+                    f"{ICON_TIMER} <b>Payment Received — Confirming</b>\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"↳ <b>Method:</b> {escape(method_name)}\n"
+                    f"↳ <b>Amount:</b> {price(symbol, amount_num)}\n"
+                    f"↳ <b>Transaction ID:</b> <code>{escape(clean_tx)}</code>\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"The receipt has not reached the gateway yet. We keep checking, and your "
+                    f"balance is added automatically as soon as it arrives — usually a minute or two.\n\n"
+                    f"{ICON_WARNING} <b>Please do not pay again.</b>"
+                )
+            else:
+                text = (
+                    f"{ICON_TIMER} <b>পেমেন্ট জমা হয়েছে — কনফার্ম করা হচ্ছে</b>\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"↳ <b>Method:</b> {escape(method_name)}\n"
+                    f"↳ <b>Amount:</b> {price(symbol, amount_num, show_usd=False)}\n"
+                    f"↳ <b>Transaction ID:</b> <code>{escape(clean_tx)}</code>\n"
+                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"আপনার SMS এখনো গেটওয়েতে পৌঁছায়নি। আমরা নিজে থেকেই বারবার চেক করছি — "
+                    f"SMS আসামাত্র <b>স্বয়ংক্রিয়ভাবে</b> আপনার ব্যালেন্সে টাকা যোগ হয়ে যাবে "
+                    f"(সাধারণত ১-২ মিনিট)।\n\n"
+                    f"{ICON_WARNING} <b>অনুগ্রহ করে আবার টাকা পাঠাবেন না।</b>\n"
+                    f"<i>TrxID ভুল লিখে থাকলে নিচের বাটনে চাপ দিয়ে ঠিক করে নিন।</i>"
                 )
             await _safe_edit_or_answer(status_msg, message, text, reply_markup=keyboard)
             return
@@ -1440,6 +1490,30 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
     )
 
 
+@router.callback_query(F.data.startswith("dep_fix_trx_"))
+async def fix_awaiting_transaction_id(query: CallbackQuery, state: FSMContext, services: Services):
+    """"I typed the TrxID wrong" — stop waiting for a receipt that will never arrive.
+
+    Without this the customer is held by the one-pending-deposit rule until the worker
+    gives up, which is a long time to sit with a typo they have already spotted."""
+    deposit_id = int(query.data.removeprefix("dep_fix_trx_") or 0)
+    cancelled = await services.deposits.cancel_awaiting_sms(deposit_id, query.from_user.id)
+    if not cancelled:
+        with suppress(TelegramBadRequest):
+            await query.answer("এই ডিপোজিটটি আর বাতিল করা যাবে না — স্ট্যাটাস দেখুন।", show_alert=True)
+        return
+    with suppress(TelegramBadRequest):
+        await query.answer()
+    await state.set_state(DepositStates.waiting_for_txid)
+    if query.message:
+        with suppress(TelegramBadRequest):
+            await query.message.edit_text(
+                f"{ICON_NEXT} <b>ঠিক আছে, আগের রিকোয়েস্টটি বাতিল করা হয়েছে।</b>\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"এখন আপনার SMS বা রিসিট দেখে <b>সঠিক Transaction ID</b> টি লিখে পাঠান:\n\n"
+                f"💡 <i>(যেমন: <code>BLA7X8Y9Z0</code>)</i>",
+                reply_markup=get_deposit_txid_keyboard(is_bangla=True),
+            )
 @router.callback_query(F.data.startswith("back_to_dep_req_"))
 async def back_to_deposit_request(query: CallbackQuery, services: Services):
     raw_id = query.data.removeprefix("back_to_dep_req_")

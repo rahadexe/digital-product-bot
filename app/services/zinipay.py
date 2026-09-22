@@ -79,6 +79,20 @@ def _matches_receipt(data: dict[str, Any], amount: float, transaction_id: str) -
 SMS_SYNC_RETRY_DELAYS = (3.0, 5.0, 7.0)
 SMS_SYNC_WINDOW_SECONDS = sum(SMS_SYNC_RETRY_DELAYS)
 
+# When the fifteen seconds run out the receipt is usually still on its way, not missing.
+# Saying "transaction not found" then — and spending one of the customer's three attempts
+# on it — was wrong about the most ordinary case there is, and left them retyping a TrxID
+# they had already typed correctly. The deposit is filed instead and the background worker
+# keeps asking. Ten minutes is long enough for a slow merchant SIM; past that the likeliest
+# remaining explanation is a mistyped TrxID, which is a person's job to judge.
+AWAITING_SMS_MINUTES = 10
+AWAITING_SMS_POLL_SECONDS = 45
+AWAITING_SMS_NOTE = "Waiting for the receipt SMS to reach the gateway. Checking automatically."
+AWAITING_SMS_GAVE_UP = (
+    "The gateway never saw this TrxID, after %d minutes of asking. "
+    "Check the merchant statement: most often the transaction ID was mistyped."
+) % AWAITING_SMS_MINUTES
+
 
 class ZiniPayVerificationService:
     """Service to automatically verify bKash, Nagad, and Rocket TrxIDs via ZiniPay."""
@@ -300,10 +314,16 @@ class ZiniPayVerificationService:
                     "detail": "This transaction ID has already been consumed or used in ZiniPay.",
                 }
             elif reason == "not_found":
+                dep_id = await self.deposits.create_request(
+                    tg_user_id, method_id, amount, clean_tx, quoted_rate=quoted_rate,
+                    admin_note=AWAITING_SMS_NOTE,
+                )
+                await self._mark_awaiting(dep_id)
                 return {
                     "auto_verified": False,
-                    "error": "not_found",
-                    "detail": "Transaction not found on ZiniPay yet. Please ensure the TrxID and amount match your SMS receipt, or wait 1 minute for SMS sync and try again.",
+                    "pending_sync": True,
+                    "deposit_id": dep_id,
+                    "detail": "The receipt has not reached the gateway yet; we keep checking.",
                 }
             else:
                 # System error / not enabled / insufficient credits -> graceful fallback to manual review
@@ -359,8 +379,99 @@ class ZiniPayVerificationService:
                 "provider": provider, "sender": sender, "transaction_id": clean_tx,
                 "detail": "Payment confirmed and wallet credited."}
 
+    async def _mark_awaiting(self, deposit_id: int) -> None:
+        """File a deposit as waiting for its receipt, and book its first re-check."""
+        async with self.db.transaction() as conn:
+            await conn.execute(
+                "INSERT INTO payment_verification_attempts(deposit_id,provider,verify_id,status,note) "
+                "VALUES($1,'zinipay','','awaiting_sms',$2) "
+                "ON CONFLICT (deposit_id) DO UPDATE SET status='awaiting_sms',note=EXCLUDED.note,updated_at=now()",
+                deposit_id, AWAITING_SMS_NOTE,
+            )
+            await conn.execute(
+                "UPDATE deposits SET next_check_at=now()+$2*interval '1 second' WHERE id=$1",
+                deposit_id, AWAITING_SMS_POLL_SECONDS,
+            )
+
+    async def _give_up_waiting(self, deposit_id: int) -> None:
+        async with self.db.transaction() as conn:
+            await conn.execute(
+                "UPDATE payment_verification_attempts SET status='review',note=$2,updated_at=now() WHERE deposit_id=$1",
+                deposit_id, AWAITING_SMS_GAVE_UP,
+            )
+            await conn.execute(
+                "UPDATE deposits SET admin_note=$2 WHERE id=$1 AND status='pending'",
+                deposit_id, AWAITING_SMS_GAVE_UP,
+            )
+
+    async def _finish_awaiting(self, row: dict[str, Any]) -> bool:
+        """The receipt has landed: consume it at the gateway and credit the wallet."""
+        deposit_id, amount, clean_tx = row["id"], float(row["amount"]), str(row["transaction_id"])
+        verify_res = await self.verify(amount, clean_tx)
+        if not verify_res.get("ok"):
+            return False
+        verify_id = verify_res.get("id")
+        if verify_id is None:
+            return False
+        async with self.db.transaction() as conn:
+            await conn.execute(
+                "UPDATE payment_verification_attempts SET status='confirming',verify_id=$2,updated_at=now() "
+                "WHERE deposit_id=$1 AND status='awaiting_sms'", deposit_id, str(verify_id),
+            )
+        confirm_res = await self.confirm(amount, clean_tx, verify_id)
+        provider = confirm_res.get("provider") or verify_res.get("provider") or "bKash/Nagad"
+        if not confirm_res.get("ok"):
+            note = ("Gateway confirmation uncertain; check the merchant statement before approval. "
+                    + str(confirm_res.get("message") or "")[:200])
+            async with self.db.transaction() as conn:
+                await conn.execute(
+                    "UPDATE payment_verification_attempts SET status='review',note=$2,updated_at=now() WHERE deposit_id=$1",
+                    deposit_id, note)
+                await conn.execute("UPDATE deposits SET admin_note=$2 WHERE id=$1 AND status='pending'", deposit_id, note)
+            return False
+        note = f"Auto-verified via ZiniPay ({provider}), receipt arrived after the customer submitted it"
+        # Recorded as confirmed before the wallet is touched: approve() refuses a deposit
+        # whose verification is still in flight, and a crash here leaves the outcome for
+        # recover() to replay rather than losing the customer's money.
+        async with self.db.transaction() as conn:
+            await conn.execute(
+                "UPDATE payment_verification_attempts SET status='confirmed',note=$2,updated_at=now() WHERE deposit_id=$1",
+                deposit_id, note)
+        await self.deposits.approve(deposit_id, admin_note=note)
+        async with self.db.transaction() as conn:
+            await conn.execute(
+                "UPDATE payment_verification_attempts SET status=CASE WHEN d.status='approved' THEN 'completed' ELSE 'review' END,"
+                "note=$2,updated_at=now() FROM deposits d WHERE d.id=deposit_id AND deposit_id=$1",
+                deposit_id, note,
+            )
+        logger.info("Deposit #%s credited once its ZiniPay receipt synced", deposit_id)
+        return True
+
+    async def _check_awaiting(self) -> None:
+        """Ask the gateway again for receipts that had not synced when they were submitted."""
+        async with self.db.transaction() as conn:
+            due = [dict(r) for r in await conn.fetch(
+                "SELECT d.id, d.amount, d.transaction_id, "
+                "a.created_at < now()-$1*interval '1 minute' AS expired "
+                "FROM payment_verification_attempts a JOIN deposits d ON d.id=a.deposit_id "
+                "WHERE a.status='awaiting_sms' AND d.status='pending' AND d.next_check_at<=now() "
+                "ORDER BY d.next_check_at LIMIT 20 FOR UPDATE OF d SKIP LOCKED", AWAITING_SMS_MINUTES)]
+            for row in due:
+                await conn.execute(
+                    "UPDATE deposits SET next_check_at=now()+$2*interval '1 second' WHERE id=$1",
+                    row["id"], AWAITING_SMS_POLL_SECONDS)
+        for row in due:
+            try:
+                credited = await self._finish_awaiting(row)
+            except Exception:
+                logger.exception("Re-checking deposit #%s with ZiniPay failed; it stays pending.", row["id"])
+                continue
+            if not credited and row["expired"]:
+                await self._give_up_waiting(row["id"])
+
     async def recover(self) -> None:
         """Confirmed outcomes can be replayed; ambiguous provider calls need review."""
+        await self._check_awaiting()
         async with self.db.transaction() as conn:
             stale = await conn.fetch(
                 "UPDATE payment_verification_attempts SET status='review',updated_at=now(), "
