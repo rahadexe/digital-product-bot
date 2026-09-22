@@ -374,7 +374,7 @@ async def handle_deposit_method_select(query: CallbackQuery, state: FSMContext, 
     type_label, action_label = get_account_type_labels(account_type)
     method_icon = get_method_icon(method)
     name_lower = method_name.lower()
-    is_bd_wallet = any(w in name_lower for w in ("bkash", "nagad", "rocket"))
+    is_bd_wallet = any(w in name_lower for w in ("bkash", "nagad", "rocket", "upay", "cellfin", "tap")) or ("binance" not in name_lower and method.get("auto_verify") != "binance_pay")
     # BD wallets show BDT only — no USD conversion (would confuse users)
     effective_show_usd = False if is_bd_wallet else show_usd
 
@@ -507,7 +507,7 @@ async def ask_deposit_input(query: CallbackQuery, state: FSMContext, services: S
     }
     method_icon = get_method_icon(method_row)
     name_lower = method_name.lower()
-    is_bd_wallet = any(w in name_lower for w in ("bkash", "nagad", "rocket"))
+    is_bd_wallet = any(w in name_lower for w in ("bkash", "nagad", "rocket", "upay", "cellfin", "tap")) or ("binance" not in name_lower and auto_verify != "binance_pay")
     effective_show_usd = False if is_bd_wallet else show_usd
     text = (
         f"{method_icon} <b>{escape(method_name)}</b>\n\n"
@@ -516,7 +516,7 @@ async def ask_deposit_input(query: CallbackQuery, state: FSMContext, services: S
         f"💸 <b>Transaction:</b> {action_label}\n\n"
         f"{ICON_WARNING} <b>Minimum:</b> {price(symbol, min_dep, usd_rate=usd_rate, show_usd=effective_show_usd)}\n\n"
         f"{ICON_MONEY} <b>টাকার পরিমাণ লিখুন:</b>\n\n"
-        f"যেমন: <code>100</code>"
+        f"<i>যেমন: <code>100</code></i>"
     )
     reply_kb = get_deposit_amount_keyboard(account_info, method_id, is_binance=False)
 
@@ -790,10 +790,10 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
     method_icon = get_method_icon(method_row)  # ← fix: was missing this call
     await message.answer(
         f"{method_icon} <b>{escape(method_name)}</b>\n\n"
-        f"💰 <b>Amount:</b> {price(symbol, amount_num)}\n"
+        f"{ICON_MONEY} <b>Amount:</b> {price(symbol, amount_num, show_usd=False)}\n"
         f"📱 <b>Number:</b> <code>{escape(account_info)}</code> ({action_label})\n\n"
-        f"📨 এখন আপনার {escape(method_name)} SMS বা রিসিট থেকে <b>Transaction ID (TrxID)</b> দিন:\n\n"
-        f"যেমন: <code>BLA7X8Y9Z0</code>",
+        f"{ICON_NOTE} <b>Transaction ID (TrxID) দিন:</b>\n\n"
+        f"<i>যেমন: <code>BLA7X8Y9Z0</code></i>",
         reply_markup=get_deposit_txid_keyboard(is_bangla=True),
     )
 
@@ -823,7 +823,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         else:
             await message.answer(
                 f"{ICON_CROSS} ভুল Transaction ID ফরম্যাট। আপনার SMS/রিসিট থেকে সঠিক TrxID দিন।\n\n"
-                f"যেমন: <code>BLA7X8Y9Z0</code>",
+                f"<i>যেমন: <code>BLA7X8Y9Z0</code></i>",
                 reply_markup=get_deposit_txid_keyboard(is_bangla=True),
             )
         return
@@ -879,7 +879,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         else
         f"{ICON_TIMER} <b>ট্রানজ্যাকশন যাচাই করা হচ্ছে...</b>\n\n"
         f"<b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
-        f"<b>Amount:</b> {price(symbol, amount_num)}\n\n"
+        f"<b>Amount:</b> {price(symbol, amount_num, show_usd=False)}\n\n"
         f"<i>যাচাই করা হচ্ছে, একটু অপেক্ষা করুন...</i>"
     )
 
@@ -901,7 +901,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             f"{ICON_TIMER} <b>পেমেন্টের SMS-এর জন্য অপেক্ষা করা হচ্ছে...</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"<b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
-            f"<b>Amount:</b> {price(symbol, amount_num)}\n\n"
+            f"<b>Amount:</b> {price(symbol, amount_num, show_usd=False)}\n\n"
             f"<i>ব্যাংকের SMS গেটওয়েতে পৌঁছাতে কিছুটা সময় লাগে। আবার চেক করা হচ্ছে — "
             f"সর্বোচ্চ {int(total)} সেকেন্ড। অনুগ্রহ করে আবার টাকা পাঠাবেন না।</i>",
         )
@@ -1012,8 +1012,8 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                     f"{ICON_CHECK} <b>ডিপোজিট সফল!</b>\n"
                     f"━━━━━━━━━━━━━━━━━━\n"
                     f"↳ <b>Method:</b> {escape(provider)}\n"
-                    f"↳ <b>Amount:</b> {price(symbol, amount_num)}\n"
-                    f"↳ <b>Current Balance:</b> {price(symbol, user_balance)}\n"
+                    f"↳ <b>Amount:</b> {price(symbol, amount_num, show_usd=False)}\n"
+                    f"↳ <b>Current Balance:</b> {price(symbol, user_balance, show_usd=False)}\n"
                     f"↳ <b>Transaction ID:</b> <code>{escape(clean_tx)}</code>\n"
                     f"━━━━━━━━━━━━━━━━━━\n"
                     f"আপনার ওয়ালেটে স্বয়ংক্রিয়ভাবে টাকা যোগ হয়েছে। ধন্যবাদ!"
@@ -1041,12 +1041,12 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
 
                 try:
                     dep_id = await services.deposits.create_request(
-                        message.from_user.id,
-                        method_id,
-                        amount_num,
-                        clean_tx,
+                        user_id=user_id,
+                        method_id=method_id,
+                        amount=amount_num,
+                        transaction_id=clean_tx,
                         quoted_rate=data.get("rate", 1.0),
-                        admin_note=admin_note,
+                        note=admin_note,
                     )
                     keyboard = InlineKeyboardMarkup(
                         inline_keyboard=[
@@ -1083,7 +1083,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                             f"{ICON_CHECK} <b>ডিপোজিট রিকোয়েস্ট অ্যাডমিন রিভিউতে জমা হয়েছে!</b>\n"
                             f"━━━━━━━━━━━━━━━━━━\n"
                             f"↳ <b>Method:</b> {escape(method_name)}\n"
-                            f"↳ <b>Amount:</b> {price(symbol, amount_num)}\n"
+                            f"↳ <b>Amount:</b> {price(symbol, amount_num, show_usd=False)}\n"
                             f"↳ <b>Transaction ID:</b> <code>{escape(clean_tx)}</code>\n"
                             f"↳ <b>Request ID:</b> <code>#{dep_id}</code>\n"
                             f"━━━━━━━━━━━━━━━━━━\n"
@@ -1143,7 +1143,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                     f"{ICON_CROSS} <b>টাকার পরিমাণ মেলেনি ({len(fails)}/{MAX_VERIFY_ATTEMPTS})</b>\n"
                     f"━━━━━━━━━━━━━━━━━━\n"
                     f"↳ <b>Method:</b> {escape(method_name)}\n"
-                    f"↳ <b>Amount:</b> {price(symbol, amount_num)}\n"
+                    f"↳ <b>Amount:</b> {price(symbol, amount_num, show_usd=False)}\n"
                     f"↳ <b>Transaction ID:</b> <code>{escape(clean_tx)}</code>\n\n"
                     f"{ICON_QUESTION} <b>কেন এই সমস্যা হতে পারে?</b>\n"
                     f"আপনি {escape(method_name)} এ যে পরিমাণ টাকা পাঠিয়েছেন, এখানে তার চেয়ে ভিন্ন পরিমাণ লিখেছেন।\n\n"
@@ -1169,7 +1169,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                     f"{ICON_CROSS} <b>ট্রানজ্যাকশন পাওয়া যায়নি ({len(fails)}/{MAX_VERIFY_ATTEMPTS})</b>\n"
                     f"━━━━━━━━━━━━━━━━━━\n"
                     f"↳ <b>Method:</b> {escape(method_name)}\n"
-                    f"↳ <b>Amount:</b> {price(symbol, amount_num)}\n"
+                    f"↳ <b>Amount:</b> {price(symbol, amount_num, show_usd=False)}\n"
                     f"↳ <b>Transaction ID:</b> <code>{escape(clean_tx)}</code>\n\n"
                     f"{ICON_QUESTION} <b>কেন এই সমস্যা হতে পারে?</b>\n"
                     f"TrxID লেখার সময় কোনো অক্ষর বা সংখ্যা ভুল হতে পারে।\n\n"
@@ -1213,7 +1213,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                     f"{ICON_CHECK} <b>ডিপোজিট রিকোয়েস্ট জমা হয়েছে!</b>\n"
                     f"━━━━━━━━━━━━━━━━━━\n"
                     f"{ICON_DEPOSIT} <b>মেথড:</b> {escape(method_name)}\n"
-                    f"{ICON_MONEY} <b>পরিমাণ:</b> <code>{price(symbol, amount_num)}</code>\n"
+                    f"{ICON_MONEY} <b>পরিমাণ:</b> <code>{price(symbol, amount_num, show_usd=False)}</code>\n"
                     f"{ICON_KEY} <b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
                     f"━━━━━━━━━━━━━━━━━━\n\n"
                     f"<i>আপনার পেমেন্ট রিকোয়েস্ট অ্যাডমিন রিভিউ এর জন্য জমা হয়েছে। যাচাই হলে ব্যালেন্স যোগ হবে।</i>"
@@ -1294,7 +1294,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             f"{ICON_CHECK} <b>ডিপোজিট রিকোয়েস্ট জমা হয়েছে!</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
             f"{ICON_DEPOSIT} <b>মেথড:</b> {escape(method_name)}\n"
-            f"{ICON_MONEY} <b>পরিমাণ:</b> <code>{price(symbol, amount_num)}</code>\n"
+            f"{ICON_MONEY} <b>পরিমাণ:</b> <code>{price(symbol, amount_num, show_usd=False)}</code>\n"
             f"{ICON_KEY} <b>TrxID:</b> <code>{escape(clean_tx)}</code>\n"
             f"━━━━━━━━━━━━━━━━━━\n\n"
             f"<i>অ্যাডমিন যাচাই করলে আপনার ওয়ালেটে ব্যালেন্স যোগ হবে।</i>"
