@@ -97,7 +97,7 @@ def get_guide_keyboard(lang: str = "en") -> InlineKeyboardMarkup:
     """Guide keyboard with language toggle and side-by-side Back + Close buttons."""
     if lang == "bn":
         toggle_btn = InlineKeyboardButton(
-            text="🌐 English (Global)",
+            text="English (Global)",
             callback_data="guide_lang_en",
             style="primary",
             icon_custom_emoji_id=Icons.GLOBE,

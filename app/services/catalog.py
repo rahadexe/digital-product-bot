@@ -12,7 +12,7 @@ import asyncpg
 from app.core.money import money
 from app.db import Database, affected
 from app.services.audit import record
-from app.services.bengali import latin_forms
+from app.services.bengali import consonant_skeleton, latin_forms
 from app.services.errors import InvalidInputError
 
 # Free seats in local stock; shared accounts contribute their remaining seat capacity.
@@ -262,7 +262,29 @@ class CatalogService:
             except Exception:
                 logger.info('Similarity search unavailable; pg_trgm is not installed')
                 return []
-        return [dict(row) for row in rows]
+        if rows:
+            return [dict(row) for row in rows]
+
+        # Last resort, for a name that crossed scripts. Bengali writes the vowels an
+        # English abbreviation drops, so হামা reads back as 'hama' and neither a
+        # substring nor a trigram finds HMA. Compared on consonants alone they are the
+        # same word. Blunt enough that it only runs when everything else found nothing,
+        # and matched per word so a two-letter skeleton cannot drag in half the shop.
+        wanted = {consonant_skeleton(f) for f in forms}
+        wanted = {w for w in wanted if len(w) >= 2}
+        if not wanted:
+            return []
+        async with self.db.connect() as conn:
+            candidates = await conn.fetch(
+                f'SELECT * FROM ({LISTING_SQL} WHERE p.is_active = 1) AS listing '
+                "ORDER BY (delivery_type = 'manual' OR stock > 0) DESC, sort_order, id LIMIT 300")
+        hits = [
+            dict(row) for row in candidates
+            if any(word.startswith(w) or w == word
+                   for w in wanted
+                   for word in (consonant_skeleton(part) for part in (row['title'] or '').split()))
+        ]
+        return hits[:limit]
 
     async def product(self, product_id: int) -> dict[str, Any] | None:
         async with self.db.connect() as conn:

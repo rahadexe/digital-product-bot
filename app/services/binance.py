@@ -401,6 +401,17 @@ class BinanceDepositService:
             and self._arrived_in_time(deposit, row.get("transactionTime"))
         ]
 
+        # Kept apart from the list above: a reference that is real but older than the
+        # window is a different problem from one Binance has never seen, and telling a
+        # customer to wait a minute for a payment they made last week helps nobody.
+        stale = [
+            row
+            for row in await client.pay_transactions(start_time=self._since())
+            if reference in {str(row.get("orderId") or "").strip().lower(),
+                             str(row.get("transactionId") or "").strip().lower()}
+            and not self._arrived_in_time(deposit, row.get("transactionTime"))
+        ]
+
         matched_rows = []
         for row in arrivals:
             order_id = str(row.get("orderId") or "").strip().lower()
@@ -435,7 +446,14 @@ class BinanceDepositService:
         return {
             "checked": True,
             "credited": False,
-            "detail": f"No matching {coin} transfer found for '{reference}'. If you just paid, please wait a minute.",
+            "detail": (
+                f"Transfer '{reference}' was found on Binance, but it was paid more than "
+                f"{PAID_BEFORE_CLAIM_HOURS} hours before this request. Please send a new payment "
+                f"and use that receipt, or contact support."
+                if stale else
+                f"No matching {coin} transfer found for '{reference}'. "
+                f"If you just paid, please wait a minute."
+            ),
         }
 
     async def _credit(

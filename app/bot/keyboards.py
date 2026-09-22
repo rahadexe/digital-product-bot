@@ -187,7 +187,7 @@ def get_validity_selector_keyboard(
     if show_all_option:
         buttons.append([
             InlineKeyboardButton(
-                text="All Products",
+                text="All",
                 callback_data=f"catval_all_{category_id}",
                 style="success",
                 icon_custom_emoji_id=Icons.PRODUCTS,

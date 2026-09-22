@@ -114,3 +114,20 @@ def latin_forms(text: str) -> list[str]:
     if spelled and spelled not in forms:
         forms.append(spelled)
     return forms
+
+def consonant_skeleton(text: str) -> str:
+    """The consonants of a word, which is what survives the trip between scripts.
+
+    Bengali spells out the vowels an English abbreviation leaves out: HMA is written
+    হামা and reads back as "hama", so neither a substring nor a trigram finds it. Drop
+    the vowels from both and they are the same word. Only used as a last resort, after
+    every other way of matching has come back with nothing, because it is deliberately
+    blunt: it would happily call "ham" and "home" the same thing."""
+    letters = [ch for ch in (text or "").lower() if ch.isalnum()]
+    skeleton = "".join(ch for ch in letters if ch not in "aeiou")
+    # A doubled consonant is a spelling choice, not a different sound.
+    out = []
+    for ch in skeleton:
+        if not out or out[-1] != ch:
+            out.append(ch)
+    return "".join(out)

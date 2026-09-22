@@ -16,6 +16,7 @@ from typing import Any
 class Icons:
     # Navigation & Core Buttons
     PRODUCTS = "6084664543152183861"       # 🛍️ (Raika_Games)
+    SHOP = PRODUCTS
     CART = "6102911544205515696"           # 🛒 (Raika_Games)
     DEPOSIT = "6233367447789899509"        # 💰 Add Balance (tongyong_renmin)
     REFER = "5379742233853451967"          # 🔗 Refer & Earn (MeshChainEmoji)
