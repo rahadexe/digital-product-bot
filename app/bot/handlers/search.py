@@ -15,7 +15,7 @@ from html import escape
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import ForceReply, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.bot.formatting import format_dual_price, respond
 from app.bot.icons import ICON_CROSS, ICON_SHOP, Icons
@@ -36,16 +36,16 @@ async def prompt_search(message: Message, state: FSMContext, services: Services)
     await state.clear()
     products = await services.catalog.products(limit=3, active_only=True)
     examples = ", ".join(p["title"].strip()[:18] for p in products) if products else "Netflix, VPN"
-    await respond(
-        message,
+    await message.answer(
         f"{ICON_SHOP} <b>Find a Product</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"Type what you are looking for.\n\n"
         f"<i>Try: {escape(examples)}</i>\n\n"
         f"Send /cancel to abort.",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
-        ]]),
+        reply_markup=ForceReply(
+            selective=True,
+            input_field_placeholder="Type product name (e.g. Netflix, VPN)...",
+        ),
     )
 
 
