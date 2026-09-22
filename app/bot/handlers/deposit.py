@@ -1055,15 +1055,9 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                             [
                                 InlineKeyboardButton(
                                     text="📜 Deposit History",
-                                    callback_data="open_deposits",
+                                    callback_data=f"open_deposits_dep_{dep_id}",
                                     style="primary",
                                     icon_custom_emoji_id=Icons.TIMER,
-                                ),
-                                InlineKeyboardButton(
-                                    text="🏠 Main Menu",
-                                    callback_data="back_to_main",
-                                    style="primary",
-                                    icon_custom_emoji_id=Icons.BACK,
                                 ),
                             ]
                         ]
@@ -1193,11 +1187,16 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
 
         if res.get("fallback_manual"):
             await state.clear()
+            dep_id = res.get("deposit_id")
             keyboard = InlineKeyboardMarkup(
                 inline_keyboard=[
                     [
-                        InlineKeyboardButton(text="📜 Deposit History", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER),
-                        InlineKeyboardButton(text="🏠 Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK),
+                        InlineKeyboardButton(
+                            text="📜 Deposit History",
+                            callback_data=f"open_deposits_dep_{dep_id}" if dep_id else "open_deposits",
+                            style="primary",
+                            icon_custom_emoji_id=Icons.TIMER,
+                        ),
                     ]
                 ]
             )
@@ -1231,7 +1230,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
 
     # Standard fallback when ZiniPay verification is not enabled
     try:
-        await services.deposits.create_request(
+        dep_id = await services.deposits.create_request(
             message.from_user.id,
             method_id,
             amount_num,
@@ -1276,8 +1275,12 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="📜 Deposit History", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER),
-                InlineKeyboardButton(text="🏠 Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK),
+                InlineKeyboardButton(
+                    text="📜 Deposit History",
+                    callback_data=f"open_deposits_dep_{dep_id}" if dep_id else "open_deposits",
+                    style="primary",
+                    icon_custom_emoji_id=Icons.TIMER,
+                ),
             ]
         ]
     )
@@ -1309,4 +1312,62 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         text,
         reply_markup=keyboard,
     )
+
+
+@router.callback_query(F.data.startswith("back_to_dep_req_"))
+async def back_to_deposit_request(query: CallbackQuery, services: Services):
+    raw_id = query.data.removeprefix("back_to_dep_req_")
+    if not raw_id.isdigit():
+        return
+    dep_id = int(raw_id)
+    user = query.from_user
+    if not user:
+        return
+    async with services.db.connect() as conn:
+        dep = await conn.fetchrow(
+            "SELECT * FROM deposits WHERE id = $1 AND tg_user_id = $2",
+            dep_id, user.id
+        )
+    if not dep:
+        with suppress(TelegramBadRequest):
+            await query.answer("Deposit request not found.", show_alert=True)
+        return
+
+    symbol = await services.settings.get("currency_symbol")
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="📜 Deposit History",
+                    callback_data=f"open_deposits_dep_{dep_id}",
+                    style="primary",
+                    icon_custom_emoji_id=Icons.TIMER,
+                ),
+            ]
+        ]
+    )
+    is_binance = "binance" in (dep["method_name"] or "").lower()
+    if is_binance:
+        text = (
+            f"{ICON_CHECK} <b>Deposit Request Submitted!</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{ICON_DEPOSIT} <b>Method:</b> {escape(dep['method_name'])}\n"
+            f"{ICON_MONEY} <b>Amount:</b> <code>{price(symbol, dep['amount'])}</code>\n"
+            f"{ICON_KEY} <b>Reference:</b> <code>{escape(dep['transaction_id'])}</code>\n"
+            f"━━━━━━━━━━━━━━━━━━\n\n"
+            f"<i>Balance will be added to your wallet once approved by admin.</i>"
+        )
+    else:
+        text = (
+            f"{ICON_CHECK} <b>ডিপোজিট রিকোয়েস্ট জমা হয়েছে!</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{ICON_DEPOSIT} <b>মেথড:</b> {escape(dep['method_name'])}\n"
+            f"{ICON_MONEY} <b>পরিমাণ:</b> <code>{price(symbol, dep['amount'], show_usd=False)}</code>\n"
+            f"{ICON_KEY} <b>TrxID:</b> <code>{escape(dep['transaction_id'])}</code>\n"
+            f"━━━━━━━━━━━━━━━━━━\n\n"
+            f"<i>আপনার পেমেন্ট রিকোয়েস্ট অ্যাডমিন রিভিউ এর জন্য জমা হয়েছে। যাচাই হলে ব্যালেন্স যোগ হবে।</i>"
+        )
+    with suppress(TelegramBadRequest):
+        await query.message.edit_text(text, reply_markup=keyboard)
+
 

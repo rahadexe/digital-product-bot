@@ -799,6 +799,7 @@ DEPOSIT_STATUS_BADGES = {
 
 
 @router.callback_query(F.data == "open_deposits")
+@router.callback_query(F.data.startswith("open_deposits_dep_"))
 @router.callback_query(F.data.startswith("dep_page_"))
 async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext, services: Services):
     await state.clear()
@@ -807,10 +808,18 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
         return
 
     page = 1
-    if isinstance(event, CallbackQuery) and event.data and event.data.startswith("dep_page_"):
-        suffix = event.data[len("dep_page_") :]
-        if suffix.isdigit():
-            page = max(1, int(suffix))
+    dep_id_ref: int | None = None
+    if isinstance(event, CallbackQuery) and event.data:
+        if event.data.startswith("open_deposits_dep_"):
+            raw = event.data.removeprefix("open_deposits_dep_")
+            if raw.isdigit():
+                dep_id_ref = int(raw)
+        elif event.data.startswith("dep_page_"):
+            parts = event.data.removeprefix("dep_page_").split("_")
+            if parts[0].isdigit():
+                page = max(1, int(parts[0]))
+            if len(parts) > 1 and parts[1].isdigit():
+                dep_id_ref = int(parts[1])
 
     total_count = await services.deposits.count_for_user(tg_user.id)
     total_pages = max(1, (total_count + DEPOSITS_PAGE_SIZE - 1) // DEPOSITS_PAGE_SIZE) if total_count > 0 else 1
@@ -821,20 +830,28 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
     symbol = await services.settings.get("currency_symbol")
     usd_rate = await services.settings.number("usd_rate")
     show_usd = await services.settings.flag("show_usd_price")
+    back_cb = f"back_to_dep_req_{dep_id_ref}" if dep_id_ref else "open_account"
 
     if not deposits:
         text = (
             f"{ICON_STATS} <b>Balance History</b>\n\n"
             f"<i>You have no balance transaction records yet.</i>"
         )
-        keyboard = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(text="Add Balance", callback_data="open_deposit_from_history", style="success", icon_custom_emoji_id=Icons.DEPOSIT),
-                    InlineKeyboardButton(text="Back", callback_data="open_account", style="danger", icon_custom_emoji_id=Icons.BACK),
-                ],
-            ]
-        )
+        if dep_id_ref:
+            keyboard = InlineKeyboardMarkup(
+                inline_keyboard=[[
+                    InlineKeyboardButton(text="Back", callback_data=back_cb, style="danger", icon_custom_emoji_id=Icons.BACK),
+                ]]
+            )
+        else:
+            keyboard = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(text="Add Balance", callback_data="open_deposit_from_history", style="success", icon_custom_emoji_id=Icons.DEPOSIT),
+                        InlineKeyboardButton(text="Back", callback_data=back_cb, style="danger", icon_custom_emoji_id=Icons.BACK),
+                    ],
+                ]
+            )
     else:
         page_suffix = f" (Page {page}/{total_pages})" if total_pages > 1 else ""
         text = f"{ICON_STATS} <b>Balance History{page_suffix}</b>\n\n"
@@ -852,33 +869,41 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
             items.append(entry)
         text += "\n\n".join(items)
 
+        def page_cb(p: int) -> str:
+            return f"dep_page_{p}_{dep_id_ref}" if dep_id_ref else f"dep_page_{p}"
+
         buttons = []
         if total_pages > 1:
             nav_row = []
             if page == 1:
                 nav_row = [
-                    InlineKeyboardButton(text="Refresh", callback_data=f"dep_page_{page}", style="success", icon_custom_emoji_id=Icons.REFRESH),
+                    InlineKeyboardButton(text="Refresh", callback_data=page_cb(page), style="success", icon_custom_emoji_id=Icons.REFRESH),
                     InlineKeyboardButton(text=f"{page}/{total_pages}", callback_data="noop"),
-                    InlineKeyboardButton(text="Next", callback_data=f"dep_page_{page + 1}", style="primary", icon_custom_emoji_id=Icons.NEXT),
+                    InlineKeyboardButton(text="Next", callback_data=page_cb(page + 1), style="primary", icon_custom_emoji_id=Icons.NEXT),
                 ]
             elif page == total_pages:
                 nav_row = [
-                    InlineKeyboardButton(text="Prev", callback_data=f"dep_page_{page - 1}", style="primary", icon_custom_emoji_id=Icons.BACK),
+                    InlineKeyboardButton(text="Prev", callback_data=page_cb(page - 1), style="primary", icon_custom_emoji_id=Icons.BACK),
                     InlineKeyboardButton(text=f"{page}/{total_pages}", callback_data="noop"),
-                    InlineKeyboardButton(text="Refresh", callback_data=f"dep_page_{page}", style="success", icon_custom_emoji_id=Icons.REFRESH),
+                    InlineKeyboardButton(text="Refresh", callback_data=page_cb(page), style="success", icon_custom_emoji_id=Icons.REFRESH),
                 ]
             else:
                 nav_row = [
-                    InlineKeyboardButton(text="Prev", callback_data=f"dep_page_{page - 1}", style="primary", icon_custom_emoji_id=Icons.BACK),
+                    InlineKeyboardButton(text="Prev", callback_data=page_cb(page - 1), style="primary", icon_custom_emoji_id=Icons.BACK),
                     InlineKeyboardButton(text=f"{page}/{total_pages}", callback_data="noop"),
-                    InlineKeyboardButton(text="Next", callback_data=f"dep_page_{page + 1}", style="primary", icon_custom_emoji_id=Icons.NEXT),
+                    InlineKeyboardButton(text="Next", callback_data=page_cb(page + 1), style="primary", icon_custom_emoji_id=Icons.NEXT),
                 ]
             buttons.append(nav_row)
 
-        buttons.append([
-            InlineKeyboardButton(text="Add Balance", callback_data="open_deposit_from_history", style="success", icon_custom_emoji_id=Icons.DEPOSIT),
-            InlineKeyboardButton(text="Back", callback_data="open_account", style="danger", icon_custom_emoji_id=Icons.BACK),
-        ])
+        if dep_id_ref:
+            buttons.append([
+                InlineKeyboardButton(text="Back", callback_data=back_cb, style="danger", icon_custom_emoji_id=Icons.BACK),
+            ])
+        else:
+            buttons.append([
+                InlineKeyboardButton(text="Add Balance", callback_data="open_deposit_from_history", style="success", icon_custom_emoji_id=Icons.DEPOSIT),
+                InlineKeyboardButton(text="Back", callback_data=back_cb, style="danger", icon_custom_emoji_id=Icons.BACK),
+            ])
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
     await respond(event, text, keyboard)
