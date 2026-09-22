@@ -24,7 +24,7 @@ from app.services import Services
 router = Router(name="search_router")
 
 MAX_TERM = 64
-RESULTS = 8
+RESULTS = 6
 
 
 async def prompt_search(message: Message, state: FSMContext, services: Services) -> None:
@@ -66,7 +66,7 @@ async def search_products(message: Message, state: FSMContext, services: Service
     shown = escape(term[:40])
 
     if not matches:
-        recent_products = await services.catalog.products(limit=4, active_only=True)
+        recent_products = await services.catalog.products(limit=5, active_only=True)
         rows = []
         for product in recent_products:
             emoji_id = str(product.get("custom_emoji_id") or "")
@@ -83,7 +83,7 @@ async def search_products(message: Message, state: FSMContext, services: Service
             InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
         ])
         await message.answer(
-            f"{ICON_CROSS} <b>Nothing found, try a different name:</b>",
+            f"{ICON_CROSS} <b>Please try a different name:</b>",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=rows) if rows else None,
         )
         return
@@ -99,6 +99,10 @@ async def search_products(message: Message, state: FSMContext, services: Service
         else:
             button["icon_custom_emoji_id"] = Icons.CART
         rows.append([InlineKeyboardButton(**button)])
+
+    rows.append([
+        InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
+    ])
 
     more = ("\n<i>Showing the closest matches. Type more of the name to narrow it.</i>"
             if len(matches) >= RESULTS else "")
