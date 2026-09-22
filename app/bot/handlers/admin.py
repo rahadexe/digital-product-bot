@@ -307,21 +307,25 @@ async def build_admin_dashboard(services: Services) -> tuple[str, InlineKeyboard
     pause_icon = Icons.CHECK if paused else Icons.WARNING
     pause_style = "success" if paused else "danger"
 
-    total_waiting = pending + waiting
-    needs_btn_text = f"Needs you ({total_waiting})" if total_waiting else "Needs you"
+    # One button called "Needs you" counted two different jobs together, so the number
+    # never said which one was waiting. Checking money against a receipt and sending a
+    # customer their item are different work, often at different moments.
+    deposits_text = f"Deposits ({pending})" if pending else "Deposits"
+    orders_text = f"Deliveries ({waiting})" if waiting else "Deliveries"
 
     # Paired by the kind of job, because the rows were reading as an arbitrary list:
     # a mass broadcast next to looking up one person, and the button that stops the
     # whole shop beside a harmless menu. Pause now sits alone, so a stray thumb on the
     # row above cannot reach it.
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        # what is happening right now
+        # what is waiting on the owner, one queue each
         [
-            InlineKeyboardButton(text=needs_btn_text, callback_data="adm_queue",
-                                 style="danger" if total_waiting else "primary",
-                                 icon_custom_emoji_id=Icons.TIMER),
-            InlineKeyboardButton(text="Store Status", callback_data="adm_view_status",
-                                 icon_custom_emoji_id=Icons.STATS),
+            InlineKeyboardButton(text=deposits_text, callback_data="adm_queue_dep",
+                                 style="danger" if pending else "primary",
+                                 icon_custom_emoji_id=Icons.DEPOSIT),
+            InlineKeyboardButton(text=orders_text, callback_data="adm_queue_ord",
+                                 style="danger" if waiting else "primary",
+                                 icon_custom_emoji_id=Icons.ORDERS),
         ],
         # the catalogue
         [
@@ -330,12 +334,12 @@ async def build_admin_dashboard(services: Services) -> tuple[str, InlineKeyboard
             InlineKeyboardButton(text="Add stock", callback_data="adm_start_stock",
                                  icon_custom_emoji_id=Icons.PLUS),
         ],
-        # chasing one particular thing: a customer, or a payment that has not landed
+        # looking something up: one customer, or how the shop is doing
         [
             InlineKeyboardButton(text="Find Customer", callback_data="adm_start_find",
                                  icon_custom_emoji_id=Icons.ACCOUNT),
-            InlineKeyboardButton(text="Re-check payments", callback_data="adm_recheck",
-                                 icon_custom_emoji_id=Icons.DEPOSIT),
+            InlineKeyboardButton(text="Store Status", callback_data="adm_view_status",
+                                 icon_custom_emoji_id=Icons.STATS),
         ],
         # what customers read
         [
@@ -1142,7 +1146,7 @@ async def adm_order_deliver_send(message: Message, state: FSMContext, services: 
         f"━━━━━━━━━━━━━━━━━━\n"
         f"<i>Item delivered to customer successfully.</i>",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text="Needs you", callback_data="adm_queue", icon_custom_emoji_id=Icons.TIMER),
+            InlineKeyboardButton(text="Deliveries", callback_data="adm_queue_ord", icon_custom_emoji_id=Icons.ORDERS),
             InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
         ]])
     )
