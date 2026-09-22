@@ -14,10 +14,12 @@ from html import escape
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
+from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.types import ForceReply, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import CallbackQuery, ForceReply, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.bot.formatting import format_dual_price, respond
+from app.bot.handlers.navigation import is_navigation, navigate
 from app.bot.icons import ICON_CROSS, ICON_SHOP, Icons
 from app.services import Services
 
@@ -27,31 +29,82 @@ MAX_TERM = 64
 RESULTS = 8
 
 
-async def prompt_search(message: Message, state: FSMContext, services: Services) -> None:
-    """What the Search button does: say that typing is the search.
+async def _cleanup_search(event: Message | CallbackQuery, state: FSMContext) -> None:
+    """Clean up the search card and ForceReply prompt, dismissing the soft keyboard."""
+    data = await state.get_data()
+    prompt_id = data.get("search_prompt_id")
+    card_id = data.get("search_card_id")
+    chat_id = 0
+    if isinstance(event, CallbackQuery) and event.message and event.message.chat:
+        chat_id = event.message.chat.id
+    elif isinstance(event, Message) and event.chat:
+        chat_id = event.chat.id
+    bot = event.bot
+    if bot and chat_id:
+        if prompt_id:
+            with suppress(Exception):
+                await bot.delete_message(chat_id=chat_id, message_id=prompt_id)
+        if card_id:
+            with suppress(Exception):
+                await bot.delete_message(chat_id=chat_id, message_id=card_id)
+    await state.update_data(search_prompt_id=None, search_card_id=None)
 
-    No conversation state is started. The next thing they type falls through to the
-    handler below exactly as it would have anyway, so tapping the button and simply
-    typing lead to the same place."""
+
+async def prompt_search(message: Message, state: FSMContext, services: Services) -> None:
+    """What the Search button does: open the typing keyboard and show a card with a Back button."""
+    await _cleanup_search(message, state)
     await state.clear()
     products = await services.catalog.products(limit=3, active_only=True)
     examples = ", ".join(p["title"].strip()[:18] for p in products) if products else "Netflix, VPN"
-    await message.answer(
+
+    card_msg = await message.answer(
         f"{ICON_SHOP} <b>Find a Product</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"Type what you are looking for.\n\n"
-        f"<i>Try: {escape(examples)}</i>\n\n"
-        f"Send /cancel to abort.",
+        f"<i>Try: {escape(examples)}</i>",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(
+                text="⬅️ Back",
+                callback_data="search_back",
+                style="primary",
+                icon_custom_emoji_id=Icons.BACK,
+            )
+        ]]),
+    )
+
+    prompt_msg = await message.answer(
+        "✍️ Type what you are looking for:",
         reply_markup=ForceReply(
             selective=True,
             input_field_placeholder="Type product name (e.g. Netflix, VPN)...",
         ),
     )
 
+    await state.update_data(
+        search_card_id=card_msg.message_id,
+        search_prompt_id=prompt_msg.message_id,
+    )
+
+
+@router.callback_query(F.data == "search_back")
+async def handle_search_back(query: CallbackQuery, state: FSMContext, services: Services) -> None:
+    with suppress(TelegramBadRequest):
+        await query.answer()
+    await _cleanup_search(query, state)
+    await state.clear()
+
+
+@router.message(Command("cancel"))
+async def cancel_search(message: Message, state: FSMContext) -> None:
+    await _cleanup_search(message, state)
+    await state.clear()
+    await message.answer(f"{ICON_CROSS} Search cancelled.")
+
 
 @router.message(F.text.in_({"Search Products", "Search"}))
 async def search_button(message: Message, state: FSMContext, services: Services) -> None:
     await prompt_search(message, state, services)
+
 
 @router.message(F.text)
 async def search_products(message: Message, state: FSMContext, services: Services) -> None:
@@ -61,6 +114,20 @@ async def search_products(message: Message, state: FSMContext, services: Service
     term = (message.text or "").strip()
     if not term or term.startswith("/") or len(term) > MAX_TERM:
         return
+
+    # If the customer tapped a menu button or typed a cancel/back word
+    if is_navigation(term):
+        await _cleanup_search(message, state)
+        await navigate(term, message, state, services)
+        return
+
+    if term.lower() in ("back", "cancel", "exit", "close", "⬅️ back", "❌ cancel", "বাতিল", "ফিরে যান"):
+        await _cleanup_search(message, state)
+        await state.clear()
+        return
+
+    await _cleanup_search(message, state)
+    await state.clear()
 
     matches = await services.catalog.search(term, limit=RESULTS)
     values = await services.settings.values()

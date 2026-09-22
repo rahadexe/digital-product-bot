@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 
+from contextlib import suppress
+
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
@@ -113,6 +115,16 @@ async def navigate(text: str, message: Message, state: FSMContext, services: Ser
     """Leave the current conversation and run the action behind a menu button or command."""
     # Imported here because every handler module imports this one.
     from app.bot.handlers import deposit, help_guide, profile, search, shop, start
+
+    data = await state.get_data()
+    chat_id = message.chat.id if message.chat else 0
+    bot = message.bot
+    if bot and chat_id:
+        for key in ("prompt_msg_id", "search_prompt_id", "search_card_id"):
+            msg_id = data.get(key)
+            if msg_id:
+                with suppress(Exception):
+                    await bot.delete_message(chat_id=chat_id, message_id=msg_id)
 
     await state.clear()
     action = NAVIGATION_TEXTS.get(text) or COMMAND_ACTIONS.get(text.split()[0].split("@")[0], "start")
