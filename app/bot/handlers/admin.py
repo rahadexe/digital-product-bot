@@ -97,9 +97,22 @@ def _build_preview_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-async def _show_preview(message: Message, text: str, services: Services, state: FSMContext) -> None:
+async def _show_preview(message: Message, text: str, services: Services, state: FSMContext, panel_msg_id: int | None = None) -> None:
     recipients = await services.delivery.recipient_count()
     if recipients == 0:
+        if panel_msg_id:
+            with suppress(Exception):
+                await message.delete()
+            text_dash, keyboard = await build_admin_dashboard(services)
+            with suppress(TelegramBadRequest):
+                await message.bot.edit_message_text(
+                    text=f"{ICON_WARNING} No active recipients found.",
+                    chat_id=message.chat.id,
+                    message_id=panel_msg_id,
+                    reply_markup=keyboard,
+                )
+            await state.clear()
+            return
         await message.answer(f"{ICON_WARNING} No active recipients found.")
         await state.clear()
         return
@@ -112,6 +125,21 @@ async def _show_preview(message: Message, text: str, services: Services, state: 
         f"{text}\n\n"
         f"{ICON_ACCOUNT} Recipients: <b>{recipients}</b>"
     )
+
+    if panel_msg_id:
+        with suppress(Exception):
+            await message.delete()
+        try:
+            await message.bot.edit_message_text(
+                text=preview_body,
+                chat_id=message.chat.id,
+                message_id=panel_msg_id,
+                reply_markup=_build_preview_keyboard(),
+                disable_web_page_preview=True,
+            )
+            return
+        except Exception:
+            pass
 
     await message.answer(preview_body, reply_markup=_build_preview_keyboard(), disable_web_page_preview=True)
 
@@ -155,6 +183,9 @@ async def process_broadcast_input(message: Message, state: FSMContext, services:
     if not message.from_user or not await _is_admin(message.from_user.id, services):
         return
 
+    data = await state.get_data()
+    panel_msg_id = data.get("panel_msg_id")
+
     raw_text = (message.text or "").strip()
     # A menu button is plain text, and would otherwise be composed into a broadcast.
     if raw_text in NAVIGATION_TEXTS:
@@ -162,20 +193,27 @@ async def process_broadcast_input(message: Message, state: FSMContext, services:
         return
     if raw_text.startswith("/"):
         cmd = raw_text.split()[0].lower().lstrip("/")
-        if cmd in ("cancel",):
+        if cmd in ("cancel", "admin"):
             await state.clear()
-            await message.answer(f"{ICON_CROSS} Broadcast cancelled.")
+            with suppress(Exception):
+                await message.delete()
+            if panel_msg_id:
+                text_dash, keyboard = await build_admin_dashboard(services)
+                with suppress(TelegramBadRequest):
+                    await message.bot.edit_message_text(
+                        text=text_dash,
+                        chat_id=message.chat.id,
+                        message_id=panel_msg_id,
+                        reply_markup=keyboard,
+                    )
+            else:
+                await message.answer(f"{ICON_CROSS} Broadcast cancelled.")
             return
 
         if cmd in ("start",):
             await state.clear()
             from app.bot.handlers.start import render_main_dashboard
             await render_main_dashboard(message, services, message.from_user.id)
-            return
-
-        if cmd in ("admin",):
-            await state.clear()
-            await cmd_admin_help(message, services)
             return
 
         if cmd in ("broadcast", "bc"):
@@ -204,7 +242,7 @@ async def process_broadcast_input(message: Message, state: FSMContext, services:
         await message.answer(f"{ICON_WARNING} Please send a text message or type /cancel.")
         return
 
-    await _show_preview(message, text.strip(), services, state)
+    await _show_preview(message, text.strip(), services, state, panel_msg_id=panel_msg_id)
 
 
 @router.callback_query(F.data == "bc_confirm")
@@ -262,9 +300,10 @@ async def handle_bc_cancel(query: CallbackQuery, state: FSMContext, services: Se
 
     await state.clear()
     await query.answer("Cancelled.")
+    text, keyboard = await build_admin_dashboard(services)
     if query.message:
         with suppress(TelegramBadRequest):
-            await query.message.edit_text(f"{ICON_CROSS} Broadcast cancelled.")
+            await query.message.edit_text(text, reply_markup=keyboard)
 
 
 async def build_admin_dashboard(services: Services) -> tuple[str, InlineKeyboardMarkup]:
@@ -510,10 +549,58 @@ async def adm_cb_toggle_pause(query: CallbackQuery, services: Services):
     if await _deny(query, services):
         return
     paused = await services.settings.flag("store_paused")
-    new_val = "0" if paused else "1"
-    await services.settings.update({"store_paused": new_val})
+    if not paused:
+        text = (
+            f"{ICON_WARNING} <b>Confirm Store Pause</b>\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"আপনি কি নিশ্চিতভাবে <b>স্টোর পজ (Pause)</b> করতে চান?\n\n"
+            f"⚠️ <b>স্টোর পজ থাকলে:</b>\n"
+            f"• সাধারণ কাস্টমাররা প্রোডাক্ট দেখতে বা কিনতে পারবে না।\n"
+            f"• নতুন ডিপোজিট সাময়িকভাবে স্থগিত থাকবে।\n\n"
+            f"<i>Are you sure you want to pause the store?</i>"
+        )
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="⚠️ Yes, Pause Store",
+                        callback_data="adm_confirm_pause",
+                        style="danger",
+                        icon_custom_emoji_id=Icons.WARNING,
+                    ),
+                    InlineKeyboardButton(
+                        text="Cancel",
+                        callback_data="adm_dashboard",
+                        style="primary",
+                        icon_custom_emoji_id=Icons.BACK,
+                    ),
+                ]
+            ]
+        )
+        with suppress(TelegramBadRequest):
+            await query.answer()
+        if query.message:
+            with suppress(TelegramBadRequest):
+                await query.message.edit_text(text, reply_markup=keyboard)
+        return
+
+    # Unpausing / Resuming store
+    await services.settings.update({"store_paused": "0"})
     with suppress(TelegramBadRequest):
-        await query.answer("Store paused" if new_val == "1" else "Store opened")
+        await query.answer("Store resumed")
+    text, keyboard = await build_admin_dashboard(services)
+    if query.message:
+        with suppress(TelegramBadRequest):
+            await query.message.edit_text(text, reply_markup=keyboard)
+
+
+@router.callback_query(F.data == "adm_confirm_pause")
+async def adm_cb_confirm_pause(query: CallbackQuery, services: Services):
+    if await _deny(query, services):
+        return
+    await services.settings.update({"store_paused": "1"})
+    with suppress(TelegramBadRequest):
+        await query.answer("Store paused")
     text, keyboard = await build_admin_dashboard(services)
     if query.message:
         with suppress(TelegramBadRequest):
@@ -1036,9 +1123,10 @@ async def adm_cancel(query: CallbackQuery, state: FSMContext, services: Services
     await state.clear()
     with suppress(TelegramBadRequest):
         await query.answer("Cancelled.")
+    text, keyboard = await build_admin_dashboard(services)
     if query.message:
         with suppress(TelegramBadRequest):
-            await query.message.edit_reply_markup(reply_markup=None)
+            await query.message.edit_text(text, reply_markup=keyboard)
 
 
 def _format_deposit_card(deposit: dict, symbol: str) -> tuple[str, InlineKeyboardMarkup]:
@@ -1229,8 +1317,12 @@ async def adm_deposit_do(query: CallbackQuery, services: Services):
             f"━━━━━━━━━━━━━━━━━━\n\n"
             f"<i>{html.escape(message)}</i>"
         )
+        reply_markup = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="Pending Queue", callback_data="adm_queue_dep", icon_custom_emoji_id=Icons.DEPOSIT),
+            InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+        ]])
         with suppress(TelegramBadRequest):
-            await query.message.edit_text(text, reply_markup=None)
+            await query.message.edit_text(text, reply_markup=reply_markup)
 
 
 @router.callback_query(F.data.regexp(r"^adm_ord_deliver_\d+$"))
@@ -1255,15 +1347,18 @@ async def adm_order_deliver(query: CallbackQuery, state: FSMContext, services: S
     with suppress(TelegramBadRequest):
         await query.answer()
     if query.message:
+        await state.update_data(panel_msg_id=query.message.message_id)
         with suppress(TelegramBadRequest):
-            await query.message.answer(
+            await query.message.edit_text(
                 f"{ICON_NOTE} <b>Deliver Order #{order_id}</b>\n"
                 f"━━━━━━━━━━━━━━━━━━\n"
                 f"📦 {html.escape(order['product_title'])}\n\n"
                 f"Send credentials or item to deliver below:\n"
                 f"<i>(Send /cancel to stop)</i>",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-                    InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
+                    InlineKeyboardButton(text="Back", callback_data="adm_queue_ord", icon_custom_emoji_id=Icons.BACK),
+                    InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+                    InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
                 ]])
             )
 
@@ -1273,19 +1368,27 @@ async def adm_order_deliver_send(message: Message, state: FSMContext, services: 
     if not message.from_user or not await _is_admin(message.from_user.id, services):
         return
     text = (message.text or message.caption or "").strip()
-    # A menu button is plain text, so without this it would be delivered to the customer
-    # verbatim. Tapping one means the operator has moved on.
     if is_navigation(text):
         await navigate(text, message, state, services)
         return
     data = await state.get_data()
+    panel_msg_id = data.get("panel_msg_id")
 
-    # Whatever is typed here is forwarded to a customer verbatim, so the state must not
-    # outlive the moment. An owner who taps Deliver and gets distracted would otherwise
-    # have their next unrelated message sent to that customer days later.
     asked_at = float(data.get("deliver_asked_at") or 0)
     if not asked_at or time.time() - asked_at > DELIVERY_PROMPT_SECONDS:
         await state.clear()
+        if panel_msg_id:
+            with suppress(Exception):
+                await message.delete()
+            text_queue, keyboard = await build_queue_view(services, "orders")
+            with suppress(TelegramBadRequest):
+                await message.bot.edit_message_text(
+                    text=f"{ICON_WARNING} That delivery prompt expired. Tap <b>Deliver</b> again.\n\n" + text_queue,
+                    chat_id=message.chat.id,
+                    message_id=panel_msg_id,
+                    reply_markup=keyboard,
+                )
+            return
         await message.answer(
             f"{ICON_WARNING} <b>Nothing was sent</b>\n"
             f"━━━━━━━━━━━━━━━━━━\n"
@@ -1298,12 +1401,34 @@ async def adm_order_deliver_send(message: Message, state: FSMContext, services: 
     if text.startswith("/"):
         await state.clear()
         cmd = text.split()[0].lower().lstrip("/").split("@")[0]
+        with suppress(Exception):
+            await message.delete()
         if cmd == "cancel":
-            await message.answer(f"{ICON_CROSS} Cancelled. The order is still waiting.")
+            if panel_msg_id:
+                text_queue, keyboard = await build_queue_view(services, "orders")
+                with suppress(TelegramBadRequest):
+                    await message.bot.edit_message_text(
+                        text=text_queue,
+                        chat_id=message.chat.id,
+                        message_id=panel_msg_id,
+                        reply_markup=keyboard,
+                    )
+            else:
+                await message.answer(f"{ICON_CROSS} Cancelled. The order is still waiting.")
         elif cmd in ("status", "st"):
             await cmd_status(message, services)
         elif cmd == "admin":
-            await cmd_admin_help(message, services)
+            if panel_msg_id:
+                text_dash, keyboard = await build_admin_dashboard(services)
+                with suppress(TelegramBadRequest):
+                    await message.bot.edit_message_text(
+                        text=text_dash,
+                        chat_id=message.chat.id,
+                        message_id=panel_msg_id,
+                        reply_markup=keyboard,
+                    )
+            else:
+                await cmd_admin_help(message, services)
         else:
             await message.answer(
                 f"{ICON_WARNING} <b>Nothing was sent</b>\n"
@@ -1323,15 +1448,30 @@ async def adm_order_deliver_send(message: Message, state: FSMContext, services: 
         await message.answer(f"{ICON_CROSS} Could not deliver: {html.escape(str(exc))}")
         return
     await state.clear()
-    await message.answer(
+
+    conf_text = (
         f"{ICON_CHECK} <b>Order #{order_id} Delivered</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"<i>Item delivered to customer successfully.</i>",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text="Deliveries", callback_data="adm_queue_ord", icon_custom_emoji_id=Icons.ORDERS),
-            InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
-        ]])
+        f"<i>Item delivered to customer successfully.</i>"
     )
+    conf_keyboard = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="Deliveries", callback_data="adm_queue_ord", icon_custom_emoji_id=Icons.ORDERS),
+        InlineKeyboardButton(text="Admin Menu", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
+    ]])
+    if panel_msg_id:
+        with suppress(Exception):
+            await message.delete()
+        try:
+            await message.bot.edit_message_text(
+                text=conf_text,
+                chat_id=message.chat.id,
+                message_id=panel_msg_id,
+                reply_markup=conf_keyboard,
+            )
+            return
+        except Exception:
+            pass
+    await message.answer(conf_text, reply_markup=conf_keyboard)
 
 
 # ── Quick controls ──────────────────────────────────────────────────────────
@@ -1350,15 +1490,38 @@ async def cmd_status(message: Message, services: Services):
 async def cmd_pause(message: Message, services: Services):
     if not message.from_user or not await _is_admin(message.from_user.id, services):
         return
-    await services.settings.update({"store_paused": "1"})
-    notice = await services.settings.get("maintenance_message")
-    await message.answer(
-        f"{ICON_WARNING} <b>Store paused</b>\n"
+    paused = await services.settings.flag("store_paused")
+    with suppress(Exception):
+        await message.delete()
+    if paused:
+        await message.answer(f"{ICON_WARNING} Store is already paused. Send /resume to open.")
+        return
+    text = (
+        f"{ICON_WARNING} <b>Confirm Store Pause</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
-        f"New orders and deposits are blocked. Customers see:\n"
-        f"<blockquote>{html.escape(notice)}</blockquote>\n\n"
-        f"<i>Send /resume to open again.</i>"
+        f"আপনি কি নিশ্চিতভাবে <b>স্টোর পজ (Pause)</b> করতে চান?\n\n"
+        f"⚠️ <b>স্টোর পজ থাকলে:</b>\n"
+        f"• সাধারণ কাস্টমাররা প্রোডাক্ট দেখতে বা কিনতে পারবে না।\n"
+        f"• নতুন ডিপোজিট সাময়িকভাবে স্থগিত থাকবে।\n\n"
+        f"<i>Are you sure you want to pause the store?</i>"
     )
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(
+                text="⚠️ Yes, Pause Store",
+                callback_data="adm_confirm_pause",
+                style="danger",
+                icon_custom_emoji_id=Icons.WARNING,
+            ),
+            InlineKeyboardButton(
+                text="Cancel",
+                callback_data="adm_dashboard",
+                style="primary",
+                icon_custom_emoji_id=Icons.BACK,
+            ),
+        ]
+    ])
+    await message.answer(text, reply_markup=keyboard)
 
 
 @router.message(Command("resume", "unpause"))

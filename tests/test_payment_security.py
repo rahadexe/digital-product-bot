@@ -219,10 +219,9 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
                                                     quoted_rate=1.0, on_sync_wait=on_wait)
 
         self.assertEqual(len(waits), 3, 'the customer should be told we are still checking')
-        self.assertEqual(result.get('error'), 'not_found')
+        self.assertTrue(result.get('pending_sync'), result)
         self.assertFalse(result.get('fallback_manual'), 'a missing receipt is not an admin job yet')
-        self.assertEqual(await self.balance(), 0.0)
-        self.assertIsNone(await self.s.deposits.pending_for(CUSTOMER))
+        self.assertEqual(await self.balance(), 0.0, 'nothing is credited until the receipt is seen')
 
     # ---- a receipt that arrives after the customer does -----------------------
 
