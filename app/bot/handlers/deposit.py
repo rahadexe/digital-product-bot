@@ -929,21 +929,23 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             # and nothing on this path reaches the gateway.
             if is_binance:
                 text = (
-                    f"{ICON_CROSS} <b>Payment Already Processed</b>\n"
+                    f"{ICON_CROSS} <b>This TrxID is Already Used</b>\n"
                     f"━━━━━━━━━━━━━━━━━━\n"
                     f"This Transaction ID (<code>{escape(clean_tx)}</code>) has already been credited.\n\n"
-                    f"{ICON_NEXT} <b>What to do:</b> send the Transaction ID of your newest payment "
-                    f"from the receipt SMS. The same one will not work again.\n\n"
-                    f"{ICON_WARNING} If you believe this is a mistake, contact support."
+                    f"{ICON_NEXT} <b>What to do:</b>\n"
+                    f"1. Send the TrxID from your newest payment receipt.\n"
+                    f"2. If you entered the wrong amount, tap <b>Change Amount</b> below to fix it.\n\n"
+                    f"{ICON_WARNING} If you need help, contact support."
                 )
             else:
                 text = (
-                    f"{ICON_CROSS} <b>এই TrxID আগেই ব্যবহৃত হয়েছে</b>\n"
+                    f"{ICON_CROSS} <b>এই TrxID অলরেডি ব্যবহার হয়ে গেছে</b>\n"
                     f"━━━━━━━━━━━━━━━━━━\n"
-                    f"এই Transaction ID (<code>{escape(clean_tx)}</code>) দিয়ে আগেই ব্যালেন্স নেওয়া হয়েছে।\n\n"
-                    f"{ICON_NEXT} <b>আপনার করণীয়:</b> SMS বা রিসিট থেকে আপনার "
-                    f"<b>নতুন</b> পেমেন্টের TrxID টি দিন। একই TrxID আবার দিলে কাজ হবে না।\n\n"
-                    f"{ICON_WARNING} কোনো ভুল হয়েছে মনে করলে সাপোর্টে যোগাযোগ করুন।"
+                    f"এই Transaction ID (<code>{escape(clean_tx)}</code>) দিয়ে ইতিপূর্বে ব্যালেন্স নেওয়া হয়েছে।\n\n"
+                    f"{ICON_NEXT} <b>আপনার করণীয়:</b>\n"
+                    f"১. নতুন পেমেন্ট করে থাকলে SMS বা রিসিট দেখে সঠিক TrxID দিন।\n"
+                    f"২. টাকার পরিমাণ ভুল লিখে থাকলে নিচে <b>Change Amount</b> বাটনে চাপ দিয়ে সঠিক পরিমাণ বসিয়ে পুনরায় চেষ্টা করুন।\n\n"
+                    f"{ICON_WARNING} কোনো সমস্যা মনে হলে সাপোর্টে যোগাযোগ করুন।"
                 )
             await _safe_edit_or_answer(
                 status_msg,
@@ -1154,14 +1156,15 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                 )
             elif err_type == "already_used":
                 error_msg = (
-                    f"{ICON_CROSS} <b>TrxID ইতোমধ্যে ব্যবহৃত হয়েছে ({len(fails)}/{MAX_VERIFY_ATTEMPTS})</b>\n"
+                    f"{ICON_CROSS} <b>TrxID অলরেডি ব্যবহার হয়ে গেছে ({len(fails)}/{MAX_VERIFY_ATTEMPTS})</b>\n"
                     f"━━━━━━━━━━━━━━━━━━\n"
                     f"↳ <b>Method:</b> {escape(method_name)}\n"
                     f"↳ <b>Transaction ID:</b> <code>{escape(clean_tx)}</code>\n\n"
                     f"{ICON_QUESTION} <b>কেন এই সমস্যা হতে পারে?</b>\n"
                     f"এই Transaction ID টি দিয়ে ইতিপূর্বে ব্যালেন্স নেওয়া হয়েছে।\n\n"
                     f"{ICON_NEXT} <b>এখন আপনার করণীয়:</b>\n"
-                    f"আপনার SMS বা রিসিট চেক করে সর্বশেষ নতুন TrxID টি দিন।\n\n"
+                    f"১. আপনার SMS বা রিসিট চেক করে সর্বশেষ নতুন TrxID দিন।\n"
+                    f"২. টাকার পরিমাণ ভুল লিখে থাকলে নিচে <b>Change Amount</b> বাটনে চাপ দিয়ে সঠিক পরিমাণ বসিয়ে পুনরায় চেষ্টা করুন।\n\n"
                     f"{ICON_WARNING} আর {remaining_attempts} বার চেষ্টা করতে পারবেন।"
                 )
             else:  # "not_found" and other errors
