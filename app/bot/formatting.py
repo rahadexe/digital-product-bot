@@ -23,6 +23,16 @@ def clear_active_menu(chat_id: int) -> None:
     _ACTIVE_MENU_MESSAGES.pop(chat_id, None)
 
 
+async def _bg_delete_message(bot: Any, chat_id: int, message_id: int) -> None:
+    with suppress(Exception):
+        await bot.delete_message(chat_id=chat_id, message_id=message_id)
+
+
+async def _bg_delete_event(event: Message) -> None:
+    with suppress(Exception):
+        await event.delete()
+
+
 async def delete_active_menu(bot: Any, chat_id: int) -> None:
     """Delete the active menu message for this chat if one exists."""
     old_msg_id = _ACTIVE_MENU_MESSAGES.pop(chat_id, None)
@@ -40,9 +50,11 @@ async def respond(
 ) -> None:
     """Replace the message behind a pressed button, or reply to a typed message or command.
 
-    Option A Auto-Cleanup: When a user taps a bottom reply keyboard button, delete their previous
-    active menu box and delete the incoming user command message so that the chat stays clean and free
-    of duplicate menu blocks.
+    Option A Blazing Fast Auto-Cleanup:
+    - Inline button taps edit the message in-place.
+    - Reply keyboard taps send the new menu IMMEDIATELY without waiting on deletions.
+    - Previous menu and user trigger text are deleted concurrently in background tasks
+      so response speed is instant.
     """
     if isinstance(event, CallbackQuery):
         chat_id = event.message.chat.id if event.message and event.message.chat else 0
@@ -63,16 +75,16 @@ async def respond(
     else:
         chat_id = event.chat.id if event.chat else 0
 
-        # 1. Delete previous active menu message in this chat
-        if chat_id:
-            await delete_active_menu(event.bot, chat_id)
+        # 1. Non-blocking background deletion of old menu
+        old_msg_id = _ACTIVE_MENU_MESSAGES.pop(chat_id, None) if chat_id else None
+        if old_msg_id and event.bot and chat_id:
+            asyncio.create_task(_bg_delete_message(event.bot, chat_id, old_msg_id))
 
-        # 2. Delete the user's incoming button command message (e.g. "Buy VPN", "Proxy Shop")
+        # 2. Non-blocking background deletion of user trigger text
         if delete_trigger:
-            with suppress(Exception):
-                await event.delete()
+            asyncio.create_task(_bg_delete_event(event))
 
-        # 3. Send the new menu message and track it
+        # 3. Send new menu IMMEDIATELY with zero blocking delay
         new_msg = await event.answer(text, reply_markup=keyboard)
         if chat_id and new_msg:
             msg_id = getattr(new_msg, "message_id", None)

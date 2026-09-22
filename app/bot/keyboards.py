@@ -69,6 +69,7 @@ def get_persistent_reply_keyboard(
     return ReplyKeyboardMarkup(
         keyboard=rows,
         resize_keyboard=True,
+        one_time_keyboard=True,
         is_persistent=False,
     )
 
