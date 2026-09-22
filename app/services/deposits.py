@@ -20,6 +20,7 @@ from app.bot.icons import (
     ICON_CHECK,
     ICON_COIN,
     ICON_DEPOSIT,
+    ICON_ID,
     ICON_KEY,
     ICON_MONEY,
     ICON_NOTE,
@@ -347,7 +348,7 @@ class DepositService:
         if console:
             rows.append([
                 InlineKeyboardButton(
-                    text="Open in console",
+                    text="Open in Console",
                     url=f"{console}/#deposits",
                     icon_custom_emoji_id=Icons.DEPOSIT,
                 )
@@ -355,20 +356,22 @@ class DepositService:
         keyboard = InlineKeyboardMarkup(inline_keyboard=rows)
 
         await self.notifier.send_admin(
-            f"{ICON_DEPOSIT} <b>New Deposit Request #{deposit_id}</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"{ICON_ACCOUNT} <b>Customer:</b> {customer} (<code>{tg_user_id}</code>)\n"
+            f"{ICON_DEPOSIT} <b>New Deposit Request #{deposit_id}</b>\n\n"
+            f"{ICON_ACCOUNT} <b>Customer:</b> {customer}\n"
+            f"{ICON_ID} <b>Customer ID:</b> <code>{tg_user_id}</code>\n"
             f"{ICON_DEPOSIT} <b>Method:</b> {escape(quote['method_name'])}\n"
-            f"{ICON_MONEY} <b>Credit Amount:</b> <code>{quote['amount']:.2f} {symbol}</code>{payable}\n"
-            f"{ICON_KEY} <b>Transaction ID:</b> <code>{escape(transaction_id)}</code>"
+            f"{ICON_MONEY} <b>Amount:</b> <code>{quote['amount']:.2f} {symbol}</code>{payable}\n"
+            f"{ICON_KEY} <b>TrxID:</b> <code>{escape(transaction_id)}</code>"
             f"{note_line}",
             event="deposit",
             keyboard=keyboard,
         )
 
-    async def _notify_customer(self, tg_user_id: int, text_for_symbol: Callable[[str], str]) -> None:
+    async def _notify_customer(
+        self, tg_user_id: int, text_for_symbol: Callable[[str], str], keyboard: InlineKeyboardMarkup | None = None
+    ) -> None:
         symbol = escape(await self.settings.get("currency_symbol"))
-        await self.notifier.send(tg_user_id, text_for_symbol(symbol))
+        await self.notifier.send(tg_user_id, text_for_symbol(symbol), keyboard=keyboard)
 
     async def pending_for(self, tg_user_id: int) -> dict[str, Any] | None:
         async with self.db.connect() as conn:
@@ -489,11 +492,10 @@ class DepositService:
                 self._notify_customer(
                     deposit["tg_user_id"],
                     lambda symbol: (
-                        f"{ICON_CHECK} <b>Deposit Approved!</b>\n"
-                        f"━━━━━━━━━━━━━━━━━━\n"
-                        f"{ICON_MONEY} <b>Amount Credited:</b> <code>{amount:.2f} {symbol}</code>\n"
-                        f"{ICON_DEPOSIT} <b>Payment Method:</b> {method_name}\n"
-                        f"{ICON_BALANCE} <b>Updated Balance:</b> <code>{details['new_balance']:.2f} {symbol}</code>"
+                        f"{ICON_CHECK} <b>Deposit Approved!</b>\n\n"
+                        f"{ICON_MONEY} <b>Amount:</b> <code>{amount:.2f} {symbol}</code>\n"
+                        f"{ICON_DEPOSIT} <b>Method:</b> {method_name}\n"
+                        f"{ICON_BALANCE} <b>Balance:</b> <code>{details['new_balance']:.2f} {symbol}</code>"
                     ),
                 )
             )
@@ -522,17 +524,39 @@ class DepositService:
             )
 
         amount = deposit["amount"]
+        method_name = escape(deposit.get("method_name") or "Deposit")
+        trx_id = escape(deposit.get("transaction_id") or "")
+        tg_user_id = deposit["tg_user_id"]
+
+        async with self.db.connect() as conn:
+            user_row = await conn.fetchrow("SELECT username, first_name FROM users WHERE tg_user_id = $1", tg_user_id)
+        u_handle = f"@{escape(user_row['username'])}" if user_row and user_row.get("username") else (escape(user_row["first_name"]) if user_row and user_row.get("first_name") else "Customer")
+
+        support_user = await self.settings.get("support_username")
+        support_kb = None
+        if support_user:
+            clean_sup = support_user.lstrip("@")
+            support_kb = InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text="Contact Support", url=f"https://t.me/{clean_sup}", icon_custom_emoji_id=Icons.SUPPORT)
+            ]])
+        else:
+            support_kb = InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text="Contact Support", callback_data="open_support", icon_custom_emoji_id=Icons.SUPPORT)
+            ]])
+
         self.notifier.in_background(
             self._notify_customer(
-                deposit["tg_user_id"],
+                tg_user_id,
                 lambda symbol: (
-                    f"{ICON_WARNING} <b>Deposit Request Rejected</b>\n"
-                    f"━━━━━━━━━━━━━━━━━━\n"
-                    f"{ICON_MONEY} <b>Requested Amount:</b> <code>{amount:.2f} {symbol}</code>\n"
-                    f"{ICON_NOTE} <b>Reason:</b> {escape(admin_note)}\n"
-                    f"━━━━━━━━━━━━━━━━━━\n"
-                    f"<i>ভুল মনে হলে পেমেন্ট প্রুফসহ সাপোর্টে যোগাযোগ করুন।</i>"
+                    f"{ICON_WARNING} <b>Deposit Rejected</b>\n\n"
+                    f"{ICON_ACCOUNT} <b>Customer:</b> {u_handle}\n"
+                    f"{ICON_ID} <b>Customer ID:</b> <code>{tg_user_id}</code>\n"
+                    f"{ICON_DEPOSIT} <b>Method:</b> {method_name}\n"
+                    f"{ICON_MONEY} <b>Amount:</b> <code>{amount:.2f} {symbol}</code>\n"
+                    f"{ICON_KEY} <b>TrxID:</b> <code>{trx_id}</code>\n"
+                    f"{ICON_NOTE} <b>Reason:</b> {escape(admin_note)}"
                 ),
+                keyboard=support_kb,
             )
         )
         return True, "Deposit rejected.", {"tg_user_id": deposit["tg_user_id"], "amount": deposit["amount"], "reason": admin_note}

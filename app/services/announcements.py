@@ -84,8 +84,7 @@ class AnnouncementService:
         button = await self._buy_button(product, f"Buy {product['title']}")
 
         admin_delivered = await self.notifier.send_admin(
-            f"{ICON_ORDERS} <b>Restocked</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{ICON_ORDERS} <b>Restocked</b>\n\n"
             f"{icon} <b>{title}</b>\n"
             f"{duration_line}"
             f"{ICON_PLUS} <code>+{added_count}</code> · now <code>{product['stock']}</code> in stock\n"
@@ -102,14 +101,13 @@ class AnnouncementService:
         for ch in channels:
             deliv = await self.notifier.send(
                 ch,
-                f"{ICON_ORDERS} <b>Fresh Restock Alert!</b>\n"
-                f"━━━━━━━━━━━━━━━━━━\n"
+                f"{ICON_ORDERS} <b>Fresh Restock Alert!</b>\n\n"
                 f"{ICON_VIP} <b>Product:</b> {icon} <b>{title}</b>\n"
                 f"{duration_line}"
                 f"{ICON_SPARKLES} <b>Fresh Stock:</b> <code>{added_count} units</code>\n"
                 f"{ICON_SHOP} <b>Available:</b> <code>{product['stock']} accounts</code>\n"
                 f"{ICON_MONEY} <b>Price:</b> <code>{format_dual_price(product['price'], symbol)}</code>\n"
-                f"{ICON_CHECK} <b>Delivery:</b> Instant Automatic Delivery",
+                f"{ICON_CHECK} <b>Delivery:</b> Instant (Automatic)",
                 button,
             )
             if deliv:
@@ -132,28 +130,29 @@ class AnnouncementService:
         duration = (product.get("duration_label") or "").strip()
         duration_line = f"{ICON_TIMER} <b>Validity:</b> {escape(duration)}\n" if duration and duration.lower() not in {"instant", "none", "n/a", ""} else ""
         is_manual = product.get("delivery_type") == "manual"
-        delivery_line = f"{ICON_TIMER} <b>Delivery:</b> Manual Delivery" if is_manual else f"{ICON_CHECK} <b>Delivery:</b> Instant Automatic Delivery"
+        delivery_line = f"{ICON_TIMER} <b>Delivery:</b> Manual" if is_manual else f"{ICON_CHECK} <b>Delivery:</b> Instant (Automatic)"
 
         is_drop = new_price < old_price
 
         if is_drop:
             heading = f"{ICON_FIRE} <b>Special Price Drop!</b>"
-            diff_line = f"{ICON_SPARKLES} <b>You Save:</b> <code>{format_dual_price(diff, symbol)}</code> (<b>-{pct}% OFF</b>)\n"
+            diff_line = f"📉 <b>Old Price:</b> <code><s>{format_dual_price(old_price, symbol)}</s></code>\n"
+            price_line = f"{ICON_MONEY} <b>Price:</b> <code>{format_dual_price(new_price, symbol)}</code> (-{pct}% OFF)\n"
             btn_text = f"Buy {product['title']}"
         else:
             heading = f"{ICON_STATS} <b>Price Update Alert</b>"
-            diff_line = f"{ICON_PLUS} <b>Adjustment:</b> <code>+{format_dual_price(diff, symbol)}</code> (<b>+{pct}%</b>)\n"
+            diff_line = f"📉 <b>Old Price:</b> <code><s>{format_dual_price(old_price, symbol)}</s></code>\n"
+            price_line = f"{ICON_MONEY} <b>Price:</b> <code>{format_dual_price(new_price, symbol)}</code> (+{pct}%)\n"
             btn_text = f"View {product['title']}"
 
         button = await self._buy_button(product, btn_text)
 
         msg_body = (
-            f"{heading}\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{heading}\n\n"
             f"{ICON_VIP} <b>Product:</b> {icon} <b>{title}</b>\n"
             f"{duration_line}"
             f"{diff_line}"
-            f"{ICON_MONEY} <b>New Price:</b> <code>{format_dual_price(new_price, symbol)}</code>\n"
+            f"{price_line}"
             f"{delivery_line}"
         )
 
@@ -196,12 +195,11 @@ class AnnouncementService:
         duration = (product.get("duration_label") or "").strip()
         duration_line = f"{ICON_TIMER} <b>Validity:</b> {escape(duration)}\n" if duration and duration.lower() not in {"instant", "none", "n/a", ""} else ""
         is_manual = product.get("delivery_type") == "manual"
-        delivery_line = f"{ICON_TIMER} <b>Delivery:</b> Manual Delivery" if is_manual else f"{ICON_CHECK} <b>Delivery:</b> Instant Automatic Delivery"
+        delivery_line = f"{ICON_TIMER} <b>Delivery:</b> Manual" if is_manual else f"{ICON_CHECK} <b>Delivery:</b> Instant (Automatic)"
 
         button = await self._buy_button(product, f"Order {product['title']}")
         text = (
-            f"{ICON_FIRE} <b>Featured Product</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{ICON_FIRE} <b>Featured Product</b>\n\n"
             f"{ICON_VIP} <b>Product:</b> {icon} <b>{title}</b>\n"
             f"{duration_line}"
             f"{desc}"

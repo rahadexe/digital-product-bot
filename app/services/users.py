@@ -65,10 +65,9 @@ class UserService:
                 full_name = escape(" ".join(filter(None, [first_name, last_name])) or "No name")
                 self.notifier.in_background(
                     self.notifier.send_admin(
-                        f"{ICON_ACCOUNT} <b>New customer</b>\n"
-                        f"━━━━━━━━━━━━━━━━━━\n"
-                        f"{full_name}{cust}\n"
-                        f"{ICON_ID} <code>{tg_user_id}</code>",
+                        f"{ICON_ACCOUNT} <b>New Customer Joined!</b>\n\n"
+                        f"{ICON_ACCOUNT} <b>Customer:</b> {full_name}{cust}\n"
+                        f"{ICON_ID} <b>Customer ID:</b> <code>{tg_user_id}</code>",
                         event="new_user",
                     )
                 )
@@ -132,10 +131,9 @@ class UserService:
             self.notifier.in_background(
                 self.notifier.send(
                     referrer_id,
-                    f"{ICON_ORDERS} <b>Referral Bonus Received!</b>\n"
-                    f"━━━━━━━━━━━━━━━━━━\n"
+                    f"{ICON_ORDERS} <b>Referral Bonus Received!</b>\n\n"
                     f"{ICON_ACCOUNT} <b>Friend:</b> {joined_name}\n"
-                    f"{ICON_COIN} <b>Bonus Credited:</b> <code>+{reward_str}</code>",
+                    f"{ICON_COIN} <b>Bonus:</b> <code>+{reward_str}</code>",
                 )
             )
         return {"referrer_id": referrer_id, "amount": reward_amount}

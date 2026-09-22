@@ -15,6 +15,7 @@ from app.bot.icons import (
     ICON_ACCOUNT,
     ICON_CHECK,
     ICON_CROSS,
+    ICON_ID,
     ICON_MONEY,
     ICON_ORDERS,
     ICON_SHOP,
@@ -224,13 +225,13 @@ class PurchaseService:
 
         keyboard = None
         if waiting_reason:
-            heading = f"{ICON_TIMER} <b>Manual Order Action Required</b>"
-            delivery = f"{ICON_WARNING} <b>Delivery:</b> Manual Fulfillment Required"
+            heading = f"{ICON_WARNING} <b>Manual Order Action Required</b>"
+            delivery = f"{ICON_WARNING} <b>Delivery:</b> Manual"
             # The customer has paid and is waiting for a human. Let that human
             # answer from the chat the alert arrived in.
             rows = [[
                 InlineKeyboardButton(
-                    text=f"Deliver #{order_id} here",
+                    text="Deliver Here",
                     callback_data=f"adm_ord_deliver_{order_id}",
                     style="success",
                     icon_custom_emoji_id=Icons.ORDERS,
@@ -239,7 +240,7 @@ class PurchaseService:
             if console:
                 rows.append([
                     InlineKeyboardButton(
-                        text="Open in console",
+                        text="Open in Console",
                         url=f"{console}/#orders/{order_id}",
                         icon_custom_emoji_id=Icons.NOTE,
                     )
@@ -247,7 +248,7 @@ class PurchaseService:
             keyboard = InlineKeyboardMarkup(inline_keyboard=rows)
         else:
             heading = f"{ICON_SHOP} <b>New Order Received</b>"
-            delivery = f"{ICON_CHECK} <b>Delivery:</b> Instant (Delivered)"
+            delivery = f"{ICON_CHECK} <b>Delivery:</b> Instant"
 
         stock_warning = ""
         rem_stock = None
@@ -268,17 +269,17 @@ class PurchaseService:
                     if rem_stock == 0:
                         stock_warning = f"\n{ICON_WARNING} <b>Stock Alert:</b> Product is now <b>OUT OF STOCK!</b> (<code>0</code> left)"
                     elif rem_stock <= threshold:
-                        stock_warning = f"\n{ICON_WARNING} <b>Stock Alert:</b> Low stock warning (only <code>{rem_stock}</code> left)"
+                        stock_warning = f"\n{ICON_WARNING} <b>Stock Alert:</b> Low stock (<code>{rem_stock}</code> left)"
             except Exception:
                 pass
 
         msg_text = (
-            f"{heading}\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"{ICON_ORDERS} <b>Order ID:</b> <code>#{order_id}</code>\n"
-            f"{ICON_ACCOUNT} <b>Customer:</b> {customer} (<code>{user['tg_user_id']}</code>)\n"
+            f"{heading}\n\n"
+            f"{ICON_ORDERS} <b>Order:</b> <code>#{order_id}</code>\n"
+            f"{ICON_ACCOUNT} <b>Customer:</b> {customer}\n"
+            f"{ICON_ID} <b>Customer ID:</b> <code>{user['tg_user_id']}</code>\n"
             f"{ICON_VIP} <b>Product:</b> {escape(order['product_title'])}\n"
-            f"{ICON_MONEY} <b>Price Paid:</b> <code>{price(symbol, order['price'], usd_rate=usd_rate, show_usd=show_usd)}</code>\n"
+            f"{ICON_MONEY} <b>Price:</b> <code>{price(symbol, order['price'], usd_rate=usd_rate, show_usd=show_usd)}</code>\n"
             f"{delivery}{stock_warning}"
         )
         await self.notifier.send_admin(
@@ -290,20 +291,26 @@ class PurchaseService:
         # Dedicated Low Stock & Out of Stock Alert for store administrators
         if rem_stock is not None:
             if rem_stock == 0:
-                low_stock_kb = None
+                # The alert is the moment stock is on the owner's mind, so the fix
+                # belongs on it rather than behind a browser and a login.
+                rows = [[InlineKeyboardButton(
+                    text="Add stock here",
+                    callback_data=f"adm_stock_{prod_id}",
+                    style="success",
+                    icon_custom_emoji_id=Icons.PLUS,
+                )]]
                 if console:
-                    low_stock_kb = InlineKeyboardMarkup(inline_keyboard=[[
-                        InlineKeyboardButton(
-                            text="Restock in Console",
-                            url=f"{console}/#inventory",
-                            icon_custom_emoji_id=Icons.PLUS,
-                        )
-                    ]])
+                    rows.append([InlineKeyboardButton(
+                        text="Open in console",
+                        url=f"{console}/#inventory",
+                        icon_custom_emoji_id=Icons.SHOP,
+                    )])
+                low_stock_kb = InlineKeyboardMarkup(inline_keyboard=rows)
                 alert_text = (
-                    f"{ICON_CROSS} <b>Sold out</b>\n"
-                    f"━━━━━━━━━━━━━━━━━━\n"
-                    f"{ICON_VIP} {escape(order['product_title'])}\n"
-                    f"<i>Nobody can buy it until you restock.</i>"
+                    f"{ICON_CROSS} <b>Product Out of Stock!</b>\n\n"
+                    f"{ICON_VIP} <b>Product:</b> {escape(order['product_title'])}\n"
+                    f"{ICON_SHOP} <b>Available Stock:</b> <code>0</code>\n"
+                    f"{ICON_CROSS} <b>Status:</b> Sold Out"
                 )
                 await self.notifier.send_admin(
                     alert_text,
@@ -311,20 +318,26 @@ class PurchaseService:
                     keyboard=low_stock_kb,
                 )
             elif rem_stock <= threshold:
-                low_stock_kb = None
+                # The alert is the moment stock is on the owner's mind, so the fix
+                # belongs on it rather than behind a browser and a login.
+                rows = [[InlineKeyboardButton(
+                    text="Add stock here",
+                    callback_data=f"adm_stock_{prod_id}",
+                    style="success",
+                    icon_custom_emoji_id=Icons.PLUS,
+                )]]
                 if console:
-                    low_stock_kb = InlineKeyboardMarkup(inline_keyboard=[[
-                        InlineKeyboardButton(
-                            text="Restock in Console",
-                            url=f"{console}/#inventory",
-                            icon_custom_emoji_id=Icons.PLUS,
-                        )
-                    ]])
+                    rows.append([InlineKeyboardButton(
+                        text="Open in console",
+                        url=f"{console}/#inventory",
+                        icon_custom_emoji_id=Icons.SHOP,
+                    )])
+                low_stock_kb = InlineKeyboardMarkup(inline_keyboard=rows)
                 alert_text = (
-                    f"{ICON_WARNING} <b>Running low</b>\n"
-                    f"━━━━━━━━━━━━━━━━━━\n"
-                    f"{ICON_VIP} {escape(order['product_title'])}\n"
-                    f"{ICON_SHOP} <code>{rem_stock}</code> left"
+                    f"{ICON_WARNING} <b>Low Stock Warning!</b>\n\n"
+                    f"{ICON_VIP} <b>Product:</b> {escape(order['product_title'])}\n"
+                    f"{ICON_SHOP} <b>Available Stock:</b> <code>{rem_stock}</code>\n"
+                    f"{ICON_TIMER} <b>Threshold:</b> <code>{threshold}</code>"
                 )
                 await self.notifier.send_admin(
                     alert_text,

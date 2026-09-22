@@ -34,10 +34,9 @@ def waiting_notice(order: dict[str, Any]) -> str:
     order_id = order.get('order_id', order.get('id'))
     title = escape(order.get('product_title', 'Purchase'))
     return (
-        f"{ICON_TIMER} <b>Order #{order_id}: {title}</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n"
+        f"{ICON_TIMER} <b>Order #{order_id}: {title}</b>\n\n"
         f"{ICON_CHECK} <b>Payment Received!</b>\n\n"
-        f"Your order is being prepared and will be delivered directly here shortly."
+        f"Your order is being prepared and will be delivered directly here shortly (usually within 5–30 minutes)."
     )
 
 
@@ -63,7 +62,7 @@ def receipt(order: dict[str, Any]) -> str:
     lines = [
         f"{ICON_ORDERS} <b>Order #{order_id} Details</b>\n",
         f"{ICON_VIP} <b>Product:</b> {title}",
-        f"{ICON_MONEY} <b>Price Paid:</b> <code>{price_str}</code>",
+        f"{ICON_MONEY} <b>Price:</b> <code>{price_str}</code>",
     ]
     if date_str:
         lines.append(f"{ICON_TIMER} <b>Date:</b> {date_str}")

@@ -24,6 +24,7 @@ from app.bot.icons import (
     ICON_BALANCE,
     ICON_CHECK,
     ICON_DEPOSIT,
+    ICON_ID,
     ICON_KEY,
     ICON_MONEY,
     ICON_WARNING,
@@ -576,17 +577,27 @@ class PaymentService:
         credit = float(row["credit_amount"])
         await self.notifier.send(
             row["tg_user_id"],
-            f"{ICON_CHECK} <b>Payment Successful!</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"{ICON_MONEY} <b>Credited:</b> <code>{credit:.2f} {symbol}</code>\n"
-            f"{ICON_BALANCE} <b>New Balance:</b> <code>{float(balance or 0):.2f} {symbol}</code>",
+            f"{ICON_CHECK} <b>Payment Successful!</b>\n\n"
+            f"{ICON_MONEY} <b>Amount:</b> <code>{credit:.2f} {symbol}</code>\n"
+            f"{ICON_BALANCE} <b>Balance:</b> <code>{float(balance or 0):.2f} {symbol}</code>",
         )
+        pay_amt = float(row["pay_amount"] or 0)
+        paid_line = f" (Paid {pay_amt:.2f} {LOCAL_CURRENCY})" if abs(credit - pay_amt) > 0.01 else ""
+        customer_name = "No username"
+        try:
+            async with self.db.connect() as conn:
+                u_row = await conn.fetchrow("SELECT username, first_name FROM users WHERE tg_user_id = $1", row["tg_user_id"])
+                if u_row:
+                    customer_name = f"@{escape(u_row['username'])}" if u_row.get("username") else escape(u_row.get("first_name") or "No username")
+        except Exception:
+            pass
+
         await self.notifier.send_admin(
-            f"{ICON_DEPOSIT} <b>Automatic Deposit #{deposit_id}</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"{ICON_ACCOUNT} <b>Customer:</b> <code>{row['tg_user_id']}</code>\n"
-            f"{ICON_MONEY} <b>Credit:</b> <code>{credit:.2f} {symbol}</code> (Paid {float(row['pay_amount']):.2f} {LOCAL_CURRENCY})\n"
-            f"{ICON_DEPOSIT} <b>Gateway:</b> {escape(row['payment_method'] or 'ZiniPay')}\n"
+            f"{ICON_DEPOSIT} <b>Automatic Deposit #{deposit_id}</b>\n\n"
+            f"{ICON_ACCOUNT} <b>Customer:</b> {customer_name}\n"
+            f"{ICON_ID} <b>Customer ID:</b> <code>{row['tg_user_id']}</code>\n"
+            f"{ICON_MONEY} <b>Amount:</b> <code>{credit:.2f} {symbol}</code>{paid_line}\n"
+            f"{ICON_DEPOSIT} <b>Method:</b> {escape(row['payment_method'] or 'ZiniPay')}\n"
             f"{ICON_KEY} <b>TrxID:</b> <code>{escape(row['provider_transaction_id'] or '')}</code>",
             event="payment",
         )
