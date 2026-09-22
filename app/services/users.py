@@ -255,8 +255,7 @@ class UserService:
         action_type = "Credit Added" if delta >= 0 else "Balance Deducted"
         await self.notifier.send(
             tg_user_id,
-            f"{ICON_DEPOSIT} <b>Wallet Balance Updated</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{ICON_DEPOSIT} <b>Wallet Balance Updated</b>\n\n"
             f"{ICON_COIN} <b>{action_type}:</b> <code>{delta:+.2f} {symbol}</code>\n"
             f"{ICON_BALANCE} <b>Current Balance:</b> <code>{balance:.2f} {symbol}</code>\n"
             f"{ICON_NOTE} <b>Reason:</b> {escape(reason or 'Admin adjustment')}",

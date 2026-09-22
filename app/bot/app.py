@@ -39,9 +39,13 @@ def create_dispatcher(services: Services, storage: BaseStorage | None = None) ->
     access = StoreAccess()
     dispatcher.message.outer_middleware(access)
     dispatcher.callback_query.outer_middleware(access)
+    # Search is armed by its button and must not outlive it: any other tap disarms it.
+    end_search = search.EndSearchWhenLeaving()
+    dispatcher.message.outer_middleware(end_search)
+    dispatcher.callback_query.outer_middleware(end_search)
     dispatcher.errors.register(on_error)
-    # search.router is last on purpose: it answers any text nothing else claimed, so it
-    # must never be given the chance to claim text that belongs to another handler.
+    # search.router is last on purpose: it answers text nothing else claimed, so it must
+    # never be given the chance to claim text that belongs to another handler.
     dispatcher.include_routers(admin.router, start.router, shop.router, deposit.router,
                                profile.router, help_guide.router, search.router)
     return dispatcher

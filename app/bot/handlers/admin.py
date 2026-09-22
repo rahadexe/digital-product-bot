@@ -38,6 +38,7 @@ from app.bot.icons import (
     Icons,
     tg_icon,
 )
+from app.bot.keyboards import ADMIN_PANEL_TEXT
 from app.services import Services
 
 logger = logging.getLogger("app.bot.admin")
@@ -504,9 +505,14 @@ _last_admin_panels: dict[int, int] = {}
 
 
 @router.message(Command("admin"))
-async def cmd_admin_help(message: Message, services: Services):
+@router.message(F.text == ADMIN_PANEL_TEXT)
+async def cmd_admin_help(message: Message, state: FSMContext, services: Services):
+    # The keyboard button reaches here from any screen, including the middle of a
+    # deposit or a search, so whatever that screen was waiting for is dropped. Anyone
+    # else who types the same words gets nothing: not a refusal that says it exists.
     if not message.from_user or not await _is_admin(message.from_user.id, services):
         return
+    await state.clear()
     old_panel_id = _last_admin_panels.get(message.chat.id)
     if old_panel_id:
         with suppress(Exception):
@@ -2354,7 +2360,7 @@ async def adm_cb_stock_items(query: CallbackQuery, services: Services):
         f"━━━━━━━━━━━━━━━━━━\n"
         f"<b>Current Available Items (up to 8):</b>\n"
         + "\n".join(lines) + "\n\n"
-        f"<i>Tap below to add more stock or manage this product:</i>"
+        "<i>Tap below to add more stock or manage this product:</i>"
     )
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [

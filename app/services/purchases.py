@@ -479,12 +479,10 @@ class PurchaseService:
 
         symbol = escape(await self.settings.get("currency_symbol"))
         refund_customer_msg = (
-            f"{ICON_CHECK} <b>Order Refunded</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{ICON_CHECK} <b>Order Refunded</b>\n\n"
             f"{ICON_ORDERS} <b>Order ID:</b> <code>#{order_id}</code>\n"
             f"{ICON_VIP} <b>Product:</b> {escape(order['product_title'])}\n"
-            f"{ICON_MONEY} <b>Refunded to Wallet:</b> <code>+{order['price']:.2f} {symbol}</code>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
+            f"{ICON_MONEY} <b>Refunded to Wallet:</b> <code>+{order['price']:.2f} {symbol}</code>\n\n"
             f"<i>টাকা আপনার ওয়ালেট ব্যালেন্সে ফেরত দেওয়া হয়েছে।</i>"
         )
         self.notifier.in_background(

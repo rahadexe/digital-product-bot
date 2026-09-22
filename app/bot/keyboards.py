@@ -15,11 +15,14 @@ from aiogram.types import (
 from app.bot.formatting import format_dual_price
 from app.bot.icons import Icons
 
+ADMIN_PANEL_TEXT = "Admin Panel"
+
 
 def get_persistent_reply_keyboard(
     pinned_categories: List[Dict[str, Any]] | None = None,
     has_unpinned: bool = False,
     is_reseller: bool = False,
+    is_admin: bool = False,
 ) -> ReplyKeyboardMarkup:
     """
     Fully dynamic persistent reply keyboard:
@@ -66,6 +69,11 @@ def get_persistent_reply_keyboard(
     ]
     for i in range(0, len(system_buttons), 2):
         rows.append(system_buttons[i : i + 2])
+    # Only ever built for the administrator list, so a customer's keyboard has no trace
+    # of it. A row of its own at the very bottom: the owner's door, apart from the shop,
+    # and where everything the bot learns to do for them later can hang off one button.
+    if is_admin:
+        rows.append([KeyboardButton(text=ADMIN_PANEL_TEXT, style="danger", icon_custom_emoji_id=Icons.CROWN)])
     return ReplyKeyboardMarkup(
         keyboard=rows,
         resize_keyboard=True,

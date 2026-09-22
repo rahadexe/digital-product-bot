@@ -27,6 +27,7 @@ from app.bot.icons import (
     ICON_CHECK,
     ICON_COIN,
     ICON_CROSS,
+    ICON_CROWN,
     ICON_DEPOSIT,
     ICON_GLOBE,
     ICON_ID,
@@ -132,7 +133,7 @@ async def show_user_profile(event: Message | CallbackQuery, state: FSMContext, s
 
     text = (
         f"{ICON_ACCOUNT} <b>My Profile</b>\n\n"
-        f"{ICON_ACCOUNT} <b>Name:</b> {user_name}\n"
+        f"{ICON_CROWN} <b>Name:</b> {user_name}\n"
         f"{ICON_ID} <b>User ID:</b> <code>{tg_user.id}</code>\n"
         f"{ICON_RESELLER} <b>Account Type:</b> <b>{account_type}</b>\n\n"
         f"{ICON_BALANCE} <b>Current Balance:</b> <code>{price(symbol, user.get('balance', 0.0), usd_rate=usd_rate, show_usd=show_usd)}</code>\n"

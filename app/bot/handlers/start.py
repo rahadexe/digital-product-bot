@@ -67,6 +67,7 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
         pinned_categories=pinned_categories,
         has_unpinned=bool(unpinned_categories),
         is_reseller=is_reseller,
+        is_admin=tg_user_id in await services.settings.admin_chat_ids(),
     )
 
     if edit and message:
