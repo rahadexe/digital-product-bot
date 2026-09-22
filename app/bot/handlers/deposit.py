@@ -146,7 +146,7 @@ async def show_deposit_methods(event: Message | CallbackQuery, state: FSMContext
         text = (
             f"{ICON_TIMER} <b>Deposit #{pending['id']} Pending Review</b>\n\n"
             f"Method: {escape(pending['method_name'])}\n"
-            f"Amount: {price(symbol, pending['amount'])}\n"
+            f"Amount: {price(symbol, pending['amount'], show_usd=False)}\n"
             f"TrxID: <code>{escape(pending['transaction_id'])}</code>\n\n"
             f"<i>Balance will be credited once verified by an admin.</i>"
         )
