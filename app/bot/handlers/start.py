@@ -86,14 +86,13 @@ def gate_text(missing: list[dict[str, Any]], store_name: str = "Digital Mart") -
             "If you already joined, you do not need to join again. Tap <b>I've Joined</b> to retry shortly, or contact support if this continues."
         )
     is_single = len(missing) == 1
-    channel_word = "our official channel" if is_single else "our official channels"
-    button_word = "the button below" if is_single else "the buttons below"
+    channel_word = "our channel" if is_single else "our channels"
     titles = "\n".join(f"{ICON_CHANNEL} <b>{escape(ch.get('title') or ch.get('channel_username') or 'Official Channel')}</b>" for ch in missing)
     return (
         f"{ICON_LOCK} <b>Membership Required</b>\n\n"
-        f"Welcome to <b>{escape(store_name)}</b>! Please join {channel_word} to continue:\n\n"
+        f"Please join {channel_word} to continue:\n\n"
         f"{titles}\n\n"
-        f"👇 <i>Tap {button_word} to join, then click <b>I've Joined</b> to unlock!</i>"
+        f"👇 <i>Join and click <b>I've Joined</b> to unlock!</i>"
     )
 
 
@@ -164,7 +163,13 @@ async def handle_gate_verify(query: CallbackQuery, state: FSMContext, services: 
     passed, missing = await services.gate.check(query.from_user.id)
     if not passed:
         with suppress(TelegramBadRequest):
-            await query.answer("Verification is temporarily unavailable. Please retry shortly." if any(c.get("verification_unavailable") for c in missing) else "⚠️ You haven't joined all required channels yet!", show_alert=True)
+            alert_msg = "Please join our channel first!" if len(missing) == 1 else "Please join the channels first!"
+            await query.answer(
+                "Verification is temporarily unavailable. Please retry shortly."
+                if any(c.get("verification_unavailable") for c in missing)
+                else f"⚠️ {alert_msg}",
+                show_alert=True,
+            )
         return
 
     # User verified channel join: award referral bonus to referrer

@@ -171,7 +171,13 @@ class StoreAccess(BaseMiddleware):
             return None
         if not passed:
             if isinstance(event, CallbackQuery):
-                await event.answer("Verification is temporarily unavailable. Please retry shortly." if any(c.get("verification_unavailable") for c in missing) else "Please join the required channels first.", show_alert=True)
+                alert_msg = "Please join our channel first!" if len(missing) == 1 else "Please join the channels first!"
+                await event.answer(
+                    "Verification is temporarily unavailable. Please retry shortly."
+                    if any(c.get("verification_unavailable") for c in missing)
+                    else f"⚠️ {alert_msg}",
+                    show_alert=True,
+                )
             services = data.get("services")
             store_name = await services.settings.get("store_name") if services else "Digital Mart"
             await message.answer(
