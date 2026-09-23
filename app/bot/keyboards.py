@@ -243,10 +243,10 @@ def get_gate_keyboard(channels: List[Dict[str, Any]]) -> InlineKeyboardMarkup:
 
     buttons.append([
         InlineKeyboardButton(
-            text="Joined",
+            text="I've Joined",
             callback_data="gate_verify",
             style="success",
-            icon_custom_emoji_id=Icons.CHECK,
+            icon_custom_emoji_id=Icons.CONFIRM,
         )
     ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)

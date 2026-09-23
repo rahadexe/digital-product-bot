@@ -16,6 +16,7 @@ from app.bot.formatting import send_operator_html
 from app.bot.handlers.search import forget_search_origin
 from app.bot.handlers.shop import product_view
 from app.bot.icons import (
+    ICON_CHANNEL,
     ICON_LOCK,
     ICON_SPARKLES,
     ICON_WARNING,
@@ -78,15 +79,21 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
     await send_operator_html(message.answer, text, reply_markup=reply_kb)
 
 
-def gate_text(missing: list[dict[str, Any]]) -> str:
+def gate_text(missing: list[dict[str, Any]], store_name: str = "Digital Mart") -> str:
     if any(ch.get('verification_unavailable') for ch in missing):
-        return "<b>Channel verification is temporarily unavailable.</b>\n\nIf you already joined, you do not need to join again. Tap <b>Joined</b> to retry shortly, or contact support if this continues."
-    titles = "\n".join(f"• <b>{escape(ch.get('title') or ch.get('channel_username') or 'Official Channel')}</b>" for ch in missing)
+        return (
+            "<b>Channel verification is temporarily unavailable.</b>\n\n"
+            "If you already joined, you do not need to join again. Tap <b>I've Joined</b> to retry shortly, or contact support if this continues."
+        )
+    is_single = len(missing) == 1
+    channel_word = "our official channel" if is_single else "our official channels"
+    button_word = "the button below" if is_single else "the buttons below"
+    titles = "\n".join(f"{ICON_CHANNEL} <b>{escape(ch.get('title') or ch.get('channel_username') or 'Official Channel')}</b>" for ch in missing)
     return (
-        f"{ICON_LOCK} <b>Access Required: Join Our Channel(s)</b>\n\n"
-        f"To access <b>Premium Haven</b> and explore our services, please join our official Telegram channel(s) below:\n\n"
+        f"{ICON_LOCK} <b>Membership Required</b>\n\n"
+        f"Welcome to <b>{escape(store_name)}</b>! Please join {channel_word} to continue:\n\n"
         f"{titles}\n\n"
-        f"<i>Tap the button(s) below to join, then click <b>Joined</b> to unlock the bot!</i>"
+        f"👇 <i>Tap {button_word} to join, then click <b>I've Joined</b> to unlock!</i>"
     )
 
 
@@ -131,7 +138,8 @@ async def handle_start(message: Message, state: FSMContext, services: Services):
         services.gate.check(tg_user.id),
     )
     if not passed:
-        await message.answer(gate_text(missing), reply_markup=get_gate_keyboard(missing))
+        store_name = await services.settings.get("store_name")
+        await message.answer(gate_text(missing, store_name), reply_markup=get_gate_keyboard(missing))
         return
 
     # User passed gate directly (or no gate channels configured): process pending referral reward
