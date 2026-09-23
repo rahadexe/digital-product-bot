@@ -35,13 +35,11 @@ export function Validities({ say }: { say: Say }) {
       ]);
 
       let loadedPresets: string[] = [];
-      if (sets && sets.validity_presets) {
+      if (sets && typeof sets.validity_presets === 'string') {
         loadedPresets = sets.validity_presets
           .split(',')
           .map((s) => s.trim())
           .filter(Boolean);
-      } else {
-        loadedPresets = ['3 Days', '7 Days', '14 Days', '30 Days', '90 Days', '1 Year'];
       }
       setPresets(loadedPresets);
       setProducts(prods);

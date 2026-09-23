@@ -110,7 +110,7 @@ SPECS: dict[str, SettingSpec] = {
     "currency_symbol": SettingSpec("৳", max_length=8),
     "show_usd_price": SettingSpec("1", _flag, 1),
     "usd_rate": SettingSpec("125", _number(0.0001, 1_000_000), 16),
-    "validity_presets": SettingSpec("3 Days, 7 Days, 14 Days, 30 Days, 90 Days, 1 Year", max_length=2000),
+    "validity_presets": SettingSpec("", max_length=2000),
     "support_username": SettingSpec("", _username, 65),
     "welcome_text": SettingSpec("", max_length=3500),
     "referral_enabled": SettingSpec("1", _flag, 1),

@@ -478,15 +478,13 @@ function ProductForm({
 }) {
   const [form, setForm] = useState(draft);
   const [busy, setBusy] = useState(false);
-  const [validityPresets, setValidityPresets] = useState<string[]>([
-    '3 Days', '7 Days', '14 Days', '30 Days', '90 Days', '1 Year'
-  ]);
+  const [validityPresets, setValidityPresets] = useState<string[]>([]);
 
   useEffect(() => {
     api.settings().then((sets) => {
-      if (sets && sets.validity_presets) {
+      if (sets && typeof sets.validity_presets === 'string') {
         const parsed = sets.validity_presets.split(',').map((s) => s.trim()).filter(Boolean);
-        if (parsed.length > 0) setValidityPresets(parsed);
+        setValidityPresets(parsed);
       }
     }).catch(() => {});
   }, []);
