@@ -1,19 +1,15 @@
 import asyncio
-from dotenv import load_dotenv
 
-load_dotenv()
 from aiogram import Bot
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from dotenv import load_dotenv
+
 from app.bot.icons import (
     ICON_ACCOUNT,
-    ICON_BACK,
     ICON_BINANCE,
     ICON_DEPOSIT,
     ICON_ID,
     ICON_KEY,
-    ICON_MONEY,
-    ICON_NOTE,
-    ICON_SUPPORT,
     ICON_TIMER,
     ICON_WARNING,
     Icons,
@@ -23,6 +19,7 @@ from app.core.config import get_settings
 ADMIN_CHAT_ID = 6775546602
 
 async def main():
+    load_dotenv()
     cfg = get_settings()
     bot = Bot(cfg.bot_token)
     console_url = cfg.console_url or "http://localhost:3000"

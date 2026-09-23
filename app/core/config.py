@@ -8,7 +8,7 @@ import secrets
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import urlsplit
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -86,10 +86,6 @@ class Settings(BaseSettings):
         if self.admin_password == 'admin123456':
             raise ValueError('Replace the default ADMIN_PASSWORD in .env before starting the store.')
         weak_secret = len(self.secret_key) < 32 or "change_me" in self.secret_key
-        # The store serves the Mini App at /app/ and the operator console at the root, so a WEBAPP_URL
-        # that names only the domain would open the console inside Telegram.
-        if self.webapp_url:
-            self.webapp_url = self.mini_app_url(self.webapp_url)
         if self.webhook_base_url:
             self.webhook_base_url = self.webhook_base_url.rstrip("/")
         if self.telegram_enabled and not self.use_polling and not self.webhook_base_url.startswith("https://"):
@@ -133,19 +129,10 @@ class Settings(BaseSettings):
         """
         for candidate in (self.webhook_base_url, self.webapp_url):
             parts = urlsplit(candidate.strip())
-            # WEBAPP_URL is stored pointing at /app/, so only its origin is the console.
+            # Legacy WEBAPP_URL remains a compatible origin fallback.
             if parts.scheme == "https" and parts.netloc:
                 return f"https://{parts.netloc}"
         return ""
-
-    @staticmethod
-    def mini_app_url(url: str) -> str:
-        """The same address pointed at /app/, whatever path it was given."""
-        parts = urlsplit(url.strip())
-        if not parts.scheme or not parts.netloc:
-            return url.strip()
-        path = parts.path if parts.path.rstrip("/").endswith("/app") else "/app"
-        return urlunsplit((parts.scheme, parts.netloc, path.rstrip("/") + "/", "", ""))
 
     @property
     def telegram_enabled(self) -> bool:

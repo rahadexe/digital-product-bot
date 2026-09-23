@@ -41,6 +41,7 @@ class PaymentWatcher:
     async def cleanup(self) -> None:
         # Financial history and unfinished jobs are never pruned here.
         async with self.services.db.transaction() as conn:
+            await conn.execute("DELETE FROM admin_notification_jobs WHERE id IN (SELECT id FROM admin_notification_jobs WHERE status='done' AND created_at<now()-interval '30 days' LIMIT 1000)")
             await conn.execute("DELETE FROM request_limits WHERE expires_at<now()-interval '1 day'")
             await conn.execute("DELETE FROM verification_limits WHERE expires_at<now()-interval '1 day'")
             await conn.execute("DELETE FROM admin_login_attempts WHERE attempted_at<now()-interval '1 day'")

@@ -117,6 +117,7 @@ class DepositMethodPayload(Payload):
 
 
 class BalanceAdjustPayload(Payload):
+    operation_id: str = Field(min_length=16, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
     delta: float = Field(ge=-AMOUNT_LIMIT, le=AMOUNT_LIMIT)
     reason: str = Field(default="", max_length=500)
 

@@ -3,6 +3,7 @@ export interface SessionResponse {
   csrf: string;
   token?: string | null;
   expires_in?: number;
+  store_name?: string;
 }
 
 export interface OverviewStats {
@@ -381,7 +382,6 @@ async function requestUncached<T>(path: string, options: RequestInit = {}): Prom
 
 export const api = {
   setBan: (id: number, banned: boolean) => request(`/api/admin/users/${id}/ban`, {method: 'POST', body: JSON.stringify({banned})}),
-  health: () => request<{status: string; bot: string}>('/health/ready'),
   retryDelivery: (id: number) => request(`/api/admin/orders/${id}/retry-delivery`, {method: 'POST'}),
   broadcastProgress: (id: number) => request<{id:number; success:number; failed:number; pending:number; total:number}>(`/api/admin/broadcast/${id}`),
   session: async () => {
@@ -552,11 +552,16 @@ export const api = {
       reseller_key?: ResellerKeyInfo | null;
       reseller_stats?: ResellerStats | null;
     }>(`/api/admin/users/${tgUserId}`),
-  adjustBalance: (tgUserId: number, delta: number, reason: string) =>
-    request<{ success: boolean; user: User }>(`/api/admin/users/${tgUserId}/adjust-balance`, {
-      method: 'POST',
-      body: JSON.stringify({ delta, reason }),
-    }),
+  adjustBalance: async (tgUserId: number, delta: number, reason: string) => {
+    const key = 'wallet-operation:' + JSON.stringify([tgUserId, delta, reason]);
+    const operation_id = sessionStorage.getItem(key) || crypto.randomUUID();
+    sessionStorage.setItem(key, operation_id);
+    const result = await request<{ success: boolean; user: User }>(`/api/admin/users/${tgUserId}/adjust-balance`, {
+      method: 'POST', body: JSON.stringify({ delta, reason, operation_id }),
+    });
+    sessionStorage.removeItem(key);
+    return result;
+  },
   toggleBan: (tgUserId: number) =>
     request<{ success: boolean; is_banned: boolean }>(`/api/admin/users/${tgUserId}/ban`, {
       method: 'POST',
@@ -656,13 +661,15 @@ export const api = {
     }>('/api/admin/settings/test-admin-notification', { method: 'POST' }),
 
 
+  failedJobs: () => request<Array<{kind: 'telegram' | 'notification'; id: number; attempts: number; error: string}>>('/api/admin/failed-jobs'),
+  retryJob: (kind: 'telegram' | 'notification', id: number) => request<{success: boolean}>(`/api/admin/failed-jobs/${kind}/${id}/retry`, {method: 'POST'}),
   // Audit
   auditLogs: (filters: { search?: string; action?: string; security?: boolean; offset?: number } = {}) => {
     const params = new URLSearchParams({ limit: '50', offset: String(filters.offset ?? 0) });
     if (filters.search) params.set('search', filters.search);
     if (filters.action) params.set('action', filters.action);
     if (filters.security) params.set('security', 'true');
-    return request<{ entries: Array<{ id: number; action: string; details: string; created_at: string }>; total: number; actions: string[] }>(
+    return request<{ entries: Array<{ id: number; action: string; details: string; actor: string; created_at: string }>; total: number; actions: string[] }>(
       `/api/admin/audit-logs?${params.toString()}`,
     );
   },

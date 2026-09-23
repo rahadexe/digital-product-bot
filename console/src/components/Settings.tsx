@@ -274,6 +274,8 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
   const resolve = (wanted?: string): SettingsTab =>
     TABS.some((item) => item.key === wanted) ? (wanted as SettingsTab) : MOVED[wanted ?? ''] ?? 'general';
   const [tab, setTab] = useState<SettingsTab>(resolve(initialTab));
+  const [loadError, setLoadError] = useState('');
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [saved, setSaved] = useState<Record<string, string> | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [secrets, setSecrets] = useState<Record<string, string>>({});
@@ -290,16 +292,20 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
   }, [initialTab]);
 
   useEffect(() => {
+    let active = true;
+    setLoadError('');
     api
       .settings()
       .then((settings) => {
+        if (!active) return;
         setSaved(settings);
         setValues(settings);
       })
-      .catch((cause) => say(errorText(cause, 'Could not load settings.'), 'bad'));
+      .catch((cause) => { if (active) setLoadError(errorText(cause, 'Could not load settings.')); });
     void refreshGateways();
+    return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadAttempt]);
 
   async function refreshGateways() {
     const [payments, checker] = await Promise.all([api.paymentsStatus().catch(() => null), api.binanceStatus().catch(() => null)]);
@@ -322,8 +328,10 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
   useEffect(() => {
     if (!unsaved) return;
     const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    const leave = (event: Event) => { if (!window.confirm('Discard unsaved settings changes?')) event.preventDefault(); };
     window.addEventListener('beforeunload', warn);
-    return () => window.removeEventListener('beforeunload', warn);
+    window.addEventListener('console-leave-settings', leave);
+    return () => { window.removeEventListener('beforeunload', warn); window.removeEventListener('console-leave-settings', leave); };
   }, [unsaved]);
 
   const [confirm, confirmDialog] = useConfirm();
@@ -397,6 +405,9 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
       await api.updateSettings({ [key]: value });
       setSaved((current) => ({ ...(current ?? {}), [key]: value }));
       resetCurrencySymbol();
+      if (key === 'store_name' && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('store-name-updated', { detail: value }));
+      }
       if (section.extra === 'zinipay' || section.extra === 'binance') void refreshGateways();
       say(`${section.title} saved.`);
     } catch (cause) {
@@ -415,6 +426,9 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
     setSavingSection(section.id);
     try {
       await api.updateSettings(payload);
+      if (payload.store_name !== undefined && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('store-name-updated', { detail: payload.store_name }));
+      }
       const fresh = await api.settings().catch(() => null);
       if (fresh) {
         setSaved(fresh);
@@ -458,7 +472,7 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
     });
   }
 
-  if (!saved) return <PageLoading label="Loading…" />;
+  if (!saved) return loadError ? <section className="panel"><div className="panel-body" role="alert"><p>{loadError}</p><button className="btn" onClick={() => setLoadAttempt((n) => n + 1)}>Retry</button></div></section> : <PageLoading label="Loading…" />;
 
   // A switch saves the moment it is flipped, so a field that still waited for a Save
   // button made the same card behave two different ways. Fields now save themselves

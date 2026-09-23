@@ -74,6 +74,65 @@ class Throttle(BaseMiddleware):
         return None
 
 
+class Debounce(BaseMiddleware):
+    """Drops rapid duplicate clicks from the same user on the same button/action within COOLDOWN seconds."""
+
+    COOLDOWN = 1.0  # seconds
+
+    def __init__(self, cooldown: float = 1.0) -> None:
+        self.cooldown = cooldown
+        self._last_actions: OrderedDict[tuple[int, str], float] = OrderedDict()
+        self._locks: dict[int, asyncio.Lock] = {}
+
+    def _get_lock(self, user_id: int) -> asyncio.Lock:
+        lock = self._locks.get(user_id)
+        if lock is None:
+            if len(self._locks) > 5000:
+                self._locks = {uid: lock for uid, lock in self._locks.items() if lock.locked()}
+            lock = asyncio.Lock()
+            self._locks[user_id] = lock
+        return lock
+
+    async def __call__(self, handler, event, data):
+        user = event.from_user
+        if not user:
+            return await handler(event, data)
+
+        action_key = ""
+        if isinstance(event, CallbackQuery):
+            action_key = f"cb:{event.data or ''}"
+        elif isinstance(event, Message):
+            text = (event.text or event.caption or "").strip()
+            if text:
+                action_key = f"msg:{text.lower()}"
+
+        if not action_key:
+            return await handler(event, data)
+
+        now = time.monotonic()
+        key = (user.id, action_key)
+
+        lock = self._get_lock(user.id)
+        async with lock:
+            last_time = self._last_actions.get(key, 0.0)
+            if now - last_time < self.cooldown:
+                # Duplicate rapid click within cooldown window
+                if isinstance(event, CallbackQuery):
+                    with suppress(Exception):
+                        await event.answer()
+                elif isinstance(event, Message):
+                    with suppress(Exception):
+                        await event.delete()
+                return None
+
+            self._last_actions[key] = now
+            self._last_actions.move_to_end(key)
+            while len(self._last_actions) > 10000:
+                self._last_actions.popitem(last=False)
+
+        return await handler(event, data)
+
+
 class StoreAccess(BaseMiddleware):
     """Private chats only; banned customers are stopped; force-join applies to everything except /start."""
 
@@ -112,9 +171,20 @@ class StoreAccess(BaseMiddleware):
             return None
         if not passed:
             if isinstance(event, CallbackQuery):
-                await event.answer("Please join the required channels first.", show_alert=True)
+                await event.answer("Verification is temporarily unavailable. Please retry shortly." if any(c.get("verification_unavailable") for c in missing) else "Please join the required channels first.", show_alert=True)
             await message.answer(
                 gate_text(missing), reply_markup=get_gate_keyboard(missing)
             )
             return None
         return await handler(event, data)
+
+
+class AuditActor(BaseMiddleware):
+    async def __call__(self, handler, event, data):
+        from app.services.audit import actor
+        user = getattr(event, 'from_user', None)
+        context = actor.set(f'telegram:{user.id}' if user else 'telegram:unknown')
+        try:
+            return await handler(event, data)
+        finally:
+            actor.reset(context)

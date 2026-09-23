@@ -79,6 +79,8 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
 
 
 def gate_text(missing: list[dict[str, Any]]) -> str:
+    if any(ch.get('verification_unavailable') for ch in missing):
+        return "<b>Channel verification is temporarily unavailable.</b>\n\nIf you already joined, you do not need to join again. Tap <b>Joined</b> to retry shortly, or contact support if this continues."
     titles = "\n".join(f"• <b>{escape(ch.get('title') or ch.get('channel_username') or 'Official Channel')}</b>" for ch in missing)
     return (
         f"{ICON_LOCK} <b>Access Required: Join Our Channel(s)</b>\n\n"
@@ -151,10 +153,10 @@ async def handle_start(message: Message, state: FSMContext, services: Services):
 @router.callback_query(F.data == "gate_verify")
 async def handle_gate_verify(query: CallbackQuery, state: FSMContext, services: Services):
     await state.clear()
-    passed, _ = await services.gate.check(query.from_user.id)
+    passed, missing = await services.gate.check(query.from_user.id)
     if not passed:
         with suppress(TelegramBadRequest):
-            await query.answer("⚠️ You haven't joined all required channels yet!", show_alert=True)
+            await query.answer("Verification is temporarily unavailable. Please retry shortly." if any(c.get("verification_unavailable") for c in missing) else "⚠️ You haven't joined all required channels yet!", show_alert=True)
         return
 
     # User verified channel join: award referral bonus to referrer

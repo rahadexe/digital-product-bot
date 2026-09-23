@@ -297,18 +297,14 @@ def get_account_keyboard(is_admin: bool = False) -> InlineKeyboardMarkup:
     buttons = [
         [
             InlineKeyboardButton(text="Order History", callback_data="open_orders", style="primary", icon_custom_emoji_id=Icons.ORDERS),
+        ],
+        [
             InlineKeyboardButton(text="Balance History", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.STATS),
-        ]
+        ],
+        [
+            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
+        ],
     ]
-    if is_admin:
-        buttons.append([
-            InlineKeyboardButton(text="Admin Panel", callback_data="adm_dashboard", style="danger", icon_custom_emoji_id=Icons.CROWN),
-            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
-        ])
-    else:
-        buttons.append([
-            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
-        ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 

@@ -225,13 +225,20 @@ class UserService:
         return [dict(row) for row in rows], total, summary
 
     async def adjust_balance(
-        self, tg_user_id: int, delta: float, reason: str = "", *, notify: bool = False
+        self, tg_user_id: int, delta: float, reason: str = "", *, notify: bool = False, operation_id: str | None = None
     ) -> dict[str, Any] | None:
         delta = money(delta)
         async with self.db.transaction() as conn:
             row = await conn.fetchrow("SELECT balance FROM users WHERE tg_user_id = $1 FOR UPDATE", tg_user_id)
             if not row:
                 return None
+            if operation_id:
+                previous = await conn.fetchrow("SELECT * FROM admin_wallet_operations WHERE operation_id=$1", operation_id)
+                if previous:
+                    if previous['tg_user_id'] != tg_user_id or previous['delta'] != delta or previous['reason'] != reason:
+                        raise InvalidInputError("This operation ID was used for a different adjustment.")
+                    return dict(await conn.fetchrow("SELECT * FROM users WHERE tg_user_id=$1", tg_user_id))
+                await conn.execute("INSERT INTO admin_wallet_operations(operation_id,tg_user_id,delta,reason) VALUES($1,$2,$3,$4)", operation_id, tg_user_id, delta, reason)
             new_balance = round(row["balance"] + delta, 4)
             if new_balance < 0:
                 raise InvalidInputError("Adjustment would make the wallet negative.")

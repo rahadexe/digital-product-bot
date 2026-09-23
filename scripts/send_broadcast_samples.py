@@ -11,30 +11,27 @@ Includes:
 """
 
 import asyncio
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
 
 from aiogram import Bot
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from app.core.config import get_settings
+from dotenv import load_dotenv
+
 from app.bot.icons import (
     ICON_ACCOUNT,
     ICON_CHANNEL,
     ICON_CHECK,
     ICON_CROSS,
-    ICON_DEPOSIT,
     ICON_ID,
     ICON_NOTE,
-    ICON_SHOP,
     ICON_TIMER,
     Icons,
 )
+from app.core.config import get_settings
 
 ADMIN_CHAT_ID = 6775546602
 
 async def main():
+    load_dotenv()
     cfg = get_settings()
     bot = Bot(cfg.bot_token)
 
@@ -170,14 +167,14 @@ async def main():
 
         # 7. Customer View
         msg_7 = (
-            f"7️⃣ <b>[STAGE 7: CUSTOMER INBOX VIEW]</b>\n"
-            f"<i>(সাধারণ গ্রাহকরা বটের ইনবক্সে ব্রডকাস্ট মেসেজ যেভাবে দেখতে পায়)</i>\n\n"
-            f"📢 <b>Special Flash Sale Alert!</b>\n"
+            "7️⃣ <b>[STAGE 7: CUSTOMER INBOX VIEW]</b>\n"
+            "<i>(সাধারণ গ্রাহকরা বটের ইনবক্সে ব্রডকাস্ট মেসেজ যেভাবে দেখতে পায়)</i>\n\n"
+            "📢 <b>Special Flash Sale Alert!</b>\n"
             "\n"
-            f"Get up to <b>20% bonus balance</b> on all bKash and Nagad deposits today until midnight!\n\n"
-            f"• Fast Automated Delivery\n"
-            f"• 24/7 Dedicated Support\n\n"
-            f"<i>Use coupon code: FLASH20</i>"
+            "Get up to <b>20% bonus balance</b> on all bKash and Nagad deposits today until midnight!\n\n"
+            "• Fast Automated Delivery\n"
+            "• 24/7 Dedicated Support\n\n"
+            "<i>Use coupon code: FLASH20</i>"
         )
         markup_7 = InlineKeyboardMarkup(inline_keyboard=[
             [

@@ -10,13 +10,11 @@ Updated with:
 """
 
 import asyncio
-from dotenv import load_dotenv
-
-load_dotenv()
 
 from aiogram import Bot
 from aiogram.types import CopyTextButton, InlineKeyboardButton, InlineKeyboardMarkup
-from app.core.config import get_settings
+from dotenv import load_dotenv
+
 from app.bot.icons import (
     ICON_ACCOUNT,
     ICON_BALANCE,
@@ -37,10 +35,12 @@ from app.bot.icons import (
     ICON_WARNING,
     Icons,
 )
+from app.core.config import get_settings
 
 ADMIN_CHAT_ID = 6775546602
 
 async def main():
+    load_dotenv()
     cfg = get_settings()
     bot = Bot(cfg.bot_token)
     me = await bot.get_me()

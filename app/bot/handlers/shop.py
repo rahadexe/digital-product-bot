@@ -740,7 +740,7 @@ async def show_product_description(query: CallbackQuery, state: FSMContext, serv
     desc = (product.get("description") or "").strip()
     if not desc:
         with suppress(TelegramBadRequest):
-            await query.answer("No description for this product.", show_alert=True)
+            await query.answer("No description for this product.", show_alert=False)
         return
 
     data = await state.get_data()

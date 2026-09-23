@@ -196,7 +196,7 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
         f"{ICON_COIN} <b>Reward Per Refer:</b> <code>{reward_display}</code>\n"
         f"{ICON_BALANCE} <b>Total Earned:</b> <code>{earned_display}</code>\n\n"
         f"{tagline}\n\n"
-        f"🔗 <b>Your Referral Link:</b>\n"
+        f"{ICON_REFER} <b>Your Referral Link:</b>\n"
         f"<code>{ref_link}</code>"
     )
 
@@ -622,7 +622,7 @@ async def reseller_quick_guide_handler(event: CallbackQuery, services: Services)
         f"• <code>POST /api/v1/reseller/orders</code>\n  ইনস্ট্যান্ট অর্ডার প্লেস (JSON: <code>{{\"product_id\": 1, \"quantity\": 1}}</code>)\n\n"
         f"<b>3. Response:</b>\n"
         f"অর্ডার সফল হলে ক্রেডেনশিয়াল বা লাইসেন্স কি রেসপন্সের <code>credentials</code> ফিল্ডে চলে আসবে!\n\n"
-        f"🌐 <i>বিস্তারিত কোড ও প্যারামিটার দেখতে নিচের লিংকে সম্পূর্ণ ওয়েব ডকুমেন্টেশন ওপেন করুন।</i>"
+        f"{ICON_GLOBE} <i>বিস্তারিত কোড ও প্যারামিটার দেখতে নিচের লিংকে সম্পূর্ণ ওয়েব ডকুমেন্টেশন ওপেন করুন।</i>"
     )
     kb = InlineKeyboardMarkup(
         inline_keyboard=[

@@ -8,7 +8,10 @@ from collections.abc import Coroutine
 from typing import TYPE_CHECKING, Any
 
 from aiogram import Bot
-from aiogram.types import BotCommand, InlineKeyboardMarkup, MenuButtonCommands, MenuButtonWebApp
+from aiogram.exceptions import TelegramRetryAfter
+from aiogram.types import BotCommand, InlineKeyboardMarkup, MenuButtonCommands
+
+from app.services.admin_jobs import require_admin_delivery
 
 if TYPE_CHECKING:
     from app.services.settings import SettingsService
@@ -24,8 +27,8 @@ COMMANDS = [
 ]
 
 
-def menu_button(webapp_url: str) -> MenuButtonCommands | MenuButtonWebApp:
-    """The button beside the chat input: the Mini App when it has an HTTPS address, otherwise the command list."""
+def menu_button(webapp_url: str) -> MenuButtonCommands:
+    """The customer bot uses the Telegram command menu."""
     return MenuButtonCommands()
 
 
@@ -99,6 +102,10 @@ class Notifier:
             if clears_after > 0:
                 self.in_background(self._clear_later(chat_id, message.message_id, clears_after))
             return True
+        except TelegramRetryAfter:
+            if require_admin_delivery.get():
+                raise
+            return False
         except Exception as exc:
             logger.warning("Could not send Telegram message to %s: %s", chat_id, type(exc).__name__)
             return False
@@ -119,6 +126,8 @@ class Notifier:
         Mandatory events (waiting_order, deposit, system_error, general) cannot be toggled off.
         """
         if not self.bot:
+            if require_admin_delivery.get():
+                raise RuntimeError("Telegram bot unavailable")
             return False
 
         # Configurable event toggles
@@ -137,12 +146,31 @@ class Notifier:
 
         chat_ids = await self.settings.admin_chat_ids()
         if not chat_ids:
+            if require_admin_delivery.get():
+                raise RuntimeError("No admin recipient configured")
             return False
 
+        async def deliver(chat_id):
+            job_id = require_admin_delivery.get()
+            if job_id:
+                async with self.settings.db.connect() as conn:
+                    if await conn.fetchval('SELECT 1 FROM admin_notification_deliveries WHERE job_id=$1 AND chat_id=$2 AND event=$3', job_id, chat_id, event):
+                        return True
+            sent = await self.send(chat_id, text, keyboard=keyboard)
+            if sent and job_id:
+                async with self.settings.db.connect() as conn:
+                    await conn.execute('INSERT INTO admin_notification_deliveries(job_id,chat_id,event) VALUES($1,$2,$3) ON CONFLICT DO NOTHING', job_id, chat_id, event)
+            return sent
+
         results = await asyncio.gather(
-            *(self.send(chat_id, text, keyboard=keyboard) for chat_id in chat_ids),
+            *(deliver(chat_id) for chat_id in chat_ids),
             return_exceptions=True,
         )
+        throttled = [r for r in results if isinstance(r, TelegramRetryAfter)]
+        if require_admin_delivery.get() and throttled:
+            raise max(throttled, key=lambda exc: exc.retry_after)
+        if require_admin_delivery.get() and not all(r is True for r in results):
+            raise RuntimeError("Admin alert delivery incomplete")
         return any(r is True for r in results)
 
     async def is_member(self, chat: str, user_id: int) -> bool:

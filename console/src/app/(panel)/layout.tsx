@@ -7,8 +7,8 @@ const display = Manrope({ subsets: ['latin'], weight: ['600', '700', '800'], var
 const text = Inter({ subsets: ['latin'], variable: '--font-text', display: 'swap' });
 
 export const metadata: Metadata = {
-  title: 'SubsMarket Console',
-  description: 'Operator console for SubsMarket.',
+  title: 'Console',
+  description: 'Operator console.',
   robots: { index: false },
 };
 

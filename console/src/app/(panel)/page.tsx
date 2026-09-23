@@ -33,10 +33,12 @@ import { Orders } from '@/components/Orders';
 import { Overview } from '@/components/Overview';
 import { Products } from '@/components/Products';
 import { Settings, type SettingsTab } from '@/components/Settings';
+import { Activity } from '@/components/Activity';
 import { Users } from '@/components/Users';
 import { errorText } from '@/components/ui';
 
 type Key =
+  | 'activity'
   | 'overview'
   | 'orders'
   | 'inventory'
@@ -61,6 +63,7 @@ const ITEMS: { key: Key; label: string; icon: LucideIcon; group?: string }[] = [
   { key: 'validities', label: 'Durations', icon: Clock },
   { key: 'emojis', label: 'Emojis', icon: Sparkles },
   { key: 'broadcast', label: 'Broadcast', icon: Megaphone, group: 'Manage' },
+  { key: 'activity', label: 'Activity', icon: Clock },
   { key: 'settings', label: 'Settings', icon: SettingsIcon },
 ];
 const isKey = (value: string): value is Key => ITEMS.some((item) => item.key === value);
@@ -76,7 +79,11 @@ function readAddress(): { key: Key; tab: string } {
 export default function ConsolePage() {
   const [ready, setReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
+  const [sessionError, setSessionError] = useState(false);
+  const [storeName, setStoreName] = useState<string>('');
   const [screen, setScreen] = useState<{ key: Key; tab: string }>({ key: 'overview', tab: '' });
+  const activeScreen = useRef(screen);
+  activeScreen.current = screen;
   const [pending, setPending] = useState(0);
   const [waitingOrders, setWaitingOrders] = useState(0);
   const [toast, setToast] = useState<{ message: string; kind: 'good' | 'bad' } | null>(null);
@@ -90,18 +97,21 @@ export default function ConsolePage() {
   }, []);
 
   const check = useCallback(async () => {
+    setSessionError(false);
     try {
       const session = await api.session();
       if (session.signed_in && session.csrf) setCsrf(session.csrf);
+      if (session.store_name !== undefined) setStoreName(session.store_name.trim());
       setSignedIn(session.signed_in);
     } catch {
       try {
         await new Promise((r) => setTimeout(r, 1200));
         const session = await api.session();
         if (session.signed_in && session.csrf) setCsrf(session.csrf);
+        if (session.store_name !== undefined) setStoreName(session.store_name.trim());
         setSignedIn(session.signed_in);
       } catch {
-        setSignedIn(false);
+        setSessionError(true);
       }
     } finally {
       setReady(true);
@@ -109,10 +119,44 @@ export default function ConsolePage() {
   }, []);
 
   useEffect(() => {
+    const handleStoreNameUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent<string>;
+      if (customEvent.detail !== undefined) {
+        setStoreName((customEvent.detail || '').trim());
+      }
+    };
+    window.addEventListener('store-name-updated', handleStoreNameUpdate);
+    return () => window.removeEventListener('store-name-updated', handleStoreNameUpdate);
+  }, []);
+
+  useEffect(() => {
+    if (storeName) {
+      document.title = storeName;
+    } else {
+      document.title = 'Console';
+    }
+  }, [storeName]);
+
+  useEffect(() => {
+    if (!signedIn) return;
+    api.settings()
+      .then((s) => {
+        if (s?.store_name !== undefined) {
+          setStoreName(s.store_name.trim());
+        }
+      })
+      .catch(() => undefined);
+  }, [signedIn]);
+
+  useEffect(() => {
     setScreen(readAddress());
     void check();
     const follow = () => {
       const next = readAddress();
+      if (activeScreen.current.key === 'settings' && next.key !== 'settings' && !window.dispatchEvent(new Event('console-leave-settings', { cancelable: true }))) {
+        window.history.replaceState(null, '', '#settings/' + activeScreen.current.tab);
+        return;
+      }
       setScreen((prev) => (prev.key === next.key && prev.tab === next.tab ? prev : next));
     };
     const expired = () => setSignedIn(false);
@@ -155,8 +199,18 @@ export default function ConsolePage() {
     return () => window.clearInterval(every);
   }, [signedIn]);
 
-  if (!ready) return <div className="gate"><div className="console-start" role="status" aria-live="polite"><Brand /><div className="console-start-progress" aria-hidden="true" /><strong>Opening your workspace</strong><span>Connecting securely…</span></div></div>;
-  if (!signedIn) return <SignIn onDone={check} />;
+  if (!ready) return (
+    <div className="gate">
+      <div className="console-start" role="status" aria-live="polite">
+        {storeName ? <Brand name={storeName} /> : null}
+        <div className="console-start-progress" aria-hidden="true" />
+        <strong>Opening your workspace</strong>
+        <span>Connecting securely…</span>
+      </div>
+    </div>
+  );
+  if (sessionError) return <div className="gate"><div className="console-start" role="alert"><strong>Could not connect</strong><p>Your session could not be checked. Please retry.</p><button className="btn" onClick={() => void check()}>Retry connection</button></div></div>;
+  if (!signedIn) return <SignIn onDone={check} storeName={storeName} />;
 
   /** A screen, optionally with its tab: "orders/waiting". */
   const open = (address: string) => {
@@ -166,7 +220,7 @@ export default function ConsolePage() {
     if (window.location.hash.slice(1) !== address) {
       window.location.hash = address;
     }
-    setScreen((prev) => (prev.key === key && prev.tab === tab ? prev : { key, tab }));
+    // hashchange applies navigation after the unsaved-settings guard.
   };
   const label = ITEMS.find((item) => item.key === screen.key)?.label ?? 'Dashboard';
 
@@ -186,14 +240,16 @@ export default function ConsolePage() {
         >
           <Menu size={20} />
         </button>
-        <button
-          type="button"
-          onClick={() => open('overview')}
-          className="mobile-brand-title"
-          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
-        >
-          <span>Bot Admin</span>
-        </button>
+        {storeName ? (
+          <button
+            type="button"
+            onClick={() => open('overview')}
+            className="mobile-brand-title"
+            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
+          >
+            <span>{storeName}</span>
+          </button>
+        ) : null}
       </header>
 
       {/* Off-canvas Mobile Drawer */}
@@ -204,14 +260,16 @@ export default function ConsolePage() {
       >
         <aside className="drawer-panel" onClick={(e) => e.stopPropagation()}>
           <div className="drawer-header">
-            <button
-              type="button"
-              className="drawer-brand"
-              onClick={() => open('overview')}
-              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
-            >
-              <Brand />
-                </button>
+            {storeName ? (
+              <button
+                type="button"
+                className="drawer-brand"
+                onClick={() => open('overview')}
+                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
+              >
+                <Brand name={storeName} />
+              </button>
+            ) : <div />}
             <button
               type="button"
               className="drawer-close"
@@ -263,7 +321,15 @@ export default function ConsolePage() {
 
       {/* Desktop Sidebar Rail */}
       <nav className="rail" aria-label="Main navigation">
-        <Brand />
+        {storeName ? (
+          <button
+            type="button"
+            onClick={() => open('overview')}
+            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', width: '100%' }}
+          >
+            <Brand name={storeName} />
+          </button>
+        ) : null}
         <div className="rail-items">
           {ITEMS.map(({ key, label: name, icon: Icon, group }) => (
             <Fragment key={key}>
@@ -338,12 +404,13 @@ export default function ConsolePage() {
               }}
             />
           ) : null}
+          {screen.key === 'activity' ? <Activity say={say} /> : null}
           {screen.key === 'broadcast' ? <Broadcast say={say} /> : null}
           {screen.key === 'settings' ? (
             <Settings
               say={say}
               initialTab={screen.tab as SettingsTab}
-              onTabChange={(tab) => window.history.replaceState(null, '', `#settings/${tab}`)}
+              onTabChange={(tab) => { window.history.replaceState(null, '', `#settings/${tab}`); setScreen({key: 'settings', tab}); }}
             />
           ) : null}
         </div>
@@ -359,23 +426,16 @@ export default function ConsolePage() {
   );
 }
 
-function Brand() {
+function Brand({ name }: { name?: string }) {
+  if (!name) return null;
   return (
     <div className="brand">
-      <svg className="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
-        <rect width="32" height="32" rx="8" fill="#0f766e" />
-        <rect x="8" y="17" width="4" height="7" rx="1.5" fill="#ffffff" />
-        <rect x="14" y="13" width="4" height="11" rx="1.5" fill="#ffffff" />
-        <rect x="20" y="8" width="4" height="16" rx="1.5" fill="#9fe0d4" />
-      </svg>
-      <div>
-        <b>Bot Admin</b>
-      </div>
+      <b>{name}</b>
     </div>
   );
 }
 
-function SignIn({ onDone }: { onDone: () => void }) {
+function SignIn({ onDone, storeName }: { onDone: () => void; storeName?: string }) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -400,7 +460,7 @@ function SignIn({ onDone }: { onDone: () => void }) {
           }
         }}
       >
-        <Brand />
+        {storeName ? <Brand name={storeName} /> : null}
         <label className="field">
           <span>Password</span>
           <span className="password-input">

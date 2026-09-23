@@ -54,13 +54,15 @@ async def login(payload: LoginPayload, request: Request, response: Response, ser
 @router.get("/session")
 async def session(request: Request, response: Response, services: ServicesDep, auth: AuthDep):
     token = request.cookies.get(SESSION_COOKIE_NAME) or bearer_token(request)
+    store_name = await services.settings.get("store_name") or ""
     if await session_is_active(services, auth, token):
         return {
             "signed_in": True,
             "csrf": auth.get_csrf_token(token),
             "expires_in": max(0, (auth.expiry(token) or 0) - int(time.time())),
+            "store_name": store_name,
         }
-    return {"signed_in": False, "csrf": ""}
+    return {"signed_in": False, "csrf": "", "store_name": store_name}
 
 
 @router.post("/logout", dependencies=WRITE)

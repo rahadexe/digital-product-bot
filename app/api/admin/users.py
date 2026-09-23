@@ -46,7 +46,7 @@ async def get_user(tg_user_id: int, services: ServicesDep):
 
 @router.post("/users/{tg_user_id}/adjust-balance", dependencies=WRITE)
 async def adjust_balance(tg_user_id: int, payload: BalanceAdjustPayload, services: ServicesDep):
-    user = await services.users.adjust_balance(tg_user_id, payload.delta, payload.reason, notify=True)
+    user = await services.users.adjust_balance(tg_user_id, payload.delta, payload.reason, notify=True, operation_id=payload.operation_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
     return {"success": True, "user": user}

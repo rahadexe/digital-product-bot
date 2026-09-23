@@ -199,7 +199,8 @@ async def run_webhook(services: Services) -> None:
 
 
 async def run_worker(services: Services) -> None:
+    from app.workers.admin_notifications import AdminNotificationWorker
     from app.workers.delivery import DeliveryWorker
     from app.workers.payments import PaymentWatcher
 
-    await asyncio.gather(DeliveryWorker(services.delivery, services.notifier.bot).run(), PaymentWatcher(services).run())
+    await asyncio.gather(DeliveryWorker(services.delivery, services.notifier.bot).run(), PaymentWatcher(services).run(), AdminNotificationWorker(services).run())

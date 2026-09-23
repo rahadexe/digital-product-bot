@@ -77,9 +77,7 @@ class SecurityBoundary:
             extra.append((b'cache-control', b'no-store'))
         if self.production:
             extra.append((b'strict-transport-security', b'max-age=31536000'))
-        ancestors = (
-            "'self' https://web.telegram.org https://*.telegram.org" if path == '/app' or path.startswith('/app/') else "'none'"
-        )
+        ancestors = "'none'"
         connect = "'self'" if self.production else "'self' http://localhost:8000 http://127.0.0.1:8000"
         csp = (
             "default-src 'self'; script-src 'self' 'unsafe-inline' https://telegram.org; "

@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from contextvars import ContextVar
 from typing import Any
 
 import asyncpg
 
 from app.db import Database
+
+actor = ContextVar("audit_actor", default="system")
 
 # Sign-ins, bans, refunds, money that needed a second look and anything removed.
 # supplier_* and referral_recovery_* are retired or rare, but old entries still carry them and the
@@ -20,7 +23,7 @@ SECURITY_ACTIONS = (
 
 async def record(conn: asyncpg.Connection, action: str, details: str) -> None:
     """Write an audit entry inside the caller's transaction, so it commits with the change."""
-    await conn.execute("INSERT INTO audit_logs (action, details) VALUES ($1, $2)", action, details[:2000])
+    await conn.execute("INSERT INTO audit_logs (action, details, actor) VALUES ($1, $2, $3)", action, details[:2000], actor.get())
 
 
 class AuditService:

@@ -109,7 +109,7 @@ class AdminKeyboard(unittest.IsolatedAsyncioTestCase):
 
     async def test_it_opens_the_panel(self):
         sent = await self.tap(OWNER, text=ADMIN_PANEL_TEXT)
-        self.assertTrue(any('Admin Control Panel' in i['text'] for i in sent), sent)
+        self.assertTrue(any('Admin Panel' in i['text'] for i in sent), sent)
 
     async def test_a_customer_typing_the_words_gets_nothing(self):
         sent = await self.tap(CUSTOMER, text=ADMIN_PANEL_TEXT)
@@ -121,7 +121,7 @@ class AdminKeyboard(unittest.IsolatedAsyncioTestCase):
         await self.tap(OWNER, data=f"dep_method_{methods[0]['id']}")
         await self.tap(OWNER, data='dep_confirm_paid')
         sent = await self.tap(OWNER, text=ADMIN_PANEL_TEXT)
-        self.assertTrue(any('Admin Control Panel' in i['text'] for i in sent), sent)
+        self.assertTrue(any('Admin Panel' in i['text'] for i in sent), sent)
         # and the deposit is no longer waiting for an amount
         after = await self.tap(OWNER, text='100')
         self.assertFalse(any('TrxID' in i['text'] for i in after), after)

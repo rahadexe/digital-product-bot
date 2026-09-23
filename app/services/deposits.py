@@ -30,6 +30,7 @@ from app.bot.icons import (
 from app.core.config import get_settings
 from app.core.money import money
 from app.db import Database, affected
+from app.services.admin_jobs import enqueue as enqueue_admin_job
 from app.services.audit import record
 from app.services.errors import InvalidInputError
 from app.services.notifications import Notifier
@@ -301,6 +302,11 @@ class DepositService:
                     admin_note or "",
                     quote["paid_currency"],
                 )
+                await enqueue_admin_job(conn, 'deposit', deposit_id, dict(deposit_id=deposit_id, tg_user_id=tg_user_id, username=user['username'], quote=quote, transaction_id=clean_tx, admin_note=admin_note))
+                if not notify_admin:
+                    # Give automatic verification time to finish. If the process
+                    # dies between creation and verification, an owner still hears.
+                    await conn.execute("UPDATE admin_notification_jobs SET next_attempt=now()+interval '60 seconds' WHERE event_key=$1", f'deposit:{deposit_id}')
                 if verification_id is not None:
                     await conn.execute(
                         "INSERT INTO payment_verification_attempts(deposit_id,provider,verify_id,status) VALUES($1,'zinipay',$2,'reserved')",
@@ -316,8 +322,7 @@ class DepositService:
         # of an owner for a deposit that was already approved by the time they read it.
         # Those paths alert from alert_admin_needs_review instead, once it is clear a
         # person is actually needed.
-        if notify_admin:
-            self.notifier.in_background(self._notify_new_request(deposit_id, tg_user_id, user["username"], quote, clean_tx, admin_note=admin_note))
+        # Notification is durable and was committed with the deposit.
         return deposit_id
 
     async def alert_admin_needs_review(self, deposit_id: int, note: str = "") -> None:
@@ -334,8 +339,9 @@ class DepositService:
             "pay_amount": float(row["pay_amount"] or row["amount"]),
             "rate": float(row["rate_to_currency"] or 1),
         }
-        await self._notify_new_request(deposit_id, row["tg_user_id"], row["username"], quote,
-                                       row["transaction_id"], admin_note=note or row["admin_note"] or "")
+        async with self.db.connect() as conn:
+            await enqueue_admin_job(conn, 'deposit', deposit_id, dict(deposit_id=deposit_id, tg_user_id=row['tg_user_id'], username=row['username'], quote=quote, transaction_id=row['transaction_id'], admin_note=note or row['admin_note'] or ''))
+            await conn.execute("UPDATE admin_notification_jobs SET next_attempt=now(),payload=jsonb_set(payload,'{admin_note}',to_jsonb($2::text)) WHERE event_key=$1 AND status='pending'", f'deposit:{deposit_id}', note or row['admin_note'] or '')
 
     async def _notify_new_request(
         self,

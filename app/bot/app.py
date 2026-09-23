@@ -11,7 +11,7 @@ from aiogram.fsm.storage.memory import MemoryStorage, SimpleEventIsolation
 from aiogram.types import ErrorEvent
 
 from app.bot.handlers import admin, deposit, help_guide, profile, search, shop, start
-from app.bot.middlewares import StoreAccess, Throttle
+from app.bot.middlewares import Debounce, StoreAccess, Throttle
 from app.services import Services
 
 logger = logging.getLogger("app.bot")
@@ -32,7 +32,14 @@ def create_dispatcher(services: Services, storage: BaseStorage | None = None) ->
     storage = storage or MemoryStorage()
     isolation = storage.create_isolation() if hasattr(storage, 'create_isolation') else SimpleEventIsolation()
     dispatcher = Dispatcher(storage=storage, events_isolation=isolation, services=services)
-    # Throttling runs first, so a flood is dropped before the access checks read the database.
+    # Debounce runs first to drop rapid duplicate taps on the exact same button or action
+    debounce = Debounce(cooldown=1.0)
+    from app.bot.middlewares import AuditActor
+    dispatcher.message.outer_middleware(AuditActor())
+    dispatcher.callback_query.outer_middleware(AuditActor())
+    dispatcher.message.outer_middleware(debounce)
+    dispatcher.callback_query.outer_middleware(debounce)
+    # Throttling drops flood before access checks read the database
     throttle = Throttle()
     dispatcher.message.outer_middleware(throttle)
     dispatcher.callback_query.outer_middleware(throttle)

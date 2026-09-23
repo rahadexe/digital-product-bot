@@ -307,8 +307,8 @@ async def ask_cancel_instant_payment(query: CallbackQuery, state: FSMContext, se
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="Confirm Cancel", callback_data=f"inst_cancfm_{reference}", style="danger", icon_custom_emoji_id=Icons.CROSS),
-                InlineKeyboardButton(text="Keep Invoice", callback_data=f"inst_view_{reference}", style="primary", icon_custom_emoji_id=Icons.BACK),
+                InlineKeyboardButton(text="Confirm", callback_data=f"inst_cancfm_{reference}", style="danger", icon_custom_emoji_id=Icons.CROSS),
+                InlineKeyboardButton(text="Keep", callback_data=f"inst_view_{reference}", style="primary", icon_custom_emoji_id=Icons.BACK),
             ]
         ]
     )
@@ -505,13 +505,13 @@ async def handle_deposit_method_select(query: CallbackQuery, state: FSMContext, 
 
     text = (
         f"{method_icon} <b>{escape(method_name)}</b>\n\n"
-        f"📱 <b>Number:</b> <code>{escape(account_info)}</code>\n"
-        f"🏦 <b>Account Type:</b> {type_label}\n"
-        f"💸 <b>Transaction:</b> {action_label}\n\n"
+        f"{ICON_ID} <b>Number:</b> <code>{escape(account_info)}</code>\n"
+        f"{ICON_DEPOSIT} <b>Account Type:</b> {type_label}\n"
+        f"{ICON_MONEY} <b>Transaction:</b> {action_label}\n\n"
         f"{ICON_WARNING} <b>Minimum:</b> {price(symbol, min_dep, usd_rate=usd_rate, show_usd=effective_show_usd)}\n\n"
     )
     if custom_instructions:
-        text += f"📋 <b>Instructions:</b>\n{escape(custom_instructions)}\n\n"
+        text += f"{ICON_NOTE} <b>Instructions:</b>\n{escape(custom_instructions)}\n\n"
 
     reply_kb = get_manual_deposit_invoice_keyboard(account_info, is_binance=False)
 
@@ -634,12 +634,12 @@ async def ask_deposit_input(query: CallbackQuery, state: FSMContext, services: S
     effective_show_usd = False if is_bd_wallet else show_usd
     text = (
         f"{method_icon} <b>{escape(method_name)}</b>\n\n"
-        f"📱 <b>Number:</b> <code>{escape(account_info)}</code>\n"
-        f"🏦 <b>Account Type:</b> {type_label}\n"
-        f"💸 <b>Transaction:</b> {action_label}\n\n"
+        f"{ICON_ID} <b>Number:</b> <code>{escape(account_info)}</code>\n"
+        f"{ICON_DEPOSIT} <b>Account Type:</b> {type_label}\n"
+        f"{ICON_MONEY} <b>Transaction:</b> {action_label}\n\n"
         f"{ICON_WARNING} <b>Minimum:</b> {price(symbol, min_dep, usd_rate=usd_rate, show_usd=effective_show_usd)}\n\n"
         f"{ICON_MONEY} <b>কত টাকা পাঠিয়েছেন তা নিচে লিখুন:</b>\n\n"
-        f"💡 <i>(যেমন: <code>100</code>)</i>"
+        f"💡 <i>(যেমন: 100)</i>"
     )
     reply_kb = get_deposit_amount_keyboard(account_info, method_id, is_binance=False)
 
@@ -936,7 +936,7 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
     await message.answer(
         f"{method_icon} <b>{escape(method_name)}</b>\n\n"
         f"{ICON_MONEY} <b>Amount:</b> {price(symbol, amount_num, show_usd=False)}\n"
-        f"📱 <b>Number:</b> <code>{escape(account_info)}</code> ({action_label})\n\n"
+        f"{ICON_ID} <b>Number:</b> <code>{escape(account_info)}</code> ({action_label})\n\n"
         f"{ICON_NOTE} <b>আপনার {escape(method_name)} SMS বা রিসিট থেকে Transaction ID (TrxID) দিন:</b>\n\n"
         f"💡 <i>(যেমন: <code>BLA7X8Y9Z0</code>)</i>",
         reply_markup=get_deposit_txid_keyboard(is_bangla=True),
@@ -980,8 +980,8 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
     if existing_pending:
         await state.clear()
         kb = [
-            [InlineKeyboardButton(text="📜 Deposit History", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER)],
-            [InlineKeyboardButton(text="🏠 Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)],
+            [InlineKeyboardButton(text="Deposit History", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER)],
+            [InlineKeyboardButton(text="Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)],
         ]
         text = (f"{ICON_TIMER} A deposit of yours is still being checked. Please wait for it to finish."
                 if is_binance else
@@ -997,7 +997,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         rem_min = max(1, (remaining_sec + 59) // 60)
         await state.clear()
         support_user = await services.settings.get("support_username")
-        kb = [[InlineKeyboardButton(text="🏠 Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)]]
+        kb = [[InlineKeyboardButton(text="Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)]]
         if support_user:
             clean_sup = support_user.lstrip("@")
             kb.insert(0, [InlineKeyboardButton(text="Support", url=f"https://t.me/{clean_sup}", icon_custom_emoji_id=Icons.SUPPORT)])
@@ -1084,8 +1084,8 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         except PendingDepositError:
             await state.clear()
             kb = [
-                [InlineKeyboardButton(text="📜 Deposit History", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER)],
-                [InlineKeyboardButton(text="🏠 Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)],
+                [InlineKeyboardButton(text="Deposit History", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER)],
+                [InlineKeyboardButton(text="Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)],
             ]
             text = (f"{ICON_TIMER} A deposit of yours is still being checked. Please wait for it to finish."
                     if is_binance else
@@ -1111,8 +1111,8 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             keyboard = InlineKeyboardMarkup(
                 inline_keyboard=[
                     [
-                        InlineKeyboardButton(text="🛍️ Products Hub", callback_data="open_shop", style="success", icon_custom_emoji_id=Icons.PRODUCTS),
-                        InlineKeyboardButton(text="🏠 Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK),
+                        InlineKeyboardButton(text="Products Hub", callback_data="open_shop", style="success", icon_custom_emoji_id=Icons.PRODUCTS),
+                        InlineKeyboardButton(text="Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK),
                     ]
                 ]
             )
@@ -1197,7 +1197,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                         inline_keyboard=[
                             [
                                 InlineKeyboardButton(
-                                    text="📜 Deposit History",
+                                    text="Deposit History",
                                     callback_data=f"open_deposits_dep_{dep_id}",
                                     style="primary",
                                     icon_custom_emoji_id=Icons.TIMER,
@@ -1220,7 +1220,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                     return
                 except DuplicateTransactionError:
                     support_user = await services.settings.get("support_username")
-                    kb = [[InlineKeyboardButton(text="🏠 Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)]]
+                    kb = [[InlineKeyboardButton(text="Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)]]
                     if support_user:
                         clean_sup = support_user.lstrip("@")
                         kb.insert(0, [InlineKeyboardButton(text="Support", url=f"https://t.me/{clean_sup}", icon_custom_emoji_id=Icons.SUPPORT)])
@@ -1238,8 +1238,8 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                         f"{ICON_TIMER} আগের একটা ডিপোজিট এখনো চেক হচ্ছে। সেটা শেষ হলে আবার চেষ্টা করুন।",
                         reply_markup=InlineKeyboardMarkup(
                             inline_keyboard=[
-                                [InlineKeyboardButton(text="📜 Deposit History", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER)],
-                                [InlineKeyboardButton(text="🏠 Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)],
+                                [InlineKeyboardButton(text="Deposit History", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER)],
+                                [InlineKeyboardButton(text="Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)],
                             ]
                         ),
                     )
@@ -1278,7 +1278,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                 inline_keyboard=[
                     [
                         InlineKeyboardButton(
-                            text="📜 Deposit History",
+                            text="Deposit History",
                             callback_data=f"open_deposits_dep_{dep_id}" if dep_id else "open_deposits",
                             style="primary",
                             icon_custom_emoji_id=Icons.TIMER,
@@ -1335,8 +1335,8 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             f"{ICON_TIMER} আগের একটা ডিপোজিট এখনো চেক হচ্ছে। সেটা শেষ হলে আবার চেষ্টা করুন।",
             reply_markup=InlineKeyboardMarkup(
                 inline_keyboard=[
-                    [InlineKeyboardButton(text="📜 Deposit History", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER)],
-                    [InlineKeyboardButton(text="🏠 Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)],
+                    [InlineKeyboardButton(text="Deposit History", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER)],
+                    [InlineKeyboardButton(text="Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK)],
                 ]
             ),
         )
@@ -1351,7 +1351,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="📜 Deposit History",
+                    text="Deposit History",
                     callback_data=f"open_deposits_dep_{dep_id}" if dep_id else "open_deposits",
                     style="primary",
                     icon_custom_emoji_id=Icons.TIMER,
@@ -1426,7 +1426,7 @@ async def back_to_deposit_request(query: CallbackQuery, services: Services):
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="📜 Deposit History",
+                    text="Deposit History",
                     callback_data=f"open_deposits_dep_{dep_id}",
                     style="primary",
                     icon_custom_emoji_id=Icons.TIMER,

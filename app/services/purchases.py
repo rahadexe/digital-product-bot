@@ -27,6 +27,7 @@ from app.bot.icons import (
 from app.core.config import get_settings
 from app.core.money import money
 from app.db import Database
+from app.services.admin_jobs import enqueue as enqueue_admin_job
 from app.services.audit import record
 from app.services.delivery import DeliveryService
 from app.services.errors import InvalidInputError, NotFoundError
@@ -207,6 +208,7 @@ class PurchaseService:
                     await self.delivery.enqueue_waiting_notice(tg_user_id, order, conn=db)
                 else:
                     await self.delivery.enqueue_order(tg_user_id, order, conn=db)
+                await enqueue_admin_job(db, "order", order_id, {"user": {k: user[k] for k in ("username", "tg_user_id")}, "order": {k: order[k] for k in ("order_id", "product_id", "product_title", "price")}, "reason": waiting_reason if is_manual else ""})
                 await db.execute("COMMIT")
             except Exception as exc:
                 if db.is_in_transaction():
@@ -215,7 +217,7 @@ class PurchaseService:
                 return False, "Purchase could not be completed. Please contact support before retrying.", None
 
         # The customer gets the result now; the admin alert must not add a Telegram round trip.
-        self.notifier.in_background(self._notify_admin(user, order, waiting_reason if is_manual else ""))
+        # The admin job committed with the order; the worker delivers it.
         return True, "Success", order
 
     async def _notify_admin(self, user: Any, order: dict[str, Any], waiting_reason: str = "") -> None:
@@ -239,7 +241,13 @@ class PurchaseService:
                     callback_data=f"adm_ord_deliver_{order_id}",
                     style="success",
                     icon_custom_emoji_id=Icons.ORDERS,
-                )
+                ),
+                InlineKeyboardButton(
+                    text="Refund",
+                    callback_data=f"adm_ord_ref_ask_{order_id}",
+                    style="danger",
+                    icon_custom_emoji_id=Icons.SPENT,
+                ),
             ]]
             if console:
                 rows.append([

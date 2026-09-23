@@ -1,13 +1,15 @@
 import asyncio
-from dotenv import load_dotenv
 
-load_dotenv()
 from aiogram import Bot
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from app.bot.icons import ICON_BACK, ICON_CHECK, ICON_DEPOSIT, ICON_LIGHTNING, ICON_MONEY, ICON_NOTE, ICON_TIMER, Icons
+from dotenv import load_dotenv
+
+from app.bot.icons import ICON_LIGHTNING, ICON_MONEY, ICON_NOTE, ICON_TIMER, Icons
 from app.core.config import get_settings
 
+
 async def main():
+    load_dotenv()
     cfg = get_settings()
     bot = Bot(cfg.bot_token)
     text = (

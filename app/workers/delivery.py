@@ -48,13 +48,13 @@ class DeliveryWorker:
             return False
         order = await self.delivery.order_for(message) if message['order_id'] else None
         if message['order_id'] and (not order or order['status'] == 'refunded'):
-            await self.delivery.cancel(message['id'])
+            await self.delivery.cancel(message)
             return True
         # "Being prepared" is pointless, and confusing, once that order has been refunded.
         if message.get('about_order_id'):
             about = await self.delivery.order_for({'order_id': message['about_order_id'], 'tg_user_id': message['tg_user_id']})
             if not about or about['status'] == 'refunded':
-                await self.delivery.cancel(message['id'])
+                await self.delivery.cancel(message)
                 return True
 
         status, delay, error = 'sent', 0.0, ''
@@ -84,5 +84,5 @@ class DeliveryWorker:
             status = 'failed' if message['attempts'] >= MAX_ATTEMPTS else 'pending'
             delay, error = min(300, 2 ** (message['attempts'] + 1)), type(exc).__name__
         await self.delivery.finish(message, status, delay, error)
-        await asyncio.sleep(max(0.06, delay if error == 'Telegram rate limit' else 0))
+        await asyncio.sleep(0.06)  # Retry-After is persisted on the message; other recipients can proceed.
         return True

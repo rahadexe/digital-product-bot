@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, Clock, Layers, PackageCheck } from 'lucide-react';
 import { api, type InventoryItem, type InventorySummary, type Product } from '@/lib/api';
 import { EmptyRow, Modal, Pager, Switch, errorText, when, type Say } from './ui';
@@ -22,14 +22,17 @@ export function Inventory({ say }: { say: Say }) {
 
   const loadProducts = useCallback(() => api.products().then(setProducts).catch((cause) => say(errorText(cause), 'bad')), [say]);
 
+  const requestVersion = useRef(0);
   const load = useCallback(async () => {
+    const version = ++requestVersion.current;
     try {
       const result = await api.inventory(productId || undefined, status || undefined, offset);
+      if (version !== requestVersion.current) return;
       setItems(result.items);
       setTotal(result.total);
       if (result.summary) setSummary(result.summary);
     } catch (cause) {
-      say(errorText(cause), 'bad');
+      if (version === requestVersion.current) say(errorText(cause), 'bad');
     }
   }, [productId, status, offset, say]);
 
@@ -39,6 +42,7 @@ export function Inventory({ say }: { say: Say }) {
 
   useEffect(() => {
     void load();
+    return () => { requestVersion.current++; };
   }, [load]);
 
   async function confirmRemove() {

@@ -6,7 +6,7 @@ import hashlib
 import hmac
 import secrets
 import time
-from typing import Annotated, Any
+from typing import Annotated, Any, AsyncIterator
 
 import jwt
 from fastapi import Depends, HTTPException, Request
@@ -17,7 +17,7 @@ from app.services import Services
 
 SESSION_COOKIE_NAME = "shop_admin_session"
 CSRF_HEADER_NAME = "x-csrf-token"
-SESSION_SECONDS = 8 * 3600
+SESSION_SECONDS = 30 * 24 * 3600  # 30 days persistent admin session
 ALGORITHM = "HS256"
 
 
@@ -85,10 +85,16 @@ async def session_is_active(services: Services, auth: AdminAuth, token: str | No
     return bool(token) and auth.verify_session_token(token) and not await services.admin_access.is_revoked(token_hash(token))
 
 
-async def require_admin(request: Request, services: ServicesDep, auth: AuthDep) -> None:
+async def require_admin(request: Request, services: ServicesDep, auth: AuthDep) -> AsyncIterator[None]:
     token = request.cookies.get(SESSION_COOKIE_NAME) or bearer_token(request)
     if not await session_is_active(services, auth, token):
         raise HTTPException(status_code=401, detail="Authentication required.")
+    from app.services.audit import actor
+    context = actor.set('admin-session:' + token_hash(token)[:16])
+    try:
+        yield
+    finally:
+        actor.reset(context)
 
 
 async def require_write(request: Request, services: ServicesDep, auth: AuthDep) -> None:

@@ -8,6 +8,7 @@ send it again, but never charges the customer again.
 from __future__ import annotations
 
 import time
+import uuid
 from datetime import datetime
 from html import escape
 from typing import Any
@@ -36,7 +37,7 @@ def waiting_notice(order: dict[str, Any]) -> str:
     return (
         f"{ICON_TIMER} <b>Order #{order_id}: {title}</b>\n\n"
         f"{ICON_CHECK} <b>Payment Received!</b>\n\n"
-        f"Your order is being prepared and will be delivered directly here shortly (usually within 5–30 minutes)."
+        f"Your order is being prepared and will be delivered directly here when it is ready. Contact support if you need an update."
     )
 
 
@@ -57,7 +58,7 @@ def receipt(order: dict[str, Any]) -> str:
         else:
             date_str = str(created)[:16]
 
-    content = escape(str(order.get('delivered_item', '')).strip())
+    raw_content = str(order.get('delivered_item', '')).strip()
 
     lines = [
         f"{ICON_ORDERS} <b>Order #{order_id} Details</b>\n",
@@ -68,7 +69,13 @@ def receipt(order: dict[str, Any]) -> str:
         lines.append(f"{ICON_TIMER} <b>Date:</b> {date_str}")
     lines.append(f"{ICON_CHECK} <b>Status:</b> <code>COMPLETED</code>\n")
     lines.append(f"{ICON_KEY} <b>Delivered Credentials:</b>")
-    lines.append(f"<code>{content}</code>")
+
+    cred_items = [escape(it.strip()) for it in raw_content.splitlines() if it.strip()]
+    if cred_items:
+        for it in cred_items:
+            lines.append(f"<code>{it}</code>")
+    else:
+        lines.append(f"<code>{escape(raw_content)}</code>")
 
     return "\n".join(lines)
 
@@ -214,12 +221,13 @@ class DeliveryService:
             # SKIP LOCKED lets concurrent workers claim different rows.
             # Order receipts are prioritised over broadcasts so a bulk send never delays a purchase delivery.
             row = await conn.fetchrow(
-                "UPDATE outbox SET status = 'sending', next_attempt = $1, attempts = attempts + 1 "
+                "UPDATE outbox SET status = 'sending', next_attempt = $1, attempts = attempts + 1, lease_token = $3 "
                 "WHERE id = (SELECT id FROM outbox WHERE status IN ('pending', 'sending') AND next_attempt <= $2 "
                 "ORDER BY CASE WHEN order_id IS NOT NULL OR about_order_id IS NOT NULL THEN 0 ELSE 1 END, id "
                 "LIMIT 1 FOR UPDATE SKIP LOCKED) RETURNING *",
                 now + LEASE_SECONDS,
                 now,
+                uuid.uuid4().hex,
             )
         return dict(row) if row else None
 
@@ -230,19 +238,26 @@ class DeliveryService:
             )
             return dict(row) if row else None
 
-    async def cancel(self, message_id: int) -> None:
+    async def cancel(self, message: dict[str, Any]) -> None:
         async with self.db.connect() as conn:
-            await conn.execute("UPDATE outbox SET status = 'cancelled' WHERE id = $1", message_id)
+            await conn.execute("UPDATE outbox SET status = 'cancelled' WHERE id = $1 AND lease_token=$2", message["id"], message["lease_token"])
 
     async def finish(self, message: dict[str, Any], status: str, delay: float, error: str) -> None:
         async with self.db.transaction() as conn:
-            await conn.execute(
-                "UPDATE outbox SET status = $1, next_attempt = $2, error = $3 WHERE id = $4",
+            changed = await conn.fetchval(
+                "UPDATE outbox SET status = $1, next_attempt = $2, error = $3 WHERE id = $4 AND lease_token=$5 AND status='sending' RETURNING id",
                 status,
                 time.time() + delay,
                 error,
                 message['id'],
+                message['lease_token'],
             )
+            if changed is None:
+                return
+            if error == 'Telegram rate limit':
+                await conn.execute(
+                    "UPDATE outbox SET next_attempt=GREATEST(next_attempt,$1) WHERE tg_user_id=$2 AND status='pending'",
+                    time.time() + delay, message['tg_user_id'])
             if message['order_id']:
                 await conn.execute(
                     "UPDATE orders SET delivery_status = $1 WHERE id = $2 AND status = 'completed'",

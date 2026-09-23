@@ -107,7 +107,7 @@ class GateService:
         """Whether the customer joined every active channel. Unverifiable membership counts as missing."""
         if not await self.settings.flag("force_join_enabled"):
             return True, []
-        channels = await self.channels()
+        channels = [dict(ch) for ch in await self.channels()]
         if not channels:
             return True, []
 
@@ -124,6 +124,7 @@ class GateService:
                     return False
                 return True
             except Exception as exc:
+                channel["verification_unavailable"] = True
                 logger.warning("Gate verification unavailable for %s: %s", target, type(exc).__name__)
                 return False
 

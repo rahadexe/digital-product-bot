@@ -79,6 +79,9 @@ def create_app(services: Services) -> FastAPI:
         return RedirectResponse("/panel/", status_code=308)
 
     if CONSOLE_OUT_DIR.is_dir():
-        app.mount("/panel", ConsoleFiles(directory=CONSOLE_OUT_DIR, html=True), name="panel")
+        @app.get('/panel/{path:path}', include_in_schema=False)
+        async def legacy_console(path: str):
+            from urllib.parse import quote
+            return RedirectResponse('/' + quote(path.lstrip('/'), safe='/'), status_code=308)
         app.mount("/", ConsoleFiles(directory=CONSOLE_OUT_DIR, html=True), name="console")
     return app

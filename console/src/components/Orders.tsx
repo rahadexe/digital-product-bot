@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Check,
   Clock,
@@ -72,6 +72,7 @@ export function Orders({
   onWaitingChange?: (count: number) => void;
 }) {
   const [orders, setOrders] = useState<Order[] | null>(null);
+  const [loadError, setLoadError] = useState('');
   const [total, setTotal] = useState(0);
   const [waitingCount, setWaitingCount] = useState(0);
   const [waitingOnly, setWaitingOnly] = useState(initialWaiting);
@@ -89,7 +90,10 @@ export function Orders({
     setOpenOrderId(initialOrderId);
   }, [initialOrderId]);
 
+  const requestVersion = useRef(0);
   const load = useCallback(async () => {
+    const version = ++requestVersion.current;
+    setLoadError('');
     try {
       let days: number | undefined = undefined;
       let df: string | undefined = undefined;
@@ -103,18 +107,20 @@ export function Orders({
       }
 
       const result = await api.orders(query, PAGE, offset, waitingOnly, undefined, days, df, dt);
+      if (version !== requestVersion.current) return;
       setOrders(result.orders);
       setTotal(result.total);
       setWaitingCount(result.waiting);
       setSummary(result.summary ?? null);
       onWaitingChange?.(result.waiting);
     } catch (cause) {
-      say(errorText(cause), 'bad');
+      if (version === requestVersion.current) setLoadError(errorText(cause));
     }
   }, [query, offset, waitingOnly, timeframe, dateFrom, dateTo, onWaitingChange, say]);
 
   useEffect(() => {
     void load();
+    return () => {requestVersion.current++;};
   }, [load]);
 
   const show = (onlyWaiting: boolean) => {
@@ -134,6 +140,7 @@ export function Orders({
     window.history.replaceState(null, '', waitingOnly ? '#orders/waiting' : '#orders');
   };
 
+  if (loadError) return <section className="panel"><div className="panel-body" role="alert"><p>{loadError}</p><button className="btn" onClick={() => void load()}>Retry orders</button></div></section>;
   return (
     <>
       {/* Timeframe Filter Bar */}
@@ -371,7 +378,10 @@ function OrderDetailModal({
   const [confirm, confirmDialog] = useConfirm();
   const money = useMoney();
 
+  const requestVersion = useRef(0);
   const load = useCallback(async () => {
+    const version = ++requestVersion.current;
+    setLoadError('');
     setLoadError('');
     try {
       setDetail(await api.orderDetail(orderId));
@@ -382,6 +392,7 @@ function OrderDetailModal({
 
   useEffect(() => {
     void load();
+    return () => {requestVersion.current++;};
   }, [load]);
 
   async function run(name: string, action: () => Promise<string>) {

@@ -1,12 +1,14 @@
 import asyncio
+
+from aiogram import Bot
 from dotenv import load_dotenv
 
-load_dotenv()
-from aiogram import Bot
 from app.bot.icons import ICON_CROSS
 from app.core.config import get_settings
 
+
 async def main():
+    load_dotenv()
     cfg = get_settings()
     bot = Bot(cfg.bot_token)
     text = (

@@ -13,17 +13,14 @@ Audited from the entire bot:
 """
 
 import asyncio
-from dotenv import load_dotenv
-
-load_dotenv()
 
 from aiogram import Bot
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from app.core.config import get_settings
+from dotenv import load_dotenv
+
 from app.bot.icons import (
     ICON_ACCOUNT,
     ICON_CHECK,
-    ICON_CROSS,
     ICON_CROWN,
     ICON_ID,
     ICON_MONEY,
@@ -31,16 +28,15 @@ from app.bot.icons import (
     ICON_ORDERS,
     ICON_PLUS,
     ICON_SHOP,
-    ICON_SPARKLES,
-    ICON_SPENT,
-    ICON_TIMER,
     ICON_WARNING,
     Icons,
 )
+from app.core.config import get_settings
 
 ADMIN_CHAT_ID = 6775546602
 
 async def main():
+    load_dotenv()
     cfg = get_settings()
     bot = Bot(cfg.bot_token)
 
