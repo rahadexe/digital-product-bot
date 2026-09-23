@@ -7,7 +7,7 @@ from contextlib import suppress
 
 from aiogram import BaseMiddleware
 from aiogram.exceptions import TelegramAPIError
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, LinkPreviewOptions, Message
 
 from app.bot.handlers.start import gate_text
 from app.bot.keyboards import get_gate_keyboard
@@ -181,7 +181,9 @@ class StoreAccess(BaseMiddleware):
             services = data.get("services")
             store_name = await services.settings.get("store_name") if services else "Digital Mart"
             await message.answer(
-                gate_text(missing, store_name), reply_markup=get_gate_keyboard(missing)
+                gate_text(missing, store_name),
+                reply_markup=get_gate_keyboard(missing),
+                link_preview_options=LinkPreviewOptions(is_disabled=True),
             )
             return None
         return await handler(event, data)

@@ -97,7 +97,7 @@ def build_services(
         statement_cache_size=config.db_statement_cache_size,
     )
     if bot is None and use_telegram and config.telegram_enabled:
-        bot = Bot(token=config.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+        bot = Bot(token=config.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML, link_preview_is_disabled=True))
 
     settings = SettingsService(db, config)
     notifier = Notifier(bot, settings)

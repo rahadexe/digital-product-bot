@@ -10,7 +10,7 @@ from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, ChatMemberUpdated, Message
+from aiogram.types import CallbackQuery, ChatMemberUpdated, LinkPreviewOptions, Message
 
 from app.bot.formatting import send_operator_html
 from app.bot.handlers.search import forget_search_origin
@@ -147,7 +147,11 @@ async def handle_start(message: Message, state: FSMContext, services: Services):
     )
     if not passed:
         store_name = await services.settings.get("store_name")
-        await message.answer(gate_text(missing, store_name), reply_markup=get_gate_keyboard(missing))
+        await message.answer(
+            gate_text(missing, store_name),
+            reply_markup=get_gate_keyboard(missing),
+            link_preview_options=LinkPreviewOptions(is_disabled=True),
+        )
         return
 
     # User passed gate directly (or no gate channels configured): process pending referral reward
