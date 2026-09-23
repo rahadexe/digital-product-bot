@@ -349,6 +349,12 @@ class ReliabilityTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_invoice_conflicting_identity_and_nonfinite_amount_rejected(self):
         user_id = await self.scalar('SELECT id FROM users WHERE tg_user_id=100')
+        # 'wrong' here is another invoice of ours: an answer naming it is mixed up. An id we
+        # simply do not know is the gateway's own and is no longer treated as a conflict,
+        # because live ZiniPay answers with its own UUID beside the val_id it was given.
+        await self.scalar(
+            "INSERT INTO payment_invoices(reference,provider,user_id,tg_user_id,credit_amount,pay_amount,rate) "
+            "VALUES('wrong','zinipay',$1,100,50,50,1) RETURNING id", user_id)
         for i, extra in enumerate(({'invoice_id': 'wrong'}, {'amount': 'NaN'}, {'amount': 'Infinity'})):
             reference = f'INVALID{i}'
             invoice_id = await self.scalar(

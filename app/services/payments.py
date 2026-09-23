@@ -553,12 +553,24 @@ class PaymentService:
             answered_reference = str(result.get("val_id") or result.get("valId") or "")
             ref_match = bool(answered_reference and answered_reference == row["reference"])
             inv_match = bool(answered_invoice and (answered_invoice == row["provider_invoice_id"] or answered_invoice == row["reference"]))
-            if answered_reference and not ref_match:
-                problems.append("the reference does not match")
-            if answered_invoice and not inv_match:
-                problems.append("the verified invoice does not match")
-            if not answered_reference and not answered_invoice:
-                problems.append("the answer names no invoice")
+            # ZiniPay answers with its own invoice UUID and with val_id, the reference we
+            # gave it. Creation only ever told us the reference, so the UUID never matched
+            # what was stored and a paid invoice was failed with "the verified invoice does
+            # not match" — the customer paid and got nothing. Either name identifying this
+            # invoice is proof it is ours; only an answer that names neither is refused.
+            if not ref_match and not inv_match:
+                problems.append(
+                    "the answer names a different invoice" if (answered_reference or answered_invoice)
+                    else "the answer names no invoice"
+                )
+            elif answered_invoice and not inv_match:
+                # An id we do not know is the gateway's own. An id that belongs to another
+                # of our invoices is a mixed-up answer, and nothing is credited on it.
+                other = await conn.fetchval(
+                    "SELECT id FROM payment_invoices WHERE id <> $1 AND (provider_invoice_id = $2 OR reference = $2)",
+                    invoice_id, answered_invoice)
+                if other:
+                    problems.append("the answer names another invoice of ours")
             paid = _decimal(result.get("without_fee", result.get("amount")))
             expected = _decimal(row["pay_amount"])
             if abs(paid - expected) > AMOUNT_TOLERANCE:
@@ -567,6 +579,10 @@ class PaymentService:
                 reason = "; ".join(problems)
                 return await self._fail(conn, row, f"{reason[0].upper()}{reason[1:]}.", alert=True)
 
+            if answered_invoice and answered_invoice != row["provider_invoice_id"]:
+                # Learn the gateway's own id, so a later webhook or check finds this row by it.
+                await conn.execute("UPDATE payment_invoices SET provider_invoice_id = $1 WHERE id = $2",
+                                   answered_invoice[:120], invoice_id)
             transaction_id = str(result.get("transaction_id") or "").strip()
             if not transaction_id or transaction_id.upper() == "N/A":
                 transaction_id = row["provider_invoice_id"] or row["reference"]

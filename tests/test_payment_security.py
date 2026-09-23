@@ -335,6 +335,12 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
 
     # ---- how often an owner is interrupted ------------------------------------
 
+    async def _deliver_admin_jobs(self):
+        from app.workers.admin_notifications import AdminNotificationWorker
+        worker = AdminNotificationWorker(self.s)
+        while await worker.step():
+            pass
+
     def _watch_admin(self):
         """Collect the admin alerts a flow sends."""
         seen = []
@@ -355,6 +361,7 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
         result = await self._claim({'success': True, 'data': {'id': 77, 'amount': 500, 'trxID': 'TRX0000001', 'provider': 'bKash'}})
         self.assertTrue(result.get('auto_verified'), result)
         await asyncio.sleep(0.2)   # the alert would go out in the background
+        await self._deliver_admin_jobs()
         self.assertEqual(alerts, [], 'nothing needed a person')
 
     async def test_a_payment_waiting_for_its_receipt_reaches_the_owner_at_once(self):
@@ -362,24 +369,29 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
         alerts = self._watch_admin()
         await self._awaiting()
         await asyncio.sleep(0.2)
+        await self._deliver_admin_jobs()
         self.assertEqual(len(alerts), 1, alerts)
         self.assertIn('Deposit Request', alerts[0])
 
     async def test_giving_up_on_a_receipt_does_not_page_the_owner_again(self):
         """They were told when it was filed; the note on the card is what changes."""
+        alerts = self._watch_admin()
         result = await self._awaiting()
+        await self._deliver_admin_jobs()
+        self.assertEqual(len(alerts), 1)
+        alerts.clear()
         async with self.db.connect() as conn:
             await conn.execute("UPDATE deposits SET next_check_at=now()-interval '1 minute' WHERE id=$1",
                                result['deposit_id'])
             await conn.execute("UPDATE payment_verification_attempts SET created_at=now()-interval '1 hour' "
                                'WHERE deposit_id=$1', result['deposit_id'])
-        alerts = self._watch_admin()
         missing = {'success': False, 'code': 'REQUEST_FAILED', 'message': 'Transaction not found', 'data': None}
         await self.s.zinipay.http.aclose()
         async with gateway(missing, 404) as client:
             self.s.zinipay.http = client
             await self.s.zinipay.recover()
         await asyncio.sleep(0.2)
+        await self._deliver_admin_jobs()
         self.assertEqual(alerts, [], 'one deposit, one alert')
         async with self.db.connect() as conn:
             note = await conn.fetchval('SELECT admin_note FROM deposits WHERE id=$1', result['deposit_id'])
@@ -392,6 +404,7 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
         result = await self._claim(broken)
         self.assertTrue(result.get('fallback_manual'), result)
         await asyncio.sleep(0.2)
+        await self._deliver_admin_jobs()
         self.assertEqual(len(alerts), 1, alerts)
 
     # ---- a bKash deposit is paid by a bKash transaction ----------------------
@@ -475,6 +488,7 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
             await self._due_now(result['deposit_id'])
             await self.s.zinipay.recover()           # a second pass must not alert again
         self.assertEqual(await self.balance(), 0.0)
+        await self._deliver_admin_jobs()
         self.assertEqual(len(alerts), 1, alerts)
         async with self.db.connect() as conn:
             note = await conn.fetchval('SELECT admin_note FROM deposits WHERE id=$1', result['deposit_id'])
@@ -575,6 +589,56 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
     async def test_completed_naming_no_invoice_is_refused(self):
         invoice = await self._invoice()
         await self._refresh(invoice['reference'], {'status': 'COMPLETED', 'amount': 500})
+        self.assertEqual(await self.balance(), 0.0)
+
+    async def test_the_gateways_own_invoice_id_does_not_refuse_a_paid_invoice(self):
+        """Live ZiniPay answers with its own UUID and with val_id, the reference we gave it.
+
+        Creation only ever tells us the reference, so insisting the UUID match what was
+        stored failed invoices that had really been paid: the customer paid and got nothing.
+        """
+        invoice = await self._invoice()
+        await self._refresh(invoice['reference'], {
+            'status': 'COMPLETED',
+            'invoice_id': '22cba88b-894b-4a10-a3b0-fb173e84e4ff',   # the gateway's own id
+            'val_id': invoice['reference'],
+            'amount': float(invoice['pay_amount']),
+            'transaction_id': 'DIN3SC3IAH', 'payment_method': 'bKash',
+        })
+        self.assertEqual(await self.balance(), 500.0)
+        async with self.db.connect() as conn:
+            row = await conn.fetchrow('SELECT status, provider_invoice_id, deposit_id FROM payment_invoices '
+                                      'WHERE reference=$1', invoice['reference'])
+        self.assertEqual(row['status'], 'completed')
+        self.assertEqual(row['provider_invoice_id'], '22cba88b-894b-4a10-a3b0-fb173e84e4ff',
+                         'the gateway id is learned, so a later webhook finds this invoice')
+        self.assertIsNotNone(row['deposit_id'])
+
+    async def test_a_web_payment_cannot_be_claimed_again_by_hand(self):
+        """The same bKash transaction, paid on the web page and then typed into the bot."""
+        invoice = await self._invoice()
+        await self._refresh(invoice['reference'], {
+            'status': 'COMPLETED', 'invoice_id': 'gw-uuid', 'val_id': invoice['reference'],
+            'amount': float(invoice['pay_amount']),
+            'transaction_id': 'DIN3SC3IAH', 'payment_method': 'bKash',
+        })
+        self.assertEqual(await self.balance(), 500.0)
+
+        receipt = {'success': True, 'data': {'id': 77, 'amount': 500, 'trxID': 'DIN3SC3IAH',
+                                             'provider': 'bKash'}}
+        await self.s.zinipay.http.aclose()
+        async with gateway(receipt) as client:
+            self.s.zinipay.http = client
+            with self.assertRaises(DuplicateTransactionError):
+                await self.s.zinipay.claim(CUSTOMER, self.method, 500, 'DIN3SC3IAH', quoted_rate=1.0)
+        self.assertEqual(await self.balance(), 500.0, 'paid once, credited once')
+
+    async def test_an_invoice_that_names_someone_elses_reference_is_still_refused(self):
+        invoice = await self._invoice()
+        await self._refresh(invoice['reference'], {
+            'status': 'COMPLETED', 'invoice_id': 'gw-uuid', 'val_id': 'SM-SOMEONE-ELSE',
+            'amount': float(invoice['pay_amount']), 'transaction_id': 'X1',
+        })
         self.assertEqual(await self.balance(), 0.0)
 
     async def test_matching_completion_credits_once_however_often_it_is_checked(self):
