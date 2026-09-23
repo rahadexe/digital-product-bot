@@ -1,0 +1,2 @@
+ALTER TABLE payment_invoices ADD COLUMN IF NOT EXISTS chat_id BIGINT;
+ALTER TABLE payment_invoices ADD COLUMN IF NOT EXISTS message_id BIGINT;

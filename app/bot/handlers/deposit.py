@@ -231,7 +231,9 @@ async def create_instant_payment(message: Message, state: FSMContext, services: 
         await message.answer(f"{ICON_WARNING} {escape(str(exc))}", reply_markup=get_cancel_keyboard())
         return
     text, keyboard = await _render_instant_invoice(invoice, services)
-    await message.answer(text, reply_markup=keyboard)
+    sent = await message.answer(text, reply_markup=keyboard)
+    if sent and invoice.get("reference"):
+        await services.payments.bind_telegram_message(invoice["reference"], sent.chat.id, sent.message_id)
 
 
 @router.callback_query(F.data.startswith("inst_chk_"))
@@ -251,11 +253,15 @@ async def check_instant_payment(query: CallbackQuery, state: FSMContext, service
     usd_rate = await services.settings.number("usd_rate")
     show_usd = await services.settings.flag("show_usd_price")
     if invoice["status"] == "completed":
-        user = await services.users.get(query.from_user.id)
+        ref = escape(str(invoice.get("reference") or invoice.get("id") or ""))
+        ref_suffix = f" #{ref}" if ref else ""
+        pay_amt = float(invoice.get("pay_amount") or invoice.get("credit_amount") or 0.0)
         text = (
-            f"{ICON_CHECK} <b>Payment Successful!</b>\n"
-            f"{ICON_SPARKLES} {price(symbol, invoice['credit_amount'], usd_rate=usd_rate, show_usd=show_usd)} has been credited to your account.\n\n"
-            f"{ICON_BALANCE} <b>Current Balance:</b> <code>{price(symbol, user['balance'] if user else 0.0, usd_rate=usd_rate, show_usd=show_usd)}</code>"
+            f"{ICON_NOTE} <b>Payment Invoice{ref_suffix}</b>\n\n"
+            f"{ICON_MONEY} <b>Payable Amount:</b> <code>{pay_amt:.2f} BDT</code>\n"
+            f"{ICON_LIGHTNING} <b>Method:</b> Instant Auto Gateway\n"
+            f"{ICON_CHECK} <b>Status:</b> <b>Paid / Completed</b>\n\n"
+            f"✅ <i>পেমেন্টটি সফলভাবে সম্পন্ন হয়েছে এবং একাউন্টে ব্যালেন্স যোগ করা হয়েছে।</i>"
         )
         if query.message:
             with suppress(TelegramBadRequest):
@@ -333,6 +339,8 @@ async def view_instant_invoice(query: CallbackQuery, state: FSMContext, services
     if query.message:
         with suppress(TelegramBadRequest):
             await query.message.edit_text(text, reply_markup=keyboard)
+        if invoice.get("reference"):
+            await services.payments.bind_telegram_message(invoice["reference"], query.message.chat.id, query.message.message_id)
     with suppress(TelegramBadRequest):
         await query.answer()
 

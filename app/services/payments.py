@@ -19,6 +19,8 @@ from urllib.parse import urlsplit
 import asyncpg
 import httpx
 
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
 from app.bot.icons import (
     ICON_ACCOUNT,
     ICON_BALANCE,
@@ -26,8 +28,11 @@ from app.bot.icons import (
     ICON_DEPOSIT,
     ICON_ID,
     ICON_KEY,
+    ICON_LIGHTNING,
     ICON_MONEY,
+    ICON_NOTE,
     ICON_WARNING,
+    Icons,
 )
 from app.core.config import Settings
 from app.core.money import money
@@ -431,6 +436,15 @@ class PaymentService:
             return None
         return _public(row)
 
+    async def bind_telegram_message(self, reference: str, chat_id: int, message_id: int) -> None:
+        async with self.db.connect() as conn:
+            await conn.execute(
+                "UPDATE payment_invoices SET chat_id = $1, message_id = $2 WHERE reference = $3",
+                chat_id,
+                message_id,
+                reference,
+            )
+
     async def cancel_invoice(self, reference: str, tg_user_id: int | None = None) -> dict[str, Any] | None:
         """Cancel an unpaid invoice.
 
@@ -638,6 +652,42 @@ class PaymentService:
     async def _notify_completed(self, row: Any, balance: Any, deposit_id: int) -> None:
         symbol = escape(await self.settings.get("currency_symbol"))
         credit = float(row["credit_amount"])
+
+        # Edit original invoice message if tracked
+        row_dict = dict(row)
+        chat_id = row_dict.get("chat_id")
+        message_id = row_dict.get("message_id")
+        if self.notifier.bot and chat_id and message_id:
+            try:
+                ref = escape(str(row_dict.get("reference") or row_dict.get("id") or ""))
+                ref_suffix = f" #{ref}" if ref else ""
+                pay_amt = float(row_dict.get("pay_amount") or credit)
+                updated_text = (
+                    f"{ICON_NOTE} <b>Payment Invoice{ref_suffix}</b>\n\n"
+                    f"{ICON_MONEY} <b>Payable Amount:</b> <code>{pay_amt:.2f} {LOCAL_CURRENCY}</code>\n"
+                    f"{ICON_LIGHTNING} <b>Method:</b> Instant Auto Gateway\n"
+                    f"{ICON_CHECK} <b>Status:</b> <b>Paid / Completed</b>\n\n"
+                    f"✅ <i>পেমেন্টটি সফলভাবে সম্পন্ন হয়েছে এবং একাউন্টে ব্যালেন্স যোগ করা হয়েছে।</i>"
+                )
+                kb = InlineKeyboardMarkup(
+                    inline_keyboard=[[
+                        InlineKeyboardButton(
+                            text="Deposit Menu",
+                            callback_data="open_deposit",
+                            style="primary",
+                            icon_custom_emoji_id=Icons.DEPOSIT,
+                        )
+                    ]]
+                )
+                await self.notifier.bot.edit_message_text(
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    text=updated_text,
+                    reply_markup=kb,
+                )
+            except Exception as e:
+                logger.debug("Could not edit invoice message %s: %s", message_id, e)
+
         # A confirmation, not a record: the amount is in Deposit History and the balance
         # is on the profile. Left in place it is one more message between the customer
         # and the ones that matter, every time they top up.
