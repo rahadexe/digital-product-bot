@@ -175,6 +175,27 @@ class Buying(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await self.balance(BUYER), before, 'nothing may be charged at the old price')
         self.assertTrue(any('Price changed' in a for a in alerts), alerts)
 
+    async def test_a_manual_order_is_confirmed_once(self):
+        """The delivery queue sends the customer's confirmation; the screen must not repeat it."""
+        category = await self.s.catalog.create_category('Manual', is_pinned=1)
+        manual = await self.s.catalog.create_product(category, 'Netflix Private', price=63,
+                                                     delivery_type='manual')
+        spent = await self.buy(BUYER, manual)
+        self.assertEqual(spent, 63.0)
+        self.assertIn('Order Placed', self.said())
+        for repeated in ('Payment successful', 'being prepared', 'delivered shortly'):
+            self.assertNotIn(repeated, self.said(), self.said())
+
+        async with self.db.connect() as conn:
+            queued = await conn.fetch('SELECT text FROM outbox WHERE tg_user_id=$1', BUYER)
+        waiting = [q for q in queued if 'Payment Received' in q['text']]
+        self.assertEqual(len(waiting), 1, 'exactly one queued confirmation')
+
+    async def test_an_instant_order_still_points_at_its_details(self):
+        spent = await self.buy(BUYER, self.plain_product)
+        self.assertEqual(spent, 100.0)
+        self.assertIn('below', self.said(), self.said())
+
 
 if __name__ == '__main__':
     unittest.main()

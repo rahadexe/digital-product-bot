@@ -1084,11 +1084,10 @@ async def execute_quantity_purchase(query: CallbackQuery, state: FSMContext, ser
     if query.message:
         is_waiting = order.get("fulfillment") == "waiting"
         success_title = f"{ICON_TIMER} <b>Order Placed!</b>" if is_waiting else f"{ICON_CHECK} <b>Purchase Successful!</b>"
-        below_text = (
-            "<i>Payment successful! Your order is being prepared and will be delivered shortly.</i>"
-            if is_waiting
-            else "<i>Your order details and delivery are below 👇</i>"
-        )
+        # A manual order gets its own message from the delivery queue a moment later, with
+        # the order number and how long it usually takes. Repeating it here read as two
+        # separate confirmations for one purchase.
+        below_text = "" if is_waiting else "<i>Your order details and delivery are below 👇</i>"
         if not is_waiting:
             # A manual order says it is being prepared, which stays true until a
             # human sends it, so only the instant one is cleared away.
@@ -1097,8 +1096,8 @@ async def execute_quantity_purchase(query: CallbackQuery, state: FSMContext, ser
         with suppress(TelegramBadRequest):
             await query.message.edit_text(
                 f"{success_title}\n\n"
-                f"{ICON_ORDERS} <b>{escape(order.get('product_title', 'Product'))}</b>\n\n"
-                f"{below_text}",
+                f"{ICON_ORDERS} <b>{escape(order.get('product_title', 'Product'))}</b>"
+                + (f"\n\n{below_text}" if below_text else ""),
                 reply_markup=None,
             )
 
@@ -1126,11 +1125,10 @@ async def execute_legacy_purchase(query: CallbackQuery, state: FSMContext, servi
     if query.message:
         is_waiting = order.get("fulfillment") == "waiting"
         success_title = f"{ICON_TIMER} <b>Order Placed!</b>" if is_waiting else f"{ICON_CHECK} <b>Purchase Successful!</b>"
-        below_text = (
-            "<i>Payment successful! Your order is being prepared and will be delivered shortly.</i>"
-            if is_waiting
-            else "<i>Your order details and delivery are below 👇</i>"
-        )
+        # A manual order gets its own message from the delivery queue a moment later, with
+        # the order number and how long it usually takes. Repeating it here read as two
+        # separate confirmations for one purchase.
+        below_text = "" if is_waiting else "<i>Your order details and delivery are below 👇</i>"
         if not is_waiting:
             # A manual order says it is being prepared, which stays true until a
             # human sends it, so only the instant one is cleared away.
@@ -1139,8 +1137,8 @@ async def execute_legacy_purchase(query: CallbackQuery, state: FSMContext, servi
         with suppress(TelegramBadRequest):
             await query.message.edit_text(
                 f"{success_title}\n\n"
-                f"{ICON_ORDERS} <b>{escape(order.get('product_title', 'Product'))}</b>\n\n"
-                f"{below_text}",
+                f"{ICON_ORDERS} <b>{escape(order.get('product_title', 'Product'))}</b>"
+                + (f"\n\n{below_text}" if below_text else ""),
                 reply_markup=None,
             )
 
