@@ -20,6 +20,7 @@ from app.bot.icons import (
     ICON_BALANCE,
     ICON_BINANCE,
     ICON_CHECK,
+    ICON_COIN,
     ICON_CROSS,
     ICON_DEPOSIT,
     ICON_ID,
@@ -31,6 +32,7 @@ from app.bot.icons import (
     ICON_QUESTION,
     ICON_SPARKLES,
     ICON_TIMER,
+    ICON_USER,
     ICON_WARNING,
     Icons,
     get_method_icon,
@@ -439,13 +441,17 @@ async def handle_deposit_method_select(query: CallbackQuery, state: FSMContext, 
     if method.get("auto_verify") == "binance_pay":
         pay_id = setting_values.get("binance_pay_id") or account_info
         binance_name = (setting_values.get("binance_pay_name") or "").strip()
-        name_line = f"<b>Binance Name:</b> <code>{escape(binance_name)}</code>\n" if binance_name else ""
+        name_line = f"{ICON_USER} <b>Binance Name:</b> <code>{escape(binance_name)}</code>\n" if binance_name else ""
+        min_dep_line = f"{ICON_WARNING} <b>Minimum Deposit:</b> <code>{min_coin:g} USDT</code> (≈ {price(symbol, min_dep, show_usd=False)})\n"
+        rate_line = f"{ICON_COIN} <b>Exchange Rate:</b> <code>1 USDT = {rate:.2f} {symbol}</code>\n" if rate and rate != 1.0 else ""
 
         text = (
             f"{ICON_BINANCE} <b>Binance Deposit</b>\n\n"
             f"{ICON_ID} <b>Binance ID:</b> <code>{escape(pay_id)}</code>\n"
-            f"{name_line}\n"
-            f"📋 <b>Step-by-Step Payment Guide:</b>\n"
+            f"{name_line}"
+            f"{min_dep_line}"
+            f"{rate_line}\n"
+            f"{ICON_NOTE} <b>Step-by-Step Payment Guide:</b>\n"
             f"1️⃣ Open the <b>Binance</b> app.\n"
             f"2️⃣ Go to <b>Assets</b> (or <b>Wallets</b>) at the bottom.\n"
             f"3️⃣ Tap <b>Send</b>.\n"
@@ -579,10 +585,14 @@ async def ask_deposit_input(query: CallbackQuery, state: FSMContext, services: S
         await state.set_state(DepositStates.waiting_for_binance_ref)
         method_row = {"name": method_name, "auto_verify": auto_verify}
         method_icon = get_method_icon(method_row)
+        min_dep_line = f"{ICON_WARNING} <b>Minimum Deposit:</b> <code>{min_coin:g} USDT</code> (≈ {price(symbol, min_dep, show_usd=False)})\n"
+        rate_line = f"{ICON_COIN} <b>Exchange Rate:</b> <code>1 USDT = {rate:.2f} {symbol}</code>\n" if rate and rate != 1.0 else ""
         text = (
-            f"{method_icon} <b>{escape(method_name)} Deposit</b>\n\n"
-            f"<b>Pay ID:</b> <code>{escape(account_info)}</code>\n\n"
-            f"1️⃣ Send any USDT amount to the Pay ID above\n"
+            f"{ICON_BINANCE} <b>{escape(method_name)} Deposit</b>\n\n"
+            f"{ICON_ID} <b>Pay ID:</b> <code>{escape(account_info)}</code>\n"
+            f"{min_dep_line}"
+            f"{rate_line}\n"
+            f"1️⃣ Send USDT (min {min_coin:g} USDT) to the Pay ID above\n"
             f"2️⃣ Paste your Order ID below\n\n"
             f"❗️ <i>Only up to 3 decimal places will be credited to your wallet.</i>\n\n"
             f"🥷 <i>Only payments started after opening this screen and completed within 30 minutes will be credited.</i>\n\n"
