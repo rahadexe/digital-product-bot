@@ -87,7 +87,16 @@ def gate_text(missing: list[dict[str, Any]], store_name: str = "Digital Mart") -
         )
     is_single = len(missing) == 1
     channel_word = "our channel" if is_single else "our channels"
-    titles = "\n".join(f"{ICON_CHANNEL} <b>{escape(ch.get('title') or ch.get('channel_username') or 'Official Channel')}</b>" for ch in missing)
+    links = []
+    for ch in missing:
+        title = escape(ch.get('title') or ch.get('channel_username') or 'Official Channel')
+        raw_user = (ch.get('channel_username') or '').lstrip('@')
+        url = ch.get("invite_link") or (f"https://t.me/{raw_user}" if raw_user else "")
+        if url:
+            links.append(f"{ICON_CHANNEL} <a href=\"{escape(url)}\"><b>{title}</b></a>")
+        else:
+            links.append(f"{ICON_CHANNEL} <b>{title}</b>")
+    titles = "\n".join(links)
     return (
         f"{ICON_LOCK} <b>Membership Required</b>\n\n"
         f"Please join {channel_word} to continue:\n\n"
