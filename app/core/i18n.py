@@ -28,6 +28,7 @@ DEFAULT_LANGUAGE = "en"
 TRANSLATIONS: dict[str, dict[str, str]] = {
     "en": {
         # Buttons
+        "btn_wallet": "💳 Wallet",
         "btn_add_balance": "💳 Add Balance",
         "btn_search": "🔍 Search",
         "btn_refer_earn": "🎁 Refer & Earn",
@@ -210,12 +211,15 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "status_waiting_msg": "Your item is being prepared and will be delivered shortly.",
 
         "deposit_choose_method": (
-            "{icon_deposit} <b>Add Balance</b>\n\n"
-            "{icon_coin} <b>Balance:</b> {balance}\n\n"
-            "{icon_lightning} <b>Select Method:</b>"
+            "{icon_deposit} <b>My Wallet</b>\n\n"
+            "{icon_coin} <b>Current Balance:</b> <code>{balance}</code>\n\n"
+            "{icon_lightning} <b>Add Balance:</b>\n"
+            "Select a payment method below to top up:"
         ),
         "deposit_paused_title": "{icon_warning} <b>Deposits Temporarily Paused</b>",
         "deposit_pending_summary": (
+            "{icon_deposit} <b>My Wallet</b>\n\n"
+            "{icon_coin} <b>Current Balance:</b> <code>{balance}</code>\n\n"
             "{icon_timer} <b>Deposit #{id} Pending Review</b>\n\n"
             "Method: {method}\n"
             "Amount: {amount}\n"
@@ -238,6 +242,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
 
     "bn": {
         # Buttons
+        "btn_wallet": "💳 ওয়ালেট",
         "btn_add_balance": "💳 অ্যাড ব্যালেন্স",
         "btn_search": "🔍 সার্চ",
         "btn_refer_earn": "🎁 রেফার ও ইনকাম",
@@ -420,12 +425,15 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "status_waiting_msg": "আপনার আইটেম প্রস্তুত করা হচ্ছে, শীঘ্রই ডেলিভারি করা হবে।",
 
         "deposit_choose_method": (
-            "{icon_deposit} <b>অ্যাড ব্যালেন্স</b>\n\n"
-            "{icon_coin} <b>ব্যালেন্স:</b> {balance}\n\n"
-            "{icon_lightning} <b>মেথড বেছে নিন:</b>"
+            "{icon_deposit} <b>আমার ওয়ালেট</b>\n\n"
+            "{icon_coin} <b>বর্তমান ব্যালেন্স:</b> <code>{balance}</code>\n\n"
+            "{icon_lightning} <b>ব্যালেন্স যোগ করুন:</b>\n"
+            "টপ-আপ করতে নিচে থেকে পেমেন্ট মেথড বেছে নিন:"
         ),
         "deposit_paused_title": "{icon_warning} <b>ডিপোজিট সাময়িকভাবে বন্ধ আছে</b>",
         "deposit_pending_summary": (
+            "{icon_deposit} <b>আমার ওয়ালেট</b>\n\n"
+            "{icon_coin} <b>বর্তমান ব্যালেন্স:</b> <code>{balance}</code>\n\n"
             "{icon_timer} <b>ডিপোজিট #{id} পর্যালোচনাধীন</b>\n\n"
             "মেথড: {method}\n"
             "পরিমাণ: {amount}\n"
@@ -448,6 +456,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
 
     "hi": {
         # Buttons
+        "btn_wallet": "💳 वॉलेट",
         "btn_add_balance": "💳 बैलेंस जोड़ें",
         "btn_search": "🔍 खोजें",
         "btn_refer_earn": "🎁 रेफर और कमाएं",
@@ -630,12 +639,15 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "status_waiting_msg": "आपका आइटम तैयार किया जा रहा है, जल्द ही डिलीवर होगा।",
 
         "deposit_choose_method": (
-            "{icon_deposit} <b>बैलेंस जोड़ें</b>\n\n"
-            "{icon_coin} <b>बैलेंस:</b> {balance}\n\n"
-            "{icon_lightning} <b>विधि चुनें:</b>"
+            "{icon_deposit} <b>मेरा वॉलेट</b>\n\n"
+            "{icon_coin} <b>मौजूदा बैलेंस:</b> <code>{balance}</code>\n\n"
+            "{icon_lightning} <b>बैलेंस जोड़ें:</b>\n"
+            "वॉलेट में बैलेंस जोड़ने के लिए नीचे से विधि चुनें:"
         ),
         "deposit_paused_title": "{icon_warning} <b>डिपॉजिट अस्थायी रूप से बंद है</b>",
         "deposit_pending_summary": (
+            "{icon_deposit} <b>मेरा वॉलेट</b>\n\n"
+            "{icon_coin} <b>मौजूदा बैलेंस:</b> <code>{balance}</code>\n\n"
             "{icon_timer} <b>डिपॉजिट #{id} समीक्षाधीन</b>\n\n"
             "विधि: {method}\n"
             "राशि: {amount}\n"
@@ -658,6 +670,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
 
     "ur": {
         # Buttons
+        "btn_wallet": "💳 والٹ",
         "btn_add_balance": "💳 بیلنس شامل کریں",
         "btn_search": "🔍 تلاش کریں",
         "btn_refer_earn": "🎁 ریفر اور کمائیں",
@@ -840,12 +853,15 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "status_waiting_msg": "آپ کا آئٹم تیار کیا جا رہا ہے، جلد ہی ڈیلیور ہو جائے گا۔",
 
         "deposit_choose_method": (
-            "{icon_deposit} <b>بیلنس شامل کریں</b>\n\n"
-            "{icon_coin} <b>بیلنس:</b> {balance}\n\n"
-            "{icon_lightning} <b>طریقہ منتخب کریں:</b>"
+            "{icon_deposit} <b>میرا والٹ</b>\n\n"
+            "{icon_coin} <b>موجودہ بیلنس:</b> <code>{balance}</code>\n\n"
+            "{icon_lightning} <b>بیلنس شامل کریں:</b>\n"
+            "والٹ میں رقم جمع کرنے کے لیے طریقہ منتخب کریں:"
         ),
         "deposit_paused_title": "{icon_warning} <b>ڈپازٹ عارضی طور پر بند ہے</b>",
         "deposit_pending_summary": (
+            "{icon_deposit} <b>میرا والٹ</b>\n\n"
+            "{icon_coin} <b>موجودہ بیلنس:</b> <code>{balance}</code>\n\n"
             "{icon_timer} <b>ڈپازٹ #{id} زیر جائزہ</b>\n\n"
             "طریقہ: {method}\n"
             "رقم: {amount}\n"

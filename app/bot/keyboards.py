@@ -70,28 +70,22 @@ def get_main_inline_keyboard(
     for i in range(0, len(cat_buttons), 2):
         rows.append(cat_buttons[i : i + 2])
 
-    # Core action buttons (clean 2x2 grid, zero duplication)
+    # Core action buttons (clean layout: Wallet & Profile, Support below)
     rows.append([
         InlineKeyboardButton(
-            text=t("btn_add_balance", lang),
+            text=t("btn_wallet", lang),
             callback_data="open_deposit",
             style="primary",
-            icon_custom_emoji_id=Icons.DEPOSIT,
+            icon_custom_emoji_id=Icons.BALANCE,
         ),
-        InlineKeyboardButton(
-            text=t("btn_my_orders", lang),
-            callback_data="open_orders",
-            style="primary",
-            icon_custom_emoji_id=Icons.ORDERS,
-        ),
-    ])
-    rows.append([
         InlineKeyboardButton(
             text=t("btn_profile", lang),
             callback_data="open_account",
             style="primary",
             icon_custom_emoji_id=Icons.ACCOUNT,
         ),
+    ])
+    rows.append([
         InlineKeyboardButton(
             text=t("btn_support", lang),
             callback_data="open_support",
@@ -388,7 +382,6 @@ def get_account_keyboard(
     buttons = [
         [
             InlineKeyboardButton(text=t("btn_my_orders", lang), callback_data="open_orders", style="primary", icon_custom_emoji_id=Icons.ORDERS),
-            InlineKeyboardButton(text=t("btn_balance_history", lang), callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.STATS),
         ],
         [
             InlineKeyboardButton(text=t("btn_change_language", lang), callback_data="open_language_menu", style="primary", icon_custom_emoji_id=Icons.GLOBE),
@@ -832,8 +825,9 @@ def get_deposit_methods_keyboard(
     instant_label: str | None = None,
     back_target: str | None = None,
     lang: str = "en",
+    show_history: bool = True,
 ) -> InlineKeyboardMarkup:
-    """Wallet top-up methods: clean buttons displaying the exact configured method name."""
+    """Wallet top-up methods with Balance History and Back button."""
     buttons = []
 
     method_buttons: List[InlineKeyboardButton] = []
@@ -897,6 +891,16 @@ def get_deposit_methods_keyboard(
                 callback_data="dep_instant",
                 style="success",
                 icon_custom_emoji_id=Icons.LIGHTNING,
+            )
+        ])
+
+    if show_history:
+        buttons.append([
+            InlineKeyboardButton(
+                text=t("btn_balance_history", lang),
+                callback_data="open_deposits_from_wallet",
+                style="primary",
+                icon_custom_emoji_id=Icons.STATS,
             )
         ])
 

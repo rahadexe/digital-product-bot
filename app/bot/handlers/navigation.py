@@ -33,6 +33,9 @@ NAVIGATION_TEXTS = {
     "🔍 Search": "search",
     "Add Balance": "deposit",
     "💳 Add Balance": "deposit",
+    "Wallet": "deposit",
+    "💳 Wallet": "deposit",
+    "💼 Wallet": "deposit",
     "My Orders": "orders",
     "📦 My Orders": "orders",
     "My Balance": "account",
@@ -53,6 +56,8 @@ NAVIGATION_TEXTS = {
     # Bengali (bn)
     "💳 অ্যাড ব্যালেন্স": "deposit",
     "অ্যাড ব্যালেন্স": "deposit",
+    "💳 ওয়ালেট": "deposit",
+    "ওয়ালেট": "deposit",
     "📦 আমার অর্ডার": "orders",
     "আমার অর্ডার": "orders",
     "💰 আমার ব্যালেন্স": "account",
@@ -77,6 +82,8 @@ NAVIGATION_TEXTS = {
     # Hindi (hi)
     "💳 बैलेंस जोड़ें": "deposit",
     "बैलेंस जोड़ें": "deposit",
+    "💳 वॉलेट": "deposit",
+    "वॉलेट": "deposit",
     "🔍 खोजें": "search",
     "खोजें": "search",
     "🎁 रेफर और कमाएं": "referral",
@@ -96,6 +103,8 @@ NAVIGATION_TEXTS = {
     # Urdu (ur)
     "💳 بیلنس شامل کریں": "deposit",
     "بیلنس شامل کریں": "deposit",
+    "💳 والٹ": "deposit",
+    "والٹ": "deposit",
     "🔍 تلاش کریں": "search",
     "تلاش کریں": "search",
     "🎁 ریفر اور کمائیں": "referral",

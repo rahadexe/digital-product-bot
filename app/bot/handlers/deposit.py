@@ -98,13 +98,20 @@ async def cancel_deposit_flow(query: CallbackQuery, state: FSMContext):
             await query.message.delete()
 
 
+@router.message(Command("wallet"))
 @router.message(Command("deposit"))
 @router.message(F.text.in_({
+    "Wallet", "wallet", "💳 Wallet", "💼 Wallet", "💰 Wallet",
+    "💳 ওয়ালেট", "ওয়ালেট",
+    "💳 वॉलेट", "वॉलेट",
+    "💳 والٹ", "والٹ",
     "Add Balance", "add balance", "💰 Add Balance", "💳 Add Balance", "Deposit", "deposit", "💳 Deposit",
     "💳 অ্যাড ব্যালেন্স", "অ্যাড ব্যালেন্স",
     "💳 बैलेंस जोड़ें", "बैलेंस जोड़ें",
     "💳 بیلنس شامل کریں", "بیلنس شامل کریں",
 }))
+@router.message(F.text.casefold() == "wallet")
+@router.callback_query(F.data == "open_wallet")
 @router.callback_query(F.data == "open_deposit")
 @router.callback_query(F.data == "open_deposit_from_history")
 @router.callback_query(F.data == "open_deposit_from_account")
@@ -165,13 +172,16 @@ async def show_deposit_methods(event: Message | CallbackQuery, state: FSMContext
         text = t(
             "deposit_pending_summary",
             lang,
+            icon_deposit=ICON_DEPOSIT,
+            icon_coin=ICON_COIN,
             icon_timer=ICON_TIMER,
             id=pending["id"],
             method=escape(pending["method_name"]),
             amount=price(symbol, pending["amount"], show_usd=False),
             trxid=escape(pending["transaction_id"]),
+            balance=balance_display,
         )
-        keyboard = get_deposit_methods_keyboard([], instant["label"], back_target=back_target, lang=lang) if instant else None
+        keyboard = get_deposit_methods_keyboard([], instant["label"] if instant else None, back_target=back_target, lang=lang, show_history=True)
     else:
         text = t(
             "deposit_choose_method",
@@ -182,7 +192,7 @@ async def show_deposit_methods(event: Message | CallbackQuery, state: FSMContext
             balance=balance_display,
         )
         keyboard = get_deposit_methods_keyboard(
-            displayed_methods, instant["label"] if instant else None, back_target=back_target, lang=lang
+            displayed_methods, instant["label"] if instant else None, back_target=back_target, lang=lang, show_history=True
         )
     await respond(event, text, keyboard)
 

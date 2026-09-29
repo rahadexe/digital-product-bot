@@ -49,12 +49,16 @@ def test_language_selection_keyboard():
 def test_navigation_texts_include_all_languages():
     # Check English
     assert NAVIGATION_TEXTS["💳 Add Balance"] == "deposit"
+    assert NAVIGATION_TEXTS["💳 Wallet"] == "deposit"
     # Check Bengali
     assert NAVIGATION_TEXTS["💳 অ্যাড ব্যালেন্স"] == "deposit"
+    assert NAVIGATION_TEXTS["💳 ওয়ালেট"] == "deposit"
     # Check Hindi
     assert NAVIGATION_TEXTS["💳 बैलेंस जोड़ें"] == "deposit"
+    assert NAVIGATION_TEXTS["💳 वॉलेट"] == "deposit"
     # Check Urdu
     assert NAVIGATION_TEXTS["💳 بیلنس شامل کریں"] == "deposit"
+    assert NAVIGATION_TEXTS["💳 والٹ"] == "deposit"
 
     # Check commands
     assert COMMAND_ACTIONS["/language"] == "language"

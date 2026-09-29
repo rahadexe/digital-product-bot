@@ -945,6 +945,7 @@ DEPOSIT_STATUS_BADGES = {
 @router.message(F.text.casefold() == "balance history")
 @router.message(F.text.casefold() == "deposit history")
 @router.callback_query(F.data == "open_deposits")
+@router.callback_query(F.data == "open_deposits_from_wallet")
 @router.callback_query(F.data.startswith("open_deposits_dep_"))
 @router.callback_query(F.data.startswith("dep_page_"))
 async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext, services: Services):
@@ -957,13 +958,20 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
 
     page = 1
     dep_id_ref: int | None = None
+    from_wallet = False
     if isinstance(event, CallbackQuery) and event.data:
-        if event.data.startswith("open_deposits_dep_"):
+        if event.data == "open_deposits_from_wallet":
+            from_wallet = True
+        elif event.data.startswith("open_deposits_dep_"):
             raw = event.data.removeprefix("open_deposits_dep_")
             if raw.isdigit():
                 dep_id_ref = int(raw)
         elif event.data.startswith("dep_page_"):
-            parts = event.data.removeprefix("dep_page_").split("_")
+            raw = event.data.removeprefix("dep_page_")
+            if raw.endswith("_w"):
+                from_wallet = True
+                raw = raw[:-2]
+            parts = raw.split("_")
             if parts[0].isdigit():
                 page = max(1, int(parts[0]))
             if len(parts) > 1 and parts[1].isdigit():
@@ -978,7 +986,7 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
     symbol = await services.settings.get("currency_symbol")
     usd_rate = await services.settings.number("usd_rate")
     show_usd = await services.settings.flag("show_usd_price")
-    back_cb = f"back_to_dep_req_{dep_id_ref}" if dep_id_ref else "open_account"
+    back_cb = f"back_to_dep_req_{dep_id_ref}" if dep_id_ref else ("open_deposit" if from_wallet else "open_account")
 
     if not deposits:
         text = (
@@ -1001,7 +1009,9 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
             header = t("balance_history_title", lang, icon_stats=ICON_STATS)
 
         def page_cb(p: int) -> str:
-            return f"dep_page_{p}_{dep_id_ref}" if dep_id_ref else f"dep_page_{p}"
+            if dep_id_ref:
+                return f"dep_page_{p}_{dep_id_ref}"
+            return f"dep_page_{p}_w" if from_wallet else f"dep_page_{p}"
 
         items_text = []
         for deposit in deposits:
