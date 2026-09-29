@@ -786,7 +786,7 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
             ]
         )
     else:
-        total_pages = max(1, math.ceil(total / ORDERS_PAGE_SIZE))
+        total_pages = max(1, math.ceil(total / ORDERS_PAGE_SIZE)) if total > 0 else 1
         page = min(page, total_pages)
         if total_pages > 1:
             text = t("order_history_page", lang, icon_orders=ICON_ORDERS, page=page, total_pages=total_pages)
@@ -796,13 +796,13 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
         for order in orders:
             price_val = order["price"]
             price_str = format_dual_price(price_val, symbol, usd_rate=usd_rate, show_usd=show_usd)
-            max_title_len = max(10, 60 - len(str(order['id'])) - len(price_str) - 6)
+            max_title_len = max(10, 58 - len(str(order['id'])) - len(price_str) - 6)
             title_short = order['product_title'][:max_title_len].strip()
             label = f"#{order['id']} · {title_short} · {price_str}"
             status_icon = Icons.CHECK if order["status"] == "completed" and order.get("fulfillment") != "waiting" else (Icons.TIMER if order.get("fulfillment") == "waiting" else Icons.CROSS)
-            buttons.append([InlineKeyboardButton(text=label[:64], callback_data=f"view_order_{order['id']}", style="primary", icon_custom_emoji_id=status_icon)])
+            cb_data = f"vord_{order['id']}_{page}"
+            buttons.append([InlineKeyboardButton(text=label[:64], callback_data=cb_data, style="primary", icon_custom_emoji_id=status_icon)])
 
-        nav_row = []
         if total_pages > 1:
             if page == 1:
                 nav_row = [
@@ -823,22 +823,37 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
                     InlineKeyboardButton(text=t("btn_next", lang), callback_data=f"orders_page_{page + 1}", style="primary", icon_custom_emoji_id=Icons.NEXT),
                 ]
             buttons.append(nav_row)
+        else:
+            buttons.append([
+                InlineKeyboardButton(text=t("btn_refresh", lang), callback_data="orders_page_1", style="success", icon_custom_emoji_id=Icons.REFRESH),
+            ])
 
-        action_row = [
+        buttons.append([
+            InlineKeyboardButton(text=t("btn_browse_products", lang), callback_data="open_categories", style="success", icon_custom_emoji_id=Icons.PRODUCTS),
+        ])
+        buttons.append([
             InlineKeyboardButton(text=t("btn_back", lang), callback_data="open_account", style="primary", icon_custom_emoji_id=Icons.BACK),
             InlineKeyboardButton(text=t("btn_close", lang), callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
-        ]
-        buttons.append(action_row)
+        ])
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
     await respond(event, text, keyboard)
 
 
+@router.callback_query(F.data.startswith("vord_"))
 @router.callback_query(F.data.startswith("view_order_"))
 async def view_order_detail(query: CallbackQuery, state: FSMContext, services: Services):
     await state.clear()
     lang = await services.users.get_language(query.from_user.id)
-    order_id = callback_int(query.data, "view_order_")
+    raw = query.data
+    page = 1
+    if raw.startswith("vord_"):
+        parts = raw.removeprefix("vord_").split("_")
+        order_id = int(parts[0]) if parts and parts[0].isdigit() else None
+        page = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 1
+    else:
+        order_id = callback_int(raw, "view_order_")
+
     # Ownership is part of the lookup: another customer's order ID finds nothing.
     order = await services.purchases.order_for_customer(query.from_user.id, order_id) if order_id is not None else None
     if not order:
@@ -850,42 +865,70 @@ async def view_order_detail(query: CallbackQuery, state: FSMContext, services: S
     if not query.message:
         return
 
-    back = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=t("btn_back", lang), callback_data="open_orders", style="primary", icon_custom_emoji_id=Icons.BACK)]])
-    if order["status"] == "completed" and order.get("fulfillment") == "waiting":
-        with suppress(TelegramBadRequest):
-            await query.message.edit_text(
-                f"{ICON_TIMER} <b>Order #{order['id']}: {escape(order['product_title'])}</b>\n\n"
-                f"{t('order_preparing', lang)}",
-                reply_markup=back,
-            )
-        return
-
-    if len(order["delivered_item"]) > INLINE_CREDENTIAL_LIMIT:
-        await query.message.answer_document(BufferedInputFile(order["delivered_item"].encode(), filename=f"order-{order_id}.txt"))
-        return
-
-    created = order["created_at"]
-    date = created.strftime("%Y-%m-%d %H:%M UTC") if isinstance(created, datetime) else str(created)
     symbol = await services.settings.get("currency_symbol")
     usd_rate = await services.settings.number("usd_rate")
     show_usd = await services.settings.flag("show_usd_price")
+
+    created = order["created_at"]
+    date_str = created.strftime("%Y-%m-%d %H:%M") if isinstance(created, datetime) else str(created)[:16]
+
+    if order["status"] == "completed" and order.get("fulfillment") != "waiting":
+        status_line = f"{ICON_CHECK} <b>{t('order_status', lang)}:</b> <code>{t('status_completed', lang)}</code>\n<i>{t('status_completed_msg', lang)}</i>"
+    elif order.get("fulfillment") == "waiting":
+        status_line = f"{ICON_TIMER} <b>{t('order_status', lang)}:</b> <code>{t('status_waiting', lang)}</code>\n<i>{t('status_waiting_msg', lang)}</i>"
+    elif order["status"] in {"refunded", "cancelled"}:
+        status_line = f"{ICON_CROSS} <b>{t('order_status', lang)}:</b> <code>{t('status_refunded', lang)}</code>\n<i>{t('status_refunded_msg', lang)}</i>"
+    else:
+        status_line = f"{ICON_TIMER} <b>{t('order_status', lang)}:</b> <code>{order['status'].upper()}</code>"
+
     text = (
         f"{t('order_detail_title', lang, icon_orders=ICON_ORDERS, id=order['id'])}\n\n"
+        f"{status_line}\n\n"
         f"{ICON_VIP} <b>{t('order_product', lang)}:</b> {escape(order['product_title'])}\n"
         f"{ICON_MONEY} <b>{t('order_price_paid', lang)}:</b> <code>{price(symbol, order['price'], usd_rate=usd_rate, show_usd=show_usd)}</code>\n"
-        f"{ICON_TIMER} <b>{t('order_date', lang)}:</b> {date}\n"
-        f"{ICON_CHECK} <b>{t('order_status', lang)}:</b> <code>{order['status'].upper()}</code>\n\n"
-        f"{ICON_KEY} <b>{t('order_credentials', lang)}:</b>\n"
-        f"<code>{escape(order['delivered_item'])}</code>"
+        f"{ICON_TIMER} <b>{t('order_date', lang)}:</b> <code>{date_str}</code>"
     )
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text=t("btn_copy_credentials", lang), copy_text=CopyTextButton(text=order["delivered_item"]), style="success", icon_custom_emoji_id=Icons.KEY)],
-            [InlineKeyboardButton(text=t("btn_back", lang), callback_data="open_orders", style="danger", icon_custom_emoji_id=Icons.BACK)],
-        ]
-    )
+
+    has_credentials = bool(order.get("delivered_item") and order.get("fulfillment") != "waiting")
+    if has_credentials:
+        text += (
+            f"\n\n{ICON_KEY} <b>{t('order_credentials', lang)}:</b>\n"
+            f"<code>{escape(order['delivered_item'])}</code>"
+        )
+
+    back_cb = f"orders_page_{page}" if page > 1 else "open_orders"
+    detail_buttons = []
+
+    if has_credentials:
+        if len(order["delivered_item"]) <= INLINE_CREDENTIAL_LIMIT:
+            detail_buttons.append([
+                InlineKeyboardButton(
+                    text=t("btn_copy_credentials", lang),
+                    copy_text=CopyTextButton(text=order["delivered_item"]),
+                    style="success",
+                    icon_custom_emoji_id=Icons.KEY,
+                )
+            ])
+        else:
+            await query.message.answer_document(BufferedInputFile(order["delivered_item"].encode(), filename=f"order-{order_id}.txt"))
+
+    detail_buttons.append([
+        InlineKeyboardButton(
+            text=t("btn_back", lang),
+            callback_data=back_cb,
+            style="primary",
+            icon_custom_emoji_id=Icons.BACK,
+        ),
+        InlineKeyboardButton(
+            text=t("btn_close", lang),
+            callback_data="close_menu",
+            style="danger",
+            icon_custom_emoji_id=Icons.CLOSE,
+        ),
+    ])
+
     with suppress(TelegramBadRequest):
-        await query.message.edit_text(text, reply_markup=keyboard)
+        await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=detail_buttons))
 
 
 DEPOSITS_PAGE_SIZE = 5

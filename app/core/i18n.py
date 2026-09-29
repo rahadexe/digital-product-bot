@@ -198,6 +198,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "status_approved": "APPROVED",
         "status_rejected": "REJECTED",
         "status_pending": "PENDING REVIEW",
+        "status_completed": "DELIVERED",
+        "status_refunded": "REFUNDED",
+        "status_waiting": "PREPARING",
+        "status_completed_msg": "Your order was delivered successfully.",
+        "status_refunded_msg": "This order was cancelled and refunded to your wallet.",
+        "status_waiting_msg": "Your item is being prepared and will be delivered shortly.",
 
         "deposit_choose_method": (
             "{icon_deposit} <b>Add Balance</b>\n\n"
@@ -398,6 +404,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "status_approved": "অনুমোদিত",
         "status_rejected": "বাতিল",
         "status_pending": "পর্যালোচনাধীন",
+        "status_completed": "ডেলিভার্ড",
+        "status_refunded": "রিফান্ডেড",
+        "status_waiting": "প্রস্তুত হচ্ছে",
+        "status_completed_msg": "আপনার অর্ডারটি সফলভাবে ডেলিভারি করা হয়েছে।",
+        "status_refunded_msg": "এই অর্ডারটি বাতিল করে ব্যালেন্স ওয়ালেটে ফেরত দেওয়া হয়েছে।",
+        "status_waiting_msg": "আপনার আইটেম প্রস্তুত করা হচ্ছে, শীঘ্রই ডেলিভারি করা হবে।",
 
         "deposit_choose_method": (
             "{icon_deposit} <b>অ্যাড ব্যালেন্স</b>\n\n"
@@ -598,6 +610,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "status_approved": "स्वीकृत",
         "status_rejected": "अस्वीकृत",
         "status_pending": "समीक्षाधीन",
+        "status_completed": "डिलीवर किया गया",
+        "status_refunded": "रिफंड",
+        "status_waiting": "तैयार किया जा रहा है",
+        "status_completed_msg": "आपका ऑर्डर सफलतापूर्वक डिलीवर कर दिया गया है।",
+        "status_refunded_msg": "यह ऑर्डर रद्द कर दिया गया है और बैलेंस वापस कर दिया गया है।",
+        "status_waiting_msg": "आपका आइटम तैयार किया जा रहा है, जल्द ही डिलीवर होगा।",
 
         "deposit_choose_method": (
             "{icon_deposit} <b>बैलेंस जोड़ें</b>\n\n"
@@ -798,6 +816,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "status_approved": "منظور شدہ",
         "status_rejected": "مسترد شدہ",
         "status_pending": "زیر جائزہ",
+        "status_completed": "ڈیلیور شدہ",
+        "status_refunded": "ریفنڈ شدہ",
+        "status_waiting": "تیار کیا جا رہا ہے",
+        "status_completed_msg": "آپ کا آرڈر کامیابی سے ڈیلیور کر دیا گیا ہے۔",
+        "status_refunded_msg": "یہ آرڈر منسوخ کر دیا گیا ہے اور بیلنس واپس کر دیا گیا ہے۔",
+        "status_waiting_msg": "آپ کا آئٹم تیار کیا جا رہا ہے، جلد ہی ڈیلیور ہو جائے گا۔",
 
         "deposit_choose_method": (
             "{icon_deposit} <b>بیلنس شامل کریں</b>\n\n"
