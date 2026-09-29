@@ -70,7 +70,7 @@ def get_main_inline_keyboard(
     for i in range(0, len(cat_buttons), 2):
         rows.append(cat_buttons[i : i + 2])
 
-    # Core action buttons
+    # Core action buttons (clean 2x2 grid, zero duplication)
     rows.append([
         InlineKeyboardButton(
             text=t("btn_add_balance", lang),
@@ -79,38 +79,24 @@ def get_main_inline_keyboard(
             icon_custom_emoji_id=Icons.DEPOSIT,
         ),
         InlineKeyboardButton(
-            text=t("btn_profile", lang),
-            callback_data="open_account",
-            style="primary",
-            icon_custom_emoji_id=Icons.ACCOUNT,
-        ),
-    ])
-    rows.append([
-        InlineKeyboardButton(
             text=t("btn_my_orders", lang),
             callback_data="open_orders",
             style="primary",
             icon_custom_emoji_id=Icons.ORDERS,
         ),
-        InlineKeyboardButton(
-            text=t("btn_refer_earn", lang),
-            callback_data="open_referral",
-            style="primary",
-            icon_custom_emoji_id=Icons.REFER,
-        ),
     ])
     rows.append([
+        InlineKeyboardButton(
+            text=t("btn_profile", lang),
+            callback_data="open_account",
+            style="primary",
+            icon_custom_emoji_id=Icons.ACCOUNT,
+        ),
         InlineKeyboardButton(
             text=t("btn_support", lang),
             callback_data="open_support",
             style="primary",
             icon_custom_emoji_id=Icons.SUPPORT,
-        ),
-        InlineKeyboardButton(
-            text=t("btn_change_language", lang),
-            callback_data="open_language_menu",
-            style="primary",
-            icon_custom_emoji_id=Icons.GLOBE,
         ),
     ])
 
@@ -406,27 +392,27 @@ def get_account_keyboard(
     is_admin: bool = False,
     ref_link: str | None = None,
 ) -> InlineKeyboardMarkup:
-    """Wallet / Profile actions: add balance, deposit history, order history, language, share link, or close menu."""
+    """Wallet / Profile actions: add balance, balance history, language, share link, back."""
     buttons = [
         [
             InlineKeyboardButton(text=t("btn_add_balance", lang), callback_data="open_deposit", style="success", icon_custom_emoji_id=Icons.DEPOSIT),
             InlineKeyboardButton(text=t("btn_balance_history", lang), callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.STATS),
         ],
-        [
-            InlineKeyboardButton(text=t("btn_order_history", lang), callback_data="open_orders", style="primary", icon_custom_emoji_id=Icons.ORDERS),
-            InlineKeyboardButton(text=t("btn_change_language", lang), callback_data="open_language_menu", style="primary", icon_custom_emoji_id=Icons.GLOBE),
-        ],
+    ]
+    middle_row = [
+        InlineKeyboardButton(text=t("btn_change_language", lang), callback_data="open_language_menu", style="primary", icon_custom_emoji_id=Icons.GLOBE),
     ]
     if ref_link:
         share_url = f"https://t.me/share/url?url={quote(ref_link)}&text={quote('🔥 Check out this digital store on Telegram!')}"
-        buttons.append([
+        middle_row.append(
             InlineKeyboardButton(
                 text=t("btn_share_referral", lang),
                 url=share_url,
                 style="success",
                 icon_custom_emoji_id=Icons.REFER,
             )
-        ])
+        )
+    buttons.append(middle_row)
     buttons.append([
         InlineKeyboardButton(text=t("btn_back", lang), callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK),
         InlineKeyboardButton(text=t("btn_close", lang), callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
@@ -434,7 +420,7 @@ def get_account_keyboard(
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def get_language_selection_keyboard(current_lang: str = "en", back_target: str | None = "back_to_main") -> InlineKeyboardMarkup:
+def get_language_selection_keyboard(current_lang: str = "en", back_target: str | None = "open_account") -> InlineKeyboardMarkup:
     """Language selection keyboard with English, Bengali, Hindi, and Urdu."""
     langs = [
         ("en", "🇬🇧 English", Icons.GLOBE),

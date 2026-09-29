@@ -185,7 +185,7 @@ async def show_language_menu(event: Message | CallbackQuery, state: FSMContext, 
         return
     current_lang = await services.users.get_language(tg_user.id)
     text = t("select_language_prompt", current_lang)
-    back_target = "back_to_main" if isinstance(event, CallbackQuery) else None
+    back_target = "open_account" if isinstance(event, CallbackQuery) else "back_to_main"
     kb = get_language_selection_keyboard(current_lang=current_lang, back_target=back_target)
     await respond(event, text, kb)
 

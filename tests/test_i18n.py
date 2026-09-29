@@ -31,9 +31,9 @@ def test_i18n_interpolation():
 def test_keyboards_all_languages():
     for lang in ["en", "bn", "hi", "ur"]:
         main_kb = get_main_inline_keyboard(lang=lang, is_admin=False)
-        assert len(main_kb.inline_keyboard) >= 4
+        assert len(main_kb.inline_keyboard) >= 3
         admin_kb = get_main_inline_keyboard(lang=lang, is_admin=True)
-        assert len(admin_kb.inline_keyboard) >= 5
+        assert len(admin_kb.inline_keyboard) >= 4
         kb = get_persistent_reply_keyboard(is_reseller=False, is_admin=False, lang=lang)
         assert len(kb.keyboard) > 0
         account_kb = get_account_keyboard(lang=lang, is_admin=False)
