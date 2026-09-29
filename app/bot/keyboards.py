@@ -255,8 +255,8 @@ def get_categories_keyboard(
     nav_bottom = []
     if back_target:
         nav_bottom.append(InlineKeyboardButton(text=t("btn_back", lang), callback_data=back_target, style="primary", icon_custom_emoji_id=Icons.BACK))
-    nav_bottom.append(InlineKeyboardButton(text=t("btn_close", lang), callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE))
-    buttons.append(nav_bottom)
+    if nav_bottom:
+        buttons.append(nav_bottom)
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
@@ -264,7 +264,7 @@ def get_validity_selector_keyboard(
     category_id: int,
     validities: List[str],
     show_all_option: bool = True,
-    back_target: str = "close_menu",
+    back_target: str = "open_categories",
 ) -> InlineKeyboardMarkup:
     """
     Renders validity durations (e.g. '3 Days Validity', '7 Days Validity') in a 2-column grid.
@@ -298,21 +298,13 @@ def get_validity_selector_keyboard(
         ])
 
     nav_row: List[InlineKeyboardButton] = []
-    if back_target and back_target != "close_menu":
-        nav_row.append(
-            InlineKeyboardButton(
-                text="Back",
-                callback_data=back_target,
-                style="primary",
-                icon_custom_emoji_id=Icons.BACK,
-            )
-        )
+    effective_back = back_target if back_target and back_target != "close_menu" else "open_categories"
     nav_row.append(
         InlineKeyboardButton(
-            text="Close",
-            callback_data="close_menu",
-            style="danger",
-            icon_custom_emoji_id=Icons.CLOSE,
+            text="Back",
+            callback_data=effective_back,
+            style="primary",
+            icon_custom_emoji_id=Icons.BACK,
         )
     )
     buttons.append(nav_row)
@@ -392,31 +384,19 @@ def get_account_keyboard(
     is_admin: bool = False,
     ref_link: str | None = None,
 ) -> InlineKeyboardMarkup:
-    """Wallet / Profile actions: add balance, balance history, language, share link, back."""
+    """Wallet / Profile actions: order history, balance history, language, back."""
     buttons = [
         [
-            InlineKeyboardButton(text=t("btn_add_balance", lang), callback_data="open_deposit", style="success", icon_custom_emoji_id=Icons.DEPOSIT),
+            InlineKeyboardButton(text=t("btn_my_orders", lang), callback_data="open_orders", style="primary", icon_custom_emoji_id=Icons.ORDERS),
             InlineKeyboardButton(text=t("btn_balance_history", lang), callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.STATS),
         ],
+        [
+            InlineKeyboardButton(text=t("btn_change_language", lang), callback_data="open_language_menu", style="primary", icon_custom_emoji_id=Icons.GLOBE),
+        ],
+        [
+            InlineKeyboardButton(text=t("btn_back", lang), callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK),
+        ],
     ]
-    middle_row = [
-        InlineKeyboardButton(text=t("btn_change_language", lang), callback_data="open_language_menu", style="primary", icon_custom_emoji_id=Icons.GLOBE),
-    ]
-    if ref_link:
-        share_url = f"https://t.me/share/url?url={quote(ref_link)}&text={quote('🔥 Check out this digital store on Telegram!')}"
-        middle_row.append(
-            InlineKeyboardButton(
-                text=t("btn_share_referral", lang),
-                url=share_url,
-                style="success",
-                icon_custom_emoji_id=Icons.REFER,
-            )
-        )
-    buttons.append(middle_row)
-    buttons.append([
-        InlineKeyboardButton(text=t("btn_back", lang), callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK),
-        InlineKeyboardButton(text=t("btn_close", lang), callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
-    ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
@@ -451,10 +431,8 @@ def get_language_selection_keyboard(current_lang: str = "en", back_target: str |
         nav_row.append(
             InlineKeyboardButton(text=t("btn_back", current_lang), callback_data=back_target, style="primary", icon_custom_emoji_id=Icons.BACK)
         )
-    nav_row.append(
-        InlineKeyboardButton(text=t("btn_close", current_lang), callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
-    )
-    rows.append(nav_row)
+    if nav_row:
+        rows.append(nav_row)
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -469,7 +447,7 @@ def get_support_keyboard(
     Keyboard for Support:
     - Top: Support direct chat button (full width, highlighted).
     - Middle: Guide and Channel side-by-side in one row.
-    - Bottom: Back and Close buttons.
+    - Bottom: Back button.
     """
     rows = []
     if support_handle:
@@ -490,21 +468,13 @@ def get_support_keyboard(
         icon_custom_emoji_id=Icons.NOTE,
     )
     nav_btns = []
-    if back_target:
-        nav_btns.append(
-            InlineKeyboardButton(
-                text=t("btn_back", lang),
-                callback_data=back_target,
-                style="primary",
-                icon_custom_emoji_id=Icons.BACK,
-            )
-        )
+    effective_back = back_target or "back_to_main"
     nav_btns.append(
         InlineKeyboardButton(
-            text=t("btn_close", lang),
-            callback_data="close_menu",
-            style="danger",
-            icon_custom_emoji_id=Icons.CLOSE,
+            text=t("btn_back", lang),
+            callback_data=effective_back,
+            style="primary",
+            icon_custom_emoji_id=Icons.BACK,
         )
     )
 
@@ -654,15 +624,10 @@ def get_products_keyboard(
         ]
 
     buttons.append(nav_row)
-    if back_target and back_target != "none":
-        buttons.append([
-            InlineKeyboardButton(text="Back", callback_data=back_target, style="primary", icon_custom_emoji_id=Icons.BACK),
-            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
-        ])
-    else:
-        buttons.append([
-            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
-        ])
+    effective_back = back_target if back_target and back_target != "none" else "open_categories"
+    buttons.append([
+        InlineKeyboardButton(text="Back", callback_data=effective_back, style="primary", icon_custom_emoji_id=Icons.BACK),
+    ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
@@ -686,7 +651,7 @@ def get_quantity_selector_keyboard(
     [-] [Qty] [+]
     [❓ Enter quantity]
     [✅ Confirm (Total)] or [💳 Deposit]
-    [🔙 Back] [❌ Close]
+    [🔙 Back]
     """
     total_price = round(unit_price * quantity, 2)
     price_formatted = format_dual_price(total_price, currency_symbol, usd_rate=usd_rate, show_usd=show_usd)
@@ -781,10 +746,10 @@ def get_quantity_selector_keyboard(
     if extras:
         buttons.append(extras)
 
-    # Row 5: Back & Close
+    # Row 5: Back
+    effective_back = back_target if back_target and back_target != "close_menu" else "open_categories"
     buttons.append([
-        InlineKeyboardButton(text="Back", callback_data=back_target, style="primary", icon_custom_emoji_id=Icons.BACK),
-        InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
+        InlineKeyboardButton(text="Back", callback_data=effective_back, style="primary", icon_custom_emoji_id=Icons.BACK),
     ])
 
     return InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -936,21 +901,13 @@ def get_deposit_methods_keyboard(
         ])
 
     nav_row = []
-    if back_target:
-        nav_row.append(
-            InlineKeyboardButton(
-                text=t("btn_back", lang),
-                callback_data=back_target,
-                style="primary",
-                icon_custom_emoji_id=Icons.BACK,
-            )
-        )
+    effective_back = back_target if back_target else "back_to_main"
     nav_row.append(
         InlineKeyboardButton(
-            text=t("btn_close", lang),
-            callback_data="close_menu",
-            style="danger",
-            icon_custom_emoji_id=Icons.CLOSE,
+            text=t("btn_back", lang),
+            callback_data=effective_back,
+            style="primary",
+            icon_custom_emoji_id=Icons.BACK,
         )
     )
     buttons.append(nav_row)
@@ -1001,29 +958,23 @@ def get_manual_deposit_invoice_keyboard(account_info: str, is_binance: bool = Fa
 
 
 def get_cancel_keyboard(back_target: str | None = "open_deposit", lang: str = "en") -> InlineKeyboardMarkup:
-    row: list[InlineKeyboardButton] = []
-    if back_target:
-        row.append(
-            InlineKeyboardButton(
-                text=t("btn_back", lang),
-                callback_data=back_target,
-                style="primary",
-                icon_custom_emoji_id=Icons.BACK,
-            )
-        )
-    row.append(
-        InlineKeyboardButton(
-            text=t("btn_close", lang),
-            callback_data="close_menu",
-            style="danger",
-            icon_custom_emoji_id=Icons.CLOSE,
-        )
+    effective_back = back_target or "back_to_main"
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=t("btn_back", lang),
+                    callback_data=effective_back,
+                    style="primary",
+                    icon_custom_emoji_id=Icons.BACK,
+                )
+            ]
+        ]
     )
-    return InlineKeyboardMarkup(inline_keyboard=[row])
 
 
 def get_deposit_amount_keyboard(account_info: str, method_id: int, is_binance: bool = False, lang: str = "en") -> InlineKeyboardMarkup:
-    """Buttons on the Enter Amount screen: copy number/UID, Back to invoice, Close."""
+    """Buttons on the Enter Amount screen: copy number/UID, Back to invoice."""
     destination = str(account_info or "").strip()
     buttons = []
     if destination:
@@ -1045,19 +996,11 @@ def get_deposit_amount_keyboard(account_info: str, method_id: int, is_binance: b
             icon_custom_emoji_id=Icons.BACK,
         ),
     ])
-    buttons.append([
-        InlineKeyboardButton(
-            text=t("btn_close", lang),
-            callback_data="close_menu",
-            style="danger",
-            icon_custom_emoji_id=Icons.CLOSE,
-        ),
-    ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
 def get_deposit_txid_keyboard(is_bangla: bool = False, lang: str = "en") -> InlineKeyboardMarkup:
-    """Buttons on the Enter TrxID screen: Back to change amount, Close."""
+    """Buttons on the Enter TrxID screen: Back to change amount."""
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -1066,14 +1009,6 @@ def get_deposit_txid_keyboard(is_bangla: bool = False, lang: str = "en") -> Inli
                     callback_data="dep_confirm_paid",
                     style="primary",
                     icon_custom_emoji_id=Icons.BACK,
-                ),
-            ],
-            [
-                InlineKeyboardButton(
-                    text=t("btn_close", lang),
-                    callback_data="close_menu",
-                    style="danger",
-                    icon_custom_emoji_id=Icons.CLOSE,
                 ),
             ],
         ]

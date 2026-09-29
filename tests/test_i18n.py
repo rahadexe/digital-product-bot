@@ -93,7 +93,8 @@ def test_categories_keyboard_no_duplicate_uncat():
         # shop_uncat should not exist anymore
         assert "shop_uncat" not in callbacks
         assert "shop_all" in callbacks
-        assert "close_menu" in callbacks
+        assert "back_to_main" in callbacks
+        assert "close_menu" not in callbacks
 
 def test_profile_translations():
     for lang in ["en", "bn", "hi", "ur"]:

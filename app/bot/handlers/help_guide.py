@@ -77,7 +77,7 @@ GUIDE_TEXT_EN = (
 
 
 def get_guide_keyboard(lang: str = "en") -> InlineKeyboardMarkup:
-    """Guide keyboard with side-by-side Back + Close buttons."""
+    """Guide keyboard with Back button."""
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -86,12 +86,6 @@ def get_guide_keyboard(lang: str = "en") -> InlineKeyboardMarkup:
                     callback_data="open_support",
                     style="primary",
                     icon_custom_emoji_id=Icons.BACK,
-                ),
-                InlineKeyboardButton(
-                    text=t("btn_close", lang),
-                    callback_data="close_menu",
-                    style="danger",
-                    icon_custom_emoji_id=Icons.CLOSE,
                 ),
             ],
         ]

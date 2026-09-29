@@ -75,12 +75,12 @@ class BalanceHistoryUITests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("TRX102", text_arg)
         self.assertIn("⏳", text_arg)
 
-        # Refresh, Add Balance, Back, Close buttons present
+        # Refresh, Add Balance, Back present; Close removed for pure inline navigation
         all_texts = [btn.text for r in kb.inline_keyboard for btn in r]
         self.assertIn("Refresh", all_texts)
         self.assertTrue(any("Add Balance" in t for t in all_texts))
         self.assertTrue(any("Back" in t for t in all_texts))
-        self.assertTrue(any("Close" in t for t in all_texts))
+        self.assertFalse(any("Close" in t for t in all_texts))
 
     async def test_view_deposit_detail(self):
         services = MagicMock()
@@ -124,7 +124,7 @@ class BalanceHistoryUITests(unittest.IsolatedAsyncioTestCase):
         all_cbs = [btn.callback_data for r in kb.inline_keyboard for btn in r]
         # Back button returns to page 2!
         self.assertIn("dep_page_2", all_cbs)
-        self.assertIn("close_menu", all_cbs)
+        self.assertNotIn("close_menu", all_cbs)
 
 
 class OrderHistoryUITests(unittest.IsolatedAsyncioTestCase):
@@ -174,7 +174,7 @@ class OrderHistoryUITests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Refresh", all_texts)
         self.assertTrue(any("Browse Products" in t for t in all_texts))
         self.assertTrue(any("Back" in t for t in all_texts))
-        self.assertTrue(any("Close" in t for t in all_texts))
+        self.assertFalse(any("Close" in t for t in all_texts))
 
     async def test_view_order_detail_preserves_page_and_shows_status(self):
         services = MagicMock()
@@ -216,5 +216,5 @@ class OrderHistoryUITests(unittest.IsolatedAsyncioTestCase):
         all_cbs = [btn.callback_data for r in kb.inline_keyboard for btn in r]
         # Back button returns to page 3!
         self.assertIn("orders_page_3", all_cbs)
-        self.assertIn("close_menu", all_cbs)
+        self.assertNotIn("close_menu", all_cbs)
 

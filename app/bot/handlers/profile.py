@@ -289,12 +289,6 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
                     style="primary",
                     icon_custom_emoji_id=Icons.BACK,
                 ),
-                InlineKeyboardButton(
-                    text=t("btn_close", lang),
-                    callback_data="close_menu",
-                    style="danger",
-                    icon_custom_emoji_id=Icons.CLOSE,
-                ),
             ],
         ]
     )
@@ -433,10 +427,10 @@ async def show_reseller_info(event: Message | CallbackQuery, state: FSMContext |
         ])
         rows.append([
             InlineKeyboardButton(
-                text="Close",
-                callback_data="close_menu",
-                style="danger",
-                icon_custom_emoji_id=Icons.CLOSE,
+                text=t("btn_back", lang),
+                callback_data="back_to_main",
+                style="primary",
+                icon_custom_emoji_id=Icons.BACK,
             )
         ])
         await respond(event, text, InlineKeyboardMarkup(inline_keyboard=rows))
@@ -491,10 +485,10 @@ async def show_reseller_info(event: Message | CallbackQuery, state: FSMContext |
         ])
     rows.append([
         InlineKeyboardButton(
-            text=t("btn_close", lang),
-            callback_data="close_menu",
-            style="danger",
-            icon_custom_emoji_id=Icons.CLOSE,
+            text=t("btn_back", lang),
+            callback_data="back_to_main",
+            style="primary",
+            icon_custom_emoji_id=Icons.BACK,
         )
     ])
     await respond(event, text, InlineKeyboardMarkup(inline_keyboard=rows))
@@ -641,12 +635,6 @@ async def reseller_regen_prompt_handler(event: CallbackQuery):
                     style="primary",
                     icon_custom_emoji_id=Icons.BACK,
                 ),
-                InlineKeyboardButton(
-                    text="Close",
-                    callback_data="close_menu",
-                    style="danger",
-                    icon_custom_emoji_id=Icons.CLOSE,
-                ),
             ],
         ]
     )
@@ -786,8 +774,7 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
                     ),
                 ],
                 [
-                    InlineKeyboardButton(text=t("btn_back", lang), callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK),
-                    InlineKeyboardButton(text=t("btn_close", lang), callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
+                    InlineKeyboardButton(text=t("btn_back", lang), callback_data="open_account", style="primary", icon_custom_emoji_id=Icons.BACK),
                 ],
             ]
         )
@@ -849,8 +836,7 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
             InlineKeyboardButton(text=t("btn_browse_products", lang), callback_data="open_categories", style="success", icon_custom_emoji_id=Icons.PRODUCTS),
         ])
         buttons.append([
-            InlineKeyboardButton(text=t("btn_back", lang), callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK),
-            InlineKeyboardButton(text=t("btn_close", lang), callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
+            InlineKeyboardButton(text=t("btn_back", lang), callback_data="open_account", style="primary", icon_custom_emoji_id=Icons.BACK),
         ])
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -936,12 +922,6 @@ async def view_order_detail(query: CallbackQuery, state: FSMContext, services: S
             style="primary",
             icon_custom_emoji_id=Icons.BACK,
         ),
-        InlineKeyboardButton(
-            text=t("btn_close", lang),
-            callback_data="close_menu",
-            style="danger",
-            icon_custom_emoji_id=Icons.CLOSE,
-        ),
     ])
 
     with suppress(TelegramBadRequest):
@@ -998,7 +978,7 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
     symbol = await services.settings.get("currency_symbol")
     usd_rate = await services.settings.number("usd_rate")
     show_usd = await services.settings.flag("show_usd_price")
-    back_cb = f"back_to_dep_req_{dep_id_ref}" if dep_id_ref else "back_to_main"
+    back_cb = f"back_to_dep_req_{dep_id_ref}" if dep_id_ref else "open_account"
 
     if not deposits:
         text = (
@@ -1012,7 +992,6 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
             ])
         buttons.append([
             InlineKeyboardButton(text=t("btn_back", lang), callback_data=back_cb, style="primary", icon_custom_emoji_id=Icons.BACK),
-            InlineKeyboardButton(text=t("btn_close", lang), callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
         ])
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
     else:
@@ -1088,7 +1067,6 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
             ])
         buttons.append([
             InlineKeyboardButton(text=t("btn_back", lang), callback_data=back_cb, style="primary", icon_custom_emoji_id=Icons.BACK),
-            InlineKeyboardButton(text=t("btn_close", lang), callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
         ])
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -1183,12 +1161,6 @@ async def view_deposit_detail(query: CallbackQuery, state: FSMContext, services:
             callback_data=back_to_history_cb,
             style="primary",
             icon_custom_emoji_id=Icons.BACK,
-        ),
-        InlineKeyboardButton(
-            text=t("btn_close", lang),
-            callback_data="close_menu",
-            style="danger",
-            icon_custom_emoji_id=Icons.CLOSE,
         ),
     ])
 

@@ -407,21 +407,21 @@ async def process_submit_confirmation(query: CallbackQuery, state: FSMContext, s
         f"📢 <b>Channel:</b> {html.escape(channel_link)}\n\n"
         f"⏳ <i>You will receive an automated Telegram alert once your application is approved.</i>"
     )
-    close_kb = InlineKeyboardMarkup(
+    nav_kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="Close",
-                    callback_data="close_menu",
-                    style="danger",
-                    icon_custom_emoji_id=Icons.CLOSE,
+                    text="Back",
+                    callback_data="back_to_main",
+                    style="primary",
+                    icon_custom_emoji_id=Icons.BACK,
                 )
             ]
         ]
     )
     if query.message:
         with suppress(TelegramBadRequest):
-            await query.message.edit_text(user_confirm_text, reply_markup=close_kb)
+            await query.message.edit_text(user_confirm_text, reply_markup=nav_kb)
 
     # 2. Notify Administrators on Telegram
     admin_alert_text = (

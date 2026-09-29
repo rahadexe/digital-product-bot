@@ -82,10 +82,10 @@ def _prompt_text(examples: str, lang: str = "en") -> str:
 def _prompt_keyboard(lang: str = "en") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(
-            text=t("btn_close", lang),
-            callback_data="close_menu",
-            style="danger",
-            icon_custom_emoji_id=Icons.CLOSE,
+            text=t("btn_back", lang),
+            callback_data="back_to_main",
+            style="primary",
+            icon_custom_emoji_id=Icons.BACK,
         )
     ]])
 
@@ -145,7 +145,7 @@ def _product_button(product: dict, symbol: str, usd_rate: float | None, show_usd
 
 _CLOSING_ROW = [
     InlineKeyboardButton(text="Search again", callback_data="search_again", icon_custom_emoji_id=Icons.REFRESH),
-    InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
+    InlineKeyboardButton(text="Back", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK),
 ]
 
 

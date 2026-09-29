@@ -578,10 +578,8 @@ async def show_products_list(
         else:
             header = f"{ICON_SHOP} <b>Available Products:</b>"
         msg = f"{header}\n\n{ICON_SHOP} <b>No products available right now.</b>"
-        nav_btns = []
-        if effective_back_target != "none":
-            nav_btns.append(InlineKeyboardButton(text="Back", callback_data=effective_back_target, style="primary", icon_custom_emoji_id=Icons.BACK))
-        nav_btns.append(InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE))
+        effective_back = effective_back_target if effective_back_target != "none" else "open_categories"
+        nav_btns = [InlineKeyboardButton(text="Back", callback_data=effective_back, style="primary", icon_custom_emoji_id=Icons.BACK)]
         await respond(event, msg, InlineKeyboardMarkup(inline_keyboard=[nav_btns]))
         return
 
@@ -686,10 +684,8 @@ async def paginate_products(query: CallbackQuery, state: FSMContext, services: S
             else f"{ICON_SHOP} <b>Available Products:</b>"
         )
         msg = f"{header}\n\n{ICON_SHOP} <b>No products available right now.</b>"
-        nav_btns = []
-        if back_target and back_target != "none":
-            nav_btns.append(InlineKeyboardButton(text="Back", callback_data=back_target, style="primary", icon_custom_emoji_id=Icons.BACK))
-        nav_btns.append(InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE))
+        effective_back = back_target if back_target and back_target != "none" else "open_categories"
+        nav_btns = [InlineKeyboardButton(text="Back", callback_data=effective_back, style="primary", icon_custom_emoji_id=Icons.BACK)]
         if query.message:
             with suppress(TelegramBadRequest):
                 await query.message.edit_text(msg, reply_markup=InlineKeyboardMarkup(inline_keyboard=[nav_btns]))

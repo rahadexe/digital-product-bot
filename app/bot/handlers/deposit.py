@@ -519,12 +519,6 @@ async def handle_deposit_method_select(query: CallbackQuery, state: FSMContext, 
                         style="primary",
                         icon_custom_emoji_id=Icons.BACK,
                     ),
-                    InlineKeyboardButton(
-                        text="Close",
-                        callback_data="close_menu",
-                        style="danger",
-                        icon_custom_emoji_id=Icons.CLOSE,
-                    ),
                 ],
             ]
         )
@@ -648,12 +642,6 @@ async def ask_deposit_input(query: CallbackQuery, state: FSMContext, services: S
                         callback_data="open_deposit",
                         style="primary",
                         icon_custom_emoji_id=Icons.BACK,
-                    ),
-                    InlineKeyboardButton(
-                        text="Close",
-                        callback_data="close_menu",
-                        style="danger",
-                        icon_custom_emoji_id=Icons.CLOSE,
                     ),
                 ],
             ]
