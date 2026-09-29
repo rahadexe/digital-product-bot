@@ -141,8 +141,12 @@ async def show_user_profile(event: Message | CallbackQuery, state: FSMContext, s
     spent_display = price(symbol, stats.get("total_spent", 0.0), usd_rate=usd_rate, show_usd=show_usd)
     order_count = stats.get("order_count", 0)
 
-    tg_username = f" (@{escape(tg_user.username)})" if tg_user.username else ""
-    user_name_display = f"{user_name}{tg_username}"
+    tg_username = tg_user.username
+    username_line = (
+        f"{ICON_SPARKLES} <b>{t('profile_username', lang)}:</b> @{escape(tg_username)}\n"
+        if tg_username
+        else ""
+    )
 
     async with services.db.connect() as conn:
         row = await conn.fetchrow(
@@ -151,15 +155,21 @@ async def show_user_profile(event: Message | CallbackQuery, state: FSMContext, s
         )
         total_invited = row["total_invited"] if row else 0
 
+    bot_user = await services.notifier.bot_username()
+    ref_link = f"https://t.me/{bot_user}?start=ref_{tg_user.id}"
+
     text = (
         f"{t('profile_title', lang, icon_account=ICON_ACCOUNT)}\n\n"
-        f"<b>{t('profile_name', lang)}:</b> {user_name_display}\n"
-        f"<b>{t('profile_user_id', lang)}:</b> <code>{tg_user.id}</code>\n"
-        f"<b>{t('profile_account_type', lang)}:</b> {account_type_label}\n\n"
-        f"<b>{t('profile_current_balance', lang)}:</b> <code>{balance_display}</code>\n"
-        f"<b>{t('profile_total_orders', lang)}:</b> {order_count}\n"
-        f"<b>{t('profile_total_spent', lang)}:</b> <code>{spent_display}</code>\n"
-        f"<b>{t('profile_referrals', lang)}:</b> {total_invited}"
+        f"{ICON_CROWN} <b>{t('profile_name', lang)}:</b> {user_name}\n"
+        f"{username_line}"
+        f"{ICON_ID} <b>{t('profile_user_id', lang)}:</b> <code>{tg_user.id}</code>\n"
+        f"{ICON_RESELLER} <b>{t('profile_account_type', lang)}:</b> <b>{account_type_label}</b>\n\n"
+        f"{ICON_BALANCE} <b>{t('profile_current_balance', lang)}:</b> <code>{balance_display}</code>\n"
+        f"{ICON_ORDERS} <b>{t('profile_total_orders', lang)}:</b> {order_count}\n"
+        f"{ICON_SPENT} <b>{t('profile_total_spent', lang)}:</b> <code>{spent_display}</code>\n"
+        f"{ICON_REFER} <b>{t('profile_referrals', lang)}:</b> {total_invited}\n\n"
+        f"{ICON_LINK} <b>{t('profile_referral_link', lang)}:</b>\n"
+        f"<code>{ref_link}</code>"
     )
     is_admin = tg_user.id in await services.settings.admin_chat_ids()
     await respond(event, text, get_account_keyboard(lang=lang, is_admin=is_admin))
