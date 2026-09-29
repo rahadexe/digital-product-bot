@@ -156,10 +156,10 @@ async def show_user_profile(event: Message | CallbackQuery, state: FSMContext, s
         f"<b>{t('profile_name', lang)}:</b> {user_name_display}\n"
         f"<b>{t('profile_user_id', lang)}:</b> <code>{tg_user.id}</code>\n"
         f"<b>{t('profile_account_type', lang)}:</b> {account_type_label}\n\n"
-        f"{ICON_BALANCE} <b>{t('profile_current_balance', lang)}:</b> <code>{balance_display}</code>\n"
-        f"{ICON_ORDERS} <b>{t('profile_total_orders', lang)}:</b> {order_count}\n"
-        f"{ICON_SPENT} <b>{t('profile_total_spent', lang)}:</b> <code>{spent_display}</code>\n"
-        f"{ICON_REFER} <b>{t('profile_referrals', lang)}:</b> {total_invited}"
+        f"<b>{t('profile_current_balance', lang)}:</b> <code>{balance_display}</code>\n"
+        f"<b>{t('profile_total_orders', lang)}:</b> {order_count}\n"
+        f"<b>{t('profile_total_spent', lang)}:</b> <code>{spent_display}</code>\n"
+        f"<b>{t('profile_referrals', lang)}:</b> {total_invited}"
     )
     is_admin = tg_user.id in await services.settings.admin_chat_ids()
     await respond(event, text, get_account_keyboard(lang=lang, is_admin=is_admin))
