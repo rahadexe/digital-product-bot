@@ -55,10 +55,10 @@ def get_main_inline_keyboard(
                 icon_custom_emoji_id=Icons.ORDERS,
             ),
             InlineKeyboardButton(
-                text=t("btn_my_balance", lang),
+                text=t("btn_profile", lang),
                 callback_data="open_account",
                 style="primary",
-                icon_custom_emoji_id=Icons.BALANCE,
+                icon_custom_emoji_id=Icons.ACCOUNT,
             ),
         ],
         [
@@ -362,8 +362,12 @@ def get_update_channels_keyboard(channels: List[Dict[str, Any]]) -> InlineKeyboa
     )
 
 
-def get_account_keyboard(lang: str = "en", is_admin: bool = False) -> InlineKeyboardMarkup:
-    """Wallet / Account actions: add balance, deposit history, order history, language, or close menu."""
+def get_account_keyboard(
+    lang: str = "en",
+    is_admin: bool = False,
+    ref_link: str | None = None,
+) -> InlineKeyboardMarkup:
+    """Wallet / Profile actions: add balance, deposit history, order history, language, share link, or close menu."""
     buttons = [
         [
             InlineKeyboardButton(text=t("btn_add_balance", lang), callback_data="open_deposit", style="success", icon_custom_emoji_id=Icons.DEPOSIT),
@@ -373,11 +377,21 @@ def get_account_keyboard(lang: str = "en", is_admin: bool = False) -> InlineKeyb
             InlineKeyboardButton(text=t("btn_order_history", lang), callback_data="open_orders", style="primary", icon_custom_emoji_id=Icons.ORDERS),
             InlineKeyboardButton(text=t("btn_change_language", lang), callback_data="open_language_menu", style="primary", icon_custom_emoji_id=Icons.GLOBE),
         ],
-        [
-            InlineKeyboardButton(text=t("btn_back", lang), callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK),
-            InlineKeyboardButton(text=t("btn_close", lang), callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
-        ],
     ]
+    if ref_link:
+        share_url = f"https://t.me/share/url?url={quote(ref_link)}&text={quote('🔥 Check out this digital store on Telegram!')}"
+        buttons.append([
+            InlineKeyboardButton(
+                text=t("btn_share_referral", lang),
+                url=share_url,
+                style="success",
+                icon_custom_emoji_id=Icons.REFER,
+            )
+        ])
+    buttons.append([
+        InlineKeyboardButton(text=t("btn_back", lang), callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK),
+        InlineKeyboardButton(text=t("btn_close", lang), callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
+    ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
