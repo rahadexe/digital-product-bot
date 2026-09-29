@@ -15,16 +15,21 @@ TELEGRAM_TEXT_LIMIT = 4000
 
 # Tracks active interactive menu message_id per chat for seamless single-screen UX.
 _last_menu_messages: dict[int, int] = {}
+_chat_active_messages: dict[int, set[int]] = {}
 
 
 def remember_menu_message(chat_id: int, message_id: int) -> None:
     """Store the active menu message ID for a chat."""
     _last_menu_messages[chat_id] = message_id
+    if chat_id not in _chat_active_messages:
+        _chat_active_messages[chat_id] = set()
+    _chat_active_messages[chat_id].add(message_id)
 
 
 def forget_menu_message(chat_id: int) -> None:
     """Clear the stored active menu message ID for a chat."""
     _last_menu_messages.pop(chat_id, None)
+    _chat_active_messages.pop(chat_id, None)
 
 
 async def _quiet_delete(bot: Any, chat_id: int, message_id: int) -> None:
@@ -38,8 +43,13 @@ async def _quiet_delete(bot: Any, chat_id: int, message_id: int) -> None:
 def clean_previous_menu(bot: Any, chat_id: int, current_msg_id: int | None = None) -> None:
     """Clean up any previously active menu message in the background."""
     old_id = _last_menu_messages.pop(chat_id, None)
-    if bot and old_id and old_id != current_msg_id:
-        asyncio.create_task(_quiet_delete(bot, chat_id, old_id))
+    all_ids = _chat_active_messages.pop(chat_id, set())
+    if old_id:
+        all_ids.add(old_id)
+    if bot and all_ids:
+        for mid in all_ids:
+            if mid != current_msg_id:
+                asyncio.create_task(_quiet_delete(bot, chat_id, mid))
 
 
 async def respond(event: Message | CallbackQuery, text: str, keyboard: InlineKeyboardMarkup | None = None) -> None:

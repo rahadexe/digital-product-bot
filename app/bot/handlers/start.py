@@ -18,7 +18,12 @@ from aiogram.types import (
     ReplyKeyboardRemove,
 )
 
-from app.bot.formatting import clean_previous_menu, send_operator_html
+from app.bot.formatting import (
+    _quiet_delete,
+    clean_previous_menu,
+    remember_menu_message,
+    send_operator_html,
+)
 from app.bot.handlers.search import forget_search_origin
 from app.bot.handlers.shop import product_view
 from app.bot.icons import (
@@ -78,21 +83,31 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
         lang=lang,
     )
 
+    chat = getattr(message, "chat", None)
+    chat_id = getattr(chat, "id", None)
+    bot = getattr(message, "bot", None)
+
     if edit and message:
         try:
             await message.edit_text(text, reply_markup=inline_kb)
+            if chat_id and message.message_id:
+                remember_menu_message(chat_id, message.message_id)
             return
         except TelegramBadRequest:
             with suppress(TelegramBadRequest):
                 await message.delete()
 
-    chat = getattr(message, "chat", None)
-    chat_id = getattr(chat, "id", None)
-    bot = getattr(message, "bot", None)
     if chat_id and bot:
         clean_previous_menu(bot, chat_id)
 
-    await send_operator_html(message.answer, text, reply_markup=inline_kb)
+    sent = await send_operator_html(message.answer, text, reply_markup=inline_kb)
+    if sent and chat_id:
+        remember_menu_message(chat_id, sent.message_id)
+
+    # In private chat, quietly delete incoming command message (e.g. /start or /menu)
+    msg_id = getattr(message, "message_id", None)
+    if bot and chat_id and msg_id and getattr(chat, "type", "") == "private":
+        asyncio.create_task(_quiet_delete(bot, chat_id, msg_id))
 
 
 def gate_text(missing: list[dict[str, Any]], store_name: str = "Digital Mart") -> str:
@@ -160,13 +175,23 @@ async def handle_start(message: Message, state: FSMContext, services: Services):
         services.users.sync_profile(tg_user.id, tg_user.username, tg_user.first_name, tg_user.last_name, referred_by=ref_id),
         services.gate.check(tg_user.id),
     )
+    chat = getattr(message, "chat", None)
+    chat_id = getattr(chat, "id", None)
+    bot = getattr(message, "bot", None)
+
     if not passed:
         store_name = await services.settings.get("store_name")
-        await message.answer(
+        if chat_id and bot:
+            clean_previous_menu(bot, chat_id)
+        sent = await message.answer(
             gate_text(missing, store_name),
             reply_markup=get_gate_keyboard(missing),
             link_preview_options=LinkPreviewOptions(is_disabled=True),
         )
+        if sent and chat_id:
+            remember_menu_message(chat_id, sent.message_id)
+        if bot and chat_id and getattr(chat, "type", "") == "private":
+            asyncio.create_task(_quiet_delete(bot, chat_id, message.message_id))
         return
 
     # User passed gate directly (or no gate channels configured): process pending referral reward
@@ -178,7 +203,13 @@ async def handle_start(message: Message, state: FSMContext, services: Services):
         if product and product["is_active"]:
             forget_search_origin(tg_user.id, product["id"])
             text, keyboard = await product_view(services, product, tg_user.id)
-            await message.answer(text, reply_markup=keyboard)
+            if chat_id and bot:
+                clean_previous_menu(bot, chat_id)
+            sent = await message.answer(text, reply_markup=keyboard)
+            if sent and chat_id:
+                remember_menu_message(chat_id, sent.message_id)
+            if bot and chat_id and getattr(chat, "type", "") == "private":
+                asyncio.create_task(_quiet_delete(bot, chat_id, message.message_id))
             return
 
     # If user hasn't explicitly chosen a language yet (e.g. fresh onboarding)
@@ -189,10 +220,16 @@ async def handle_start(message: Message, state: FSMContext, services: Services):
             "🇬🇧 English | 🇧🇩 বাংলা | 🇮🇳 हिन्दी | 🇵🇰 اردو\n\n"
             "<i>💡 You can change this anytime from My Profile.</i>"
         )
-        await message.answer(
+        if chat_id and bot:
+            clean_previous_menu(bot, chat_id)
+        sent = await message.answer(
             prompt_text,
             reply_markup=get_language_selection_keyboard(current_lang="en", back_target=None),
         )
+        if sent and chat_id:
+            remember_menu_message(chat_id, sent.message_id)
+        if bot and chat_id and getattr(chat, "type", "") == "private":
+            asyncio.create_task(_quiet_delete(bot, chat_id, message.message_id))
         return
 
     # Remove any leftover persistent reply keyboard on user's device

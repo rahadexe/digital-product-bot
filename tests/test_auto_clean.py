@@ -72,3 +72,41 @@ async def test_callback_query_edits_without_duplicate():
     await respond(cb, "📦 Order History")
     assert _last_menu_messages.get(12345) == 102
     inner_msg.edit_text.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_render_main_dashboard_cleans_previous_and_deletes_trigger():
+    chat = Chat(id=99999, type="private")
+    bot = MagicMock()
+    bot.delete_message = AsyncMock()
+
+    # Pre-populate previous menu
+    remember_menu_message(99999, 501)
+
+    sent_msg = MagicMock(spec=Message)
+    sent_msg.message_id = 502
+
+    trigger_msg = MagicMock(spec=Message)
+    trigger_msg.chat = chat
+    trigger_msg.bot = bot
+    trigger_msg.message_id = 777
+    trigger_msg.answer = AsyncMock(return_value=sent_msg)
+
+    services = MagicMock()
+    services.settings.values = AsyncMock(return_value={"store_name": "Store"})
+    services.settings.paused_message = AsyncMock(return_value="")
+    services.users.get = AsyncMock(return_value={"language": "en"})
+    services.catalog.pinned_categories = AsyncMock(return_value=[])
+    services.catalog.unpinned_categories = AsyncMock(return_value=[])
+    services.settings.admin_chat_ids = AsyncMock(return_value=set())
+
+    from app.bot.handlers.start import render_main_dashboard
+    await render_main_dashboard(trigger_msg, services, 99999)
+
+    assert _last_menu_messages.get(99999) == 502
+
+    await asyncio.sleep(0.01)
+    deleted_ids = [call.kwargs.get("message_id") for call in bot.delete_message.call_args_list]
+    assert 501 in deleted_ids
+    assert 777 in deleted_ids
+
