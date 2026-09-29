@@ -115,12 +115,14 @@ async def show_deposit_methods(event: Message | CallbackQuery, state: FSMContext
     if not user:
         return
 
-    back_target: str | None = None
+    back_target: str | None = "back_to_main"
     if isinstance(event, CallbackQuery):
         if event.data == "open_deposit_from_history":
             back_target = "open_deposits"
         elif event.data == "open_deposit_from_account":
             back_target = "open_account"
+        else:
+            back_target = "back_to_main"
 
     paused_msg = await services.settings.paused_message()
     if paused_msg:

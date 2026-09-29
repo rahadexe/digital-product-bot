@@ -370,6 +370,8 @@ async def build_admin_dashboard(services: Services) -> tuple[str, InlineKeyboard
         [
             InlineKeyboardButton(text=pause_text, callback_data="adm_toggle_pause",
                                  style=pause_style, icon_custom_emoji_id=pause_icon),
+            InlineKeyboardButton(text="🔙 Back to Store", callback_data="back_to_main",
+                                 style="primary", icon_custom_emoji_id=Icons.BACK),
             InlineKeyboardButton(text="Close", callback_data="close_menu",
                                  style="danger", icon_custom_emoji_id=Icons.CLOSE),
         ],

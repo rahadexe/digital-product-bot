@@ -20,6 +20,74 @@ from app.core.i18n import t
 ADMIN_PANEL_TEXT = "👑 Admin Panel"
 
 
+def get_main_inline_keyboard(
+    lang: str = "en",
+    is_admin: bool = False,
+) -> InlineKeyboardMarkup:
+    """
+    Pure inline keyboard for the main dashboard:
+    Clean, focused, modern layout with unicode emojis for all devices.
+    - [ 🛍️ Shop / Products ]   [ 💳 Add Balance ]
+    - [ 📦 My Orders ]         [ 💰 My Balance ]
+    - [ 🎧 Support ]           [ 🌐 Language ]
+    - (if admin: [ 👑 Admin Panel ])
+    """
+    buttons = [
+        [
+            InlineKeyboardButton(
+                text=t("btn_all_products", lang),
+                callback_data="open_categories",
+                style="primary",
+                icon_custom_emoji_id=Icons.PRODUCTS,
+            ),
+            InlineKeyboardButton(
+                text=t("btn_add_balance", lang),
+                callback_data="open_deposit",
+                style="primary",
+                icon_custom_emoji_id=Icons.DEPOSIT,
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text=t("btn_my_orders", lang),
+                callback_data="open_orders",
+                style="primary",
+                icon_custom_emoji_id=Icons.ORDERS,
+            ),
+            InlineKeyboardButton(
+                text=t("btn_my_balance", lang),
+                callback_data="open_account",
+                style="primary",
+                icon_custom_emoji_id=Icons.BALANCE,
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text=t("btn_support", lang),
+                callback_data="open_support",
+                style="primary",
+                icon_custom_emoji_id=Icons.SUPPORT,
+            ),
+            InlineKeyboardButton(
+                text=t("btn_change_language", lang),
+                callback_data="open_language_menu",
+                style="primary",
+                icon_custom_emoji_id=Icons.GLOBE,
+            ),
+        ],
+    ]
+    if is_admin:
+        buttons.append([
+            InlineKeyboardButton(
+                text=t("btn_admin_panel", lang),
+                callback_data="adm_dashboard",
+                style="success",
+                icon_custom_emoji_id=Icons.CROWN,
+            )
+        ])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
 def get_persistent_reply_keyboard(
     pinned_categories: List[Dict[str, Any]] | None = None,
     has_unpinned: bool = False,
@@ -89,6 +157,7 @@ def get_categories_keyboard(
     page: int = 1,
     page_size: int = 8,
     lang: str = "en",
+    back_target: str | None = "back_to_main",
 ) -> InlineKeyboardMarkup:
     """Inline keyboard listing unpinned categories with grid layout and pagination."""
     buttons = []
@@ -158,9 +227,11 @@ def get_categories_keyboard(
             ),
         ])
 
-    buttons.append([
-        InlineKeyboardButton(text=t("btn_close", lang), callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
-    ])
+    nav_bottom = []
+    if back_target:
+        nav_bottom.append(InlineKeyboardButton(text=t("btn_back", lang), callback_data=back_target, style="primary", icon_custom_emoji_id=Icons.BACK))
+    nav_bottom.append(InlineKeyboardButton(text=t("btn_close", lang), callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE))
+    buttons.append(nav_bottom)
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
@@ -202,7 +273,7 @@ def get_validity_selector_keyboard(
         ])
 
     nav_row: List[InlineKeyboardButton] = []
-    if back_target and back_target not in ("close_menu", "back_to_main"):
+    if back_target and back_target != "close_menu":
         nav_row.append(
             InlineKeyboardButton(
                 text="Back",
@@ -303,13 +374,14 @@ def get_account_keyboard(lang: str = "en", is_admin: bool = False) -> InlineKeyb
             InlineKeyboardButton(text=t("btn_change_language", lang), callback_data="open_language_menu", style="primary", icon_custom_emoji_id=Icons.GLOBE),
         ],
         [
+            InlineKeyboardButton(text=t("btn_back", lang), callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK),
             InlineKeyboardButton(text=t("btn_close", lang), callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
         ],
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def get_language_selection_keyboard(current_lang: str = "en", back_target: str | None = "open_account") -> InlineKeyboardMarkup:
+def get_language_selection_keyboard(current_lang: str = "en", back_target: str | None = "back_to_main") -> InlineKeyboardMarkup:
     """Language selection keyboard with English, Bengali, Hindi, and Urdu."""
     langs = [
         ("en", "🇬🇧 English", Icons.GLOBE),
@@ -352,12 +424,13 @@ def get_support_keyboard(
     support_handle: str = "",
     channels: List[Dict[str, Any]] | None = None,
     lang: str = "en",
+    back_target: str | None = "back_to_main",
 ) -> InlineKeyboardMarkup:
     """
     Keyboard for Support:
     - Top: Support direct chat button (full width, highlighted).
     - Middle: Guide and Channel side-by-side in one row.
-    - Bottom: Close button.
+    - Bottom: Back and Close buttons.
     """
     rows = []
     if support_handle:
@@ -377,11 +450,23 @@ def get_support_keyboard(
         style="primary",
         icon_custom_emoji_id=Icons.NOTE,
     )
-    close_btn = InlineKeyboardButton(
-        text=t("btn_close", lang),
-        callback_data="close_menu",
-        style="danger",
-        icon_custom_emoji_id=Icons.CLOSE,
+    nav_btns = []
+    if back_target:
+        nav_btns.append(
+            InlineKeyboardButton(
+                text=t("btn_back", lang),
+                callback_data=back_target,
+                style="primary",
+                icon_custom_emoji_id=Icons.BACK,
+            )
+        )
+    nav_btns.append(
+        InlineKeyboardButton(
+            text=t("btn_close", lang),
+            callback_data="close_menu",
+            style="danger",
+            icon_custom_emoji_id=Icons.CLOSE,
+        )
     )
 
     channel_btns = []
@@ -406,9 +491,10 @@ def get_support_keyboard(
             rows.append([guide_btn])
             for i in range(0, len(channel_btns), 2):
                 rows.append(channel_btns[i : i + 2])
-        rows.append([close_btn])
+        rows.append(nav_btns)
     else:
-        rows.append([guide_btn, close_btn])
+        rows.append([guide_btn])
+        rows.append(nav_btns)
 
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -529,7 +615,7 @@ def get_products_keyboard(
         ]
 
     buttons.append(nav_row)
-    if back_target and back_target not in ("back_to_main", "none"):
+    if back_target and back_target != "none":
         buttons.append([
             InlineKeyboardButton(text="Back", callback_data=back_target, style="primary", icon_custom_emoji_id=Icons.BACK),
             InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),

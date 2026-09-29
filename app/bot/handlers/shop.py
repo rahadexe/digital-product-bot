@@ -204,19 +204,14 @@ async def handle_legacy_cat_callbacks(query: CallbackQuery, state: FSMContext, s
 }))
 @router.callback_query(F.data.in_({"open_other_products", "open_premium_products", "open_categories"}))
 async def show_other_products_hub(event: Message | CallbackQuery, state: FSMContext, services: Services):
-    """Dynamic hub for unpinned categories."""
+    """Dynamic hub for categories."""
     await state.clear()
     tg_user = event.from_user
     lang = await services.users.get_language(tg_user.id) if tg_user else "en"
 
-    unpinned = await services.catalog.unpinned_categories(active_only=True)
-    if not unpinned:
-        all_cats = await services.catalog.categories(active_only=True)
-        pinned_ids = {c["id"] for c in await services.catalog.pinned_categories(active_only=True)}
-        unpinned = [c for c in all_cats if c["id"] not in pinned_ids] or all_cats
-
-    kb = get_categories_keyboard(unpinned, show_all_option=True, lang=lang)
-    title = t("btn_other_products", lang).replace("🛍️ ", "").strip()
+    categories = await services.catalog.categories(active_only=True)
+    kb = get_categories_keyboard(categories, show_all_option=True, lang=lang, back_target="back_to_main")
+    title = t("btn_all_products", lang).replace("🛍️ ", "").strip()
     await respond(
         event,
         f"{ICON_SHOP} <b>{title}:</b>",
@@ -235,14 +230,9 @@ async def paginate_categories(query: CallbackQuery, state: FSMContext, services:
     tg_user = query.from_user
     lang = await services.users.get_language(tg_user.id) if tg_user else "en"
 
-    unpinned = await services.catalog.unpinned_categories(active_only=True)
-    if not unpinned:
-        all_cats = await services.catalog.categories(active_only=True)
-        pinned_ids = {c["id"] for c in await services.catalog.pinned_categories(active_only=True)}
-        unpinned = [c for c in all_cats if c["id"] not in pinned_ids] or all_cats
-
-    kb = get_categories_keyboard(unpinned, show_all_option=True, page=page, lang=lang)
-    title = t("btn_other_products", lang).replace("🛍️ ", "").strip()
+    categories = await services.catalog.categories(active_only=True)
+    kb = get_categories_keyboard(categories, show_all_option=True, page=page, lang=lang, back_target="back_to_main")
+    title = t("btn_all_products", lang).replace("🛍️ ", "").strip()
     text = f"{ICON_SHOP} <b>{title}:</b>"
     try:
         if query.message:
@@ -589,7 +579,7 @@ async def show_products_list(
             header = f"{ICON_SHOP} <b>Available Products:</b>"
         msg = f"{header}\n\n{ICON_SHOP} <b>No products available right now.</b>"
         nav_btns = []
-        if effective_back_target not in ("back_to_main", "none"):
+        if effective_back_target != "none":
             nav_btns.append(InlineKeyboardButton(text="Back", callback_data=effective_back_target, style="primary", icon_custom_emoji_id=Icons.BACK))
         nav_btns.append(InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE))
         await respond(event, msg, InlineKeyboardMarkup(inline_keyboard=[nav_btns]))
@@ -697,7 +687,7 @@ async def paginate_products(query: CallbackQuery, state: FSMContext, services: S
         )
         msg = f"{header}\n\n{ICON_SHOP} <b>No products available right now.</b>"
         nav_btns = []
-        if back_target and back_target not in ("back_to_main", "none"):
+        if back_target and back_target != "none":
             nav_btns.append(InlineKeyboardButton(text="Back", callback_data=back_target, style="primary", icon_custom_emoji_id=Icons.BACK))
         nav_btns.append(InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE))
         if query.message:

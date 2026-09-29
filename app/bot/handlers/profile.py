@@ -150,7 +150,7 @@ async def show_language_menu(event: Message | CallbackQuery, state: FSMContext, 
         return
     current_lang = await services.users.get_language(tg_user.id)
     text = t("select_language_prompt", current_lang)
-    back_target = "open_account" if isinstance(event, CallbackQuery) else None
+    back_target = "back_to_main" if isinstance(event, CallbackQuery) else None
     kb = get_language_selection_keyboard(current_lang=current_lang, back_target=back_target)
     await respond(event, text, kb)
 
@@ -745,7 +745,7 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
                     ),
                 ],
                 [
-                    InlineKeyboardButton(text=t("btn_back", lang), callback_data="open_account", style="primary", icon_custom_emoji_id=Icons.BACK),
+                    InlineKeyboardButton(text=t("btn_back", lang), callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK),
                     InlineKeyboardButton(text=t("btn_close", lang), callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
                 ],
             ]
@@ -808,7 +808,7 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
             InlineKeyboardButton(text=t("btn_browse_products", lang), callback_data="open_categories", style="success", icon_custom_emoji_id=Icons.PRODUCTS),
         ])
         buttons.append([
-            InlineKeyboardButton(text=t("btn_back", lang), callback_data="open_account", style="primary", icon_custom_emoji_id=Icons.BACK),
+            InlineKeyboardButton(text=t("btn_back", lang), callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK),
             InlineKeyboardButton(text=t("btn_close", lang), callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
         ])
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -957,7 +957,7 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
     symbol = await services.settings.get("currency_symbol")
     usd_rate = await services.settings.number("usd_rate")
     show_usd = await services.settings.flag("show_usd_price")
-    back_cb = f"back_to_dep_req_{dep_id_ref}" if dep_id_ref else "open_account"
+    back_cb = f"back_to_dep_req_{dep_id_ref}" if dep_id_ref else "back_to_main"
 
     if not deposits:
         text = (

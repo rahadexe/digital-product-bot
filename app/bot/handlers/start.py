@@ -10,7 +10,13 @@ from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, ChatMemberUpdated, LinkPreviewOptions, Message
+from aiogram.types import (
+    CallbackQuery,
+    ChatMemberUpdated,
+    LinkPreviewOptions,
+    Message,
+    ReplyKeyboardRemove,
+)
 
 from app.bot.formatting import clean_previous_menu, send_operator_html
 from app.bot.handlers.search import forget_search_origin
@@ -24,6 +30,7 @@ from app.bot.icons import (
 from app.bot.keyboards import (
     get_gate_keyboard,
     get_language_selection_keyboard,
+    get_main_inline_keyboard,
     get_persistent_reply_keyboard,
 )
 from app.core.i18n import t
@@ -50,7 +57,7 @@ router = Router(name="start_router")
 
 
 async def render_main_dashboard(message: Message, services: Services, tg_user_id: int, edit: bool = False) -> None:
-    """The welcome screen — clean text message with NO image, only persistent reply keyboard."""
+    """The welcome screen — clean text message with pure inline keyboard (no persistent bottom keyboard)."""
     values = await services.settings.values()
     store_name = values.get("store_name", "Premium Haven")
     support_handle = values.get("support_username", "")
@@ -60,22 +67,17 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
     user = await services.users.get(tg_user_id)
     lang = (user.get("language") or "en").strip().lower() if user else "en"
     text = build_welcome_text(store_name, support_handle, custom_welcome, paused_notice, lang=lang)
-    pinned_categories = await services.catalog.pinned_categories(active_only=True)
-    unpinned_categories = await services.catalog.unpinned_categories(active_only=True)
 
-    is_reseller = (user.get("rank") or "").strip().lower() == "reseller" if user else False
-
-    reply_kb = get_persistent_reply_keyboard(
-        pinned_categories=pinned_categories,
-        has_unpinned=bool(unpinned_categories),
-        is_reseller=is_reseller,
-        is_admin=tg_user_id in await services.settings.admin_chat_ids(),
-        lang=lang,
-    )
+    is_admin = tg_user_id in await services.settings.admin_chat_ids()
+    inline_kb = get_main_inline_keyboard(lang=lang, is_admin=is_admin)
 
     if edit and message:
-        with suppress(TelegramBadRequest):
-            await message.delete()
+        try:
+            await message.edit_text(text, reply_markup=inline_kb)
+            return
+        except TelegramBadRequest:
+            with suppress(TelegramBadRequest):
+                await message.delete()
 
     chat = getattr(message, "chat", None)
     chat_id = getattr(chat, "id", None)
@@ -83,7 +85,7 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
     if chat_id and bot:
         clean_previous_menu(bot, chat_id)
 
-    await send_operator_html(message.answer, text, reply_markup=reply_kb)
+    await send_operator_html(message.answer, text, reply_markup=inline_kb)
 
 
 def gate_text(missing: list[dict[str, Any]], store_name: str = "Digital Mart") -> str:
@@ -186,7 +188,12 @@ async def handle_start(message: Message, state: FSMContext, services: Services):
         )
         return
 
-    # Render main welcome banner directly with persistent reply keyboard attached (no inline buttons)
+    # Remove any leftover persistent reply keyboard on user's device
+    with suppress(TelegramBadRequest):
+        rm_msg = await message.answer("\u200b", reply_markup=ReplyKeyboardRemove())
+        await rm_msg.delete()
+
+    # Render main welcome banner directly with pure inline keyboard attached
     await render_main_dashboard(message, services, tg_user.id)
 
 
@@ -202,9 +209,7 @@ async def handle_set_language_callback(query: CallbackQuery, state: FSMContext, 
         await query.answer(toast_msg)
 
     if query.message:
-        with suppress(TelegramBadRequest):
-            await query.message.delete()
-        await render_main_dashboard(query.message, services, user_id)
+        await render_main_dashboard(query.message, services, user_id, edit=True)
 
 
 @router.callback_query(F.data == "gate_verify")

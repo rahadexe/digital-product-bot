@@ -51,7 +51,7 @@ async def show_support_info(event: Message | CallbackQuery, state: FSMContext, s
             f"{t('support_title', lang, icon_support=ICON_SUPPORT)}\n\n"
             f"{t('support_unavailable', lang)}"
         )
-    await respond(event, text, get_support_keyboard(handle, channels, lang=lang))
+    await respond(event, text, get_support_keyboard(handle, channels, lang=lang, back_target="back_to_main"))
 
 
 GUIDE_TEXT_EN = (

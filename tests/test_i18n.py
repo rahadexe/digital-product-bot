@@ -1,6 +1,6 @@
 import pytest
 from app.core.i18n import SUPPORTED_LANGUAGES, t, DEFAULT_LANGUAGE
-from app.bot.keyboards import get_persistent_reply_keyboard, get_account_keyboard, get_language_selection_keyboard
+from app.bot.keyboards import get_main_inline_keyboard, get_persistent_reply_keyboard, get_account_keyboard, get_language_selection_keyboard
 from app.bot.handlers.navigation import NAVIGATION_TEXTS, COMMAND_ACTIONS
 
 def test_supported_languages():
@@ -30,6 +30,10 @@ def test_i18n_interpolation():
 
 def test_keyboards_all_languages():
     for lang in ["en", "bn", "hi", "ur"]:
+        main_kb = get_main_inline_keyboard(lang=lang, is_admin=False)
+        assert len(main_kb.inline_keyboard) == 3
+        admin_kb = get_main_inline_keyboard(lang=lang, is_admin=True)
+        assert len(admin_kb.inline_keyboard) == 4
         kb = get_persistent_reply_keyboard(is_reseller=False, is_admin=False, lang=lang)
         assert len(kb.keyboard) > 0
         account_kb = get_account_keyboard(lang=lang, is_admin=False)
