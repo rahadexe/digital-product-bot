@@ -62,17 +62,17 @@ def get_persistent_reply_keyboard(
     for i in range(0, len(cat_buttons), 2):
         rows.append(cat_buttons[i : i + 2])
 
-    reseller_text = t("btn_reseller_panel", lang) if is_reseller else t("btn_become_reseller", lang)
-    system_buttons = [
+    rows.append([
+        KeyboardButton(text=t("btn_all_products", lang), icon_custom_emoji_id=Icons.PRODUCTS),
         KeyboardButton(text=t("btn_add_balance", lang), icon_custom_emoji_id=Icons.DEPOSIT),
-        KeyboardButton(text=t("btn_search", lang), icon_custom_emoji_id=Icons.QUESTION),
-        KeyboardButton(text=t("btn_refer_earn", lang), icon_custom_emoji_id=Icons.REFER),
-        KeyboardButton(text=t("btn_profile", lang), icon_custom_emoji_id=Icons.ACCOUNT),
+    ])
+    rows.append([
+        KeyboardButton(text=t("btn_my_orders", lang), icon_custom_emoji_id=Icons.ORDERS),
+        KeyboardButton(text=t("btn_my_balance", lang), icon_custom_emoji_id=Icons.BALANCE),
+    ])
+    rows.append([
         KeyboardButton(text=t("btn_support", lang), icon_custom_emoji_id=Icons.SUPPORT),
-        KeyboardButton(text=reseller_text, icon_custom_emoji_id=Icons.RESELLER),
-    ]
-    for i in range(0, len(system_buttons), 2):
-        rows.append(system_buttons[i : i + 2])
+    ])
 
     if is_admin:
         rows.append([KeyboardButton(text=t("btn_admin_panel", lang), icon_custom_emoji_id=Icons.CROWN)])
@@ -292,14 +292,17 @@ def get_update_channels_keyboard(channels: List[Dict[str, Any]]) -> InlineKeyboa
 
 
 def get_account_keyboard(lang: str = "en", is_admin: bool = False) -> InlineKeyboardMarkup:
-    """Account actions: view order history, balance history, change language, or close menu."""
+    """Wallet / Account actions: add balance, deposit history, order history, language, or close menu."""
     buttons = [
         [
-            InlineKeyboardButton(text=t("btn_order_history", lang), callback_data="open_orders", style="primary", icon_custom_emoji_id=Icons.ORDERS),
+            InlineKeyboardButton(text=t("btn_add_balance", lang), callback_data="open_deposit", style="success", icon_custom_emoji_id=Icons.DEPOSIT),
             InlineKeyboardButton(text=t("btn_balance_history", lang), callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.STATS),
         ],
         [
+            InlineKeyboardButton(text=t("btn_order_history", lang), callback_data="open_orders", style="primary", icon_custom_emoji_id=Icons.ORDERS),
             InlineKeyboardButton(text=t("btn_change_language", lang), callback_data="open_language_menu", style="primary", icon_custom_emoji_id=Icons.GLOBE),
+        ],
+        [
             InlineKeyboardButton(text=t("btn_close", lang), callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
         ],
     ]

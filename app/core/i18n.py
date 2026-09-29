@@ -38,7 +38,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "btn_admin_panel": "👑 Admin Panel",
         "btn_other_products": "🛍️ Other Products",
         "btn_all_products": "🛍️ All Products",
-        "btn_order_history": "🎁 Order History",
+        "btn_my_orders": "📦 My Orders",
+        "btn_my_balance": "💰 My Balance",
+        "btn_order_history": "📦 Order History",
         "btn_balance_history": "📊 Balance History",
         "btn_change_language": "🌐 Language",
         "btn_back": "🔙 Back",
@@ -70,7 +72,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "welcome_default": "{icon_sparkles} Welcome to <b>{store_name}</b>!",
         "maintenance_notice": "{icon_warning} <b>Maintenance Notice:</b> {notice}\n\n",
 
-        # Profile
+        # Profile / Wallet
+        "wallet_title": "My Wallet",
+        "wallet_current_balance": "Available Balance",
         "profile_title": "{icon_account} <b>My Profile</b>",
         "account_info_title": "Account Info",
         "wallet_orders_title": "Wallet & Orders",
@@ -244,7 +248,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "btn_admin_panel": "👑 অ্যাডমিন প্যানেল",
         "btn_other_products": "🛍️ অন্যান্য প্রোডাক্ট",
         "btn_all_products": "🛍️ সকল প্রোডাক্ট",
-        "btn_order_history": "🎁 অর্ডার হিস্ট্রি",
+        "btn_my_orders": "📦 আমার অর্ডার",
+        "btn_my_balance": "💰 আমার ব্যালেন্স",
+        "btn_order_history": "📦 অর্ডার হিস্ট্রি",
         "btn_balance_history": "📊 ব্যালেন্স হিস্ট্রি",
         "btn_change_language": "🌐 ভাষা",
         "btn_back": "🔙 পিছনে",
@@ -276,7 +282,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "welcome_default": "{icon_sparkles} <b>{store_name}</b>-এ আপনাকে স্বাগতম!",
         "maintenance_notice": "{icon_warning} <b>রক্ষণাবেক্ষণ নোটিশ:</b> {notice}\n\n",
 
-        # Profile
+        # Profile / Wallet
+        "wallet_title": "আপনার ওয়ালেট",
+        "wallet_current_balance": "বর্তমান ব্যালেন্স",
         "profile_title": "{icon_account} <b>আমার প্রোফাইল</b>",
         "account_info_title": "অ্যাকাউন্ট তথ্য",
         "wallet_orders_title": "ওয়ালেট ও অর্ডার",
@@ -450,7 +458,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "btn_admin_panel": "👑 एडमिन पैनल",
         "btn_other_products": "🛍️ अन्य उत्पाद",
         "btn_all_products": "🛍️ सभी उत्पाद",
-        "btn_order_history": "🎁 ऑर्डर इतिहास",
+        "btn_my_orders": "📦 मेरे ऑर्डर",
+        "btn_my_balance": "💰 मेरा बैलेंस",
+        "btn_order_history": "📦 ऑर्डर इतिहास",
         "btn_balance_history": "📊 बैलेंस इतिहास",
         "btn_change_language": "🌐 भाषा",
         "btn_back": "🔙 वापस",
@@ -482,7 +492,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "welcome_default": "{icon_sparkles} <b>{store_name}</b> में आपका स्वागत है!",
         "maintenance_notice": "{icon_warning} <b>रखरखाव सूचना:</b> {notice}\n\n",
 
-        # Profile
+        # Profile / Wallet
+        "wallet_title": "आपका वॉलेट",
+        "wallet_current_balance": "उपलब्ध बैलेंस",
         "profile_title": "{icon_account} <b>मेरी प्रोफाइल</b>",
         "account_info_title": "खाता जानकारी",
         "wallet_orders_title": "वॉलेट और ऑर्डर्स",
@@ -656,7 +668,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "btn_admin_panel": "👑 ایڈمن پینل",
         "btn_other_products": "🛍️ دیگر مصنوعات",
         "btn_all_products": "🛍️ تمام مصنوعات",
-        "btn_order_history": "🎁 آرڈر ہسٹری",
+        "btn_my_orders": "📦 میرے آرڈرز",
+        "btn_my_balance": "💰 میرا بیلنس",
+        "btn_order_history": "📦 آرڈر ہسٹری",
         "btn_balance_history": "📊 بیلنس ہسٹری",
         "btn_change_language": "🌐 زبان",
         "btn_back": "🔙 واپس",
@@ -688,7 +702,9 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "welcome_default": "{icon_sparkles} <b>{store_name}</b> میں خوش آمدید!",
         "maintenance_notice": "{icon_warning} <b>مینٹیننس نوٹس:</b> {notice}\n\n",
 
-        # Profile
+        # Profile / Wallet
+        "wallet_title": "آپ کا والٹ",
+        "wallet_current_balance": "دستیاب بیلنس",
         "profile_title": "{icon_account} <b>میری پروفائل</b>",
         "account_info_title": "اکاؤنٹ کی معلومات",
         "wallet_orders_title": "والٹ اور آرڈرز",
