@@ -775,6 +775,7 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
                 ],
                 [
                     InlineKeyboardButton(text=t("btn_back", lang), callback_data="open_account", style="primary", icon_custom_emoji_id=Icons.BACK),
+                    InlineKeyboardButton(text=t("btn_main_menu", lang), callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.HOME),
                 ],
             ]
         )
@@ -837,6 +838,7 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
         ])
         buttons.append([
             InlineKeyboardButton(text=t("btn_back", lang), callback_data="open_account", style="primary", icon_custom_emoji_id=Icons.BACK),
+            InlineKeyboardButton(text=t("btn_main_menu", lang), callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.HOME),
         ])
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -922,6 +924,12 @@ async def view_order_detail(query: CallbackQuery, state: FSMContext, services: S
             style="primary",
             icon_custom_emoji_id=Icons.BACK,
         ),
+        InlineKeyboardButton(
+            text=t("btn_main_menu", lang),
+            callback_data="back_to_main",
+            style="primary",
+            icon_custom_emoji_id=Icons.HOME,
+        ),
     ])
 
     with suppress(TelegramBadRequest):
@@ -998,9 +1006,14 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
             buttons.append([
                 InlineKeyboardButton(text=t("btn_add_balance", lang), callback_data="open_deposit_from_history", style="success", icon_custom_emoji_id=Icons.DEPOSIT),
             ])
-        buttons.append([
+        nav_buttons = [
             InlineKeyboardButton(text=t("btn_back", lang), callback_data=back_cb, style="primary", icon_custom_emoji_id=Icons.BACK),
-        ])
+        ]
+        if back_cb != "back_to_main":
+            nav_buttons.append(
+                InlineKeyboardButton(text=t("btn_main_menu", lang), callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.HOME)
+            )
+        buttons.append(nav_buttons)
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
     else:
         if total_pages > 1:
@@ -1075,9 +1088,14 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
             buttons.append([
                 InlineKeyboardButton(text=t("btn_add_balance", lang), callback_data="open_deposit_from_history", style="success", icon_custom_emoji_id=Icons.DEPOSIT),
             ])
-        buttons.append([
+        nav_buttons = [
             InlineKeyboardButton(text=t("btn_back", lang), callback_data=back_cb, style="primary", icon_custom_emoji_id=Icons.BACK),
-        ])
+        ]
+        if back_cb != "back_to_main":
+            nav_buttons.append(
+                InlineKeyboardButton(text=t("btn_main_menu", lang), callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.HOME)
+            )
+        buttons.append(nav_buttons)
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
     await respond(event, text, keyboard)
@@ -1171,6 +1189,12 @@ async def view_deposit_detail(query: CallbackQuery, state: FSMContext, services:
             callback_data=back_to_history_cb,
             style="primary",
             icon_custom_emoji_id=Icons.BACK,
+        ),
+        InlineKeyboardButton(
+            text=t("btn_main_menu", lang),
+            callback_data="back_to_main",
+            style="primary",
+            icon_custom_emoji_id=Icons.HOME,
         ),
     ])
 

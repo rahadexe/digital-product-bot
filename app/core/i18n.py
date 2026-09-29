@@ -31,7 +31,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "btn_wallet": "💳 Wallet",
         "btn_add_balance": "💳 Add Balance",
         "btn_search": "🔍 Search",
-        "btn_refer_earn": "🎁 Refer & Earn",
+        "btn_refer_earn": "🎁 Refer",
         "btn_profile": "👤 My Profile",
         "btn_support": "🎧 Support",
         "btn_become_reseller": "💼 Become Reseller",
@@ -51,7 +51,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "btn_copy_format": "Copy Format",
         "btn_contact_management": "Contact Management",
         "btn_deposit_menu": "Deposit Menu",
-        "btn_main_menu": "Main Menu",
+        "btn_main_menu": "🏠 Main Menu",
         "btn_share_referral": "🚀 Share Link",
         "btn_copy_link": "📋 Copy Link",
         "btn_view_terms": "Terms & Conditions",
@@ -211,20 +211,19 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "status_waiting_msg": "Your item is being prepared and will be delivered shortly.",
 
         "deposit_choose_method": (
-            "{icon_deposit} <b>My Wallet</b>\n\n"
-            "{icon_coin} <b>Current Balance:</b> <code>{balance}</code>\n\n"
-            "{icon_lightning} <b>Add Balance:</b>\n"
-            "Select a payment method below to top up:"
+            "{icon_deposit} <b>Wallet</b>\n\n"
+            "{icon_coin} <b>Balance:</b> <code>{balance}</code>\n\n"
+            "<i>Select a payment method below to top up:</i>"
         ),
         "deposit_paused_title": "{icon_warning} <b>Deposits Temporarily Paused</b>",
         "deposit_pending_summary": (
-            "{icon_deposit} <b>My Wallet</b>\n\n"
-            "{icon_coin} <b>Current Balance:</b> <code>{balance}</code>\n\n"
-            "{icon_timer} <b>Deposit #{id} Pending Review</b>\n\n"
-            "Method: {method}\n"
-            "Amount: {amount}\n"
-            "TrxID: <code>{trxid}</code>\n\n"
-            "<i>Balance will be credited once verified by an admin.</i>"
+            "{icon_deposit} <b>Wallet</b>\n\n"
+            "{icon_coin} <b>Balance:</b> <code>{balance}</code>\n\n"
+            "{icon_timer} <b>Pending Deposit #{id}</b>\n"
+            "• Method: {method}\n"
+            "• Amount: {amount}\n"
+            "• TrxID: <code>{trxid}</code>\n\n"
+            "<i>Balance will be credited once verified.</i>"
         ),
         "deposit_enter_amount_prompt": "{icon_money} <b>Enter deposit amount:</b>\n\n💡 <i>(e.g. 100)</i>",
         "deposit_enter_txid_prompt": "{icon_next} <b>Please enter the correct TrxID:</b>\n\n💡 <i>e.g. <code>BLA7X8Y9Z0</code></i>",
@@ -245,7 +244,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "btn_wallet": "💳 ওয়ালেট",
         "btn_add_balance": "💳 অ্যাড ব্যালেন্স",
         "btn_search": "🔍 সার্চ",
-        "btn_refer_earn": "🎁 রেফার ও ইনকাম",
+        "btn_refer_earn": "🎁 রেফার",
         "btn_profile": "👤 আমার প্রোফাইল",
         "btn_support": "🎧 সাপোর্ট",
         "btn_become_reseller": "💼 রিসেলার হন",
@@ -258,14 +257,14 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "btn_order_history": "📦 অর্ডার হিস্ট্রি",
         "btn_balance_history": "📊 ব্যালেন্স হিস্ট্রি",
         "btn_change_language": "🌐 ভাষা",
-        "btn_back": "🔙 পিছনে",
+        "btn_back": "🔙 ব্যাক",
         "btn_close": "❌ বন্ধ",
         "btn_confirm": "নিশ্চিত করুন",
         "btn_cancel": "বাতিল",
         "btn_copy_format": "ফরম্যাট কপি করুন",
         "btn_contact_management": "ম্যানেজমেন্ট যোগাযোগ",
         "btn_deposit_menu": "ডিপোজিট মেনু",
-        "btn_main_menu": "মেইন মেনু",
+        "btn_main_menu": "🏠 মেইন মেনু",
         "btn_share_referral": "🚀 লিংক শেয়ার",
         "btn_copy_link": "📋 লিংক কপি",
         "btn_view_terms": "শর্তাবলী দেখুন",
@@ -425,20 +424,19 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "status_waiting_msg": "আপনার আইটেম প্রস্তুত করা হচ্ছে, শীঘ্রই ডেলিভারি করা হবে।",
 
         "deposit_choose_method": (
-            "{icon_deposit} <b>আমার ওয়ালেট</b>\n\n"
-            "{icon_coin} <b>বর্তমান ব্যালেন্স:</b> <code>{balance}</code>\n\n"
-            "{icon_lightning} <b>ব্যালেন্স যোগ করুন:</b>\n"
-            "টপ-আপ করতে নিচে থেকে পেমেন্ট মেথড বেছে নিন:"
+            "{icon_deposit} <b>ওয়ালেট</b>\n\n"
+            "{icon_coin} <b>ব্যালেন্স:</b> <code>{balance}</code>\n\n"
+            "<i>ব্যালেন্স যোগ করতে মেথড নির্বাচন করুন:</i>"
         ),
         "deposit_paused_title": "{icon_warning} <b>ডিপোজিট সাময়িকভাবে বন্ধ আছে</b>",
         "deposit_pending_summary": (
-            "{icon_deposit} <b>আমার ওয়ালেট</b>\n\n"
-            "{icon_coin} <b>বর্তমান ব্যালেন্স:</b> <code>{balance}</code>\n\n"
-            "{icon_timer} <b>ডিপোজিট #{id} পর্যালোচনাধীন</b>\n\n"
-            "মেথড: {method}\n"
-            "পরিমাণ: {amount}\n"
-            "TrxID: <code>{trxid}</code>\n\n"
-            "<i>অ্যাডমিন যাচাই করার পর আপনার একাউন্টে ব্যালেন্স যোগ হবে।</i>"
+            "{icon_deposit} <b>ওয়ালেট</b>\n\n"
+            "{icon_coin} <b>ব্যালেন্স:</b> <code>{balance}</code>\n\n"
+            "{icon_timer} <b>পেন্ডিং ডিপোজিট #{id}</b>\n"
+            "• মেথড: {method}\n"
+            "• পরিমাণ: {amount}\n"
+            "• TrxID: <code>{trxid}</code>\n\n"
+            "<i>অ্যাডমিন যাচাই করার পর ব্যালেন্স যুক্ত হবে।</i>"
         ),
         "deposit_enter_amount_prompt": "{icon_money} <b>কত টাকা অ্যাড করবেন তা লিখুন:</b>\n\n💡 <i>(যেমন: 100)</i>",
         "deposit_enter_txid_prompt": "{icon_next} <b>সঠিক TrxID প্রদান করুন:</b>\n\n💡 <i>যেমন: <code>BLA7X8Y9Z0</code></i>",
@@ -459,7 +457,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "btn_wallet": "💳 वॉलेट",
         "btn_add_balance": "💳 बैलेंस जोड़ें",
         "btn_search": "🔍 खोजें",
-        "btn_refer_earn": "🎁 रेफर और कमाएं",
+        "btn_refer_earn": "🎁 रेफर",
         "btn_profile": "👤 मेरी प्रोफाइल",
         "btn_support": "🎧 सहायता",
         "btn_become_reseller": "💼 रीसेलर बनें",
@@ -479,7 +477,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "btn_copy_format": "फॉर्मेट कॉपी करें",
         "btn_contact_management": "प्रबंधन से संपर्क करें",
         "btn_deposit_menu": "डिपॉजिट मेनू",
-        "btn_main_menu": "मुख्य मेनू",
+        "btn_main_menu": "🏠 मुख्य मेनू",
         "btn_share_referral": "🚀 लिंक शेयर",
         "btn_copy_link": "📋 लिंक कॉपी",
         "btn_view_terms": "नियम व शर्तें",
@@ -639,20 +637,19 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "status_waiting_msg": "आपका आइटम तैयार किया जा रहा है, जल्द ही डिलीवर होगा।",
 
         "deposit_choose_method": (
-            "{icon_deposit} <b>मेरा वॉलेट</b>\n\n"
-            "{icon_coin} <b>मौजूदा बैलेंस:</b> <code>{balance}</code>\n\n"
-            "{icon_lightning} <b>बैलेंस जोड़ें:</b>\n"
-            "वॉलेट में बैलेंस जोड़ने के लिए नीचे से विधि चुनें:"
+            "{icon_deposit} <b>वॉलेट</b>\n\n"
+            "{icon_coin} <b>बैलेंस:</b> <code>{balance}</code>\n\n"
+            "<i>भुगतान विधि चुनें:</i>"
         ),
         "deposit_paused_title": "{icon_warning} <b>डिपॉजिट अस्थायी रूप से बंद है</b>",
         "deposit_pending_summary": (
-            "{icon_deposit} <b>मेरा वॉलेट</b>\n\n"
-            "{icon_coin} <b>मौजूदा बैलेंस:</b> <code>{balance}</code>\n\n"
-            "{icon_timer} <b>डिपॉजिट #{id} समीक्षाधीन</b>\n\n"
-            "विधि: {method}\n"
-            "राशि: {amount}\n"
-            "TrxID: <code>{trxid}</code>\n\n"
-            "<i>एडमिन द्वारा जांच के बाद बैलेंस खाते में जोड़ दिया जाएगा।</i>"
+            "{icon_deposit} <b>वॉलेट</b>\n\n"
+            "{icon_coin} <b>बैलेंस:</b> <code>{balance}</code>\n\n"
+            "{icon_timer} <b>पेंडिंग डिपॉजिट #{id}</b>\n"
+            "• विधि: {method}\n"
+            "• राशि: {amount}\n"
+            "• TrxID: <code>{trxid}</code>\n\n"
+            "<i>एडमिन द्वारा जांच के बाद बैलेंस जुड़ जाएगा।</i>"
         ),
         "deposit_enter_amount_prompt": "{icon_money} <b>डिपॉजिट राशि दर्ज करें:</b>\n\n💡 <i>(उदा. 100)</i>",
         "deposit_enter_txid_prompt": "{icon_next} <b>कृपया सही TrxID दर्ज करें:</b>\n\n💡 <i>उदा. <code>BLA7X8Y9Z0</code></i>",
@@ -673,7 +670,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "btn_wallet": "💳 والٹ",
         "btn_add_balance": "💳 بیلنس شامل کریں",
         "btn_search": "🔍 تلاش کریں",
-        "btn_refer_earn": "🎁 ریفر اور کمائیں",
+        "btn_refer_earn": "🎁 ریفر",
         "btn_profile": "👤 میری پروفائل",
         "btn_support": "🎧 سپورٹ",
         "btn_become_reseller": "💼 ری سیلر بنیں",
@@ -693,7 +690,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "btn_copy_format": "فارمیٹ کاپی کریں",
         "btn_contact_management": "انتظامیہ سے رابطہ",
         "btn_deposit_menu": "ڈپازٹ مینو",
-        "btn_main_menu": "مین مینو",
+        "btn_main_menu": "🏠 مین مینو",
         "btn_share_referral": "🚀 لنک شیئر",
         "btn_copy_link": "📋 لنک کاپی",
         "btn_view_terms": "شرائط و ضوابط",
@@ -853,20 +850,19 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "status_waiting_msg": "آپ کا آئٹم تیار کیا جا رہا ہے، جلد ہی ڈیلیور ہو جائے گا۔",
 
         "deposit_choose_method": (
-            "{icon_deposit} <b>میرا والٹ</b>\n\n"
-            "{icon_coin} <b>موجودہ بیلنس:</b> <code>{balance}</code>\n\n"
-            "{icon_lightning} <b>بیلنس شامل کریں:</b>\n"
-            "والٹ میں رقم جمع کرنے کے لیے طریقہ منتخب کریں:"
+            "{icon_deposit} <b>والٹ</b>\n\n"
+            "{icon_coin} <b>بیلنس:</b> <code>{balance}</code>\n\n"
+            "<i>ادائیگی کا طریقہ منتخب کریں:</i>"
         ),
         "deposit_paused_title": "{icon_warning} <b>ڈپازٹ عارضی طور پر بند ہے</b>",
         "deposit_pending_summary": (
-            "{icon_deposit} <b>میرا والٹ</b>\n\n"
-            "{icon_coin} <b>موجودہ بیلنس:</b> <code>{balance}</code>\n\n"
-            "{icon_timer} <b>ڈپازٹ #{id} زیر جائزہ</b>\n\n"
-            "طریقہ: {method}\n"
-            "رقم: {amount}\n"
-            "TrxID: <code>{trxid}</code>\n\n"
-            "<i>ایڈمن کی تصدیق کے بعد بیلنس شامل کر دیا جائے گا۔</i>"
+            "{icon_deposit} <b>والٹ</b>\n\n"
+            "{icon_coin} <b>بیلنس:</b> <code>{balance}</code>\n\n"
+            "{icon_timer} <b>زیر التواء ڈپازٹ #{id}</b>\n"
+            "• طریقہ: {method}\n"
+            "• رقم: {amount}\n"
+            "• TrxID: <code>{trxid}</code>\n\n"
+            "<i>تصدیق کے بعد بیلنس شامل کر دیا جائے گا۔</i>"
         ),
         "deposit_enter_amount_prompt": "{icon_money} <b>ڈپازٹ کی رقم درج کریں:</b>\n\n💡 <i>(مثال: 100)</i>",
         "deposit_enter_txid_prompt": "{icon_next} <b>براہ کرم درست TrxID درج کریں:</b>\n\n💡 <i>مثال: <code>BLA7X8Y9Z0</code></i>",

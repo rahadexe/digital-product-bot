@@ -98,6 +98,15 @@ class DeliveryWorker:
                             )
                         )
                     kb_rows.append(actions_row)
+                if not kb_rows and message.get('broadcast_id'):
+                    kb_rows.append([
+                        InlineKeyboardButton(
+                            text="🛍️ Shop Now",
+                            callback_data="back_to_main",
+                            style="success",
+                            icon_custom_emoji_id=Icons.SHOP,
+                        )
+                    ])
                 if kb_rows:
                     reply_markup = InlineKeyboardMarkup(inline_keyboard=kb_rows)
                 await self.bot.send_message(message['tg_user_id'], message['text'], reply_markup=reply_markup)

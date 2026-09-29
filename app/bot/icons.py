@@ -17,6 +17,7 @@ class Icons:
     # Navigation & Core Buttons
     PRODUCTS = "6084664543152183861"       # 🛍️ (Raika_Games)
     SHOP = PRODUCTS
+    HOME = PRODUCTS
     CART = "6102911544205515696"           # 🛒 (Raika_Games)
     DEPOSIT = "6233367447789899509"        # 💰 Add Balance (tongyong_renmin)
     BALANCE = "6102735781258861018"        # 💰 (Raika_Games)

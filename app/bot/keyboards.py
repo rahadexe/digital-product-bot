@@ -87,6 +87,12 @@ def get_main_inline_keyboard(
     ])
     rows.append([
         InlineKeyboardButton(
+            text=t("btn_refer_earn", lang),
+            callback_data="open_referral",
+            style="primary",
+            icon_custom_emoji_id=Icons.REFER,
+        ),
+        InlineKeyboardButton(
             text=t("btn_support", lang),
             callback_data="open_support",
             style="primary",
@@ -249,6 +255,8 @@ def get_categories_keyboard(
     nav_bottom = []
     if back_target:
         nav_bottom.append(InlineKeyboardButton(text=t("btn_back", lang), callback_data=back_target, style="primary", icon_custom_emoji_id=Icons.BACK))
+        if back_target != "back_to_main":
+            nav_bottom.append(InlineKeyboardButton(text=t("btn_main_menu", lang), callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.HOME))
     if nav_bottom:
         buttons.append(nav_bottom)
     return InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -301,6 +309,15 @@ def get_validity_selector_keyboard(
             icon_custom_emoji_id=Icons.BACK,
         )
     )
+    if effective_back != "back_to_main":
+        nav_row.append(
+            InlineKeyboardButton(
+                text="Main Menu",
+                callback_data="back_to_main",
+                style="primary",
+                icon_custom_emoji_id=Icons.HOME,
+            )
+        )
     buttons.append(nav_row)
 
     return InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -424,6 +441,10 @@ def get_language_selection_keyboard(current_lang: str = "en", back_target: str |
         nav_row.append(
             InlineKeyboardButton(text=t("btn_back", current_lang), callback_data=back_target, style="primary", icon_custom_emoji_id=Icons.BACK)
         )
+        if back_target != "back_to_main":
+            nav_row.append(
+                InlineKeyboardButton(text=t("btn_main_menu", current_lang), callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.HOME)
+            )
     if nav_row:
         rows.append(nav_row)
     return InlineKeyboardMarkup(inline_keyboard=rows)
@@ -618,9 +639,14 @@ def get_products_keyboard(
 
     buttons.append(nav_row)
     effective_back = back_target if back_target and back_target != "none" else "open_categories"
-    buttons.append([
+    nav_row = [
         InlineKeyboardButton(text="Back", callback_data=effective_back, style="primary", icon_custom_emoji_id=Icons.BACK),
-    ])
+    ]
+    if effective_back != "back_to_main":
+        nav_row.append(
+            InlineKeyboardButton(text="Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.HOME),
+        )
+    buttons.append(nav_row)
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
@@ -739,11 +765,16 @@ def get_quantity_selector_keyboard(
     if extras:
         buttons.append(extras)
 
-    # Row 5: Back
+    # Row 5: Back & Main Menu
     effective_back = back_target if back_target and back_target != "close_menu" else "open_categories"
-    buttons.append([
+    nav_row = [
         InlineKeyboardButton(text="Back", callback_data=effective_back, style="primary", icon_custom_emoji_id=Icons.BACK),
-    ])
+    ]
+    if effective_back != "back_to_main":
+        nav_row.append(
+            InlineKeyboardButton(text="Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.HOME),
+        )
+    buttons.append(nav_row)
 
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -914,6 +945,15 @@ def get_deposit_methods_keyboard(
             icon_custom_emoji_id=Icons.BACK,
         )
     )
+    if effective_back != "back_to_main":
+        nav_row.append(
+            InlineKeyboardButton(
+                text=t("btn_main_menu", lang),
+                callback_data="back_to_main",
+                style="primary",
+                icon_custom_emoji_id=Icons.HOME,
+            )
+        )
     buttons.append(nav_row)
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -954,27 +994,39 @@ def get_manual_deposit_invoice_keyboard(account_info: str, is_binance: bool = Fa
         InlineKeyboardButton(
             text=t("btn_back", lang),
             callback_data="open_deposit",
-            style="danger",
+            style="primary",
             icon_custom_emoji_id=Icons.BACK,
-        )
+        ),
+        InlineKeyboardButton(
+            text=t("btn_main_menu", lang),
+            callback_data="back_to_main",
+            style="primary",
+            icon_custom_emoji_id=Icons.HOME,
+        ),
     ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
 def get_cancel_keyboard(back_target: str | None = "open_deposit", lang: str = "en") -> InlineKeyboardMarkup:
     effective_back = back_target or "back_to_main"
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text=t("btn_back", lang),
-                    callback_data=effective_back,
-                    style="primary",
-                    icon_custom_emoji_id=Icons.BACK,
-                )
-            ]
-        ]
-    )
+    nav_row = [
+        InlineKeyboardButton(
+            text=t("btn_back", lang),
+            callback_data=effective_back,
+            style="primary",
+            icon_custom_emoji_id=Icons.BACK,
+        )
+    ]
+    if effective_back != "back_to_main":
+        nav_row.append(
+            InlineKeyboardButton(
+                text=t("btn_main_menu", lang),
+                callback_data="back_to_main",
+                style="primary",
+                icon_custom_emoji_id=Icons.HOME,
+            )
+        )
+    return InlineKeyboardMarkup(inline_keyboard=[nav_row])
 
 
 def get_deposit_amount_keyboard(account_info: str, method_id: int, is_binance: bool = False, lang: str = "en") -> InlineKeyboardMarkup:
