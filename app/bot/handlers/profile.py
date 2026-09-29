@@ -1011,40 +1011,45 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
     else:
         if total_pages > 1:
-            text = t("balance_history_page", lang, icon_stats=ICON_STATS, page=page, total_pages=total_pages)
+            header = t("balance_history_page", lang, icon_stats=ICON_STATS, page=page, total_pages=total_pages)
         else:
-            text = t("balance_history_title", lang, icon_stats=ICON_STATS)
+            header = t("balance_history_title", lang, icon_stats=ICON_STATS)
 
         def page_cb(p: int) -> str:
             return f"dep_page_{p}_{dep_id_ref}" if dep_id_ref else f"dep_page_{p}"
 
-        buttons = []
+        items_text = []
         for deposit in deposits:
             price_str = format_dual_price(deposit["amount"], symbol, usd_rate=usd_rate, show_usd=show_usd)
             method = deposit["method_name"].strip()
+            trx_id = (deposit.get("transaction_id") or "").strip()
+            created = deposit["created_at"]
+            date_str = created.strftime("%d.%m.%y, %H:%M") if isinstance(created, datetime) else str(created)[:16]
+
             if deposit["status"] == "approved":
                 status_emoji = "✅"
-                status_icon = Icons.CHECK
+                status_label = t("status_approved", lang)
             elif deposit["status"] == "pending":
                 status_emoji = "⏳"
-                status_icon = Icons.TIMER
+                status_label = t("status_pending", lang)
             else:
                 status_emoji = "❌"
-                status_icon = Icons.CROSS
+                status_label = t("status_rejected", lang)
 
-            max_method_len = max(8, 54 - len(str(deposit['id'])) - len(price_str) - 8)
-            method_short = method[:max_method_len].strip()
-            label = f"{status_emoji} #{deposit['id']} · {method_short} · {price_str}"
+            lines = [
+                f"<b>{escape(method)}</b> (<code>#{deposit['id']}</code>)",
+                f"{status_emoji} <b>{t('order_status', lang)}:</b> {status_label} · <code>{price_str}</code>",
+            ]
+            if trx_id:
+                lines.append(f"{ICON_KEY} <b>{t('deposit_trxid', lang)}:</b> <code>{escape(trx_id)}</code>")
+            if deposit.get("admin_note"):
+                lines.append(f"{ICON_NOTE} <b>{t('deposit_admin_note', lang)}:</b> <i>{escape(deposit['admin_note'])}</i>")
+            lines.append(f"{ICON_TIMER} <b>{t('order_date', lang)}:</b> <code>{date_str}</code>")
 
-            cb_data = f"vdep_{deposit['id']}_{page}_{dep_id_ref or 0}"
-            buttons.append([
-                InlineKeyboardButton(
-                    text=label[:64],
-                    callback_data=cb_data,
-                    style="primary",
-                    icon_custom_emoji_id=status_icon,
-                )
-            ])
+            items_text.append("\n".join(lines))
+
+        text = f"{header}\n\n" + "\n\n".join(items_text)
+        buttons = []
 
         if total_pages > 1:
             if page == 1:

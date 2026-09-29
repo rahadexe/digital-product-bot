@@ -65,21 +65,17 @@ class BalanceHistoryUITests(unittest.IsolatedAsyncioTestCase):
         kb = kwargs["reply_markup"]
         self.assertIsInstance(kb, InlineKeyboardMarkup)
 
-        # First row is deposit #101 (approved)
-        row0 = kb.inline_keyboard[0]
-        self.assertEqual(len(row0), 1)
-        self.assertIn("#101", row0[0].text)
-        self.assertIn("✅", row0[0].text)
-        self.assertEqual(row0[0].callback_data, "vdep_101_1_0")
+        # Text feed contains full details from A to Z
+        self.assertIn("bKash Personal", text_arg)
+        self.assertIn("#101", text_arg)
+        self.assertIn("TRX101", text_arg)
+        self.assertIn("✅", text_arg)
+        self.assertIn("Nagad", text_arg)
+        self.assertIn("#102", text_arg)
+        self.assertIn("TRX102", text_arg)
+        self.assertIn("⏳", text_arg)
 
-        # Second row is deposit #102 (pending)
-        row1 = kb.inline_keyboard[1]
-        self.assertEqual(len(row1), 1)
-        self.assertIn("#102", row1[0].text)
-        self.assertIn("⏳", row1[0].text)
-        self.assertEqual(row1[0].callback_data, "vdep_102_1_0")
-
-        # Refresh button present
+        # Refresh, Add Balance, Back, Close buttons present
         all_texts = [btn.text for r in kb.inline_keyboard for btn in r]
         self.assertIn("Refresh", all_texts)
         self.assertTrue(any("Add Balance" in t for t in all_texts))
