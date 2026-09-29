@@ -796,10 +796,21 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
         for order in orders:
             price_val = order["price"]
             price_str = format_dual_price(price_val, symbol, usd_rate=usd_rate, show_usd=show_usd)
-            max_title_len = max(10, 58 - len(str(order['id'])) - len(price_str) - 6)
+            is_completed = order["status"] == "completed" and order.get("fulfillment") != "waiting"
+            is_waiting = order.get("fulfillment") == "waiting" or order["status"] in {"pending", "processing", "waiting"}
+            if is_completed:
+                status_emoji = "✅"
+                status_icon = Icons.CHECK
+            elif is_waiting:
+                status_emoji = "⏳"
+                status_icon = Icons.TIMER
+            else:
+                status_emoji = "❌"
+                status_icon = Icons.CROSS
+
+            max_title_len = max(8, 54 - len(str(order['id'])) - len(price_str) - 8)
             title_short = order['product_title'][:max_title_len].strip()
-            label = f"#{order['id']} · {title_short} · {price_str}"
-            status_icon = Icons.CHECK if order["status"] == "completed" and order.get("fulfillment") != "waiting" else (Icons.TIMER if order.get("fulfillment") == "waiting" else Icons.CROSS)
+            label = f"{status_emoji} #{order['id']} · {title_short} · {price_str}"
             cb_data = f"vord_{order['id']}_{page}"
             buttons.append([InlineKeyboardButton(text=label[:64], callback_data=cb_data, style="primary", icon_custom_emoji_id=status_icon)])
 
@@ -1011,16 +1022,19 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
         for deposit in deposits:
             price_str = format_dual_price(deposit["amount"], symbol, usd_rate=usd_rate, show_usd=show_usd)
             method = deposit["method_name"].strip()
-            max_method_len = max(10, 58 - len(str(deposit['id'])) - len(price_str) - 6)
-            method_short = method[:max_method_len].strip()
-            label = f"#{deposit['id']} · {method_short} · {price_str}"
-
             if deposit["status"] == "approved":
+                status_emoji = "✅"
                 status_icon = Icons.CHECK
             elif deposit["status"] == "pending":
+                status_emoji = "⏳"
                 status_icon = Icons.TIMER
             else:
+                status_emoji = "❌"
                 status_icon = Icons.CROSS
+
+            max_method_len = max(8, 54 - len(str(deposit['id'])) - len(price_str) - 8)
+            method_short = method[:max_method_len].strip()
+            label = f"{status_emoji} #{deposit['id']} · {method_short} · {price_str}"
 
             cb_data = f"vdep_{deposit['id']}_{page}_{dep_id_ref or 0}"
             buttons.append([

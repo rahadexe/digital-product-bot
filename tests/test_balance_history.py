@@ -69,12 +69,14 @@ class BalanceHistoryUITests(unittest.IsolatedAsyncioTestCase):
         row0 = kb.inline_keyboard[0]
         self.assertEqual(len(row0), 1)
         self.assertIn("#101", row0[0].text)
+        self.assertIn("✅", row0[0].text)
         self.assertEqual(row0[0].callback_data, "vdep_101_1_0")
 
         # Second row is deposit #102 (pending)
         row1 = kb.inline_keyboard[1]
         self.assertEqual(len(row1), 1)
         self.assertIn("#102", row1[0].text)
+        self.assertIn("⏳", row1[0].text)
         self.assertEqual(row1[0].callback_data, "vdep_102_1_0")
 
         # Refresh button present
@@ -169,6 +171,7 @@ class OrderHistoryUITests(unittest.IsolatedAsyncioTestCase):
 
         row0 = kb.inline_keyboard[0]
         self.assertIn("#501", row0[0].text)
+        self.assertIn("✅", row0[0].text)
         self.assertEqual(row0[0].callback_data, "vord_501_1")
 
         all_texts = [btn.text for r in kb.inline_keyboard for btn in r]
