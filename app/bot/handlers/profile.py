@@ -284,11 +284,17 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
             ],
             [
                 InlineKeyboardButton(
+                    text=t("btn_back", lang),
+                    callback_data="back_to_main",
+                    style="primary",
+                    icon_custom_emoji_id=Icons.BACK,
+                ),
+                InlineKeyboardButton(
                     text=t("btn_close", lang),
                     callback_data="close_menu",
                     style="danger",
                     icon_custom_emoji_id=Icons.CLOSE,
-                )
+                ),
             ],
         ]
     )

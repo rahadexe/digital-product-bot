@@ -68,8 +68,15 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
     lang = (user.get("language") or "en").strip().lower() if user else "en"
     text = build_welcome_text(store_name, support_handle, custom_welcome, paused_notice, lang=lang)
 
+    pinned_categories = await services.catalog.pinned_categories(active_only=True)
+    unpinned_categories = await services.catalog.unpinned_categories(active_only=True)
     is_admin = tg_user_id in await services.settings.admin_chat_ids()
-    inline_kb = get_main_inline_keyboard(lang=lang, is_admin=is_admin)
+    inline_kb = get_main_inline_keyboard(
+        pinned_categories=pinned_categories,
+        has_unpinned=bool(unpinned_categories),
+        is_admin=is_admin,
+        lang=lang,
+    )
 
     if edit and message:
         try:

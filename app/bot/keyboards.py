@@ -21,63 +21,101 @@ ADMIN_PANEL_TEXT = "👑 Admin Panel"
 
 
 def get_main_inline_keyboard(
-    lang: str = "en",
+    pinned_categories: List[Dict[str, Any]] | None = None,
+    has_unpinned: bool = False,
     is_admin: bool = False,
+    lang: str = "en",
 ) -> InlineKeyboardMarkup:
     """
-    Pure inline keyboard for the main dashboard:
-    Clean, focused, modern layout with unicode emojis for all devices.
-    - [ 🛍️ Shop / Products ]   [ 💳 Add Balance ]
-    - [ 📦 My Orders ]         [ 💰 My Balance ]
-    - [ 🎧 Support ]           [ 🌐 Language ]
-    - (if admin: [ 👑 Admin Panel ])
+    Optimized inline dashboard matching the rich keyboard layout:
+    - Pinned categories at top (2 per row), with custom icons & emojis.
+    - Other Products / All Products button.
+    - Action Rows:
+      - [ 💳 Add Balance ]  [ 👤 My Profile ]
+      - [ 📦 My Orders ]    [ 🎁 Refer & Earn ]
+      - [ 🎧 Support ]      [ 🌐 Language ]
+      - [ 👑 Admin Panel ] (if admin)
     """
-    buttons = [
-        [
+    rows: List[List[InlineKeyboardButton]] = []
+    cat_buttons: List[InlineKeyboardButton] = []
+
+    if pinned_categories:
+        for c in pinned_categories:
+            name = c["name"].strip()
+            custom_emoji_id = c.get("custom_emoji_id")
+            icon = (c.get("icon") or "").strip()
+            btn_text = f"{icon} {name}".strip() if icon and not name.startswith(icon) else name
+            kwargs: Dict[str, Any] = {
+                "text": btn_text[:64],
+                "callback_data": f"cat_{c['id']}",
+                "style": "primary",
+            }
+            if custom_emoji_id and str(custom_emoji_id).strip().isdigit():
+                kwargs["icon_custom_emoji_id"] = str(custom_emoji_id).strip()
+            cat_buttons.append(InlineKeyboardButton(**kwargs))
+
+    # Add "Other Products" if unpinned categories exist OR "All Products" if no categories are pinned
+    if has_unpinned or not pinned_categories:
+        other_label = t("btn_other_products", lang) if pinned_categories else t("btn_all_products", lang)
+        cat_buttons.append(
             InlineKeyboardButton(
-                text=t("btn_all_products", lang),
+                text=other_label,
                 callback_data="open_categories",
                 style="primary",
                 icon_custom_emoji_id=Icons.PRODUCTS,
-            ),
-            InlineKeyboardButton(
-                text=t("btn_add_balance", lang),
-                callback_data="open_deposit",
-                style="primary",
-                icon_custom_emoji_id=Icons.DEPOSIT,
-            ),
-        ],
-        [
-            InlineKeyboardButton(
-                text=t("btn_my_orders", lang),
-                callback_data="open_orders",
-                style="primary",
-                icon_custom_emoji_id=Icons.ORDERS,
-            ),
-            InlineKeyboardButton(
-                text=t("btn_profile", lang),
-                callback_data="open_account",
-                style="primary",
-                icon_custom_emoji_id=Icons.ACCOUNT,
-            ),
-        ],
-        [
-            InlineKeyboardButton(
-                text=t("btn_support", lang),
-                callback_data="open_support",
-                style="primary",
-                icon_custom_emoji_id=Icons.SUPPORT,
-            ),
-            InlineKeyboardButton(
-                text=t("btn_change_language", lang),
-                callback_data="open_language_menu",
-                style="primary",
-                icon_custom_emoji_id=Icons.GLOBE,
-            ),
-        ],
-    ]
+            )
+        )
+
+    # Chunk category buttons 2 per row
+    for i in range(0, len(cat_buttons), 2):
+        rows.append(cat_buttons[i : i + 2])
+
+    # Core action buttons
+    rows.append([
+        InlineKeyboardButton(
+            text=t("btn_add_balance", lang),
+            callback_data="open_deposit",
+            style="primary",
+            icon_custom_emoji_id=Icons.DEPOSIT,
+        ),
+        InlineKeyboardButton(
+            text=t("btn_profile", lang),
+            callback_data="open_account",
+            style="primary",
+            icon_custom_emoji_id=Icons.ACCOUNT,
+        ),
+    ])
+    rows.append([
+        InlineKeyboardButton(
+            text=t("btn_my_orders", lang),
+            callback_data="open_orders",
+            style="primary",
+            icon_custom_emoji_id=Icons.ORDERS,
+        ),
+        InlineKeyboardButton(
+            text=t("btn_refer_earn", lang),
+            callback_data="open_referral",
+            style="primary",
+            icon_custom_emoji_id=Icons.REFER,
+        ),
+    ])
+    rows.append([
+        InlineKeyboardButton(
+            text=t("btn_support", lang),
+            callback_data="open_support",
+            style="primary",
+            icon_custom_emoji_id=Icons.SUPPORT,
+        ),
+        InlineKeyboardButton(
+            text=t("btn_change_language", lang),
+            callback_data="open_language_menu",
+            style="primary",
+            icon_custom_emoji_id=Icons.GLOBE,
+        ),
+    ])
+
     if is_admin:
-        buttons.append([
+        rows.append([
             InlineKeyboardButton(
                 text=t("btn_admin_panel", lang),
                 callback_data="adm_dashboard",
@@ -85,7 +123,8 @@ def get_main_inline_keyboard(
                 icon_custom_emoji_id=Icons.CROWN,
             )
         ])
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def get_persistent_reply_keyboard(
