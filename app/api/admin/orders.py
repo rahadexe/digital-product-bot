@@ -64,3 +64,11 @@ async def refund_order(order_id: int, services: ServicesDep):
 async def retry_delivery(order_id: int, services: ServicesDep):
     await services.delivery.retry_order(order_id)
     return {"success": True}
+
+
+@router.post("/orders/{order_id}/retry-supplier", dependencies=WRITE)
+async def retry_supplier_fulfillment(order_id: int, services: ServicesDep):
+    success, message, data = await services.purchases.retry_supplier_fulfillment(order_id)
+    if not success:
+        raise HTTPException(status_code=400, detail=message)
+    return {"success": True, "message": message, "order": data}

@@ -12,7 +12,7 @@ from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, ChatMemberUpdated, LinkPreviewOptions, Message
 
-from app.bot.formatting import send_operator_html
+from app.bot.formatting import clean_previous_menu, send_operator_html
 from app.bot.handlers.search import forget_search_origin
 from app.bot.handlers.shop import product_view
 from app.bot.icons import (
@@ -23,15 +23,17 @@ from app.bot.icons import (
 )
 from app.bot.keyboards import (
     get_gate_keyboard,
+    get_language_selection_keyboard,
     get_persistent_reply_keyboard,
 )
+from app.core.i18n import t
 from app.services import Services
 
 logger = logging.getLogger("app.bot.start")
 
 
-def build_welcome_text(store_name: str, support_handle: str, custom_text: str = "", paused_notice: str = "") -> str:
-    prefix = f"{ICON_WARNING} <b>Maintenance Notice:</b> {escape(paused_notice)}\n\n" if paused_notice else ""
+def build_welcome_text(store_name: str, support_handle: str, custom_text: str = "", paused_notice: str = "", lang: str = "en") -> str:
+    prefix = t("maintenance_notice", lang, icon_warning=ICON_WARNING, notice=escape(paused_notice)) if paused_notice else ""
     if custom_text:
         formatted = (
             custom_text
@@ -40,10 +42,7 @@ def build_welcome_text(store_name: str, support_handle: str, custom_text: str = 
             .replace("{store}", escape(store_name))
         )
         return prefix + formatted
-    # One line, because the console promises one line and the keyboard is already on
-    # screen: the tagline said nothing about this shop and the pointer named buttons
-    # the customer can see. Anyone who wants more writes their own in Settings.
-    default_text = f"{ICON_SPARKLES} Welcome to <b>{escape(store_name)}</b>!"
+    default_text = t("welcome_default", lang, icon_sparkles=ICON_SPARKLES, store_name=escape(store_name))
     return prefix + default_text
 
 
@@ -58,11 +57,12 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
     custom_welcome = values.get("welcome_text", "").strip()
     paused_notice = await services.settings.paused_message()
 
-    text = build_welcome_text(store_name, support_handle, custom_welcome, paused_notice)
+    user = await services.users.get(tg_user_id)
+    lang = (user.get("language") or "en").strip().lower() if user else "en"
+    text = build_welcome_text(store_name, support_handle, custom_welcome, paused_notice, lang=lang)
     pinned_categories = await services.catalog.pinned_categories(active_only=True)
     unpinned_categories = await services.catalog.unpinned_categories(active_only=True)
 
-    user = await services.users.get(tg_user_id)
     is_reseller = (user.get("rank") or "").strip().lower() == "reseller" if user else False
 
     reply_kb = get_persistent_reply_keyboard(
@@ -70,11 +70,18 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
         has_unpinned=bool(unpinned_categories),
         is_reseller=is_reseller,
         is_admin=tg_user_id in await services.settings.admin_chat_ids(),
+        lang=lang,
     )
 
     if edit and message:
         with suppress(TelegramBadRequest):
             await message.delete()
+
+    chat = getattr(message, "chat", None)
+    chat_id = getattr(chat, "id", None)
+    bot = getattr(message, "bot", None)
+    if chat_id and bot:
+        clean_previous_menu(bot, chat_id)
 
     await send_operator_html(message.answer, text, reply_markup=reply_kb)
 
@@ -140,8 +147,7 @@ async def handle_start(message: Message, state: FSMContext, services: Services):
         return
     ref_id = referral_parameter(message.text)
     product_id = start_parameter(message.text)
-    # The membership check does not need the profile row, so both run at once.
-    _, (passed, missing) = await asyncio.gather(
+    sync_user, (passed, missing) = await asyncio.gather(
         services.users.sync_profile(tg_user.id, tg_user.username, tg_user.first_name, tg_user.last_name, referred_by=ref_id),
         services.gate.check(tg_user.id),
     )
@@ -166,8 +172,39 @@ async def handle_start(message: Message, state: FSMContext, services: Services):
             await message.answer(text, reply_markup=keyboard)
             return
 
+    # If user hasn't explicitly chosen a language yet (e.g. fresh onboarding)
+    raw_lang = sync_user.get("language")
+    if not raw_lang:
+        prompt_text = (
+            "🌐 <b>Select Your Language / ভাষা নির্বাচন করুন / भाषा चुनें / زبان منتخب کریں:</b>\n\n"
+            "🇬🇧 English | 🇧🇩 বাংলা | 🇮🇳 हिन्दी | 🇵🇰 اردو\n\n"
+            "<i>💡 You can change this anytime from My Profile.</i>"
+        )
+        await message.answer(
+            prompt_text,
+            reply_markup=get_language_selection_keyboard(current_lang="en", back_target=None),
+        )
+        return
+
     # Render main welcome banner directly with persistent reply keyboard attached (no inline buttons)
     await render_main_dashboard(message, services, tg_user.id)
+
+
+@router.callback_query(F.data.startswith("set_lang_"))
+async def handle_set_language_callback(query: CallbackQuery, state: FSMContext, services: Services):
+    await state.clear()
+    lang_code = query.data.removeprefix("set_lang_").strip().lower()
+    user_id = query.from_user.id
+    saved_lang = await services.users.set_language(user_id, lang_code)
+
+    toast_msg = t("lang_switched_toast", saved_lang)
+    with suppress(TelegramBadRequest):
+        await query.answer(toast_msg)
+
+    if query.message:
+        with suppress(TelegramBadRequest):
+            await query.message.delete()
+        await render_main_dashboard(query.message, services, user_id)
 
 
 @router.callback_query(F.data == "gate_verify")

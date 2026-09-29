@@ -31,8 +31,11 @@ from app.services.payments import PaymentService
 from app.services.purchases import PurchaseService
 from app.services.rate_limits import RateLimits
 from app.services.reseller import ResellerService
+from app.services.reseller_applications import ResellerApplicationsService
 from app.services.settings import SettingsService
+from app.services.suppliers import SupplierManager
 from app.services.update_channels import UpdateChannelService
+from app.services.upstream_reseller import UpstreamResellerService
 from app.services.users import UserService
 from app.services.zinipay import ZiniPayVerificationService
 
@@ -73,6 +76,9 @@ class Services:
     dashboard: DashboardService
     admin_access: AdminAccessService
     reseller: ResellerService
+    reseller_applications: ResellerApplicationsService
+    upstream_reseller: UpstreamResellerService
+    suppliers: SupplierManager
     rate_limits: RateLimits
     runtime: RuntimeStatus = field(default_factory=RuntimeStatus)
 
@@ -106,9 +112,12 @@ def build_services(
     deposits = DepositService(db, settings, notifier)
     users = UserService(db, settings, notifier)
     reseller = ResellerService(db, settings, catalog, users)
+    reseller_applications = ResellerApplicationsService(db)
 
     limits = RateLimits(db)
-    purchases = PurchaseService(db, settings, delivery, notifier)
+    upstream_reseller = UpstreamResellerService(db, config, settings)
+    suppliers = SupplierManager(db, config, settings)
+    purchases = PurchaseService(db, settings, delivery, notifier, upstream_reseller=upstream_reseller, suppliers=suppliers)
     # Stock warnings need a quiet period; the limiter is the only thing that remembers
     # across restarts and replicas.
     purchases.rate_limits = limits
@@ -121,8 +130,9 @@ def build_services(
         audit=AuditService(db),
         users=users,
         catalog=catalog,
-        inventory=InventoryService(db),
+        inventory=InventoryService(db, notifier=notifier),
         delivery=delivery,
+
         purchases=purchases,
         deposits=deposits,
         payments=PaymentService(db, settings, notifier, config),
@@ -134,5 +144,8 @@ def build_services(
         dashboard=DashboardService(db),
         admin_access=AdminAccessService(db),
         reseller=reseller,
+        reseller_applications=reseller_applications,
+        upstream_reseller=upstream_reseller,
+        suppliers=suppliers,
         rate_limits=limits,
     )

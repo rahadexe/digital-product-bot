@@ -25,7 +25,7 @@ class LoginPayload(BaseModel):
 
 class CategoryPayload(Payload):
     name: str = Field(min_length=1, max_length=100)
-    icon: str = Field(default="📦", max_length=16)
+    icon: str = Field(default="", max_length=16)
     sort_order: int = Field(default=0, ge=-100_000, le=100_000)
     is_active: Flag = 1
     is_pinned: Flag = 0
@@ -42,12 +42,16 @@ class ProductPayload(Payload):
     description: str = Field(default="", max_length=300)
     price: float = Field(gt=0, le=AMOUNT_LIMIT)
     reseller_price: Optional[float] = Field(default=None, ge=0, le=AMOUNT_LIMIT)
-    icon: str = Field(default="⚡", max_length=16)
+    icon: str = Field(default="", max_length=16)
     duration_label: str = Field(default="", max_length=64)
     sort_order: int = Field(default=0, ge=-100_000, le=100_000)
     is_active: Flag = 1
     delivery_type: str = Field(default="stock", max_length=16)
     custom_emoji_id: Optional[str] = Field(default=None, max_length=64)
+    upstream_devices: int = Field(default=1, ge=1, le=100)
+    upstream_share_hours: int = Field(default=24, ge=1, le=8760)
+    upstream_product_id: Optional[int] = Field(default=None)
+    supplier_code: Optional[str] = Field(default=None, max_length=64)
 
     _empty_text = field_validator("description", "duration_label", "icon", "custom_emoji_id", mode="before")(_empty_if_none)
 
@@ -69,6 +73,11 @@ class ProductUpdatePayload(Payload):
     is_active: Optional[Flag] = None
     delivery_type: Optional[str] = Field(default=None, max_length=16)
     custom_emoji_id: Optional[str] = Field(default=None, max_length=64)
+    upstream_devices: Optional[int] = Field(default=None, ge=1, le=100)
+    upstream_share_hours: Optional[int] = Field(default=None, ge=1, le=8760)
+    upstream_product_id: Optional[int] = Field(default=None)
+    supplier_code: Optional[str] = Field(default=None, max_length=64)
+
 
     _empty_text = field_validator("description", "duration_label", "icon", "custom_emoji_id", mode="before")(_empty_if_none)
 
@@ -153,4 +162,9 @@ class BanPayload(BaseModel):
 
 class UserRankPayload(Payload):
     rank: str = Field(min_length=1, max_length=50)
+
+
+class ResellerApplicationReviewPayload(Payload):
+    admin_note: str = Field(default="", max_length=500)
+
 

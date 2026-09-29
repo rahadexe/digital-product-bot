@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 import logging
+import time
 from collections import Counter
 from decimal import Decimal
 from html import escape
@@ -61,11 +63,15 @@ class PurchaseService:
         settings: SettingsService,
         delivery: DeliveryService,
         notifier: Notifier,
+        upstream_reseller: Any = None,
+        suppliers: Any = None,
     ):
         self.db = db
         self.settings = settings
         self.delivery = delivery
         self.notifier = notifier
+        self.upstream_reseller = upstream_reseller
+        self.suppliers = suppliers
         # Stock warnings fire on the way down, once per sale. Without a quiet period
         # a product falling from three to nothing sends four separate messages, and
         # a catalogue of thirty buries the owner. Set by build_services.
@@ -138,10 +144,112 @@ class PurchaseService:
                     short = round(total_price - Decimal(str(user["balance"])), 2)
                     return False, f"Insufficient balance. You need {short:.2f} more to purchase this item.", None
 
-                # 3. Check delivery type
+                # 3. Check delivery type & supplier routing
                 is_manual = product.get("delivery_type") == "manual"
+                upstream_prod_id = product.get("upstream_product_id")
                 stock_item_ids: list[int] = []
-                if is_manual:
+                supplier_code = product.get("supplier_code") or "digital_mart"
+                supplier_order_id = None
+                supplier_error = None
+
+                supplier = None
+                if upstream_prod_id:
+                    if self.suppliers:
+                        supplier = self.suppliers.get(supplier_code)
+                    if not supplier and self.upstream_reseller and self.upstream_reseller.is_configured:
+                        supplier = self.upstream_reseller
+
+                if upstream_prod_id and supplier and supplier.is_configured:
+                    upstream_devices = int(product.get("upstream_devices") or 1)
+                    upstream_share_hours = int(product.get("upstream_share_hours") or 24)
+
+                    # Step 1: If multi-device sharing is enabled, check if an existing shared account has free seats
+                    claimed_seats = None
+                    if upstream_devices > 1:
+                        claimed_seats = await InventoryService.claim_seats(db, product_id, tg_user_id, count=quantity)
+
+                    if claimed_seats and len(claimed_seats) >= quantity:
+                        # Reusing existing shared account from pool - 0 extra supplier charge!
+                        delivered_content = "\n".join(item["content"] for item in claimed_seats)
+                        source = "stock"
+                        fulfillment = "delivered"
+                        stock_item_ids = [item["id"] for item in claimed_seats]
+                    else:
+                        # Instant pre-check: ensure our unit_price is not lower than known wholesale rate
+                        known_wholesale = float(product.get("reseller_price") or 0.0)
+                        supplier_order_qty = 1 if upstream_devices > 1 else quantity
+                        if known_wholesale > 0 and (known_wholesale * supplier_order_qty) > float(total_price):
+                            await db.execute("ROLLBACK")
+                            return False, "⚠️ The wholesale price for this product has recently updated. Please re-open the product to purchase at the current price.", None
+
+                        # Instant fulfillment via upstream supplier API
+                        custom_id = f"ord_{tg_user_id}_{product_id}_{int(time.time())}"
+                        upstream_resp = await supplier.purchase(
+                            product_id=int(upstream_prod_id),
+                            quantity=supplier_order_qty,
+                            custom_id=custom_id,
+                        )
+
+                        fallback_enabled = await self.settings.flag("supplier_fallback_to_waiting")
+                        if not upstream_resp.get("success"):
+                            err_msg = upstream_resp.get("detail") or "Failed to purchase from supplier"
+                            is_low_balance = upstream_resp.get("insufficient_balance", False)
+
+                            # Graceful fallback: do NOT fail customer order if supplier is low on balance or temporarily down
+                            if fallback_enabled or is_low_balance:
+                                delivered_content = ""
+                                source = "supplier_pending"
+                                fulfillment = "waiting"
+                                supplier_error = str(err_msg)
+                                waiting_reason = f"Supplier fulfillment pending: {err_msg}"
+                                if hasattr(supplier, "check_low_balance"):
+                                    self.notifier.in_background(supplier.check_low_balance(self.notifier))
+                            else:
+                                await db.execute("ROLLBACK")
+                                return False, f"⚠️ Provider notice: {err_msg}", None
+                        else:
+                            supplier_order_id = str(upstream_resp.get("order_id") or "")
+                            charged_cost = float(upstream_resp.get("total_price") or upstream_resp.get("unit_price") or 0.0)
+                            if getattr(supplier, "currency", "BDT") == "USDT":
+                                charged_cost_bdt = round(charged_cost * usd_rate, 2)
+                            else:
+                                charged_cost_bdt = charged_cost
+
+                            # Post-purchase Loss Shield: verify actual deducted cost
+                            if upstream_devices <= 1 and charged_cost_bdt > float(total_price):
+                                admin_ids = await self.settings.admin_chat_ids()
+                                alert_text = (
+                                    f"⚠️ <b>Loss Shield Alert: Price Jump Detected!</b>\n\n"
+                                    f"Product: <b>{product['title']}</b> (Supplier: {getattr(supplier, 'name', supplier_code)} #{upstream_prod_id})\n"
+                                    f"Customer Paid: <code>৳{float(total_price):.2f}</code>\n"
+                                    f"Supplier Deducted: <code>৳{charged_cost_bdt:.2f}</code>\n"
+                                    f"Difference: <code>-৳{charged_cost_bdt - float(total_price):.2f} BDT</code>\n\n"
+                                    f"The supplier has increased their wholesale rate. Please check and adjust retail pricing in the admin console."
+                                )
+                                for aid in admin_ids:
+                                    self.notifier.in_background(self.notifier.send(aid, alert_text))
+
+                            delivered_content = upstream_resp.get("credentials") or upstream_resp.get("delivered_item") or upstream_resp.get("message") or ""
+                            source = "upstream_reseller"
+                            fulfillment = upstream_resp.get("fulfillment") or ("delivered" if delivered_content else "waiting")
+                            if fulfillment == "waiting":
+                                waiting_reason = "Supplier processing order"
+                            elif upstream_devices > 1 and delivered_content:
+                                # Save fresh multi-device account to local inventory pool!
+                                exp_dt = datetime.now(timezone.utc) + timedelta(hours=upstream_share_hours) if upstream_share_hours > 0 else None
+                                new_inv_id = await db.fetchval(
+                                    """
+                                    INSERT INTO inventory_items (product_id, content, max_uses, uses, status, expires_at)
+                                    VALUES ($1, $2, $3, 0, 'available', $4)
+                                    RETURNING id
+                                    """,
+                                    product_id,
+                                    delivered_content,
+                                    upstream_devices,
+                                    exp_dt,
+                                )
+                                stock_item_ids = [new_inv_id] * quantity
+                elif is_manual:
                     delivered_content = ""
                     source = "manual"
                     fulfillment = "waiting"
@@ -173,8 +281,8 @@ class PurchaseService:
                     """
                     INSERT INTO orders (user_id, tg_user_id, product_id, product_title, price, delivered_item,
                                         status, request_id, delivery_status, fulfillment, source, inventory_item_id,
-                                        fulfilled_at, quantity, unit_price)
-                    VALUES ($1, $2, $3, $4, $5, $6, 'completed', $7, 'pending', $8, $9, $10, CASE WHEN $8 = 'delivered' THEN now() ELSE NULL END, $11, $12)
+                                        fulfilled_at, quantity, unit_price, supplier_code, supplier_order_id, supplier_error)
+                    VALUES ($1, $2, $3, $4, $5, $6, 'completed', $7, 'pending', $8, $9, $10, CASE WHEN $8 = 'delivered' THEN now() ELSE NULL END, $11, $12, $13, $14, $15)
                     RETURNING *
                     """,
                     user["id"],
@@ -189,6 +297,9 @@ class PurchaseService:
                     primary_stock_id,
                     quantity,
                     unit_price,
+                    supplier_code if (upstream_prod_id and supplier) else None,
+                    supplier_order_id,
+                    supplier_error,
                 )
                 order_id = order_row["id"]
                 for sid in stock_item_ids:
@@ -204,11 +315,19 @@ class PurchaseService:
                 order["currency_symbol"] = symbol
                 order["usd_rate"] = usd_rate
                 order["show_usd"] = show_usd
-                if is_manual:
+                order["supplier_code"] = order_row.get("supplier_code")
+                order["supplier_error"] = order_row.get("supplier_error")
+                if fulfillment == "waiting":
                     await self.delivery.enqueue_waiting_notice(tg_user_id, order, conn=db)
                 else:
                     await self.delivery.enqueue_order(tg_user_id, order, conn=db)
-                await enqueue_admin_job(db, "order", order_id, {"user": {k: user[k] for k in ("username", "tg_user_id")}, "order": {k: order[k] for k in ("order_id", "product_id", "product_title", "price")}, "reason": waiting_reason if is_manual else ""})
+                await enqueue_admin_job(db, "order", order_id, {
+                    "user": {k: user[k] for k in ("username", "tg_user_id")},
+                    "order": {k: order[k] for k in ("order_id", "product_id", "product_title", "price")},
+                    "reason": waiting_reason,
+                    "supplier_code": order_row.get("supplier_code"),
+                    "supplier_error": order_row.get("supplier_error"),
+                })
                 await db.execute("COMMIT")
             except Exception as exc:
                 if db.is_in_transaction():
@@ -231,24 +350,40 @@ class PurchaseService:
 
         keyboard = None
         if waiting_reason:
-            heading = f"{ICON_WARNING} <b>Manual Order Action Required</b>"
-            delivery = f"{ICON_WARNING} <b>Delivery:</b> Manual"
-            # The customer has paid and is waiting for a human. Let that human
-            # answer from the chat the alert arrived in.
-            rows = [[
+            is_supplier = bool(order.get("supplier_code") or order.get("supplier_error") or "Supplier" in waiting_reason)
+            if is_supplier:
+                heading = f"{ICON_WARNING} <b>Supplier Fulfillment Pending</b>"
+                delivery = f"{ICON_WARNING} <b>Fulfillment:</b> Pending Supplier"
+                if order.get("supplier_error"):
+                    delivery += f"\n⚠️ <b>Issue:</b> <code>{escape(str(order['supplier_error']))}</code>"
+            else:
+                heading = f"{ICON_WARNING} <b>Manual Order Action Required</b>"
+                delivery = f"{ICON_WARNING} <b>Delivery:</b> Manual"
+
+            rows = []
+            if is_supplier:
+                rows.append([
+                    InlineKeyboardButton(
+                        text="⚡ Retry Supplier Delivery",
+                        callback_data=f"adm_ord_sup_retry_{order_id}",
+                        style="primary",
+                        icon_custom_emoji_id=Icons.REFRESH,
+                    )
+                ])
+            rows.append([
                 InlineKeyboardButton(
-                    text="Deliver Here",
+                    text="📦 Deliver Manually",
                     callback_data=f"adm_ord_deliver_{order_id}",
                     style="success",
                     icon_custom_emoji_id=Icons.ORDERS,
                 ),
                 InlineKeyboardButton(
-                    text="Refund",
+                    text="🔄 Refund",
                     callback_data=f"adm_ord_ref_ask_{order_id}",
                     style="danger",
                     icon_custom_emoji_id=Icons.SPENT,
                 ),
-            ]]
+            ])
             if console:
                 rows.append([
                     InlineKeyboardButton(
@@ -410,6 +545,100 @@ class PurchaseService:
             await record(conn, "order_delivered_manually", f"Order #{order_id} delivered by the admin")
         return dict(row)
 
+    async def retry_supplier_fulfillment(self, order_id: int) -> tuple[bool, str, dict[str, Any] | None]:
+        """Retry ordering an upstream product from the supplier when balance or error is resolved."""
+        symbol = await self.settings.get("currency_symbol")
+        usd_rate = await self.settings.number("usd_rate")
+        show_usd = await self.settings.flag("show_usd_price")
+
+        async with self.db.transaction() as conn:
+            order = await conn.fetchrow("SELECT * FROM orders WHERE id = $1 FOR UPDATE", order_id)
+            if not order:
+                return False, "Order not found.", None
+            if order["status"] != "completed" or order["fulfillment"] != "waiting":
+                return False, f"Order is not in waiting state (status: {order['status']}, fulfillment: {order['fulfillment']}).", None
+
+            product = await conn.fetchrow("SELECT * FROM products WHERE id = $1", order["product_id"])
+            if not product:
+                return False, "Product no longer exists in database.", None
+
+            upstream_prod_id = product.get("upstream_product_id")
+            if not upstream_prod_id:
+                return False, "This product is not linked to any upstream supplier.", None
+
+            supplier_code = order.get("supplier_code") or product.get("supplier_code") or "digital_mart"
+            supplier = self.suppliers.get(supplier_code) if self.suppliers else self.upstream_reseller
+            if not supplier or not supplier.is_configured:
+                return False, f"Supplier '{supplier_code}' is not configured.", None
+
+            upstream_devices = int(product.get("upstream_devices") or 1)
+            upstream_share_hours = int(product.get("upstream_share_hours") or 24)
+            quantity = int(order.get("quantity") or 1)
+            supplier_order_qty = 1 if upstream_devices > 1 else quantity
+
+            custom_id = f"ord_retry_{order['tg_user_id']}_{order['id']}_{int(time.time())}"
+            upstream_resp = await supplier.purchase(
+                product_id=int(upstream_prod_id),
+                quantity=supplier_order_qty,
+                custom_id=custom_id,
+            )
+
+            if not upstream_resp.get("success"):
+                err_msg = upstream_resp.get("detail") or "Supplier error"
+                await conn.execute("UPDATE orders SET supplier_error = $1 WHERE id = $2", str(err_msg), order_id)
+                return False, f"Supplier error: {err_msg}", None
+
+            # Success!
+            delivered_content = upstream_resp.get("credentials") or upstream_resp.get("delivered_item") or upstream_resp.get("message") or ""
+            supplier_order_id = str(upstream_resp.get("order_id") or "")
+            fulfillment = upstream_resp.get("fulfillment") or ("delivered" if delivered_content else "waiting")
+
+            updated_row = await conn.fetchrow(
+                """
+                UPDATE orders
+                SET delivered_item = $1,
+                    fulfillment = $2,
+                    source = 'upstream_reseller',
+                    supplier_order_id = $3,
+                    supplier_error = NULL,
+                    fulfilled_at = CASE WHEN $2 = 'delivered' THEN now() ELSE NULL END,
+                    delivery_status = 'pending'
+                WHERE id = $4
+                RETURNING *
+                """,
+                delivered_content,
+                fulfillment,
+                supplier_order_id,
+                order_id,
+            )
+
+            if upstream_devices > 1 and delivered_content:
+                exp_dt = datetime.now(timezone.utc) + timedelta(hours=upstream_share_hours) if upstream_share_hours > 0 else None
+                new_inv_id = await conn.fetchval(
+                    """
+                    INSERT INTO inventory_items (product_id, content, max_uses, uses, status, expires_at)
+                    VALUES ($1, $2, $3, $4, 'available', $5)
+                    RETURNING id
+                    """,
+                    order["product_id"],
+                    delivered_content,
+                    upstream_devices,
+                    quantity,
+                    exp_dt,
+                )
+                await conn.execute("UPDATE orders SET inventory_item_id = $1 WHERE id = $2", new_inv_id, order_id)
+
+            if fulfillment == "delivered":
+                delivered_order = _receipt_fields(updated_row, 0)
+                delivered_order["currency_symbol"] = symbol
+                delivered_order["usd_rate"] = usd_rate
+                delivered_order["show_usd"] = show_usd
+                await self.delivery.enqueue_order(order["tg_user_id"], delivered_order, conn=conn)
+
+            await record(conn, "supplier_order_retried", f"Order #{order_id} fulfilled via supplier {supplier_code}")
+
+        return True, f"Supplier fulfillment successful! Status: {fulfillment}", dict(updated_row)
+
     async def order_detail(self, order_id: int) -> dict[str, Any]:
         """Everything about one order: what was delivered, where it came from, and every message sent about it."""
         async with self.db.connect() as conn:
@@ -491,7 +720,7 @@ class PurchaseService:
             f"{ICON_ORDERS} <b>Order ID:</b> <code>#{order_id}</code>\n"
             f"{ICON_VIP} <b>Product:</b> {escape(order['product_title'])}\n"
             f"{ICON_MONEY} <b>Refunded to Wallet:</b> <code>+{order['price']:.2f} {symbol}</code>\n\n"
-            f"<i>টাকা আপনার ওয়ালেট ব্যালেন্সে ফেরত দেওয়া হয়েছে।</i>"
+            f"<i>Amount has been refunded to your wallet balance.</i>"
         )
         self.notifier.in_background(
             self.notifier.send(order["tg_user_id"], refund_customer_msg)

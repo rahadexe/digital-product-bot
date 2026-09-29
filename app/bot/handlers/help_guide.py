@@ -21,35 +21,37 @@ from app.bot.icons import (
     Icons,
 )
 from app.bot.keyboards import get_support_keyboard, get_update_channels_keyboard
+from app.core.i18n import t
 from app.services import Services
 
 router = Router(name="help_guide_router")
 
 
 @router.message(Command("support"))
-@router.message(F.text == "🎧 Support")
-@router.message(F.text == "💬 Support")
-@router.message(F.text == "কাস্টমার সাপোর্ট")
-@router.message(F.text == "সাপোর্ট")
-@router.message(F.text.casefold() == "support")
+@router.message(F.text.in_({
+    "🎧 Support", "💬 Support", "Support", "support",
+    "🎧 সাপোর্ট", "সাপোর্ট",
+    "🎧 सहायता", "सहायता",
+    "🎧 سپورٹ", "سپورٹ",
+}))
 @router.callback_query(F.data == "open_support")
 async def show_support_info(event: Message | CallbackQuery, state: FSMContext, services: Services):
     await state.clear()
+    tg_user = event.from_user
+    lang = await services.users.get_language(tg_user.id) if tg_user else "en"
     handle = (await services.settings.get("support_username")).lstrip("@")
     channels = await services.update_channels.channels(active_only=True)
     if handle:
         text = (
-            f"{ICON_SUPPORT} <b>Support</b>\n\n"
-            f"🇬🇧 For any questions, order assistance, or deposit issues, reach out to our support team.\n\n"
-            f"🇧🇩 যেকোনো প্রশ্ন, অর্ডার সহায়তা বা ডিপোজিট সমস্যার জন্য আমাদের সাপোর্ট টিমের সাথে যোগাযোগ করুন।"
+            f"{t('support_title', lang, icon_support=ICON_SUPPORT)}\n\n"
+            f"{t('support_text', lang)}"
         )
     else:
         text = (
-            f"{ICON_SUPPORT} <b>Support</b>\n\n"
-            f"🇬🇧 Our support team will be available here shortly.\n\n"
-            f"🇧🇩 আমাদের সাপোর্ট টিম শীঘ্রই এখানে উপলব্ধ হবে।"
+            f"{t('support_title', lang, icon_support=ICON_SUPPORT)}\n\n"
+            f"{t('support_unavailable', lang)}"
         )
-    await respond(event, text, get_support_keyboard(handle, channels))
+    await respond(event, text, get_support_keyboard(handle, channels, lang=lang))
 
 
 GUIDE_TEXT_EN = (
@@ -73,50 +75,20 @@ GUIDE_TEXT_EN = (
     f"{ICON_SUPPORT} Stuck on anything? Tap <b>Back</b> to reach Support."
 )
 
-GUIDE_TEXT_BN = (
-    f"{ICON_NOTE} <b>বট ব্যবহারের নিয়মাবলী</b>\n\n"
-    f"{ICON_DEPOSIT} <b>১. ব্যালেন্স যোগ করুন</b>\n"
-    f"কীবোর্ড থেকে <b>Add Balance</b> চাপুন এবং পেমেন্ট মেথড বেছে নিন। টাকা পাঠিয়ে Transaction ID বা প্রমাণ দিলে স্বয়ংক্রিয়ভাবে ওয়ালেটে ব্যালেন্স যুক্ত হয়ে যাবে।\n\n"
-    f"{ICON_SHOP} <b>২. পছন্দের প্রোডাক্ট নির্বাচন</b>\n"
-    f"কীবোর্ডের উপরের ক্যাটাগরিগুলো থেকে আপনার পছন্দের প্রোডাক্ট সিলেক্ট করুন। <b>−</b> এবং <b>+</b> বাটন চেপে সংখ্যা নির্ধারণ করুন।\n\n"
-    f"{ICON_CHECK} <b>৩. অর্ডার সম্পন্ন করুন</b>\n"
-    f"<b>Confirm</b> বাটনে চাপ দিলে ওয়ালেট থেকে ব্যালেন্স কেটে নিয়ে সাথে সাথে চ্যাটে ইনস্ট্যান্ট ডেলিভারি পেয়ে যাবেন (ম্যানুয়াল প্রোডাক্ট হলে অপারেটর শীঘ্রই ডেলিভারি দেবে)।\n\n"
-    f"{ICON_ORDERS} <b>৪. কেনা প্রোডাক্ট হিস্টোরি</b>\n"
-    f"আপনার কেনা সমস্ত প্রোডাক্ট এবং অর্ডারের বিবরণ <b>My Profile</b> সেকশনে সংরক্ষিত থাকে।\n\n"
-    f"{ICON_REFER} <b>রেফার করে আয় করুন</b>\n"
-    f"<b>Refer & Earn</b> অপশন থেকে আপনার রেফারেল লিংক শেয়ার করে প্রতি রেফারে আকর্ষণীয় বোনাস ব্যালেন্স আয় করুন।\n\n"
-    f"{ICON_SUPPORT} যেকোনো সমস্যায় নিচে <b>Back</b> চেপে সরাসরি সাপোর্টে যোগাযোগ করুন।"
-)
-
 
 def get_guide_keyboard(lang: str = "en") -> InlineKeyboardMarkup:
-    """Guide keyboard with language toggle and side-by-side Back + Close buttons."""
-    if lang == "bn":
-        toggle_btn = InlineKeyboardButton(
-            text="English (Global)",
-            callback_data="guide_lang_en",
-            style="primary",
-            icon_custom_emoji_id=Icons.GLOBE,
-        )
-    else:
-        toggle_btn = InlineKeyboardButton(
-            text="🇧🇩 বাংলায় দেখুন",
-            callback_data="guide_lang_bn",
-            style="primary",
-        )
-
+    """Guide keyboard with side-by-side Back + Close buttons."""
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [toggle_btn],
             [
                 InlineKeyboardButton(
-                    text="Back",
+                    text=t("btn_back", lang),
                     callback_data="open_support",
                     style="primary",
                     icon_custom_emoji_id=Icons.BACK,
                 ),
                 InlineKeyboardButton(
-                    text="Close",
+                    text=t("btn_close", lang),
                     callback_data="close_menu",
                     style="danger",
                     icon_custom_emoji_id=Icons.CLOSE,
@@ -131,7 +103,9 @@ def get_guide_keyboard(lang: str = "en") -> InlineKeyboardMarkup:
 async def show_guide_en(event: Message | CallbackQuery, state: FSMContext, services: Services):
     """Render English guide."""
     await state.clear()
-    keyboard = get_guide_keyboard("en")
+    tg_user = event.from_user
+    lang = await services.users.get_language(tg_user.id) if tg_user else "en"
+    keyboard = get_guide_keyboard(lang=lang)
     if isinstance(event, CallbackQuery):
         with suppress(TelegramBadRequest):
             await event.answer()
@@ -140,18 +114,6 @@ async def show_guide_en(event: Message | CallbackQuery, state: FSMContext, servi
                 await send_operator_html(event.message.edit_text, GUIDE_TEXT_EN, reply_markup=keyboard)
     else:
         await send_operator_html(event.answer, GUIDE_TEXT_EN, reply_markup=keyboard)
-
-
-@router.callback_query(F.data == "guide_lang_bn")
-async def show_guide_bn(event: CallbackQuery, state: FSMContext, services: Services):
-    """Render Bengali guide."""
-    await state.clear()
-    keyboard = get_guide_keyboard("bn")
-    with suppress(TelegramBadRequest):
-        await event.answer()
-    if event.message:
-        with suppress(TelegramBadRequest):
-            await send_operator_html(event.message.edit_text, GUIDE_TEXT_BN, reply_markup=keyboard)
 
 @router.message(Command("channel"))
 @router.message(Command("updates"))

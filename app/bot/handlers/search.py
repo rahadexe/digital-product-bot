@@ -26,8 +26,9 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
-from app.bot.formatting import format_dual_price
+from app.bot.formatting import format_dual_price, respond
 from app.bot.icons import ICON_CROSS, ICON_SHOP, ICON_VIP, Icons
+from app.core.i18n import t
 from app.services import Services
 
 router = Router(name="search_router")
@@ -70,17 +71,23 @@ class EndSearchWhenLeaving(BaseMiddleware):
             _search_handled.reset(token)
 
 
-def _prompt_text(examples: str) -> str:
+def _prompt_text(examples: str, lang: str = "en") -> str:
     return (
-        f"{ICON_VIP} <b>Find a Product</b>\n\n"
-        f"Type what you are looking for.\n\n"
-        f"<i>Try: {escape(examples)}</i>"
+        f"{t('search_title', lang)}\n\n"
+        f"{t('search_prompt', lang)}\n\n"
+        f"<i>{t('search_try', lang)}: {escape(examples)}</i>"
     )
 
 
-_PROMPT_KEYBOARD = InlineKeyboardMarkup(inline_keyboard=[[
-    InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
-]])
+def _prompt_keyboard(lang: str = "en") -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(
+            text=t("btn_close", lang),
+            callback_data="close_menu",
+            style="danger",
+            icon_custom_emoji_id=Icons.CLOSE,
+        )
+    ]])
 
 
 async def _examples(services: Services) -> str:
@@ -93,10 +100,17 @@ async def prompt_search(message: Message, state: FSMContext, services: Services)
     _search_handled.set(True)
     await state.clear()
     await state.set_state(SearchStates.waiting_for_term)
-    await message.answer(_prompt_text(await _examples(services)), reply_markup=_PROMPT_KEYBOARD)
+    lang = await services.users.get_language(message.from_user.id) if message.from_user else "en"
+    examples = await _examples(services)
+    await respond(message, _prompt_text(examples, lang=lang), _prompt_keyboard(lang=lang))
 
 
-@router.message(F.text.in_({"Search Products", "Search"}))
+@router.message(F.text.in_({
+    "🔍 Search", "Search Products", "Search", "search",
+    "🔍 সার্চ", "সার্চ",
+    "🔍 खोजें", "खोजें",
+    "🔍 تلاش کریں", "تلاش کریں",
+}))
 async def search_button(message: Message, state: FSMContext, services: Services) -> None:
     await prompt_search(message, state, services)
 
@@ -109,8 +123,13 @@ async def search_again(query: CallbackQuery, state: FSMContext, services: Servic
     with suppress(TelegramBadRequest):
         await query.answer()
     if query.message:
+        lang = await services.users.get_language(query.from_user.id) if query.from_user else "en"
+        examples = await _examples(services)
         with suppress(TelegramBadRequest):
-            await query.message.edit_text(_prompt_text(await _examples(services)), reply_markup=_PROMPT_KEYBOARD)
+            await query.message.edit_text(
+                _prompt_text(examples, lang=lang),
+                reply_markup=_prompt_keyboard(lang=lang),
+            )
 
 
 def _product_button(product: dict, symbol: str, usd_rate: float | None, show_usd: bool,

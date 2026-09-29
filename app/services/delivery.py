@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import time
 import uuid
-from datetime import datetime
 from html import escape
 from typing import Any
 
@@ -31,9 +30,9 @@ from app.services.errors import NotFoundError
 LEASE_SECONDS = 120
 
 
-def waiting_notice(order: dict[str, Any]) -> str:
+def waiting_notice(order: dict[str, Any], lang: str = "en") -> str:
     order_id = order.get('order_id', order.get('id'))
-    title = escape(order.get('product_title', 'Purchase'))
+    title = escape(str(order.get('product_title', 'Purchase')))
     return (
         f"{ICON_TIMER} <b>Order #{order_id}: {title}</b>\n\n"
         f"{ICON_CHECK} <b>Payment Received!</b>\n\n"
@@ -41,7 +40,7 @@ def waiting_notice(order: dict[str, Any]) -> str:
     )
 
 
-def receipt(order: dict[str, Any]) -> str:
+def receipt(order: dict[str, Any], lang: str = "en") -> str:
     order_id = order.get('order_id', order.get('id'))
     title = escape(str(order.get('product_title', 'Purchase')))
     price_val = order.get('price', 0)
@@ -50,25 +49,14 @@ def receipt(order: dict[str, Any]) -> str:
     show_usd = order.get('show_usd')
     price_str = format_dual_price(price_val, symbol=symbol, usd_rate=usd_rate, show_usd=show_usd)
 
-    created = order.get('created_at')
-    date_str = ""
-    if created:
-        if isinstance(created, datetime):
-            date_str = created.strftime("%Y-%m-%d %H:%M UTC")
-        else:
-            date_str = str(created)[:16]
-
     raw_content = str(order.get('delivered_item', '')).strip()
-
     lines = [
-        f"{ICON_ORDERS} <b>Order #{order_id} Details</b>\n",
+        f"{ICON_ORDERS} <b>Order #{order_id}</b>\n",
         f"{ICON_VIP} <b>Product:</b> {title}",
         f"{ICON_MONEY} <b>Price:</b> <code>{price_str}</code>",
+        f"{ICON_CHECK} <b>Status:</b> <code>Completed</code>\n",
+        f"{ICON_KEY} <b>Delivery Information:</b>",
     ]
-    if date_str:
-        lines.append(f"{ICON_TIMER} <b>Date:</b> {date_str}")
-    lines.append(f"{ICON_CHECK} <b>Status:</b> <code>COMPLETED</code>\n")
-    lines.append(f"{ICON_KEY} <b>Delivered Credentials:</b>")
 
     cred_items = [escape(it.strip()) for it in raw_content.splitlines() if it.strip()]
     if cred_items:
@@ -87,18 +75,28 @@ class DeliveryService:
 
     async def enqueue_order(self, tg_user_id: int, order: dict[str, Any], *, conn: asyncpg.Connection | None = None) -> None:
         sql = "INSERT INTO outbox (tg_user_id, text, order_id) VALUES ($1, $2, $3) ON CONFLICT (order_id) DO NOTHING"
+        if not order.get('language'):
+            if conn is not None:
+                order['language'] = await conn.fetchval("SELECT language FROM users WHERE tg_user_id = $1", tg_user_id) or 'bn'
+            else:
+                async with self.db.connect() as c:
+                    order['language'] = await c.fetchval("SELECT language FROM users WHERE tg_user_id = $1", tg_user_id) or 'bn'
+        text = receipt(order, lang=order.get('language', 'bn'))
         if conn is not None:
-            await conn.execute(sql, tg_user_id, receipt(order), order['order_id'])
+            await conn.execute(sql, tg_user_id, text, order['order_id'])
             return
         async with self.db.connect() as connection:
-            await connection.execute(sql, tg_user_id, receipt(order), order['order_id'])
+            await connection.execute(sql, tg_user_id, text, order['order_id'])
 
     async def enqueue_waiting_notice(self, tg_user_id: int, order: dict[str, Any], *, conn: asyncpg.Connection) -> None:
         """Tells a customer whose order is waiting that it was paid. Not the receipt, which follows on delivery."""
+        if not order.get('language'):
+            order['language'] = await conn.fetchval("SELECT language FROM users WHERE tg_user_id = $1", tg_user_id) or 'bn'
+        text = waiting_notice(order, lang=order.get('language', 'bn'))
         await conn.execute(
             "INSERT INTO outbox (tg_user_id, text, about_order_id) VALUES ($1, $2, $3)",
             tg_user_id,
-            waiting_notice(order),
+            text,
             order['order_id'],
         )
 

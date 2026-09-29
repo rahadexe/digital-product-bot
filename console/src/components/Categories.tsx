@@ -71,8 +71,9 @@ export function Categories({ say }: { say: Say }) {
     try {
       await api.updateCategory(cat.id, {
         name: cat.name,
+        icon: (cat as any).icon || '',
         sort_order: cat.sort_order,
-        is_active: cat.is_active,
+        is_active: cat.is_active ? 1 : 0,
         is_pinned: willPin ? 1 : 0,
         has_validity_filter: cat.has_validity_filter ? 1 : 0,
         custom_emoji_id: cat.custom_emoji_id,
@@ -99,9 +100,10 @@ export function Categories({ say }: { say: Say }) {
     try {
       await api.updateCategory(cat.id, {
         name: cat.name,
+        icon: (cat as any).icon || '',
         sort_order: cat.sort_order,
         is_active: willHide ? 0 : 1,
-        is_pinned: cat.is_pinned,
+        is_pinned: cat.is_pinned ? 1 : 0,
         has_validity_filter: cat.has_validity_filter ? 1 : 0,
         custom_emoji_id: cat.custom_emoji_id,
       });

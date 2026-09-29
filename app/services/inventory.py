@@ -12,9 +12,13 @@ from typing import Any
 
 import asyncpg
 
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+from app.bot.icons import Icons
 from app.db import Database
 from app.services.audit import record
 from app.services.errors import InvalidInputError, NotFoundError
+from app.services.notifications import Notifier
 
 MAX_ITEMS_PER_UPLOAD = 5000
 MAX_USES = 1000
@@ -40,10 +44,12 @@ def _parse_datetime(dt: Any) -> datetime | None:
 
 
 class InventoryService:
-    def __init__(self, db: Database):
+    def __init__(self, db: Database, notifier: Notifier | None = None):
         self.db = db
+        self.notifier = notifier
 
     async def add_stock(
+
         self, product_id: int, items: list[str], max_uses: int = 1, expires_at: Any = None
     ) -> dict[str, int]:
         """Adds each line once. A line already in stock for this product is skipped, so one key is never sold twice by mistake."""
@@ -72,8 +78,38 @@ class InventoryService:
                 )
                 seats = f", {max_uses} customers each" if max_uses > 1 else ""
                 await record(conn, "bulk_stock_added", f"Added {len(fresh)} stock items to Product ID {product_id}{seats}")
+                if self.notifier:
+                    subscribers = await conn.fetch(
+                        "SELECT tg_user_id FROM restock_notifications WHERE product_id = $1", product_id
+                    )
+                    if subscribers:
+                        prod = await conn.fetchrow("SELECT title FROM products WHERE id = $1", product_id)
+                        title = prod["title"] if prod else "Product"
+                        for s in subscribers:
+                            uid = s["tg_user_id"]
+                            kb = InlineKeyboardMarkup(
+                                inline_keyboard=[[
+                                    InlineKeyboardButton(
+                                        text="⚡ Buy Now",
+                                        callback_data=f"prod_{product_id}",
+                                        style="success",
+                                        icon_custom_emoji_id=Icons.CONFIRM,
+                                    )
+                                ]]
+                            )
+                            self.notifier.in_background(
+                                self.notifier.send(
+                                    uid,
+                                    f"🔔 <b>Product Restocked!</b>\n\n"
+                                    f"<b>{title}</b> is now back in stock!\n"
+                                    f"Grab yours before it runs out. 👇",
+                                    keyboard=kb,
+                                )
+                            )
+                        await conn.execute("DELETE FROM restock_notifications WHERE product_id = $1", product_id)
         skipped = len([item for item in items if item.strip()]) - len(fresh)
         return {"added": len(fresh), "skipped": skipped}
+
 
     async def items(
         self, product_id: int | None = None, status: str | None = None, limit: int = 100, offset: int = 0

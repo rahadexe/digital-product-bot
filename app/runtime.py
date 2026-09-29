@@ -202,5 +202,11 @@ async def run_worker(services: Services) -> None:
     from app.workers.admin_notifications import AdminNotificationWorker
     from app.workers.delivery import DeliveryWorker
     from app.workers.payments import PaymentWatcher
+    from app.workers.upstream import UpstreamWorker
 
-    await asyncio.gather(DeliveryWorker(services.delivery, services.notifier.bot).run(), PaymentWatcher(services).run(), AdminNotificationWorker(services).run())
+    await asyncio.gather(
+        DeliveryWorker(services.delivery, services.notifier.bot).run(),
+        PaymentWatcher(services).run(),
+        AdminNotificationWorker(services).run(),
+        UpstreamWorker(services).run(),
+    )

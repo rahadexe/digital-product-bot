@@ -35,6 +35,7 @@ from app.bot.icons import (
     ICON_NOTE,
     ICON_ORDERS,
     ICON_PLUS,
+    ICON_RESELLER,
     ICON_SHIELD,
     ICON_SHOP,
     ICON_SPENT,
@@ -177,7 +178,7 @@ async def cmd_broadcast(message: Message, state: FSMContext, services: Services)
         "\n"
         f"Send or forward the message to broadcast.\n"
         f"<i>Supports text, photos & HTML formatting.</i>\n\n"
-        f"Send /cancel to abort.",
+        f"Tap Cancel below to abort.",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
         ]])
@@ -239,13 +240,21 @@ async def process_broadcast_input(message: Message, state: FSMContext, services:
 
         await message.answer(
             f"{ICON_WARNING} <b>Invalid input:</b> Bot commands cannot be broadcast.\n\n"
-            f"Please send the message you want to broadcast, or send /cancel to abort."
+            f"Please send the message you want to broadcast, or tap Cancel below to abort.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
+            ]])
         )
         return
 
     text = message.html_text or message.caption or message.text
     if not text or not text.strip():
-        await message.answer(f"{ICON_WARNING} Please send a text message or type /cancel.")
+        await message.answer(
+            f"{ICON_WARNING} Please send a text message or tap Cancel below.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
+            ]])
+        )
         return
 
     await _show_preview(message, text.strip(), services, state, panel_msg_id=panel_msg_id)
@@ -327,6 +336,9 @@ async def build_admin_dashboard(services: Services) -> tuple[str, InlineKeyboard
     deposits_text = f"Deposits ({pending})" if pending else "Deposits"
     orders_text = f"Orders ({waiting})" if waiting else "Orders"
 
+    pending_reseller = await services.reseller_applications.count_applications(status="pending")
+    reseller_apps_text = f"Reseller Apps ({pending_reseller})" if pending_reseller else "Reseller Apps"
+
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="Store Status", callback_data="adm_view_status",
@@ -345,6 +357,9 @@ async def build_admin_dashboard(services: Services) -> tuple[str, InlineKeyboard
         [
             InlineKeyboardButton(text="Stock", callback_data="adm_start_stock",
                                  icon_custom_emoji_id=Icons.PLUS),
+            InlineKeyboardButton(text=reseller_apps_text, callback_data="adm_queue_reseller",
+                                 style="danger" if pending_reseller else "primary",
+                                 icon_custom_emoji_id=Icons.RESELLER),
         ],
         [
             InlineKeyboardButton(text="Find Customer", callback_data="adm_start_find",
@@ -462,7 +477,7 @@ _last_admin_panels: dict[int, int] = {}
 
 
 @router.message(Command("admin"))
-@router.message(F.text == ADMIN_PANEL_TEXT)
+@router.message(F.text.in_({ADMIN_PANEL_TEXT, f"👑 {ADMIN_PANEL_TEXT}"}))
 async def cmd_admin_help(message: Message, state: FSMContext, services: Services):
     # The keyboard button reaches here from any screen, including the middle of a
     # deposit or a search, so whatever that screen was waiting for is dropped. Anyone
@@ -593,10 +608,10 @@ async def adm_cb_start_broadcast(query: CallbackQuery, state: FSMContext, servic
                 f"Active recipients: <b>{recipients}</b>\n\n"
                 f"Send or forward the message to broadcast.\n"
                 f"<i>Supports text, photos & HTML formatting.</i>\n\n"
-                f"Send /cancel to abort.",
+                f"Tap Cancel below to abort.",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
                     InlineKeyboardButton(text="Back", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
-                    InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
+                    InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
                 ]])
             )
 
@@ -659,13 +674,19 @@ async def adm_cb_start_welcome(query: CallbackQuery, state: FSMContext, services
                 f"{status_hint}"
                 f"Send new greeting text below.\n"
                 f"• Use <code>{{store_name}}</code> for store name\n"
-                f"• Send /cancel to abort",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-                    InlineKeyboardButton(text="Use default", callback_data="adm_reset_welcome",
-                                         icon_custom_emoji_id=Icons.REFRESH),
-                    InlineKeyboardButton(text="Back", callback_data="adm_start_settings",
-                                         icon_custom_emoji_id=Icons.BACK),
-                ]]),
+                f"• Tap Cancel below to abort",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [
+                        InlineKeyboardButton(text="Use default", callback_data="adm_reset_welcome",
+                                             icon_custom_emoji_id=Icons.REFRESH),
+                        InlineKeyboardButton(text="Back", callback_data="adm_start_settings",
+                                             icon_custom_emoji_id=Icons.BACK),
+                    ],
+                    [
+                        InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger",
+                                             icon_custom_emoji_id=Icons.CLOSE),
+                    ]
+                ]),
             )
 
 
@@ -698,10 +719,10 @@ async def adm_cb_start_find(query: CallbackQuery, state: FSMContext, services: S
                 f"{ICON_ACCOUNT} <b>Find Customer</b>\n"
                 "\n"
                 f"Send Telegram ID (e.g. <code>100200300</code>) or <code>@username</code>.\n\n"
-                f"Send /cancel to abort.",
+                f"Tap Cancel below to abort.",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
                     InlineKeyboardButton(text="Back", callback_data="adm_dashboard", icon_custom_emoji_id=Icons.BACK),
-                    InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
+                    InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
                 ]])
             )
 
@@ -773,13 +794,19 @@ async def cmd_set_welcome(message: Message, state: FSMContext, services: Service
         f"{status_hint}"
         f"Send new greeting text below.\n"
         f"• Use <code>{{store_name}}</code> for store name\n"
-        f"• Send /cancel to abort",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text="Use default", callback_data="adm_reset_welcome",
-                                 icon_custom_emoji_id=Icons.REFRESH),
-            InlineKeyboardButton(text="Back", callback_data="adm_start_settings", style="primary",
-                                 icon_custom_emoji_id=Icons.BACK),
-        ]]),
+        f"• Tap Cancel below to abort",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [
+                InlineKeyboardButton(text="Use default", callback_data="adm_reset_welcome",
+                                     icon_custom_emoji_id=Icons.REFRESH),
+                InlineKeyboardButton(text="Back", callback_data="adm_start_settings", style="primary",
+                                     icon_custom_emoji_id=Icons.BACK),
+            ],
+            [
+                InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger",
+                                     icon_custom_emoji_id=Icons.CLOSE),
+            ]
+        ]),
     )
 
 
@@ -882,13 +909,21 @@ async def process_welcome_input(message: Message, state: FSMContext, services: S
 
         await message.answer(
             f"{ICON_WARNING} <b>Invalid input:</b> Commands cannot be saved as welcome message.\n\n"
-            f"Send greeting text, or /cancel."
+            f"Send greeting text, or tap Cancel below.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
+            ]])
         )
         return
 
     text = message.html_text or message.caption or message.text
     if not text or not text.strip():
-        await message.answer(f"{ICON_WARNING} Please send text message, or /cancel.")
+        await message.answer(
+            f"{ICON_WARNING} Please send text message, or tap Cancel below.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
+            ]])
+        )
         return
 
     await state.clear()
@@ -1181,7 +1216,8 @@ async def _deposit_summary(services: Services, deposit_id: int) -> dict | None:
 async def _order_summary(services: Services, order_id: int) -> dict | None:
     async with services.db.connect() as conn:
         row = await conn.fetchrow(
-            "SELECT o.id, o.product_title, o.price, o.status, o.fulfillment, "
+            "SELECT o.id, o.product_title, o.price, o.status, o.fulfillment, o.source, "
+            "o.supplier_code, o.supplier_error, o.product_id, "
             "o.tg_user_id, o.created_at, u.username "
             "FROM orders o LEFT JOIN users u ON u.tg_user_id = o.tg_user_id "
             "WHERE o.id = $1",
@@ -1204,6 +1240,12 @@ def _format_order_card(order: dict, symbol: str, back_cb: str = "adm_queue_ord")
     time_str = created_at.strftime("%d %b %Y, %I:%M %p") if hasattr(created_at, "strftime") else ""
     time_line = f"\n{ICON_TIMER} <b>Ordered:</b> <code>{time_str}</code>" if time_str else ""
 
+    sup_info = ""
+    if order.get("supplier_code"):
+        sup_info += f"\n🏢 <b>Supplier:</b> <code>{html.escape(str(order['supplier_code']))}</code>"
+    if order.get("supplier_error"):
+        sup_info += f"\n⚠️ <b>Supplier Issue:</b> <code>{html.escape(str(order['supplier_error']))}</code>"
+
     text = (
         f"{ICON_ORDERS} <b>Order Details #{order_id}</b>\n\n"
         f"{ICON_ACCOUNT} <b>Customer:</b> {cust_handle}\n"
@@ -1211,20 +1253,35 @@ def _format_order_card(order: dict, symbol: str, back_cb: str = "adm_queue_ord")
         f"{ICON_SHOP} <b>Product:</b> {product_title}\n"
         f"{ICON_MONEY} <b>Price:</b> <code>{amount}</code>\n"
         f"<b>Status:</b> <code>{status.title()}</code>\n"
-        f"{ICON_TIMER} <b>Delivery:</b> Manual ({fulfillment.title()})"
+        f"{ICON_TIMER} <b>Delivery:</b> {fulfillment.title()}"
+        f"{sup_info}"
         f"{time_line}"
     )
     rows: list[list[InlineKeyboardButton]] = []
     if status == "completed" and fulfillment == "waiting":
+        is_supplier = bool(
+            order.get("supplier_code")
+            or order.get("supplier_error")
+            or order.get("source") in ("supplier_pending", "upstream_fallback", "upstream_reseller")
+        )
+        if is_supplier:
+            rows.append([
+                InlineKeyboardButton(
+                    text="⚡ Retry Supplier Delivery",
+                    callback_data=f"adm_ord_sup_retry_{order_id}",
+                    style="primary",
+                    icon_custom_emoji_id=Icons.REFRESH,
+                )
+            ])
         rows.append([
             InlineKeyboardButton(
-                text="Deliver Here",
+                text="📦 Deliver Manually",
                 callback_data=f"adm_ord_deliver_{order_id}",
                 style="success",
                 icon_custom_emoji_id=Icons.ORDERS,
             ),
             InlineKeyboardButton(
-                text="Refund",
+                text="🔄 Refund",
                 callback_data=f"adm_ord_ref_ask_{order_id}",
                 style="danger",
                 icon_custom_emoji_id=Icons.SPENT,
@@ -1460,10 +1517,10 @@ async def adm_order_deliver(query: CallbackQuery, state: FSMContext, services: S
                 "\n"
                 f"{ICON_SHOP} <b>Product:</b> {html.escape(order['product_title'])}\n\n"
                 f"Send credentials or item to deliver below:\n"
-                f"<i>(Send /cancel to stop)</i>",
+                f"<i>(Tap Cancel below to stop)</i>",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
                     InlineKeyboardButton(text="Back", callback_data=back_cb, style="primary", icon_custom_emoji_id=Icons.BACK),
-                    InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
+                    InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
                 ]])
             )
 
@@ -1561,7 +1618,12 @@ async def adm_order_deliver_send(message: Message, state: FSMContext, services: 
             )
         return
     if not text:
-        await message.answer(f"{ICON_WARNING} Send the credentials as text, or /cancel.")
+        await message.answer(
+            f"{ICON_WARNING} Send the credentials as text, or tap Cancel below.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
+            ]])
+        )
         return
 
     order_id = int(data.get("deliver_order_id") or 0)
@@ -2116,6 +2178,31 @@ async def adm_order_retry(query: CallbackQuery, services: Services):
     with suppress(TelegramBadRequest):
         await query.answer("Queued again.")
 
+
+@router.callback_query(F.data.regexp(r"^adm_ord_sup_retry_\d+$"))
+async def adm_order_supplier_retry(query: CallbackQuery, services: Services):
+    """Admin clicked to retry upstream supplier fulfillment."""
+    if await _deny(query, services):
+        return
+    order_id = int(query.data.removeprefix("adm_ord_sup_retry_"))
+    with suppress(TelegramBadRequest):
+        await query.answer("Retrying with supplier...")
+
+    success, msg, _ = await services.purchases.retry_supplier_fulfillment(order_id)
+    if success:
+        with suppress(TelegramBadRequest):
+            await query.answer(f"✅ {msg}", show_alert=True)
+        order = await _order_summary(services, order_id)
+        if order and query.message:
+            symbol = html.escape(await services.settings.get("currency_symbol"))
+            text, keyboard = _format_order_card(order, symbol, back_cb="adm_queue_ord")
+            with suppress(TelegramBadRequest):
+                await query.message.edit_text(text, reply_markup=keyboard)
+    else:
+        with suppress(TelegramBadRequest):
+            await query.answer(f"❌ {msg}", show_alert=True)
+
+
 async def build_stock_overview_view(services: Services, page: int = 0) -> tuple[str, InlineKeyboardMarkup]:
     products = await services.catalog.products(active_only=False, limit=200)
     threshold = int(await services.settings.number("low_stock_threshold") or 3)
@@ -2425,7 +2512,12 @@ async def adm_stock_save(message: Message, state: FSMContext, services: Services
 
     lines = [line.strip() for line in extracted_text.splitlines() if line.strip()]
     if not lines:
-        await message.answer(f"{ICON_WARNING} No valid stock lines found. Send the items, one per line, upload a .txt file, or /cancel.")
+        await message.answer(
+            f"{ICON_WARNING} No valid stock lines found. Send the items, one per line, upload a .txt file, or tap Cancel below.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
+            ]])
+        )
         return
 
     # Parse optional "uses:N" directive from the first line.
@@ -2592,3 +2684,234 @@ async def adm_ban_do(query: CallbackQuery, services: Services):
                     ]
                 ])
             )
+
+
+@router.message(Command("upstream", "sync_reseller"))
+async def adm_upstream_status(message: Message, services: Services):
+    if await _deny(message, services):
+        return
+    reseller = services.upstream_reseller
+    if not reseller or not reseller.is_configured:
+        await message.answer("⚠️ Upstream reseller API is not configured in .env.")
+        return
+
+    account = await reseller.get_account()
+    if not account:
+        await message.answer("❌ Failed to connect to upstream reseller API. Check your key and network.")
+        return
+
+    name = account.get("name") or "Reseller"
+    tg_id = account.get("tg_user_id") or ""
+    bal = account.get("balance", 0.0)
+    curr = account.get("currency", "BDT")
+    sym = account.get("currency_symbol", "৳")
+
+    text = (
+        f"{ICON_RESELLER} <b>Upstream Reseller Status</b>\n\n"
+        f"👤 <b>Account Name:</b> {html.escape(str(name))}\n"
+        f"{ICON_ID} <b>TG User ID:</b> <code>{tg_id}</code>\n"
+        f"{ICON_BALANCE} <b>Balance:</b> <code>{sym}{bal:.2f} {curr}</code>\n"
+        f"🌐 <b>API URL:</b> <code>{reseller.base_url}</code>\n\n"
+        f"👇 <i>Tap below to sync catalog with upstream provider:</i>"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="🔄 Sync Catalog Now", callback_data="adm_do_sync_upstream", style="success", icon_custom_emoji_id=Icons.REFRESH),
+        ],
+        [
+            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
+        ],
+    ])
+    await message.answer(text, reply_markup=kb)
+
+
+@router.callback_query(F.data == "adm_do_sync_upstream")
+async def adm_do_sync_upstream_cb(query: CallbackQuery, services: Services):
+    if await _deny(query, services):
+        return
+    reseller = services.upstream_reseller
+    if not reseller or not reseller.is_configured:
+        await query.answer("Upstream not configured.", show_alert=True)
+        return
+
+    with suppress(TelegramBadRequest):
+        await query.answer("Syncing catalog with upstream provider...")
+
+    cats, prods = await reseller.sync_catalog()
+    result_text = f"✅ <b>Sync Complete!</b>\n\n• Categories created: {cats}\n• Products synced/updated: {prods}"
+    if query.message:
+        await query.message.answer(result_text)
+
+
+# ---------------------------------------------------------------------------
+# Reseller Applications Management
+# ---------------------------------------------------------------------------
+
+
+def _format_reseller_app_card(app: dict[str, Any], back_cb: str = "adm_queue_reseller") -> tuple[str, InlineKeyboardMarkup]:
+    status = (app.get("status") or "pending").lower()
+    if status == "approved":
+        status_badge = f"{ICON_CHECK} <b>Approved</b>"
+    elif status == "rejected":
+        status_badge = f"{ICON_CROSS} <b>Rejected</b>"
+    else:
+        status_badge = f"{ICON_TIMER} <b>Pending Review</b>"
+
+    created = app["created_at"].strftime("%Y-%m-%d %H:%M") if hasattr(app.get("created_at"), "strftime") else str(app.get("created_at", ""))[:16]
+
+    text = (
+        f"{ICON_RESELLER} <b>Reseller Application #{app['id']}</b>\n\n"
+        f"<b>Status:</b> {status_badge}\n"
+        f"<b>Applicant:</b> <code>{html.escape(app['full_name'])}</code>\n"
+        f"<b>Telegram:</b> <code>{html.escape(app['telegram_handle'])}</code> (ID: <code>{app['tg_user_id']}</code>)\n"
+        f"<b>Phone/WA:</b> <code>{html.escape(app['phone_number'])}</code>\n"
+        f"<b>Channel/Store:</b> {html.escape(app['channel_link'])}\n"
+        f"<b>Submitted:</b> <code>{created}</code>\n"
+    )
+    if app.get("admin_notes"):
+        text += f"\n<b>Admin Note:</b> <i>{html.escape(app['admin_notes'])}</i>\n"
+
+    rows: list[list[InlineKeyboardButton]] = []
+    if status == "pending":
+        rows.append([
+            InlineKeyboardButton(text="Approve", callback_data=f"adm_appr_res_{app['id']}", style="success", icon_custom_emoji_id=Icons.CHECK),
+            InlineKeyboardButton(text="Reject", callback_data=f"adm_rej_res_{app['id']}", style="danger", icon_custom_emoji_id=Icons.CROSS),
+        ])
+    rows.append([
+        InlineKeyboardButton(text="Back", callback_data=back_cb, style="primary", icon_custom_emoji_id=Icons.BACK),
+        InlineKeyboardButton(text="Admin Panel", callback_data="adm_dashboard", style="primary", icon_custom_emoji_id=Icons.CROWN),
+    ])
+    return text, InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+@router.callback_query(F.data.startswith("adm_queue_reseller"))
+async def adm_queue_reseller_cb(query: CallbackQuery, services: Services):
+    if await _deny(query, services):
+        return
+    page = 0
+    if query.data.startswith("adm_queue_reseller_p_"):
+        try:
+            page = int(query.data.split("_")[-1])
+        except ValueError:
+            page = 0
+
+    PAGE_SIZE = 8
+    offset = page * PAGE_SIZE
+    apps = await services.reseller_applications.list_applications(status=None, limit=PAGE_SIZE, offset=offset)
+    total = await services.reseller_applications.count_applications(status=None)
+    total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE) if total > 0 else 1
+    page = min(page, total_pages - 1)
+
+    rows: list[list[InlineKeyboardButton]] = []
+    for a in apps:
+        st = a.get("status", "pending")
+        icon = "🟡" if st == "pending" else ("🟢" if st == "approved" else "🔴")
+        btn_text = f"{icon} #{a['id']} {a['full_name'][:18]} ({a['telegram_handle'][:15]})"
+        btn_style = "danger" if st == "pending" else "primary"
+        rows.append([
+            InlineKeyboardButton(text=btn_text, callback_data=f"adm_view_res_app_{a['id']}", style=btn_style)
+        ])
+
+    if total_pages > 1:
+        nav: list[InlineKeyboardButton] = []
+        if page > 0:
+            nav.append(InlineKeyboardButton(text="Prev", callback_data=f"adm_queue_reseller_p_{page - 1}", style="primary", icon_custom_emoji_id=Icons.BACK))
+        nav.append(InlineKeyboardButton(text=f"{page + 1}/{total_pages}", callback_data="adm_noop"))
+        if page < total_pages - 1:
+            nav.append(InlineKeyboardButton(text="Next", callback_data=f"adm_queue_reseller_p_{page + 1}", style="primary", icon_custom_emoji_id=Icons.NEXT))
+        rows.append(nav)
+
+    rows.append([
+        InlineKeyboardButton(text="Refresh", callback_data=f"adm_queue_reseller_p_{page}", icon_custom_emoji_id=Icons.REFRESH),
+        InlineKeyboardButton(text="Back", callback_data="adm_dashboard", style="primary", icon_custom_emoji_id=Icons.BACK),
+    ])
+
+    summary = await services.reseller_applications.get_summary()
+    text = (
+        f"{ICON_RESELLER} <b>Reseller Applications ({summary['total']})</b>\n\n"
+        f"🟡 Pending: <b>{summary['pending']}</b> · 🟢 Approved: <b>{summary['approved']}</b> · 🔴 Rejected: <b>{summary['rejected']}</b>\n\n"
+        f"<i>Select an application below to view details and approve/reject:</i>"
+    )
+    with suppress(TelegramBadRequest):
+        await query.answer()
+    if query.message:
+        with suppress(TelegramBadRequest):
+            await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
+
+
+@router.callback_query(F.data.startswith("adm_view_res_app_"))
+async def adm_view_reseller_app_cb(query: CallbackQuery, services: Services):
+    if await _deny(query, services):
+        return
+    app_id = int(query.data.split("_")[-1])
+    app = await services.reseller_applications.get_application(app_id)
+    if not app:
+        await query.answer("Application not found.", show_alert=True)
+        return
+    with suppress(TelegramBadRequest):
+        await query.answer()
+    text, kb = _format_reseller_app_card(app)
+    if query.message:
+        with suppress(TelegramBadRequest):
+            await query.message.edit_text(text, reply_markup=kb)
+
+
+@router.callback_query(F.data.startswith("adm_appr_res_"))
+async def adm_approve_reseller_cb(query: CallbackQuery, services: Services):
+    if await _deny(query, services):
+        return
+    app_id = int(query.data.split("_")[-1])
+    admin_id = query.from_user.id if query.from_user else 0
+    app = await services.reseller_applications.approve_application(app_id, reviewed_by=admin_id)
+    if not app:
+        await query.answer("Could not approve application (may already be processed).", show_alert=True)
+        return
+
+    with suppress(TelegramBadRequest):
+        await query.answer("Application Approved! User promoted to Reseller.", show_alert=True)
+
+    user_notify_text = (
+        f"🎉 <b>Congratulations! Your Reseller Application has been Approved!</b>\n\n"
+        f"Your account status is now upgraded to <b>Reseller</b>.\n\n"
+        f"💼 <b>Benefits Activated:</b>\n"
+        f"• Exclusive wholesale reseller prices on all products.\n"
+        f"• Direct REST API Key access for bot/store automation.\n"
+        f"• Priority automated delivery.\n\n"
+        f"👉 Tap <b>Reseller Panel</b> on the keyboard below to view your stats and generate your API key!"
+    )
+    await services.notifier.send_message(app["tg_user_id"], user_notify_text)
+
+    updated = await services.reseller_applications.get_application(app_id)
+    if updated and query.message:
+        text, kb = _format_reseller_app_card(updated)
+        with suppress(TelegramBadRequest):
+            await query.message.edit_text(f"✅ <b>Approved by Admin!</b>\n\n" + text, reply_markup=kb)
+
+
+@router.callback_query(F.data.startswith("adm_rej_res_"))
+async def adm_reject_reseller_cb(query: CallbackQuery, services: Services):
+    if await _deny(query, services):
+        return
+    app_id = int(query.data.split("_")[-1])
+    admin_id = query.from_user.id if query.from_user else 0
+    app = await services.reseller_applications.reject_application(app_id, reviewed_by=admin_id, reason="Did not meet eligibility criteria at this time.")
+    if not app:
+        await query.answer("Could not reject application (may already be processed).", show_alert=True)
+        return
+
+    with suppress(TelegramBadRequest):
+        await query.answer("Application Rejected.", show_alert=True)
+
+    user_notify_text = (
+        f"ℹ️ <b>Reseller Application Update</b>\n\n"
+        f"Thank you for your interest in our Reseller Program.\n"
+        f"Unfortunately, your application (<b>#{app_id}</b>) was not approved at this time.\n\n"
+        f"If you feel this was in error or your channel has grown, you are welcome to apply again in the future or contact support."
+    )
+    await services.notifier.send_message(app["tg_user_id"], user_notify_text)
+
+    updated = await services.reseller_applications.get_application(app_id)
+    if updated and query.message:
+        text, kb = _format_reseller_app_card(updated)
+        with suppress(TelegramBadRequest):
+            await query.message.edit_text(f"🔴 <b>Rejected by Admin</b>\n\n" + text, reply_markup=kb)

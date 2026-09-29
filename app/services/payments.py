@@ -667,7 +667,7 @@ class PaymentService:
                     f"{ICON_MONEY} <b>Payable Amount:</b> <code>{pay_amt:.2f} {LOCAL_CURRENCY}</code>\n"
                     f"{ICON_LIGHTNING} <b>Method:</b> Instant Auto Gateway\n"
                     f"{ICON_CHECK} <b>Status:</b> <b>Paid / Completed</b>\n\n"
-                    f"✅ <i>পেমেন্টটি সফলভাবে সম্পন্ন হয়েছে এবং একাউন্টে ব্যালেন্স যোগ করা হয়েছে।</i>"
+                    f"✅ <i>Payment completed successfully! Balance has been credited to your wallet.</i>"
                 )
                 kb = InlineKeyboardMarkup(
                     inline_keyboard=[[

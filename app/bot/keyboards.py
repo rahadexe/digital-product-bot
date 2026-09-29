@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from typing import Any, Dict, List
+from urllib.parse import quote
 from uuid import uuid4
 
 from aiogram.types import (
@@ -14,8 +15,9 @@ from aiogram.types import (
 
 from app.bot.formatting import format_dual_price
 from app.bot.icons import Icons
+from app.core.i18n import t
 
-ADMIN_PANEL_TEXT = "Admin Panel"
+ADMIN_PANEL_TEXT = "👑 Admin Panel"
 
 
 def get_persistent_reply_keyboard(
@@ -23,12 +25,14 @@ def get_persistent_reply_keyboard(
     has_unpinned: bool = False,
     is_reseller: bool = False,
     is_admin: bool = False,
+    lang: str = "en",
 ) -> ReplyKeyboardMarkup:
     """
     Fully dynamic persistent reply keyboard:
     - Pinned categories are rendered with their names and custom emojis from database.
     - If unpinned categories exist (or no categories are pinned), an 'Other Products' button is included.
-    - Standard system action rows below.
+    - Standard system action rows below with unicode icons so non-Premium users also see icons.
+    - Localized according to user's preferred language.
     """
     rows: List[List[KeyboardButton]] = []
     cat_buttons: List[KeyboardButton] = []
@@ -37,9 +41,10 @@ def get_persistent_reply_keyboard(
         for c in pinned_categories:
             name = c["name"].strip()
             custom_emoji_id = c.get("custom_emoji_id")
+            icon = (c.get("icon") or "").strip()
+            btn_text = f"{icon} {name}".strip() if icon and not name.startswith(icon) else name
             kwargs: Dict[str, Any] = {
-                "text": name,
-                "style": "primary",
+                "text": btn_text,
             }
             if custom_emoji_id and str(custom_emoji_id).strip().isdigit():
                 kwargs["icon_custom_emoji_id"] = str(custom_emoji_id).strip()
@@ -47,33 +52,30 @@ def get_persistent_reply_keyboard(
 
     # Add "Other Products" if unpinned categories exist OR if no pinned categories exist
     if has_unpinned or not pinned_categories:
-        cat_buttons.append(
-            KeyboardButton(text="Other Products", style="success", icon_custom_emoji_id=Icons.VIP)
-        )
+        other_kwargs: Dict[str, Any] = {
+            "text": t("btn_other_products", lang),
+            "icon_custom_emoji_id": Icons.PRODUCTS,
+        }
+        cat_buttons.append(KeyboardButton(**other_kwargs))
 
     # Chunk category buttons 2 per row
     for i in range(0, len(cat_buttons), 2):
         rows.append(cat_buttons[i : i + 2])
 
-    # Search sits with the shop buttons, where someone looking for a product already is.
-    # The rest are laid out as pairs rather than fixed rows, so none of them is ever left
-    # alone on a line of its own.
-    reseller_text = "Reseller Panel" if is_reseller else "Apply as a Reseller"
+    reseller_text = t("btn_reseller_panel", lang) if is_reseller else t("btn_become_reseller", lang)
     system_buttons = [
-        KeyboardButton(text="Search", style="primary", icon_custom_emoji_id=Icons.QUESTION),
-        KeyboardButton(text="Add Balance", style="primary", icon_custom_emoji_id=Icons.DEPOSIT),
-        KeyboardButton(text="Refer & Earn", style="success", icon_custom_emoji_id=Icons.REFER),
-        KeyboardButton(text="My Profile", style="primary", icon_custom_emoji_id=Icons.ACCOUNT),
-        KeyboardButton(text="Support", style="primary", icon_custom_emoji_id=Icons.SUPPORT),
-        KeyboardButton(text=reseller_text, style="success", icon_custom_emoji_id=Icons.RESELLER),
+        KeyboardButton(text=t("btn_add_balance", lang), icon_custom_emoji_id=Icons.DEPOSIT),
+        KeyboardButton(text=t("btn_search", lang), icon_custom_emoji_id=Icons.QUESTION),
+        KeyboardButton(text=t("btn_refer_earn", lang), icon_custom_emoji_id=Icons.REFER),
+        KeyboardButton(text=t("btn_profile", lang), icon_custom_emoji_id=Icons.ACCOUNT),
+        KeyboardButton(text=t("btn_support", lang), icon_custom_emoji_id=Icons.SUPPORT),
+        KeyboardButton(text=reseller_text, icon_custom_emoji_id=Icons.RESELLER),
     ]
     for i in range(0, len(system_buttons), 2):
         rows.append(system_buttons[i : i + 2])
-    # Only ever built for the administrator list, so a customer's keyboard has no trace
-    # of it. A row of its own at the very bottom: the owner's door, apart from the shop,
-    # and where everything the bot learns to do for them later can hang off one button.
+
     if is_admin:
-        rows.append([KeyboardButton(text=ADMIN_PANEL_TEXT, style="danger", icon_custom_emoji_id=Icons.CROWN)])
+        rows.append([KeyboardButton(text=t("btn_admin_panel", lang), icon_custom_emoji_id=Icons.CROWN)])
     return ReplyKeyboardMarkup(
         keyboard=rows,
         resize_keyboard=True,
@@ -86,6 +88,7 @@ def get_categories_keyboard(
     show_all_option: bool = True,
     page: int = 1,
     page_size: int = 8,
+    lang: str = "en",
 ) -> InlineKeyboardMarkup:
     """Inline keyboard listing unpinned categories with grid layout and pagination."""
     buttons = []
@@ -101,8 +104,10 @@ def get_categories_keyboard(
     for c in current_page_categories:
         name = c["name"].strip()
         custom_emoji_id = c.get("custom_emoji_id")
+        icon = (c.get("icon") or "").strip()
+        btn_text = f"{icon} {name}".strip() if icon and not name.startswith(icon) else name
         kwargs: Dict[str, Any] = {
-            "text": name[:64],
+            "text": btn_text[:64],
             "callback_data": f"cat_{c['id']}",
             "style": "primary",
         }
@@ -118,7 +123,7 @@ def get_categories_keyboard(
         if page > 1:
             nav_row.append(
                 InlineKeyboardButton(
-                    text="Prev",
+                    text=t("btn_prev", lang),
                     callback_data=f"catpage_{page - 1}",
                     style="primary",
                     icon_custom_emoji_id=Icons.BACK,
@@ -135,7 +140,7 @@ def get_categories_keyboard(
         if page < total_pages:
             nav_row.append(
                 InlineKeyboardButton(
-                    text="Next",
+                    text=t("btn_next", lang),
                     callback_data=f"catpage_{page + 1}",
                     style="primary",
                     icon_custom_emoji_id=Icons.NEXT,
@@ -146,21 +151,15 @@ def get_categories_keyboard(
     if show_all_option:
         buttons.append([
             InlineKeyboardButton(
-                text="All Products",
+                text=t("btn_all_products", lang),
                 callback_data="shop_all",
                 style="success",
                 icon_custom_emoji_id=Icons.PRODUCTS,
             ),
-            InlineKeyboardButton(
-                text="Uncategorized",
-                callback_data="shop_uncat",
-                style="primary",
-                icon_custom_emoji_id=Icons.NOTE,
-            ),
         ])
 
     buttons.append([
-        InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
+        InlineKeyboardButton(text=t("btn_close", lang), callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
     ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -292,73 +291,122 @@ def get_update_channels_keyboard(channels: List[Dict[str, Any]]) -> InlineKeyboa
     )
 
 
-def get_account_keyboard(is_admin: bool = False) -> InlineKeyboardMarkup:
-    """Account actions: view order history or balance history."""
+def get_account_keyboard(lang: str = "en", is_admin: bool = False) -> InlineKeyboardMarkup:
+    """Account actions: view order history, balance history, change language, or close menu."""
     buttons = [
         [
-            InlineKeyboardButton(text="Order History", callback_data="open_orders", style="primary", icon_custom_emoji_id=Icons.ORDERS),
+            InlineKeyboardButton(text=t("btn_order_history", lang), callback_data="open_orders", style="primary", icon_custom_emoji_id=Icons.ORDERS),
+            InlineKeyboardButton(text=t("btn_balance_history", lang), callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.STATS),
         ],
         [
-            InlineKeyboardButton(text="Balance History", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.STATS),
-        ],
-        [
-            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
+            InlineKeyboardButton(text=t("btn_change_language", lang), callback_data="open_language_menu", style="primary", icon_custom_emoji_id=Icons.GLOBE),
+            InlineKeyboardButton(text=t("btn_close", lang), callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE),
         ],
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def get_language_selection_keyboard(current_lang: str = "en", back_target: str | None = "open_account") -> InlineKeyboardMarkup:
+    """Language selection keyboard with English, Bengali, Hindi, and Urdu."""
+    langs = [
+        ("en", "🇬🇧 English", Icons.GLOBE),
+        ("bn", "🇧🇩 বাংলা", Icons.GLOBE),
+        ("hi", "🇮🇳 हिन्दी", Icons.GLOBE),
+        ("ur", "🇵🇰 اردو", Icons.GLOBE),
+    ]
+    rows = []
+    row = []
+    for code, label, icon in langs:
+        display_label = f"✓ {label}" if code == current_lang else label
+        row.append(
+            InlineKeyboardButton(
+                text=display_label,
+                callback_data=f"set_lang_{code}",
+                style="success" if code == current_lang else "primary",
+                icon_custom_emoji_id=icon,
+            )
+        )
+        if len(row) == 2:
+            rows.append(row)
+            row = []
+    if row:
+        rows.append(row)
+
+    nav_row = []
+    if back_target:
+        nav_row.append(
+            InlineKeyboardButton(text=t("btn_back", current_lang), callback_data=back_target, style="primary", icon_custom_emoji_id=Icons.BACK)
+        )
+    nav_row.append(
+        InlineKeyboardButton(text=t("btn_close", current_lang), callback_data="close_menu", style="danger", icon_custom_emoji_id=Icons.CLOSE)
+    )
+    rows.append(nav_row)
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 
 def get_support_keyboard(
     support_handle: str = "",
     channels: List[Dict[str, Any]] | None = None,
+    lang: str = "en",
 ) -> InlineKeyboardMarkup:
     """
-    Keyboard for Support.
-    - Top: Support direct chat button (full width).
-    - Middle: Channel button(s) if configured.
-    - Bottom: Guide and Close buttons side-by-side in one row.
+    Keyboard for Support:
+    - Top: Support direct chat button (full width, highlighted).
+    - Middle: Guide and Channel side-by-side in one row.
+    - Bottom: Close button.
     """
     rows = []
     if support_handle:
         handle = support_handle.lstrip("@")
         rows.append([
             InlineKeyboardButton(
-                text="Support",
+                text=t("btn_support_chat", lang),
                 url=f"https://t.me/{handle}",
-                style="primary",
+                style="success",
                 icon_custom_emoji_id=Icons.SUPPORT,
             )
         ])
 
+    guide_btn = InlineKeyboardButton(
+        text=t("btn_guide", lang),
+        callback_data="open_guide",
+        style="primary",
+        icon_custom_emoji_id=Icons.NOTE,
+    )
+    close_btn = InlineKeyboardButton(
+        text=t("btn_close", lang),
+        callback_data="close_menu",
+        style="danger",
+        icon_custom_emoji_id=Icons.CLOSE,
+    )
+
+    channel_btns = []
     if channels:
         for ch in channels:
             title = (ch.get("title") or "Official Channel").strip()
             url = ch.get("url") or ""
             if url:
-                rows.append([
+                channel_btns.append(
                     InlineKeyboardButton(
                         text=title,
                         url=url,
-                        style="success",
+                        style="primary",
                         icon_custom_emoji_id=Icons.CHANNEL,
                     )
-                ])
+                )
 
-    rows.append([
-        InlineKeyboardButton(
-            text="Guide",
-            callback_data="open_guide",
-            style="primary",
-            icon_custom_emoji_id=Icons.NOTE,
-        ),
-        InlineKeyboardButton(
-            text="Close",
-            callback_data="close_menu",
-            style="danger",
-            icon_custom_emoji_id=Icons.CLOSE,
-        ),
-    ])
+    if channel_btns:
+        if len(channel_btns) == 1:
+            rows.append([guide_btn, channel_btns[0]])
+        else:
+            rows.append([guide_btn])
+            for i in range(0, len(channel_btns), 2):
+                rows.append(channel_btns[i : i + 2])
+        rows.append([close_btn])
+    else:
+        rows.append([guide_btn, close_btn])
+
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -412,6 +460,12 @@ def get_products_keyboard(
         if duration_label and duration_label.lower() not in {"instant", "none", "n/a", ""}:
             if not re.search(rf"\b{re.escape(duration_label)}\b", clean_title, re.IGNORECASE):
                 clean_title = f"{clean_title} {duration_label}"
+
+        # Product icon: if custom emoji is not set, use custom icon if specified
+        prod_icon = (p.get("icon") or "").strip()
+        has_custom_emoji = bool(custom_emoji_id and str(custom_emoji_id).strip().isdigit())
+        if prod_icon and not has_custom_emoji and not clean_title.startswith(prod_icon):
+            clean_title = f"{prod_icon} {clean_title}"
 
         is_manual = p.get("delivery_type") == "manual"
         if is_manual:
@@ -492,6 +546,7 @@ def get_quantity_selector_keyboard(
     user_balance: float,
     currency_symbol: str = "৳",
     is_manual: bool = False,
+    is_upstream: bool = False,
     back_target: str = "open_shop",
     usd_rate: float | None = None,
     show_usd: bool = True,
@@ -510,7 +565,7 @@ def get_quantity_selector_keyboard(
     buttons = []
 
     dec_qty = max(1, quantity - 1)
-    upper_bound = max_stock if not is_manual and max_stock > 0 else 999
+    upper_bound = max_stock if not is_manual and not is_upstream and max_stock > 0 else 999
     inc_qty = min(upper_bound, quantity + 1)
 
     # Row 1: [-]  [ Qty ]  [+]
@@ -546,7 +601,7 @@ def get_quantity_selector_keyboard(
     ])
 
     # Row 3: Confirm Purchase / Deposit / Out of Stock
-    if not is_manual and max_stock <= 0:
+    if not is_manual and not is_upstream and max_stock <= 0:
         buttons.append([
             InlineKeyboardButton(text="Out of Stock", callback_data="noop", style="danger", icon_custom_emoji_id=Icons.CROSS)
         ])
@@ -683,6 +738,7 @@ def get_deposit_methods_keyboard(
     methods: List[Dict[str, Any]],
     instant_label: str | None = None,
     back_target: str | None = None,
+    lang: str = "en",
 ) -> InlineKeyboardMarkup:
     """Wallet top-up methods: clean buttons displaying the exact configured method name."""
     buttons = []
@@ -751,33 +807,43 @@ def get_deposit_methods_keyboard(
             )
         ])
 
+    nav_row = []
     if back_target:
-        buttons.append([
+        nav_row.append(
             InlineKeyboardButton(
-                text="Back",
+                text=t("btn_back", lang),
                 callback_data=back_target,
-                style="danger",
+                style="primary",
                 icon_custom_emoji_id=Icons.BACK,
             )
-        ])
+        )
+    nav_row.append(
+        InlineKeyboardButton(
+            text=t("btn_close", lang),
+            callback_data="close_menu",
+            style="danger",
+            icon_custom_emoji_id=Icons.CLOSE,
+        )
+    )
+    buttons.append(nav_row)
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def get_manual_deposit_invoice_keyboard(account_info: str, is_binance: bool = False) -> InlineKeyboardMarkup:
+def get_manual_deposit_invoice_keyboard(account_info: str, is_binance: bool = False, lang: str = "en") -> InlineKeyboardMarkup:
     """Actions shown for a deposit method: copy number/UID, I've paid, change method."""
     destination = str(account_info or "").strip()
     buttons = []
     if destination.startswith("https://"):
         buttons.append([
             InlineKeyboardButton(
-                text="Open Payment Page",
+                text=t("btn_open_payment_page", lang),
                 url=destination,
                 style="primary",
                 icon_custom_emoji_id=Icons.GLOBE,
             )
         ])
     elif destination:
-        btn_label = "Copy Binance UID" if is_binance else "Copy Number"
+        btn_label = t("btn_copy_uid", lang) if is_binance else t("btn_copy_number", lang)
         btn_icon = Icons.BINANCE if is_binance else Icons.NOTE
         buttons.append([
             InlineKeyboardButton(
@@ -789,7 +855,7 @@ def get_manual_deposit_invoice_keyboard(account_info: str, is_binance: bool = Fa
         ])
     buttons.append([
         InlineKeyboardButton(
-            text="Payment Done",
+            text=t("btn_payment_done", lang),
             callback_data="dep_confirm_paid",
             style="success",
             icon_custom_emoji_id=Icons.CHECK,
@@ -797,7 +863,7 @@ def get_manual_deposit_invoice_keyboard(account_info: str, is_binance: bool = Fa
     ])
     buttons.append([
         InlineKeyboardButton(
-            text="Back",
+            text=t("btn_back", lang),
             callback_data="open_deposit",
             style="danger",
             icon_custom_emoji_id=Icons.BACK,
@@ -806,12 +872,12 @@ def get_manual_deposit_invoice_keyboard(account_info: str, is_binance: bool = Fa
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def get_cancel_keyboard(back_target: str | None = "open_deposit") -> InlineKeyboardMarkup:
+def get_cancel_keyboard(back_target: str | None = "open_deposit", lang: str = "en") -> InlineKeyboardMarkup:
     row: list[InlineKeyboardButton] = []
     if back_target:
         row.append(
             InlineKeyboardButton(
-                text="Back",
+                text=t("btn_back", lang),
                 callback_data=back_target,
                 style="primary",
                 icon_custom_emoji_id=Icons.BACK,
@@ -819,7 +885,7 @@ def get_cancel_keyboard(back_target: str | None = "open_deposit") -> InlineKeybo
         )
     row.append(
         InlineKeyboardButton(
-            text="Close",
+            text=t("btn_close", lang),
             callback_data="close_menu",
             style="danger",
             icon_custom_emoji_id=Icons.CLOSE,
@@ -828,12 +894,12 @@ def get_cancel_keyboard(back_target: str | None = "open_deposit") -> InlineKeybo
     return InlineKeyboardMarkup(inline_keyboard=[row])
 
 
-def get_deposit_amount_keyboard(account_info: str, method_id: int, is_binance: bool = False) -> InlineKeyboardMarkup:
+def get_deposit_amount_keyboard(account_info: str, method_id: int, is_binance: bool = False, lang: str = "en") -> InlineKeyboardMarkup:
     """Buttons on the Enter Amount screen: copy number/UID, Back to invoice, Close."""
     destination = str(account_info or "").strip()
     buttons = []
     if destination:
-        btn_label = "Copy Binance UID" if is_binance else "Copy Number"
+        btn_label = t("btn_copy_uid", lang) if is_binance else t("btn_copy_number", lang)
         btn_icon = Icons.BINANCE if is_binance else Icons.NOTE
         buttons.append([
             InlineKeyboardButton(
@@ -845,7 +911,7 @@ def get_deposit_amount_keyboard(account_info: str, method_id: int, is_binance: b
         ])
     buttons.append([
         InlineKeyboardButton(
-            text="Back",
+            text=t("btn_back", lang),
             callback_data=f"dep_method_{method_id}",
             style="primary",
             icon_custom_emoji_id=Icons.BACK,
@@ -853,7 +919,7 @@ def get_deposit_amount_keyboard(account_info: str, method_id: int, is_binance: b
     ])
     buttons.append([
         InlineKeyboardButton(
-            text="Close",
+            text=t("btn_close", lang),
             callback_data="close_menu",
             style="danger",
             icon_custom_emoji_id=Icons.CLOSE,
@@ -862,15 +928,13 @@ def get_deposit_amount_keyboard(account_info: str, method_id: int, is_binance: b
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def get_deposit_txid_keyboard(is_bangla: bool = False) -> InlineKeyboardMarkup:
+def get_deposit_txid_keyboard(is_bangla: bool = False, lang: str = "en") -> InlineKeyboardMarkup:
     """Buttons on the Enter TrxID screen: Back to change amount, Close."""
-    change_text = "Change Amount"
-    cancel_text = "Close"
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text=change_text,
+                    text=t("btn_change_amount", lang),
                     callback_data="dep_confirm_paid",
                     style="primary",
                     icon_custom_emoji_id=Icons.BACK,
@@ -878,7 +942,7 @@ def get_deposit_txid_keyboard(is_bangla: bool = False) -> InlineKeyboardMarkup:
             ],
             [
                 InlineKeyboardButton(
-                    text=cancel_text,
+                    text=t("btn_close", lang),
                     callback_data="close_menu",
                     style="danger",
                     icon_custom_emoji_id=Icons.CLOSE,

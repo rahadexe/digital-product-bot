@@ -84,6 +84,10 @@ export interface Product {
   custom_emoji_id?: string;
   created_at?: string;
   stock?: number;
+  upstream_product_id?: number | null;
+  supplier_code?: string | null;
+  upstream_devices?: number;
+  upstream_share_hours?: number;
 }
 
 export interface InventoryItem {
@@ -122,8 +126,11 @@ export interface Order {
   /** 'waiting': a paid manual order awaiting fulfillment. */
   fulfillment: 'delivered' | 'waiting';
   /** 'supplier' only appears on orders placed before that integration was removed. */
-  source: 'stock' | 'supplier' | 'manual' | 'legacy';
+  source: 'stock' | 'supplier' | 'manual' | 'legacy' | 'supplier_pending' | 'upstream_reseller';
   fulfilled_at?: string | null;
+  supplier_code?: string | null;
+  supplier_order_id?: string | null;
+  supplier_error?: string | null;
 }
 
 export interface OrderDetail {
@@ -153,6 +160,35 @@ export interface DepositSummary {
   pending_amount: number;
   today_amount: number;
 }
+
+export interface ResellerApplication {
+  id: number;
+  user_id: number;
+  tg_user_id: number;
+  full_name: string;
+  telegram_handle: string;
+  phone_number: string;
+  channel_link: string;
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+  admin_notes?: string | null;
+  reviewed_by?: number | null;
+  reviewed_at?: string | null;
+  created_at: string;
+  updated_at: string;
+  username?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  rank?: string | null;
+  balance?: number | null;
+}
+
+export interface ResellerApplicationsSummary {
+  total: number;
+  pending: number;
+  approved: number;
+  rejected: number;
+}
+
 
 export interface InventorySummary {
   available_units: number;
@@ -287,6 +323,54 @@ export interface UpdateChannel {
   url: string;
   sort_order: number;
   is_active: number;
+}
+
+export interface SupplierAccount {
+  user_id?: number;
+  tg_user_id?: number;
+  username?: string;
+  name?: string;
+  rank?: string;
+  balance?: number;
+  currency?: string;
+  currency_symbol?: string;
+}
+
+export interface SupplierProvider {
+  code: string;
+  name: string;
+  currency: string;
+  currency_symbol: string;
+  is_configured: boolean;
+  base_url: string;
+  api_key_masked: string;
+  balance: number;
+  connected: boolean;
+  markup_percent: number;
+  auto_sync: number;
+  low_balance_alert: number;
+  products_count: number;
+}
+
+export interface SupplierStatus {
+  is_configured: boolean;
+  base_url: string;
+  api_key_masked: string;
+  account: SupplierAccount | null;
+  upstream_products_count: number;
+  total_products: number;
+  upstream_orders_count: number;
+  markup_percent?: number;
+  auto_sync?: number;
+  low_balance_alert?: number;
+  providers?: SupplierProvider[];
+}
+
+export interface SupplierSyncResult {
+  success: boolean;
+  categories_synced: number;
+  products_synced: number;
+  message: string;
 }
 
 const API_BASE =
@@ -663,7 +747,50 @@ export const api = {
 
   failedJobs: () => request<Array<{kind: 'telegram' | 'notification'; id: number; attempts: number; error: string}>>('/api/admin/failed-jobs'),
   retryJob: (kind: 'telegram' | 'notification', id: number) => request<{success: boolean}>(`/api/admin/failed-jobs/${kind}/${id}/retry`, {method: 'POST'}),
+  // Supplier
+  supplierStatus: () => request<SupplierStatus>('/api/admin/suppliers/status'),
+  supplierSync: (supplier: string = 'all') =>
+    request<SupplierSyncResult>(`/api/admin/suppliers/sync?supplier=${encodeURIComponent(supplier)}`, { method: 'POST' }),
+  supplierSaveConfig: (data: {
+    supplier_code?: string;
+    base_url: string;
+    api_key: string;
+    markup_percent?: number;
+    auto_sync?: number;
+    low_balance_alert?: number;
+  }) =>
+    request<{ success: boolean; message: string; connected?: boolean; account?: any; balance?: number }>('/api/admin/suppliers/config', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  retrySupplierOrder: (id: number) =>
+    request<{ success: boolean; message: string; order?: any }>(`/api/admin/orders/${id}/retry-supplier`, {
+      method: 'POST',
+    }),
+
+  // Reseller Applications
+  resellerApplications: (status?: string, offset: number = 0, limit: number = 50) => {
+    const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+    if (status && status !== 'all') params.set('status', status);
+    return request<{
+      applications: ResellerApplication[];
+      total: number;
+      summary: ResellerApplicationsSummary;
+    }>(`/api/admin/reseller-applications?${params.toString()}`);
+  },
+  approveResellerApplication: (id: number, admin_note: string = '') =>
+    request<{ success: boolean; message: string }>(`/api/admin/reseller-applications/${id}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ admin_note }),
+    }),
+  rejectResellerApplication: (id: number, admin_note: string = '') =>
+    request<{ success: boolean; message: string }>(`/api/admin/reseller-applications/${id}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ admin_note }),
+    }),
+
   // Audit
+
   auditLogs: (filters: { search?: string; action?: string; security?: boolean; offset?: number } = {}) => {
     const params = new URLSearchParams({ limit: '50', offset: String(filters.offset ?? 0) });
     if (filters.search) params.set('search', filters.search);

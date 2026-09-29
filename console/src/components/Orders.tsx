@@ -471,6 +471,19 @@ function OrderDetailModal({
               </button>
             ) : null}
 
+            {waiting && (order.supplier_code || order.supplier_error || order.source === 'supplier_pending' || order.source === 'upstream_reseller') ? (
+              <button
+                type="button"
+                className="btn primary small"
+                disabled={Boolean(busy)}
+                onClick={() =>
+                  run('retry_supplier', async () => (await api.retrySupplierOrder(order.id)).message || 'Supplier fulfillment successful!')
+                }
+              >
+                {busy === 'retry_supplier' ? 'Retrying...' : '⚡ Retry Supplier'}
+              </button>
+            ) : null}
+
             {!waiting && order.status === 'completed' && order.delivery_status === 'failed' ? (
               <button
                 type="button"
@@ -568,6 +581,31 @@ function OrderDetailModal({
               </span>
             </div>
           </div>
+
+          {order.supplier_code && (
+            <div className="order-modal-row">
+              <span className="order-modal-label">Supplier</span>
+              <div className="order-modal-val">
+                <span className="pill primary">
+                  {order.supplier_code === 'safwan_tiger' ? 'Safwan Tiger Shop' : 'Digital Mart'}
+                </span>
+                {order.supplier_order_id && (
+                  <span style={{ marginLeft: 6, fontSize: '11px', color: 'var(--muted)' }}>
+                    #{order.supplier_order_id}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {order.supplier_error && (
+            <div className="order-modal-row">
+              <span className="order-modal-label">Supplier Issue</span>
+              <div className="order-modal-val" style={{ color: 'var(--negative)', fontSize: '12px' }}>
+                <span>{order.supplier_error}</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

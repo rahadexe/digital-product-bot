@@ -19,7 +19,7 @@ from aiogram.types import (
     Message,
 )
 
-from app.bot.formatting import callback_int, format_dual_price, respond
+from app.bot.formatting import callback_int, forget_menu_message, format_dual_price, respond
 from app.bot.handlers import search
 from app.bot.handlers.navigation import is_navigation, navigate
 from app.bot.icons import (
@@ -46,6 +46,7 @@ from app.bot.keyboards import (
     get_quantity_selector_keyboard,
     get_validity_selector_keyboard,
 )
+from app.core.i18n import t
 from app.services import Services
 
 router = Router(name="shop_router")
@@ -81,9 +82,19 @@ class CategoryTextFilter(BaseFilter):
         # Exclude reserved system button titles
         ignored = {
             "add balance", "refer & earn", "my profile", "support", "apply as a reseller",
+            "become reseller", "reseller panel", "admin panel",
             "other products", "other product", "others", "premium products", "all products",
             "cancel", "shop", "products", "deposit", "account", "orders", "guide", "channel",
-            "updates", "পণ্য কিনুন", "ডিপোজিট করুন", "কাস্টমার সাপোর্ট",
+            "updates", "search", "search products",
+            # Bengali
+            "অ্যাড ব্যালেন্স", "সার্চ", "রেফার ও ইনকাম", "আমার প্রোফাইল", "সাপোর্ট",
+            "রিসেলার হন", "রিসেলার প্যানেল", "অ্যাডমিন প্যানেল", "অন্যান্য প্রোডাক্ট",
+            # Hindi
+            "बैलेंस जोड़ें", "खोजें", "रेफर और कमाएं", "मेरी प्रोफाइल", "सहायता",
+            "रीसेलर बनें", "रीसेलर पैनल", "एडमिन पैनल", "अन्य उत्पाद",
+            # Urdu
+            "بیلنس شامل کریں", "تلاش کریں", "ریفر اور کمائیں", "میری پروفائل", "سپورٹ",
+            "ری سیلر بنیں", "ری سیلر پینل", "ایڈمن پینل", "دیگر مصنوعات",
         }
         if text.casefold() in ignored:
             return False
@@ -179,20 +190,36 @@ async def handle_legacy_cat_callbacks(query: CallbackQuery, state: FSMContext, s
         await show_category_or_validity(query, state, services, category=cat, back_target="back_to_main")
 
 
-@router.message(F.text.in_({"Other Products", "other products", "Other Product", "other product", "👑 Other Products", "💎 Other Products", "Others", "others", "Premium Products", "premium products", "👑 Premium Products", "আদার প্রোডাক্টস"}))
+@router.message(F.text.in_({
+    "🛍️ Other Products", "Other Products", "other products",
+    "🛍️ Other Product", "Other Product", "other product",
+    "🛍️ অন্যান্য প্রোডাক্ট", "অন্যান্য প্রোডাক্ট",
+    "🛍️ अन्य उत्पाद", "अन्य उत्पाद",
+    "🛍️ دیگر مصنوعات", "دیگر مصنوعات",
+    "👑 Other Products", "💎 Other Products", "Others", "others",
+    "Premium Products", "premium products", "👑 Premium Products",
+    "🛍️ Products", "🛒 Products", "Products", "products",
+    "🛍️ Buy Products", "🛒 Buy Products", "Buy Products",
+    "🛍️ All Products", "All Products", "all products",
+}))
 @router.callback_query(F.data.in_({"open_other_products", "open_premium_products", "open_categories"}))
 async def show_other_products_hub(event: Message | CallbackQuery, state: FSMContext, services: Services):
     """Dynamic hub for unpinned categories."""
     await state.clear()
+    tg_user = event.from_user
+    lang = await services.users.get_language(tg_user.id) if tg_user else "en"
+
     unpinned = await services.catalog.unpinned_categories(active_only=True)
     if not unpinned:
         all_cats = await services.catalog.categories(active_only=True)
         pinned_ids = {c["id"] for c in await services.catalog.pinned_categories(active_only=True)}
         unpinned = [c for c in all_cats if c["id"] not in pinned_ids] or all_cats
-    kb = get_categories_keyboard(unpinned, show_all_option=True)
+
+    kb = get_categories_keyboard(unpinned, show_all_option=True, lang=lang)
+    title = t("btn_other_products", lang).replace("🛍️ ", "").strip()
     await respond(
         event,
-        f"{ICON_VIP} <b>Other Products:</b>",
+        f"{ICON_SHOP} <b>{title}:</b>",
         kb,
     )
 
@@ -205,14 +232,18 @@ async def paginate_categories(query: CallbackQuery, state: FSMContext, services:
     except (IndexError, ValueError):
         page = 1
 
+    tg_user = query.from_user
+    lang = await services.users.get_language(tg_user.id) if tg_user else "en"
+
     unpinned = await services.catalog.unpinned_categories(active_only=True)
     if not unpinned:
         all_cats = await services.catalog.categories(active_only=True)
         pinned_ids = {c["id"] for c in await services.catalog.pinned_categories(active_only=True)}
         unpinned = [c for c in all_cats if c["id"] not in pinned_ids] or all_cats
 
-    kb = get_categories_keyboard(unpinned, show_all_option=True, page=page)
-    text = f"{ICON_VIP} <b>Other Products:</b>"
+    kb = get_categories_keyboard(unpinned, show_all_option=True, page=page, lang=lang)
+    title = t("btn_other_products", lang).replace("🛍️ ", "").strip()
+    text = f"{ICON_SHOP} <b>{title}:</b>"
     try:
         if query.message:
             await query.message.edit_text(text, reply_markup=kb)
@@ -268,8 +299,11 @@ async def product_view(
     duration = escape(product.get("duration_label") or "")
 
     is_manual = product.get("delivery_type") == "manual"
+    is_upstream = bool(product.get("upstream_product_id"))
     if is_manual:
         stock_text = f"<b>Available (Manual Delivery) {ICON_TIMER}</b>"
+    elif is_upstream:
+        stock_text = f"<b>Available (Automated) {ICON_LIGHTNING}</b>"
     elif stock > 0:
         stock_text = f"<b>{stock}</b> Available"
     else:
@@ -360,6 +394,7 @@ async def product_view(
         user_balance=balance,
         currency_symbol=symbol,
         is_manual=is_manual,
+        is_upstream=is_upstream,
         back_target=back_target,
         usd_rate=usd_rate,
         show_usd=show_usd,
@@ -382,7 +417,6 @@ async def product_view(
 @router.message(F.text == "🔥 Shop 🔥")
 @router.message(F.text.casefold() == "products")
 @router.message(F.text.casefold() == "shop")
-@router.message(F.text == "পণ্য কিনুন")
 @router.callback_query(F.data == "open_shop")
 @router.callback_query(F.data == "open_categories")
 async def show_shop_entry(event: Message | CallbackQuery, state: FSMContext, services: Services):
@@ -399,10 +433,13 @@ async def show_shop_entry(event: Message | CallbackQuery, state: FSMContext, ser
 
     unpinned = await services.catalog.unpinned_categories(active_only=True)
     if unpinned:
-        keyboard = get_categories_keyboard(unpinned, show_all_option=True)
+        tg_user = event.from_user
+        lang = await services.users.get_language(tg_user.id) if tg_user else "en"
+        keyboard = get_categories_keyboard(unpinned, show_all_option=True, lang=lang)
+        title = t("btn_other_products", lang).replace("🛍️ ", "").strip()
         await respond(
             event,
-            f"{ICON_VIP} <b>Other Products:</b>",
+            f"{ICON_VIP} <b>{title}:</b>",
             keyboard,
         )
         return
@@ -417,7 +454,7 @@ async def show_all_products(query: CallbackQuery, state: FSMContext, services: S
 
 
 @router.callback_query(F.data.in_({"shop_uncat", "shop_uncategorized"}))
-@router.message(F.text.in_({"Uncategorized", "uncategorized", "আনক্যাটাগরাইজড"}))
+@router.message(F.text.in_({"Uncategorized", "uncategorized"}))
 async def show_uncat_products(event: Message | CallbackQuery, state: FSMContext, services: Services):
     await state.clear()
     await show_products_list(event, state, services, category_id="uncategorized", back_target="open_categories")
@@ -598,6 +635,7 @@ async def handle_close_menu(query: CallbackQuery, state: FSMContext):
     with suppress(TelegramBadRequest):
         await query.answer()
     if query.message:
+        forget_menu_message(query.message.chat.id)
         with suppress(TelegramBadRequest):
             await query.message.delete()
 
@@ -789,8 +827,9 @@ async def adjust_quantity(query: CallbackQuery, state: FSMContext, services: Ser
         return
 
     is_manual = product.get("delivery_type") == "manual"
+    is_upstream = bool(product.get("upstream_product_id"))
     stock = product.get("stock", 0)
-    if not is_manual and stock > 0 and quantity > stock:
+    if not is_manual and not is_upstream and stock > 0 and quantity > stock:
         quantity = stock
         with suppress(TelegramBadRequest):
             await query.answer(f"Only {stock} available in stock!", show_alert=True)
@@ -929,8 +968,9 @@ async def handle_keypad_action(query: CallbackQuery, state: FSMContext, services
         return
 
     is_manual = product.get("delivery_type") == "manual"
+    is_upstream = bool(product.get("upstream_product_id"))
     stock = product.get("stock", 0)
-    upper_bound = stock if not is_manual and stock > 0 else 999
+    upper_bound = stock if not is_manual and not is_upstream and stock > 0 else 999
 
     data = await state.get_data()
     buffer = str(data.get("buffer") or "1")
@@ -1026,8 +1066,9 @@ async def process_custom_quantity(message: Message, state: FSMContext, services:
         return
 
     is_manual = product.get("delivery_type") == "manual"
+    is_upstream = bool(product.get("upstream_product_id"))
     stock = product.get("stock", 0)
-    if not is_manual and stock > 0 and qty > stock:
+    if not is_manual and not is_upstream and stock > 0 and qty > stock:
         qty = stock
         await message.answer(f"{ICON_WARNING} Quantity adjusted to available stock: {stock}")
 

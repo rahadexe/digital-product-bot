@@ -62,6 +62,10 @@ class Settings(BaseSettings):
     binance_api_key: str = ""
     binance_api_secret: str = ""
 
+    # Upstream Reseller API settings (for automated catalog sync and fulfillment)
+    upstream_reseller_url: str = "https://dmb.bmdigital.bd/api/v1/reseller"
+    upstream_reseller_key: str = ""
+
     @model_validator(mode="before")
     @classmethod
     def drop_blank_values(cls, values):

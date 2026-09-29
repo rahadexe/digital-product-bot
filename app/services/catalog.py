@@ -26,7 +26,23 @@ LISTING_SQL = (
 logger = logging.getLogger("app.services.catalog")
 
 
-PRODUCT_FIELDS = ("category_id", "title", "description", "price", "reseller_price", "icon", "duration_label", "sort_order", "is_active", "delivery_type", "custom_emoji_id")
+PRODUCT_FIELDS = (
+    "category_id",
+    "title",
+    "description",
+    "price",
+    "reseller_price",
+    "icon",
+    "duration_label",
+    "sort_order",
+    "is_active",
+    "delivery_type",
+    "custom_emoji_id",
+    "upstream_devices",
+    "upstream_share_hours",
+    "upstream_product_id",
+    "supplier_code",
+)
 
 
 class CatalogService:
@@ -70,7 +86,7 @@ class CatalogService:
     async def create_category(
         self,
         name: str,
-        icon: str = "📦",
+        icon: str = "",
         sort_order: int = 0,
         is_active: int = 1,
         is_pinned: int = 0,
@@ -183,10 +199,11 @@ class CatalogService:
         in_stock_first: bool = False,
         uncategorized: bool = False,
         duration_label: str | None = None,
+        exclude_category_ids: list[int] | None = None,
     ) -> list[dict[str, Any]]:
         """Products in admin order; customer listings pass ``in_stock_first`` so buyable items lead."""
         now = time.monotonic()
-        cache_key = f"{category_id}_{active_only}_{limit}_{offset}_{in_stock_first}_{uncategorized}_{duration_label}"
+        cache_key = f"{category_id}_{active_only}_{limit}_{offset}_{in_stock_first}_{uncategorized}_{duration_label}_{tuple(sorted(exclude_category_ids)) if exclude_category_ids else None}"
         cached = self._products_cache.get(cache_key)
         if cached and now - cached[0] < self.PRODUCTS_CACHE_SECONDS:
             return [dict(row) for row in cached[1]]
@@ -197,6 +214,9 @@ class CatalogService:
         elif category_id is not None:
             params.append(int(category_id))
             where += f" AND p.category_id = ${len(params)}"
+        if exclude_category_ids:
+            params.append(list(exclude_category_ids))
+            where += f" AND (p.category_id IS NULL OR p.category_id != ALL(${len(params)}::int[]))"
         if active_only:
             where += " AND p.is_active = 1"
         if duration_label:
@@ -298,12 +318,14 @@ class CatalogService:
         description: str = "",
         price: float = 0.0,
         reseller_price: float | None = None,
-        icon: str = "⚡",
+        icon: str = "",
         duration_label: str = "",
         sort_order: int = 0,
         is_active: int = 1,
         delivery_type: str = "stock",
         custom_emoji_id: str | None = None,
+        upstream_devices: int = 1,
+        upstream_share_hours: int = 24,
     ) -> int:
         price = money(price, positive=True)
         reseller_price = money(reseller_price, positive=True) if (reseller_price is not None and float(reseller_price) > 0) else None
@@ -313,8 +335,8 @@ class CatalogService:
             await self._require_category(conn, category_id)
             product_id = await conn.fetchval(
                 """
-                INSERT INTO products (category_id, title, description, price, reseller_price, icon, duration_label, sort_order, is_active, delivery_type, custom_emoji_id)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id
+                INSERT INTO products (category_id, title, description, price, reseller_price, icon, duration_label, sort_order, is_active, delivery_type, custom_emoji_id, upstream_devices, upstream_share_hours)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id
                 """,
                 category_id,
                 title,
@@ -327,6 +349,8 @@ class CatalogService:
                 is_active,
                 delivery_type,
                 custom_emoji_id,
+                upstream_devices,
+                upstream_share_hours,
             )
             details = f"Product #{product_id}: {title} at {price:.2f}"
             if reseller_price is not None:

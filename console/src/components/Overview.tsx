@@ -3,18 +3,20 @@
 import { useMemo, useState, useEffect } from 'react';
 import {
   ArrowUpRight,
+  Globe,
   PackageCheck,
   ShoppingBag,
   TrendingUp,
   Users,
   Wallet,
 } from 'lucide-react';
-import { api, type OverviewStats } from '@/lib/api';
+import { api, type OverviewStats, type SupplierStatus } from '@/lib/api';
 import { useMoney } from '@/lib/currency';
 import { PageLoading, EmptyRow, errorText, tone, when, type Say } from './ui';
 
 export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) => void }) {
   const [stats, setStats] = useState<OverviewStats | null>(null);
+  const [supplier, setSupplier] = useState<SupplierStatus | null>(null);
   const [failed, setFailed] = useState(false);
   const [hoverPoint, setHoverPoint] = useState<{ x: number; y: number; label: string; revenue: number; orders: number } | null>(null);
   const money = useMoney();
@@ -27,6 +29,10 @@ export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) =
         setFailed(true);
         say(errorText(cause, 'Could not load the dashboard.'), 'bad');
       });
+    api
+      .supplierStatus()
+      .then(setSupplier)
+      .catch(() => {});
   }, [say]);
 
   // Generate SVG smooth area curve points
@@ -151,6 +157,66 @@ export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) =
           <div className="stat-card-value">{deliveredCount}</div>
         </button>
       </div>
+
+      {supplier?.is_configured && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: 'var(--panel)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
+            padding: '12px 18px',
+            marginBottom: 16,
+            cursor: 'pointer',
+            transition: 'border-color 0.15s ease',
+          }}
+          onClick={() => onOpen('suppliers')}
+          title="Open Supplier Management"
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 8,
+                background: 'rgba(59, 130, 246, 0.12)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#3b82f6',
+              }}
+            >
+              <Globe size={18} />
+            </div>
+            <div>
+              <div style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                Upstream Supplier: {supplier.account?.name || 'Digital Mart'}
+                <span className="pill good" style={{ fontSize: '10px', padding: '1px 6px' }}>Dropship Active</span>
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: 2 }}>
+                {supplier.upstream_products_count} synced products · Instant auto-delivery
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ textAlign: 'right' }}>
+              <div
+                style={{
+                  fontSize: '15px',
+                  fontWeight: 700,
+                  color: (supplier.account?.balance ?? 0) < (supplier.low_balance_alert ?? 50) ? 'var(--negative)' : 'var(--positive)',
+                }}
+              >
+                {supplier.account?.currency_symbol || '৳'}{(supplier.account?.balance ?? 0).toFixed(2)}
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--muted)' }}>Supplier Balance</div>
+            </div>
+            <ArrowUpRight size={16} style={{ color: 'var(--muted)' }} />
+          </div>
+        </div>
+      )}
 
       {/* Analytics Chart Card */}
       <div className="analytics-card">

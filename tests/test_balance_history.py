@@ -39,6 +39,7 @@ class BalanceHistoryUITests(unittest.IsolatedAsyncioTestCase):
         services.settings.get = AsyncMock(return_value="৳")
         services.settings.number = AsyncMock(return_value=125.0)
         services.settings.flag = AsyncMock(return_value=True)
+        services.users.get_language = AsyncMock(return_value="en")
 
         user = User(id=12345, is_bot=False, first_name="Test")
         query = MagicMock(spec=CallbackQuery)
@@ -74,9 +75,9 @@ class BalanceHistoryUITests(unittest.IsolatedAsyncioTestCase):
         # Refresh button present
         all_texts = [btn.text for r in kb.inline_keyboard for btn in r]
         self.assertIn("Refresh", all_texts)
-        self.assertIn("Add Balance", all_texts)
-        self.assertIn("Back", all_texts)
-        self.assertIn("Close", all_texts)
+        self.assertTrue(any("Add Balance" in t for t in all_texts))
+        self.assertTrue(any("Back" in t for t in all_texts))
+        self.assertTrue(any("Close" in t for t in all_texts))
 
     async def test_view_deposit_detail(self):
         services = MagicMock()
@@ -93,6 +94,7 @@ class BalanceHistoryUITests(unittest.IsolatedAsyncioTestCase):
         services.settings.get = AsyncMock(return_value="৳")
         services.settings.number = AsyncMock(return_value=125.0)
         services.settings.flag = AsyncMock(return_value=True)
+        services.users.get_language = AsyncMock(return_value="en")
 
         user = User(id=12345, is_bot=False, first_name="Test")
         query = MagicMock(spec=CallbackQuery)

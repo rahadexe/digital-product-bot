@@ -68,13 +68,40 @@ class DeliveryWorker:
                 )
             else:
                 reply_markup = None
+                kb_rows = []
                 if order and order.get('delivered_item') and len(order['delivered_item']) <= 256:
-                    reply_markup = InlineKeyboardMarkup(
-                        inline_keyboard=[
-                            [InlineKeyboardButton(text="Copy Credentials", copy_text=CopyTextButton(text=order['delivered_item']), style="success", icon_custom_emoji_id=Icons.KEY)]
-                        ]
-                    )
+                    kb_rows.append([
+                        InlineKeyboardButton(
+                            text="Copy Credentials",
+                            copy_text=CopyTextButton(text=order['delivered_item']),
+                            style="success",
+                            icon_custom_emoji_id=Icons.KEY,
+                        )
+                    ])
+                if order and order.get('id'):
+                    order_id = order['id']
+                    actions_row = [
+                        InlineKeyboardButton(
+                            text="🛠️ Report Issue",
+                            callback_data=f"claim_warranty_{order_id}",
+                            style="danger",
+                            icon_custom_emoji_id=Icons.WARNING,
+                        )
+                    ]
+                    if order.get('product_id'):
+                        actions_row.append(
+                            InlineKeyboardButton(
+                                text="🔄 Buy Again",
+                                callback_data=f"prod_{order['product_id']}",
+                                style="primary",
+                                icon_custom_emoji_id=Icons.REFRESH,
+                            )
+                        )
+                    kb_rows.append(actions_row)
+                if kb_rows:
+                    reply_markup = InlineKeyboardMarkup(inline_keyboard=kb_rows)
                 await self.bot.send_message(message['tg_user_id'], message['text'], reply_markup=reply_markup)
+
         except TelegramRetryAfter as exc:
             status, delay, error = 'pending', exc.retry_after + 1, 'Telegram rate limit'
         except (TelegramForbiddenError, TelegramBadRequest) as exc:

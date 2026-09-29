@@ -20,6 +20,8 @@ import {
   FolderTree,
   Clock,
   Sparkles,
+  Globe,
+  Briefcase,
   type LucideIcon,
 } from 'lucide-react';
 import { api, setCsrf } from '@/lib/api';
@@ -27,6 +29,7 @@ import { Broadcast } from '@/components/Broadcast';
 import { Categories } from '@/components/Categories';
 import { Validities } from '@/components/Validities';
 import { Emojis } from '@/components/Emojis';
+import { Suppliers } from '@/components/Suppliers';
 import { Deposits } from '@/components/Deposits';
 import { Inventory } from '@/components/Inventory';
 import { Orders } from '@/components/Orders';
@@ -35,6 +38,7 @@ import { Products } from '@/components/Products';
 import { Settings, type SettingsTab } from '@/components/Settings';
 import { Activity } from '@/components/Activity';
 import { Users } from '@/components/Users';
+import { ResellerApps } from '@/components/ResellerApps';
 import { errorText } from '@/components/ui';
 
 type Key =
@@ -43,11 +47,13 @@ type Key =
   | 'orders'
   | 'inventory'
   | 'products'
+  | 'suppliers'
   | 'categories'
   | 'validities'
   | 'emojis'
   | 'deposits'
   | 'users'
+  | 'reseller-apps'
   | 'broadcast'
   | 'settings';
 
@@ -58,14 +64,17 @@ const ITEMS: { key: Key; label: string; icon: LucideIcon; group?: string }[] = [
   { key: 'deposits', label: 'Deposits', icon: Wallet },
   { key: 'users', label: 'Customers', icon: UsersIcon },
   { key: 'products', label: 'Products', icon: Package, group: 'Catalog' },
+  { key: 'suppliers', label: 'Suppliers', icon: Globe },
   { key: 'inventory', label: 'Stock', icon: Boxes },
   { key: 'categories', label: 'Categories', icon: FolderTree },
   { key: 'validities', label: 'Durations', icon: Clock },
   { key: 'emojis', label: 'Emojis', icon: Sparkles },
   { key: 'broadcast', label: 'Broadcast', icon: Megaphone, group: 'Manage' },
+  { key: 'reseller-apps', label: 'Reseller Apps', icon: Briefcase },
   { key: 'activity', label: 'Activity', icon: Clock },
   { key: 'settings', label: 'Settings', icon: SettingsIcon },
 ];
+
 const isKey = (value: string): value is Key => ITEMS.some((item) => item.key === value);
 
 /** The address holds the screen and, for Settings, the tab (#settings/payments), so a reload lands in the same place. */
@@ -86,7 +95,9 @@ export default function ConsolePage() {
   activeScreen.current = screen;
   const [pending, setPending] = useState(0);
   const [waitingOrders, setWaitingOrders] = useState(0);
+  const [pendingResellerApps, setPendingResellerApps] = useState(0);
   const [toast, setToast] = useState<{ message: string; kind: 'good' | 'bad' } | null>(null);
+
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const timer = useRef<number | undefined>(undefined);
 
@@ -294,6 +305,8 @@ export default function ConsolePage() {
                 <span>{name}</span>
                 {key === 'deposits' && pending > 0 ? <span className="count">{pending}</span> : null}
                 {key === 'orders' && waitingOrders > 0 ? <span className="count">{waitingOrders}</span> : null}
+                {key === 'reseller-apps' && pendingResellerApps > 0 ? <span className="count">{pendingResellerApps}</span> : null}
+
               </button>
               </Fragment>
             ))}
@@ -345,6 +358,8 @@ export default function ConsolePage() {
               <span>{name}</span>
               {key === 'deposits' && pending > 0 ? <span className="count">{pending}</span> : null}
               {key === 'orders' && waitingOrders > 0 ? <span className="count">{waitingOrders}</span> : null}
+              {key === 'reseller-apps' && pendingResellerApps > 0 ? <span className="count">{pendingResellerApps}</span> : null}
+
             </button>
             </Fragment>
           ))}
@@ -389,6 +404,7 @@ export default function ConsolePage() {
           ) : null}
           {screen.key === 'deposits' ? <Deposits say={say} initialMode={screen.tab === 'instant' ? 'instant' : 'deposits'} onPendingChange={setPending} /> : null}
           {screen.key === 'products' ? <Products say={say} /> : null}
+          {screen.key === 'suppliers' ? <Suppliers say={say} onOpen={open} /> : null}
           {screen.key === 'categories' ? <Categories say={say} /> : null}
           {screen.key === 'validities' ? <Validities say={say} /> : null}
           {screen.key === 'emojis' ? <Emojis say={say} /> : null}
@@ -405,7 +421,11 @@ export default function ConsolePage() {
             />
           ) : null}
           {screen.key === 'activity' ? <Activity say={say} /> : null}
+          {screen.key === 'reseller-apps' ? (
+            <ResellerApps say={say} onPendingChange={setPendingResellerApps} />
+          ) : null}
           {screen.key === 'broadcast' ? <Broadcast say={say} /> : null}
+
           {screen.key === 'settings' ? (
             <Settings
               say={say}

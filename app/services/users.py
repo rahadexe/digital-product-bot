@@ -143,6 +143,17 @@ class UserService:
             row = await conn.fetchrow("SELECT * FROM users WHERE tg_user_id = $1", tg_user_id)
             return dict(row) if row else None
 
+    async def get_language(self, tg_user_id: int) -> str:
+        async with self.db.connect() as conn:
+            val = await conn.fetchval("SELECT language FROM users WHERE tg_user_id = $1", tg_user_id)
+            return (val or "en").strip().lower()
+
+    async def get_raw_language(self, tg_user_id: int) -> str | None:
+        """Returns None if user has not yet explicitly selected a language."""
+        async with self.db.connect() as conn:
+            val = await conn.fetchval("SELECT language FROM users WHERE tg_user_id = $1", tg_user_id)
+            return val.strip().lower() if val else None
+
     async def stats(self, tg_user_id: int) -> dict[str, Any]:
         async with self.db.connect() as conn:
             row = await conn.fetchrow(
@@ -290,3 +301,13 @@ class UserService:
             await conn.execute("UPDATE users SET rank = $1, updated_at = now() WHERE tg_user_id = $2", clean_rank, tg_user_id)
             await record(conn, "user_rank_updated", f"User #{tg_user_id} rank set to {clean_rank}")
         return clean_rank
+
+    async def set_language(self, tg_user_id: int, language: str) -> str:
+        """Update customer preferred language ('en', 'bn', 'hi', 'ur')."""
+        clean_lang = language.strip().lower()
+        if clean_lang not in ("en", "bn", "hi", "ur"):
+            clean_lang = "en"
+        async with self.db.transaction() as conn:
+            await conn.execute("UPDATE users SET language = $1, updated_at = now() WHERE tg_user_id = $2", clean_lang, tg_user_id)
+        return clean_lang
+
