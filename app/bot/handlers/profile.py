@@ -125,21 +125,12 @@ async def show_user_profile(event: Message | CallbackQuery, state: FSMContext, s
 
     stats = await services.users.stats(tg_user.id)
     user = stats.get("user", {})
-    symbol = await services.settings.get("currency_symbol")
-    usd_rate = await services.settings.number("usd_rate")
-    show_usd = await services.settings.flag("show_usd_price")
     user_name = escape(tg_user.full_name or tg_user.first_name or "Customer")
 
     lang = (user.get("language") or "en").strip().lower()
     rank_val = (user.get("rank") or "Standard").strip()
-    if rank_val.lower() in {"reseller", "reseller partner"}:
-        account_type_label = t("rank_reseller", lang)
-    else:
-        account_type_label = t("rank_standard", lang)
-
-    balance_display = price(symbol, user.get("balance", 0.0), usd_rate=usd_rate, show_usd=show_usd)
-    spent_display = price(symbol, stats.get("total_spent", 0.0), usd_rate=usd_rate, show_usd=show_usd)
-    order_count = stats.get("order_count", 0)
+    is_reseller = rank_val.lower() in {"reseller", "reseller partner"}
+    account_type_label = t("rank_reseller", lang) if is_reseller else t("rank_standard", lang)
 
     tg_username = tg_user.username
     username_line = (
@@ -148,31 +139,15 @@ async def show_user_profile(event: Message | CallbackQuery, state: FSMContext, s
         else ""
     )
 
-    async with services.db.connect() as conn:
-        row = await conn.fetchrow(
-            "SELECT COUNT(*) AS total_invited FROM referral_rewards WHERE referrer_tg_id = $1",
-            tg_user.id,
-        )
-        total_invited = row["total_invited"] if row else 0
-
-    bot_user = await services.notifier.bot_username()
-    ref_link = f"https://t.me/{bot_user}?start=ref_{tg_user.id}" if bot_user else ""
-
     text = (
-        f"{t('profile_title', lang, icon_account=ICON_ACCOUNT)}\n\n"
-        f"{ICON_CROWN} <b>{t('profile_name', lang)}:</b> {user_name}\n"
+        f"{t('account_title', lang, icon_account=ICON_ACCOUNT)}\n\n"
+        f"{ICON_USER} <b>{t('profile_name', lang)}:</b> {user_name}\n"
         f"{username_line}"
         f"{ICON_ID} <b>{t('profile_user_id', lang)}:</b> <code>{tg_user.id}</code>\n"
-        f"{ICON_RESELLER} <b>{t('profile_account_type', lang)}:</b> <b>{account_type_label}</b>\n\n"
-        f"{ICON_BALANCE} <b>{t('profile_current_balance', lang)}:</b> <code>{balance_display}</code>\n"
-        f"{ICON_ORDERS} <b>{t('profile_total_orders', lang)}:</b> {order_count}\n"
-        f"{ICON_SPENT} <b>{t('profile_total_spent', lang)}:</b> <code>{spent_display}</code>\n"
-        f"{ICON_REFER} <b>{t('profile_referrals', lang)}:</b> {total_invited}\n\n"
-        f"{ICON_LINK} <b>{t('profile_referral_link', lang)}:</b>\n"
-        f"<code>{ref_link}</code>"
+        f"{ICON_VIP} <b>{t('profile_account_type', lang)}:</b> <b>{account_type_label}</b>"
     )
     is_admin = tg_user.id in await services.settings.admin_chat_ids()
-    await respond(event, text, get_account_keyboard(lang=lang, is_admin=is_admin, ref_link=ref_link))
+    await respond(event, text, get_account_keyboard(lang=lang, is_admin=is_admin, is_reseller=is_reseller))
 
 
 @router.message(Command("language"))

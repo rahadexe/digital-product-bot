@@ -79,7 +79,7 @@ def get_main_inline_keyboard(
             icon_custom_emoji_id=Icons.BALANCE,
         ),
         InlineKeyboardButton(
-            text=t("btn_profile", lang),
+            text=t("btn_account", lang),
             callback_data="open_account",
             style="primary",
             icon_custom_emoji_id=Icons.ACCOUNT,
@@ -394,14 +394,17 @@ def get_account_keyboard(
     lang: str = "en",
     is_admin: bool = False,
     ref_link: str | None = None,
+    is_reseller: bool = False,
 ) -> InlineKeyboardMarkup:
-    """Wallet / Profile actions: order history, balance history, language, back."""
+    """Account actions: my orders, language, api & reseller, back."""
+    reseller_btn_text = t("btn_reseller_panel", lang) if is_reseller else t("btn_reseller_api", lang)
     buttons = [
         [
             InlineKeyboardButton(text=t("btn_my_orders", lang), callback_data="open_orders", style="primary", icon_custom_emoji_id=Icons.ORDERS),
         ],
         [
             InlineKeyboardButton(text=t("btn_change_language", lang), callback_data="open_language_menu", style="primary", icon_custom_emoji_id=Icons.GLOBE),
+            InlineKeyboardButton(text=reseller_btn_text, callback_data="open_reseller", style="primary", icon_custom_emoji_id=Icons.KEY),
         ],
         [
             InlineKeyboardButton(text=t("btn_back", lang), callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK),
