@@ -45,7 +45,6 @@ class AnnouncementService:
         btn_kwargs: dict[str, Any] = {
             "text": label[:64],
             "url": link,
-            "style": "primary",
         }
         custom_emoji_id = str(product.get("custom_emoji_id") or "").strip()
         if custom_emoji_id.isdigit():
@@ -74,15 +73,15 @@ class AnnouncementService:
         icon, title = self._product_icon(product), escape(product["title"])
         icon_prefix = f"{icon} " if icon else ""
         duration = (product.get("duration_label") or "").strip()
-        duration_line = f"{ICON_TIMER} <b>Validity:</b> {escape(duration)}\n" if duration and duration.lower() not in {"instant", "none", "n/a", ""} else ""
+        duration_line = f"<b>Validity:</b> {escape(duration)}\n" if duration and duration.lower() not in {"instant", "none", "n/a", ""} else ""
         button = await self._buy_button(product, f"Buy {product['title']}")
 
         admin_delivered = await self.notifier.send_admin(
-            f"{ICON_ORDERS} <b>Restocked</b>\n\n"
-            f"{icon_prefix}<b>{title}</b>\n"
+            f"✅ <b>Product Restocked</b>\n\n"
+            f"<b>Product:</b> {icon_prefix}<b>{title}</b>\n"
             f"{duration_line}"
-            f"{ICON_PLUS} <code>+{added_count}</code> · now <code>{product['stock']}</code> in stock\n"
-            f"{ICON_MONEY} <code>{format_dual_price(product['price'], symbol)}</code>",
+            f"<b>Added:</b> <code>+{added_count}</code> (Total: <code>{product['stock']}</code>)\n"
+            f"<b>Price:</b> <code>{format_dual_price(product['price'], symbol)}</code>",
             event="restock",
             keyboard=button,
         )
@@ -95,13 +94,13 @@ class AnnouncementService:
         for ch in channels:
             deliv = await self.notifier.send(
                 ch,
-                f"{ICON_ORDERS} <b>Fresh Restock Alert!</b>\n\n"
-                f"{ICON_VIP} <b>Product:</b> {icon_prefix}<b>{title}</b>\n"
+                f"✅ <b>Product Restocked</b>\n\n"
+                f"<b>Product:</b> {icon_prefix}<b>{title}</b>\n"
                 f"{duration_line}"
-                f"{ICON_SPARKLES} <b>Fresh Stock:</b> <code>{added_count} units</code>\n"
-                f"{ICON_SHOP} <b>Available:</b> <code>{product['stock']} accounts</code>\n"
-                f"{ICON_MONEY} <b>Price:</b> <code>{format_dual_price(product['price'], symbol)}</code>\n"
-                f"{ICON_CHECK} <b>Delivery:</b> Instant (Automatic)",
+                f"<b>Fresh Stock:</b> <code>{added_count} units</code>\n"
+                f"<b>Available:</b> <code>{product['stock']}</code>\n"
+                f"<b>Price:</b> <code>{format_dual_price(product['price'], symbol)}</code>\n"
+                f"<b>Delivery:</b> Instant (Automatic)",
                 button,
             )
             if deliv:
@@ -123,35 +122,35 @@ class AnnouncementService:
         diff = abs(new_price - old_price)
         pct = round((diff / old_price) * 100) if old_price > 0 else 0
         duration = (product.get("duration_label") or "").strip()
-        duration_line = f"{ICON_TIMER} <b>Validity:</b> {escape(duration)}\n" if duration and duration.lower() not in {"instant", "none", "n/a", ""} else ""
+        duration_line = f"<b>Validity:</b> {escape(duration)}\n" if duration and duration.lower() not in {"instant", "none", "n/a", ""} else ""
         is_manual = product.get("delivery_type") == "manual"
-        delivery_line = f"{ICON_TIMER} <b>Delivery:</b> Manual" if is_manual else f"{ICON_CHECK} <b>Delivery:</b> Instant (Automatic)"
+        delivery_line = "<b>Delivery:</b> Manual" if is_manual else "<b>Delivery:</b> Instant (Automatic)"
 
         is_drop = new_price < old_price
 
         if is_drop:
-            heading = f"{ICON_FIRE} <b>Special Price Drop!</b>"
-            diff_line = f"📉 <b>Old Price:</b> <code><s>{format_dual_price(old_price, symbol)}</s></code>\n"
-            price_line = f"{ICON_MONEY} <b>Price:</b> <code>{format_dual_price(new_price, symbol)}</code> (-{pct}% OFF)\n"
+            heading = "📉 <b>Price Drop Alert</b>"
+            diff_line = f"<b>Old Price:</b> <code><s>{format_dual_price(old_price, symbol)}</s></code>\n"
+            price_line = f"<b>Price:</b> <code>{format_dual_price(new_price, symbol)}</code> (-{pct}% OFF)\n"
             btn_text = f"Buy {product['title']}"
         else:
-            heading = f"{ICON_STATS} <b>Price Update Alert</b>"
-            diff_line = f"📉 <b>Old Price:</b> <code><s>{format_dual_price(old_price, symbol)}</s></code>\n"
-            price_line = f"{ICON_MONEY} <b>Price:</b> <code>{format_dual_price(new_price, symbol)}</code> (+{pct}%)\n"
+            heading = "📈 <b>Price Update Alert</b>"
+            diff_line = f"<b>Old Price:</b> <code><s>{format_dual_price(old_price, symbol)}</s></code>\n"
+            price_line = f"<b>Price:</b> <code>{format_dual_price(new_price, symbol)}</code> (+{pct}%)\n"
             btn_text = f"View {product['title']}"
 
         button = await self._buy_button(product, btn_text)
 
         msg_body = (
             f"{heading}\n\n"
-            f"{ICON_VIP} <b>Product:</b> {icon_prefix}<b>{title}</b>\n"
+            f"<b>Product:</b> {icon_prefix}<b>{title}</b>\n"
             f"{duration_line}"
             f"{diff_line}"
             f"{price_line}"
             f"{delivery_line}"
         )
 
-        # 1. Deliver to Telegram Bot Admins (100% 3D custom emojis supported!)
+        # 1. Deliver to Telegram Bot Admins
         admin_delivered = await self.notifier.send_admin(
             msg_body,
             event="price_change",
@@ -187,20 +186,20 @@ class AnnouncementService:
         icon = self._product_icon(product)
         icon_prefix = f"{icon} " if icon else ""
         title = escape(product["title"])
-        desc = f"\n{ICON_NOTE} {escape(product.get('description'))}\n" if product.get("description") else ""
+        desc = f"\n{escape(product.get('description'))}\n" if product.get("description") else ""
         duration = (product.get("duration_label") or "").strip()
-        duration_line = f"{ICON_TIMER} <b>Validity:</b> {escape(duration)}\n" if duration and duration.lower() not in {"instant", "none", "n/a", ""} else ""
+        duration_line = f"<b>Validity:</b> {escape(duration)}\n" if duration and duration.lower() not in {"instant", "none", "n/a", ""} else ""
         is_manual = product.get("delivery_type") == "manual"
-        delivery_line = f"{ICON_TIMER} <b>Delivery:</b> Manual" if is_manual else f"{ICON_CHECK} <b>Delivery:</b> Instant (Automatic)"
+        delivery_line = "<b>Delivery:</b> Manual" if is_manual else "<b>Delivery:</b> Instant (Automatic)"
 
         button = await self._buy_button(product, f"Order {product['title']}")
         text = (
-            f"{ICON_FIRE} <b>Featured Product</b>\n\n"
-            f"{ICON_VIP} <b>Product:</b> {icon_prefix}<b>{title}</b>\n"
+            f"⭐ <b>Featured Product</b>\n\n"
+            f"<b>Product:</b> {icon_prefix}<b>{title}</b>\n"
             f"{duration_line}"
             f"{desc}"
-            f"{ICON_SHOP} <b>Available Stock:</b> <code>{product['stock']} units</code>\n"
-            f"{ICON_MONEY} <b>Price:</b> <code>{format_dual_price(product['price'], symbol)}</code>\n"
+            f"<b>Available Stock:</b> <code>{product['stock']} units</code>\n"
+            f"<b>Price:</b> <code>{format_dual_price(product['price'], symbol)}</code>\n"
             f"{delivery_line}"
         )
 

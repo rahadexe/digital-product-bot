@@ -590,13 +590,13 @@ def _instant_keyboard(invoice: dict) -> InlineKeyboardMarkup:
     rows = []
     if invoice.get("payment_url"):
         rows.append(
-            [InlineKeyboardButton(text=f"💳 Pay ৳{invoice['pay_amount']:.2f}", url=invoice["payment_url"], style="success")]
+            [InlineKeyboardButton(text=f"Pay ৳{invoice['pay_amount']:.2f}", url=invoice["payment_url"])]
         )
     rows.append(
-        [InlineKeyboardButton(text="✅ I've Paid", callback_data=f"inst_chk_{invoice['reference']}", style="primary")]
+        [InlineKeyboardButton(text="I've Paid", callback_data=f"inst_chk_{invoice['reference']}")]
     )
     rows.append(
-        [InlineKeyboardButton(text="❌ Cancel Invoice", callback_data=f"inst_can_{invoice['reference']}", style="danger")]
+        [InlineKeyboardButton(text="Cancel Invoice", callback_data=f"inst_can_{invoice['reference']}")]
     )
     return InlineKeyboardMarkup(inline_keyboard=rows)
 

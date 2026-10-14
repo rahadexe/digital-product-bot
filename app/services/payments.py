@@ -384,9 +384,8 @@ class PaymentService:
                 )
             self.notifier.in_background(
                 self.notifier.send_admin(
-                    f"{ICON_WARNING} <b>ZiniPay refused a payment</b>\n\n{escape(str(exc))}\n\n"
-                    "<i>Check the API key in Settings → Payments, and that the brand website in ZiniPay "
-                    "is this shop's domain.</i>",
+                    f"⚠️ <b>ZiniPay Gateway Warning</b>\n\n{escape(str(exc))}\n\n"
+                    "<i>Check the API key in Settings → Payments.</i>",
                     event="system_error",
                 )
             )
@@ -532,8 +531,11 @@ class PaymentService:
         if alert:
             self.notifier.in_background(
                 self.notifier.send_admin(
-                    f"{ICON_WARNING} <b>Automatic payment needs a look</b>\n\nReference <code>{escape(row['reference'])}</code>, "
-                    f"user <code>{row['tg_user_id']}</code>\n{escape(reason)}\n\n<i>Nothing was credited. Check it in ZiniPay.</i>",
+                    f"⚠️ <b>Automatic Payment Verification Issue</b>\n\n"
+                    f"<b>Reference:</b> <code>{escape(row['reference'])}</code>\n"
+                    f"<b>Customer ID:</b> <code>{row['tg_user_id']}</code>\n"
+                    f"<b>Error:</b> {escape(reason)}\n\n"
+                    "<i>Nothing was credited. Check provider records.</i>",
                     event="system_error",
                 )
             )
@@ -665,16 +667,15 @@ class PaymentService:
                 updated_text = (
                     f"{ICON_NOTE} <b>Payment Invoice{ref_suffix}</b>\n\n"
                     f"{ICON_MONEY} <b>Payable Amount:</b> <code>{pay_amt:.2f} {LOCAL_CURRENCY}</code>\n"
-                    f"{ICON_LIGHTNING} <b>Method:</b> Instant Auto Gateway\n"
-                    f"{ICON_CHECK} <b>Status:</b> <b>Paid / Completed</b>\n\n"
-                    f"✅ <i>Payment completed successfully! Balance has been credited to your wallet.</i>"
+                    f"<b>Method:</b> Automatic Gateway\n"
+                    f"<b>Status:</b> Completed\n\n"
+                    f"<i>Payment completed successfully. Balance has been credited to your wallet.</i>"
                 )
                 kb = InlineKeyboardMarkup(
                     inline_keyboard=[[
                         InlineKeyboardButton(
-                            text="💳 Deposit Menu",
+                            text="Deposit Menu",
                             callback_data="open_deposit",
-                            style="primary",
                         )
                     ]]
                 )
@@ -692,9 +693,9 @@ class PaymentService:
         # and the ones that matter, every time they top up.
         await self.notifier.send(
             row["tg_user_id"],
-            f"{ICON_CHECK} <b>Payment Successful!</b>\n\n"
-            f"{ICON_MONEY} <b>Amount:</b> <code>{credit:.2f} {symbol}</code>\n"
-            f"{ICON_BALANCE} <b>Balance:</b> <code>{float(balance or 0):.2f} {symbol}</code>",
+            f"✅ <b>Payment Successful</b>\n\n"
+            f"<b>Amount:</b> <code>{credit:.2f} {symbol}</code>\n"
+            f"<b>New Balance:</b> <code>{float(balance or 0):.2f} {symbol}</code>",
             clears_after=CONFIRMATION_LIFETIME_SECONDS,
         )
         pay_amt = float(row["pay_amount"] or 0)
@@ -709,12 +710,12 @@ class PaymentService:
             pass
 
         await self.notifier.send_admin(
-            f"{ICON_DEPOSIT} <b>Automatic Deposit {format_deposit_id(deposit_id)}</b>\n\n"
-            f"{ICON_ACCOUNT} <b>Customer:</b> {customer_name}\n"
-            f"{ICON_ID} <b>Customer ID:</b> <code>{row['tg_user_id']}</code>\n"
-            f"{ICON_MONEY} <b>Amount:</b> <code>{credit:.2f} {symbol}</code>{paid_line}\n"
-            f"{ICON_DEPOSIT} <b>Method:</b> {escape(row['payment_method'] or 'ZiniPay')}\n"
-            f"{ICON_KEY} <b>TrxID:</b> <code>{escape(row['provider_transaction_id'] or '')}</code>",
+            f"✅ <b>Automatic Deposit · {format_deposit_id(deposit_id)}</b>\n\n"
+            f"<b>Customer:</b> {customer_name}\n"
+            f"<b>Customer ID:</b> <code>{row['tg_user_id']}</code>\n"
+            f"<b>Method:</b> {escape(row['payment_method'] or 'ZiniPay')}\n"
+            f"<b>Amount:</b> <code>{credit:.2f} {symbol}</code>{paid_line}\n"
+            f"<b>TrxID:</b> <code>{escape(row['provider_transaction_id'] or '')}</code>",
             event="payment",
         )
 

@@ -378,46 +378,43 @@ class PurchaseService:
         if waiting_reason:
             is_supplier = bool(order.get("supplier_code") or order.get("supplier_error") or "Supplier" in waiting_reason)
             if is_supplier:
-                heading = f"{ICON_WARNING} <b>Supplier Fulfillment Pending</b>"
-                delivery = f"{ICON_WARNING} <b>Fulfillment:</b> Pending Supplier"
+                heading = "⏳ <b>Supplier Fulfillment Pending</b>"
+                delivery = "<b>Fulfillment:</b> Pending Supplier"
                 if order.get("supplier_error"):
-                    delivery += f"\n⚠️ <b>Issue:</b> <code>{escape(str(order['supplier_error']))}</code>"
+                    delivery += f"\n<b>Issue:</b> <code>{escape(str(order['supplier_error']))}</code>"
             else:
-                heading = f"{ICON_WARNING} <b>Manual Order Action Required</b>"
-                delivery = f"{ICON_WARNING} <b>Delivery:</b> Manual"
+                heading = "⏳ <b>Manual Order Action Required</b>"
+                delivery = "<b>Delivery:</b> Manual"
 
             rows = []
             if is_supplier:
                 rows.append([
                     InlineKeyboardButton(
-                        text="⚡ Retry Supplier Delivery",
+                        text="Retry Supplier Delivery",
                         callback_data=f"adm_ord_sup_retry_{order_id}",
-                        style="primary",
                     )
                 ])
             rows.append([
                 InlineKeyboardButton(
-                    text="📦 Deliver Manually",
+                    text="Deliver Manually",
                     callback_data=f"adm_ord_deliver_{order_id}",
-                    style="success",
                 ),
                 InlineKeyboardButton(
-                    text="🔄 Refund",
+                    text="Refund",
                     callback_data=f"adm_ord_ref_ask_{order_id}",
-                    style="danger",
                 ),
             ])
             if console:
                 rows.append([
                     InlineKeyboardButton(
-                        text="🌐 Open in Console",
+                        text="Open in Console",
                         url=f"{console}/#orders/{order_id}",
                     )
                 ])
             keyboard = InlineKeyboardMarkup(inline_keyboard=rows)
         else:
-            heading = f"{ICON_SHOP} <b>New Order Received</b>"
-            delivery = f"{ICON_CHECK} <b>Delivery:</b> Instant"
+            heading = "✅ <b>New Order Received</b>"
+            delivery = "<b>Delivery:</b> Instant"
 
         stock_warning = ""
         rem_stock = None
@@ -436,23 +433,23 @@ class PurchaseService:
                     )
                 if rem_stock is not None:
                     if rem_stock == 0:
-                        stock_warning = f"\n{ICON_WARNING} <b>Stock Alert:</b> Product is now <b>OUT OF STOCK!</b> (<code>0</code> left)"
+                        stock_warning = f"\n⚠️ <b>Stock Alert:</b> Product is now out of stock (<code>0</code> left)"
                     elif rem_stock <= threshold:
-                        stock_warning = f"\n{ICON_WARNING} <b>Stock Alert:</b> Low stock (<code>{rem_stock}</code> left)"
+                        stock_warning = f"\n⚠️ <b>Stock Alert:</b> Low stock (<code>{rem_stock}</code> left)"
             except Exception:
                 pass
 
         cust_input_line = ""
         if order.get("customer_input"):
-            cust_input_line = f"\n📝 <b>Customer Info:</b> <code>{escape(str(order['customer_input']))}</code>"
+            cust_input_line = f"\n<b>Customer Info:</b> <code>{escape(str(order['customer_input']))}</code>"
 
         msg_text = (
             f"{heading}\n\n"
-            f"{ICON_ORDERS} <b>Order:</b> <code>{format_order_id(order_id)}</code>\n"
-            f"{ICON_ACCOUNT} <b>Customer:</b> {customer}\n"
-            f"{ICON_ID} <b>Customer ID:</b> <code>{user['tg_user_id']}</code>\n"
-            f"{ICON_VIP} <b>Product:</b> {escape(order['product_title'])}\n"
-            f"{ICON_MONEY} <b>Price:</b> <code>{price(symbol, order['price'], usd_rate=usd_rate)}</code>"
+            f"<b>Order:</b> <code>{format_order_id(order_id)}</code>\n"
+            f"<b>Customer:</b> {customer}\n"
+            f"<b>Customer ID:</b> <code>{user['tg_user_id']}</code>\n"
+            f"<b>Product:</b> {escape(order['product_title'])}\n"
+            f"<b>Price:</b> <code>{price(symbol, order['price'], usd_rate=usd_rate)}</code>"
             f"{cust_input_line}\n"
             f"{delivery}{stock_warning}"
         )
@@ -472,21 +469,20 @@ class PurchaseService:
                 # The alert is the moment stock is on the owner's mind, so the fix
                 # belongs on it rather than behind a browser and a login.
                 rows = [[InlineKeyboardButton(
-                    text="➕ Add stock here",
+                    text="Add Stock",
                     callback_data=f"adm_stock_{prod_id}",
-                    style="success",
                 )]]
                 if console:
                     rows.append([InlineKeyboardButton(
-                        text="🌐 Open in console",
+                        text="Open in Console",
                         url=f"{console}/#inventory",
                     )])
                 low_stock_kb = InlineKeyboardMarkup(inline_keyboard=rows)
                 alert_text = (
-                    f"{ICON_CROSS} <b>Product Out of Stock!</b>\n\n"
-                    f"{ICON_VIP} <b>Product:</b> {escape(order['product_title'])}\n"
-                    f"{ICON_SHOP} <b>Available Stock:</b> <code>0</code>\n"
-                    f"{ICON_CROSS} <b>Status:</b> Sold Out"
+                    f"⚠️ <b>Product Out of Stock</b>\n\n"
+                    f"<b>Product:</b> {escape(order['product_title'])}\n"
+                    f"<b>Available Stock:</b> <code>0</code>\n"
+                    f"<b>Status:</b> Sold Out"
                 )
                 await self.notifier.send_admin(
                     alert_text,
@@ -497,21 +493,20 @@ class PurchaseService:
                 # The alert is the moment stock is on the owner's mind, so the fix
                 # belongs on it rather than behind a browser and a login.
                 rows = [[InlineKeyboardButton(
-                    text="➕ Add stock here",
+                    text="Add Stock",
                     callback_data=f"adm_stock_{prod_id}",
-                    style="success",
                 )]]
                 if console:
                     rows.append([InlineKeyboardButton(
-                        text="🌐 Open in console",
+                        text="Open in Console",
                         url=f"{console}/#inventory",
                     )])
                 low_stock_kb = InlineKeyboardMarkup(inline_keyboard=rows)
                 alert_text = (
-                    f"{ICON_WARNING} <b>Low Stock Warning!</b>\n\n"
-                    f"{ICON_VIP} <b>Product:</b> {escape(order['product_title'])}\n"
-                    f"{ICON_SHOP} <b>Available Stock:</b> <code>{rem_stock}</code>\n"
-                    f"{ICON_TIMER} <b>Threshold:</b> <code>{threshold}</code>"
+                    f"⚠️ <b>Low Stock Warning</b>\n\n"
+                    f"<b>Product:</b> {escape(order['product_title'])}\n"
+                    f"<b>Available Stock:</b> <code>{rem_stock}</code>\n"
+                    f"<b>Threshold:</b> <code>{threshold}</code>"
                 )
                 await self.notifier.send_admin(
                     alert_text,
@@ -750,10 +745,10 @@ class PurchaseService:
 
         symbol = escape(await self.settings.get("currency_symbol"))
         refund_customer_msg = (
-            f"{ICON_CHECK} <b>Order Refunded</b>\n\n"
-            f"{ICON_ORDERS} <b>Order ID:</b> <code>{format_order_id(order_id)}</code>\n"
-            f"{ICON_VIP} <b>Product:</b> {escape(order['product_title'])}\n"
-            f"{ICON_MONEY} <b>Refunded to Wallet:</b> <code>+{order['price']:.2f} {symbol}</code>\n\n"
+            f"✅ <b>Order Refunded</b>\n\n"
+            f"<b>Order ID:</b> <code>{format_order_id(order_id)}</code>\n"
+            f"<b>Product:</b> {escape(order['product_title'])}\n"
+            f"<b>Refund to Wallet:</b> <code>+{order['price']:.2f} {symbol}</code>\n\n"
             f"<i>Amount has been refunded to your wallet balance.</i>"
         )
         self.notifier.in_background(

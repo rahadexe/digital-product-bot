@@ -90,18 +90,17 @@ class InventoryService:
                             kb = InlineKeyboardMarkup(
                                 inline_keyboard=[[
                                     InlineKeyboardButton(
-                                        text="⚡ Buy Now",
+                                        text="Buy Now",
                                         callback_data=f"prod_{product_id}",
-                                        style="success",
                                     )
                                 ]]
                             )
                             self.notifier.in_background(
                                 self.notifier.send(
                                     uid,
-                                    f"🔔 <b>Product Restocked!</b>\n\n"
-                                    f"<b>{title}</b> is now back in stock!\n"
-                                    f"Grab yours before it runs out. 👇",
+                                    f"🔔 <b>Product Restocked</b>\n\n"
+                                    f"<b>{title}</b> is back in stock!\n"
+                                    f"Available for purchase now.",
                                     keyboard=kb,
                                 )
                             )

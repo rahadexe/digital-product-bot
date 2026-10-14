@@ -77,9 +77,9 @@ class UserService:
                 full_name = escape(" ".join(filter(None, [first_name, last_name])) or "No name")
                 self.notifier.in_background(
                     self.notifier.send_admin(
-                        f"{ICON_ACCOUNT} <b>New Customer Joined!</b>\n\n"
-                        f"{ICON_ACCOUNT} <b>Customer:</b> {full_name}{cust}\n"
-                        f"{ICON_ID} <b>Customer ID:</b> <code>{tg_user_id}</code>",
+                        f"👤 <b>New Customer Joined</b>\n\n"
+                        f"<b>Customer:</b> {full_name}{cust}\n"
+                        f"<b>Customer ID:</b> <code>{tg_user_id}</code>",
                         event="new_user",
                     )
                 )
@@ -143,9 +143,9 @@ class UserService:
             self.notifier.in_background(
                 self.notifier.send(
                     referrer_id,
-                    f"{ICON_ORDERS} <b>Referral Bonus Received!</b>\n\n"
-                    f"{ICON_ACCOUNT} <b>Friend:</b> {joined_name}\n"
-                    f"{ICON_COIN} <b>Bonus:</b> <code>+{reward_str}</code>",
+                    f"✅ <b>Referral Bonus Received</b>\n\n"
+                    f"<b>Friend:</b> {joined_name}\n"
+                    f"<b>Bonus:</b> <code>+{reward_str}</code>",
                 )
             )
         return {"referrer_id": referrer_id, "amount": reward_amount}
@@ -302,13 +302,14 @@ class UserService:
 
     async def _notify_adjustment(self, tg_user_id: int, delta: float, balance: float, reason: str) -> None:
         symbol = escape(await self.settings.get("currency_symbol"))
-        action_type = "Credit Added" if delta >= 0 else "Balance Deducted"
+        header = "✅ <b>Wallet Credited</b>" if delta >= 0 else "ℹ️ <b>Wallet Deducted</b>"
+        action_type = "Credit" if delta >= 0 else "Deduction"
         await self.notifier.send(
             tg_user_id,
-            f"{ICON_DEPOSIT} <b>Wallet Balance Updated</b>\n\n"
-            f"{ICON_COIN} <b>{action_type}:</b> <code>{delta:+.2f} {symbol}</code>\n"
-            f"{ICON_BALANCE} <b>Current Balance:</b> <code>{balance:.2f} {symbol}</code>\n"
-            f"{ICON_NOTE} <b>Reason:</b> {escape(reason or 'Admin adjustment')}",
+            f"{header}\n\n"
+            f"<b>{action_type}:</b> <code>{delta:+.2f} {symbol}</code>\n"
+            f"<b>Current Balance:</b> <code>{balance:.2f} {symbol}</code>\n"
+            f"<b>Reason:</b> {escape(reason or 'Admin adjustment')}",
         )
 
     async def set_banned(self, tg_user_id: int, banned: bool | None = None) -> bool:

@@ -1296,24 +1296,24 @@ async def execute_quantity_purchase(query: CallbackQuery, state: FSMContext, ser
 
     lang = await services.users.get_language(query.from_user.id)
     with suppress(TelegramBadRequest):
-        toast_success = "🎉 ক্রয় সফল হয়েছে!" if lang == "bn" else "Order placed"
+        toast_success = "ক্রয় সফল হয়েছে!" if lang == "bn" else "Order placed successfully"
         await query.answer(toast_success, show_alert=False)
 
     if query.message:
         is_waiting = order.get("fulfillment") == "waiting"
         if lang == "bn":
-            success_title = f"{ICON_TIMER} <b>অর্ডার সম্পন্ন হয়েছে!</b>" if is_waiting else f"{ICON_CHECK} <b>ক্রয় সফল হয়েছে!</b>"
-            below_text = "" if is_waiting else "<i>আপনার অর্ডার বিবরণ এবং ডেলিভারি নিচে রয়েছে 👇</i>"
+            success_title = "⏳ <b>অর্ডার প্রসেসিং</b>" if is_waiting else "✅ <b>ক্রয় সফল হয়েছে</b>"
+            below_text = "" if is_waiting else "<i>আপনার অর্ডার বিবরণ এবং ডেলিভারি নিচে পাঠানো হয়েছে।</i>"
         else:
-            success_title = f"{ICON_TIMER} <b>Order placed</b>" if is_waiting else f"{ICON_CHECK} <b>Order placed</b>"
-            below_text = "" if is_waiting else "<i>Your order details and delivery are below 👇</i>"
+            success_title = "⏳ <b>Order Processing</b>" if is_waiting else "✅ <b>Order Placed</b>"
+            below_text = "" if is_waiting else "<i>Your order details and delivery are below.</i>"
         if not is_waiting:
             services.notifier.in_background(
                 _clear_banner(query.message, PURCHASE_BANNER_SECONDS))
         with suppress(TelegramBadRequest):
             await query.message.edit_text(
                 f"{success_title}\n\n"
-                f"{ICON_ORDERS} <b>{escape(order.get('product_title', 'Product'))}</b>"
+                f"<b>{escape(order.get('product_title', 'Product'))}</b>"
                 + (f"\n\n{below_text}" if below_text else ""),
                 reply_markup=None,
             )
@@ -1445,21 +1445,21 @@ async def process_customer_input_purchase(message: Message, state: FSMContext, s
 
     is_waiting = order.get("fulfillment") == "waiting"
     if lang == "bn":
-        success_title = f"{ICON_TIMER} <b>অর্ডার সফলভাবে গ্রহণ করা হয়েছে!</b>" if is_waiting else f"{ICON_CHECK} <b>ক্রয় সফল হয়েছে!</b>"
-        info_line = f"\n📝 <b>প্রদত্ত তথ্য:</b> <code>{escape(text)}</code>"
-        below_text = "<i>এডমিন আপনার প্রদত্ত তথ্য যাচাই করে শীঘ্রই ডেলিভারি সম্পন্ন করবেন।</i>" if is_waiting else "<i>আপনার অর্ডার বিবরণ নিচে দেওয়া হলো 👇</i>"
+        success_title = "⏳ <b>অর্ডার গ্রহণ করা হয়েছে</b>" if is_waiting else "✅ <b>ক্রয় সফল হয়েছে</b>"
+        info_line = f"\n<b>প্রদত্ত তথ্য:</b> <code>{escape(text)}</code>"
+        below_text = "<i>এডমিন আপনার প্রদত্ত তথ্য যাচাই করে শীঘ্রই ডেলিভারি করবেন।</i>" if is_waiting else "<i>আপনার অর্ডার বিবরণ নিচে দেওয়া হলো।</i>"
     else:
-        success_title = f"{ICON_TIMER} <b>Order Placed!</b>" if is_waiting else f"{ICON_CHECK} <b>Purchase Successful!</b>"
-        info_line = f"\n📝 <b>Provided Info:</b> <code>{escape(text)}</code>"
-        below_text = "<i>The admin will review your information and deliver shortly.</i>" if is_waiting else "<i>Your order details are below 👇</i>"
+        success_title = "⏳ <b>Order Received</b>" if is_waiting else "✅ <b>Purchase Successful</b>"
+        info_line = f"\n<b>Provided Info:</b> <code>{escape(text)}</code>"
+        below_text = "<i>The admin will review your information and deliver shortly.</i>" if is_waiting else "<i>Your order details are below.</i>"
 
     order_id = order.get("order_id", order.get("id"))
     orders_kb = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="📦 My Orders" if lang != "bn" else "📦 আমার অর্ডার", callback_data=f"view_order_{order_id}")
+        InlineKeyboardButton(text="My Orders" if lang != "bn" else "আমার অর্ডার", callback_data=f"view_order_{order_id}")
     ]])
     await message.answer(
         f"{success_title}\n\n"
-        f"{ICON_ORDERS} <b>{escape(order.get('product_title', 'Product'))}</b>"
+        f"<b>{escape(order.get('product_title', 'Product'))}</b>"
         f"{info_line}\n\n"
         f"{below_text}",
         reply_markup=orders_kb,

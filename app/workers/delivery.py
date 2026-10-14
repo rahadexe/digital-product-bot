@@ -72,35 +72,31 @@ class DeliveryWorker:
                 if order and order.get('delivered_item') and len(order['delivered_item']) <= 256:
                     kb_rows.append([
                         InlineKeyboardButton(
-                            text="🔑 Copy Credentials",
+                            text="Copy Credentials",
                             copy_text=CopyTextButton(text=order['delivered_item']),
-                            style="success",
                         )
                     ])
                 if order and order.get('id'):
                     order_id = order['id']
                     actions_row = [
                         InlineKeyboardButton(
-                            text="🛠️ Report Issue",
+                            text="Report Issue",
                             callback_data=f"claim_warranty_{order_id}",
-                            style="danger",
                         )
                     ]
                     if order.get('product_id'):
                         actions_row.append(
                             InlineKeyboardButton(
-                                text="🔄 Buy Again",
+                                text="Buy Again",
                                 callback_data=f"prod_{order['product_id']}",
-                                style="primary",
                             )
                         )
                     kb_rows.append(actions_row)
                 if not kb_rows and message.get('broadcast_id'):
                     kb_rows.append([
                         InlineKeyboardButton(
-                            text="🛍️ Shop Now",
+                            text="Shop Now",
                             callback_data="back_to_main",
-                            style="success",
                         )
                     ])
                 if kb_rows:
