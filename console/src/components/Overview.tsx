@@ -1,384 +1,174 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
-import {
-  ArrowUpRight,
-  Globe,
-  PackageCheck,
-  ShoppingBag,
-  TrendingUp,
-  Users,
-  Wallet,
-} from 'lucide-react';
-import { api, type OverviewStats, type SupplierStatus } from '@/lib/api';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { api, forgetAnswers, type OverviewStats, type SupplierStatus } from '@/lib/api';
 import { useMoney } from '@/lib/currency';
-import { PageLoading, EmptyRow, errorText, tone, when, type Say } from './ui';
+import { EmptyRow, errorText, tone, when, type Say } from './ui';
+
+function DashboardLoading() {
+  return (
+    <section className="dashboard-loading" role="status" aria-label="Loading dashboard" aria-busy="true">
+      <header className="dashboard-loading-heading">
+        <div>
+          <h1>Getting your dashboard ready</h1>
+          <p>Loading store activity and orders</p>
+        </div>
+      </header>
+      <div className="dashboard-loading-metrics" aria-hidden="true">
+        {[0, 1, 2, 3].map((item) => (
+          <div className="dashboard-loading-metric" key={item}>
+            <span className="dashboard-loading-shape short" />
+            <span className="dashboard-loading-shape value" />
+            <span className="dashboard-loading-shape tiny" />
+          </div>
+        ))}
+      </div>
+      <div className="dashboard-loading-content" aria-hidden="true">
+        <div className="dashboard-loading-chart">
+          <div className="dashboard-loading-chart-head">
+            <span className="dashboard-loading-shape short" />
+            <span className="dashboard-loading-shape badge" />
+          </div>
+          <span className="dashboard-loading-shape value" />
+          <svg viewBox="0 0 700 170" preserveAspectRatio="none">
+            <path d="M4 145 C90 142 125 138 190 140 S280 145 340 87 S420 118 470 132 S580 139 696 126" />
+            <path className="baseline" d="M4 158 H696" />
+          </svg>
+        </div>
+        <div className="dashboard-loading-operations">
+          <span className="dashboard-loading-shape short" />
+          {[0, 1, 2].map((item) => (
+            <div className="dashboard-loading-operation" key={item}>
+              <span className="dashboard-loading-shape row" />
+              <span className="dashboard-loading-shape count" />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="dashboard-loading-orders" aria-hidden="true">
+        <span className="dashboard-loading-shape short" />
+        {[0, 1, 2].map((item) => <span className="dashboard-loading-shape order" key={item} />)}
+      </div>
+    </section>
+  );
+}
 
 export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) => void }) {
   const [stats, setStats] = useState<OverviewStats | null>(null);
   const [supplier, setSupplier] = useState<SupplierStatus | null>(null);
   const [failed, setFailed] = useState(false);
-  const [hoverPoint, setHoverPoint] = useState<{ x: number; y: number; label: string; revenue: number; orders: number } | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedPoint, setSelectedPoint] = useState<number | null>(null);
   const money = useMoney();
 
-  useEffect(() => {
-    api
-      .overview()
-      .then(setStats)
-      .catch((cause) => {
-        setFailed(true);
-        say(errorText(cause, 'Could not load the dashboard.'), 'bad');
-      });
-    api
-      .supplierStatus()
-      .then(setSupplier)
-      .catch(() => {});
+  const load = useCallback(async (refresh = false) => {
+    if (refresh) forgetAnswers();
+    setRefreshing(true);
+    setFailed(false);
+    void api.supplierStatus().then(setSupplier).catch(() => undefined);
+    try {
+      setStats(await api.overview());
+      setSelectedPoint(null);
+    } catch (cause) {
+      setFailed(true);
+      say(errorText(cause, 'Could not load the dashboard.'), 'bad');
+    } finally {
+      setRefreshing(false);
+    }
   }, [say]);
 
-  // Generate SVG smooth area curve points
-  const chartPoints = useMemo(() => {
-    const rawData = stats?.chart_data && stats.chart_data.length > 0 ? stats.chart_data : [];
-    if (!rawData.length) return { path: '', area: '', points: [], maxVal: 0, totalRev: 0, totalOrders: 0 };
+  useEffect(() => {
+    void load();
+  }, [load]);
 
-    const totalRev = rawData.reduce((sum, item) => sum + item.revenue, 0);
-    const totalOrders = rawData.reduce((sum, item) => sum + item.orders, 0);
-    const maxVal = Math.max(...rawData.map((d) => d.revenue), 100);
-
-    const width = 800;
-    const height = 150;
-    const paddingX = 20;
-    const paddingY = 20;
-
-    const effectiveWidth = width - paddingX * 2;
-    const effectiveHeight = height - paddingY * 2;
-
-    const points = rawData.map((d, i) => {
-      const x = paddingX + (i / Math.max(rawData.length - 1, 1)) * effectiveWidth;
-      const y = height - paddingY - (d.revenue / maxVal) * effectiveHeight;
-      return { x, y, data: d };
-    });
-
-    if (points.length === 1) {
-      return { path: `M ${points[0].x} ${points[0].y}`, area: '', points, maxVal, totalRev, totalOrders };
-    }
-
-    // Smooth cubic bezier spline
-    let path = `M ${points[0].x} ${points[0].y}`;
-    for (let i = 0; i < points.length - 1; i++) {
-      const curr = points[i];
-      const next = points[i + 1];
-      const cpX1 = curr.x + (next.x - curr.x) / 3;
-      const cpY1 = curr.y;
-      const cpX2 = curr.x + (2 * (next.x - curr.x)) / 3;
-      const cpY2 = next.y;
-      path += ` C ${cpX1} ${cpY1}, ${cpX2} ${cpY2}, ${next.x} ${next.y}`;
-    }
-
-    const last = points[points.length - 1];
-    const first = points[0];
-    const area = `${path} L ${last.x} ${height} L ${first.x} ${height} Z`;
-
-    return { path, area, points, maxVal, totalRev, totalOrders };
+  const chart = useMemo(() => {
+    const rows = stats?.chart_data ?? [];
+    const max = Math.max(...rows.map((row) => row.revenue), 1);
+    const points = rows.map((row, index) => ({ ...row, x: 12 + (index / Math.max(rows.length - 1, 1)) * 676, y: 178 - (row.revenue / max) * 150 }));
+    const line = points.map((point, index) => `${index ? 'L' : 'M'} ${point.x} ${point.y}`).join(' ');
+    const area = points.length > 1 ? `${line} L ${points[points.length - 1].x} 178 L ${points[0].x} 178 Z` : '';
+    return { points, line, area, total: rows.reduce((sum, row) => sum + row.revenue, 0), orders: rows.reduce((sum, row) => sum + row.orders, 0) };
   }, [stats]);
 
-  if (failed && !stats) return <p className="note bad">Could not load the dashboard.</p>;
-  if (!stats) return <PageLoading label="Loading dashboard…" />;
+  if (!stats && !failed) return <DashboardLoading />;
+  if (!stats) return <section className="panel dashboard-error" role="alert"><p>Could not load the dashboard.</p><button type="button" className="btn ghost" onClick={() => void load()}>Try again</button></section>;
 
-  const deliveredCount = stats.delivered_orders ?? Math.max(0, stats.total_orders - stats.waiting_orders);
+  const metrics = [
+    { label: 'Total revenue', value: money(stats.total_revenue), screen: 'orders', primary: true },
+    { label: 'Orders', value: stats.total_orders.toLocaleString(), screen: 'orders' },
+    { label: 'Customers', value: stats.total_users.toLocaleString(), screen: 'users' },
+  ];
+  const point = selectedPoint === null ? null : chart.points[selectedPoint];
+  const pending = stats.waiting_orders + stats.pending_deposits;
 
   return (
-    <>
-      {/* Top Header */}
-      <div className="dash-header">
-        <h1>Dashboard</h1>
-      </div>
-
-      {(stats.waiting_orders > 0 || stats.pending_deposits > 0) ? (
-        <div className="dashboard-actions" aria-label="Needs attention">
-          {stats.waiting_orders > 0 ? <button type="button" onClick={() => onOpen('orders/waiting')}>
-            <ShoppingBag size={18} aria-hidden="true" />
-            <span><strong>{stats.waiting_orders} orders to deliver</strong><small>Open waiting orders</small></span>
-            <ArrowUpRight size={17} aria-hidden="true" />
-          </button> : null}
-          {stats.pending_deposits > 0 ? <button type="button" onClick={() => onOpen('deposits')}>
-            <Wallet size={18} aria-hidden="true" />
-            <span><strong>{stats.pending_deposits} deposits to review</strong><small>Review payments</small></span>
-            <ArrowUpRight size={17} aria-hidden="true" />
-          </button> : null}
-        </div>
-      ) : null}
-
-      {/* Top 4 Stat Metric Cards */}
-      <div className="stat-cards-grid">
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <span className="stat-card-label">Total revenue</span>
-            <Wallet className="stat-card-icon" />
-          </div>
-          <div className="stat-card-value">{money(stats.total_revenue)}</div>
-        </div>
-
-        <button
-          type="button"
-          className="stat-card"
-          onClick={() => { window.location.hash = '#orders'; }}
-          title="View orders"
-        >
-          <div className="stat-card-top">
-            <span className="stat-card-label">Orders</span>
-            <ShoppingBag className="stat-card-icon" />
-          </div>
-          <div className="stat-card-value">{stats.total_orders}</div>
-        </button>
-
-        <button
-          type="button"
-          className="stat-card"
-          onClick={() => { window.location.hash = '#users'; }}
-          title="View all customers"
-        >
-          <div className="stat-card-top">
-            <span className="stat-card-label">Customers</span>
-            <Users className="stat-card-icon" />
-          </div>
-          <div className="stat-card-value">{stats.total_users}</div>
-        </button>
-
-        <button
-          type="button"
-          className="stat-card"
-          onClick={() => { window.location.hash = '#orders'; }}
-          title="View delivered orders"
-        >
-          <div className="stat-card-top">
-            <span className="stat-card-label">Delivered</span>
-            <PackageCheck className="stat-card-icon" />
-          </div>
-          <div className="stat-card-value">{deliveredCount}</div>
-        </button>
-      </div>
-
-      {supplier?.is_configured && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            background: 'var(--panel)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius)',
-            padding: '12px 18px',
-            marginBottom: 16,
-            cursor: 'pointer',
-            transition: 'border-color 0.15s ease',
-          }}
-          onClick={() => onOpen('suppliers')}
-          title="Open Supplier Management"
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 8,
-                background: 'rgba(59, 130, 246, 0.12)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#3b82f6',
-              }}
-            >
-              <Globe size={18} />
-            </div>
-            <div>
-              <div style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                Upstream Supplier: {supplier.account?.name || 'Digital Mart'}
-                <span className="pill good" style={{ fontSize: '10px', padding: '1px 6px' }}>Dropship Active</span>
-              </div>
-              <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: 2 }}>
-                {supplier.upstream_products_count} synced products · Instant auto-delivery
-              </div>
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ textAlign: 'right' }}>
-              <div
-                style={{
-                  fontSize: '15px',
-                  fontWeight: 700,
-                  color: (supplier.account?.balance ?? 0) < (supplier.low_balance_alert ?? 50) ? 'var(--negative)' : 'var(--positive)',
-                }}
-              >
-                {supplier.account?.currency_symbol || '৳'}{(supplier.account?.balance ?? 0).toFixed(2)}
-              </div>
-              <div style={{ fontSize: '11px', color: 'var(--muted)' }}>Supplier Balance</div>
-            </div>
-            <ArrowUpRight size={16} style={{ color: 'var(--muted)' }} />
-          </div>
-        </div>
-      )}
-
-      {/* Analytics Chart Card */}
-      <div className="analytics-card">
-        <div className="analytics-card-header">
-          <div>
-            <div className="label">Revenue · last 14 days</div>
-            <div className="metric">{money(chartPoints.totalRev)}</div>
-          </div>
-          <div className="analytics-badge">
-            <TrendingUp size={14} style={{ color: 'var(--positive)' }} />
-            <span>{chartPoints.totalOrders} orders</span>
-          </div>
-        </div>
-
-        <div className="chart-svg-container">
-          {hoverPoint ? (
-            <div className="chart-tooltip" style={{ left: `${(hoverPoint.x / 800) * 100}%`, top: hoverPoint.y }}>
-              {hoverPoint.label}: <strong>{money(hoverPoint.revenue)}</strong> ({hoverPoint.orders} orders)
-            </div>
-          ) : null}
-
-          <svg
-            viewBox="0 0 800 170"
-            style={{ width: '100%', height: '100%', overflow: 'visible' }}
-            preserveAspectRatio="none"
-          >
-            <defs>
-              <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.28" />
-                <stop offset="85%" stopColor="var(--accent)" stopOpacity="0.03" />
-                <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
-              </linearGradient>
-            </defs>
-
-            {/* Horizontal Grid lines */}
-            <line x1="0" y1="20" x2="800" y2="20" stroke="var(--line)" strokeDasharray="3 3" />
-            <line x1="0" y1="75" x2="800" y2="75" stroke="var(--line)" strokeDasharray="3 3" />
-            <line x1="0" y1="130" x2="800" y2="130" stroke="var(--line)" />
-
-            {/* Area fill */}
-            {chartPoints.area ? <path d={chartPoints.area} fill="url(#chartGradient)" /> : null}
-
-            {/* Line stroke */}
-            {chartPoints.path ? (
-              <path
-                d={chartPoints.path}
-                fill="none"
-                stroke="var(--accent)"
-                strokeWidth="2.75"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            ) : null}
-
-            {/* Interactive Data Points */}
-            {chartPoints.points.map((pt, idx) => (
-              <g
-                key={idx}
-                onMouseEnter={() =>
-                  setHoverPoint({
-                    x: pt.x,
-                    y: pt.y,
-                    label: pt.data.label,
-                    revenue: pt.data.revenue,
-                    orders: pt.data.orders,
-                  })
-                }
-                onMouseLeave={() => setHoverPoint(null)}
-                style={{ cursor: 'pointer' }}
-              >
-                <circle cx={pt.x} cy={pt.y} r={pt.data.revenue > 0 ? 4 : 2.5} fill="var(--surface)" stroke="var(--accent)" strokeWidth="2" />
-                <circle cx={pt.x} cy={pt.y} r="14" fill="transparent" />
-              </g>
-            ))}
-
-            {/* X-axis date labels */}
-            {chartPoints.points
-              .filter((_, idx) => (idx % 4 === 0 && idx < chartPoints.points.length - 2) || idx === chartPoints.points.length - 1)
-              .map((pt, idx) => (
-                <text
-                  key={idx}
-                  x={pt.x}
-                  y="162"
-                  textAnchor="middle"
-                  fill="var(--muted)"
-                  fontSize="10"
-                  fontFamily="inherit"
-                >
-                  {pt.data.label}
-                </text>
-              ))}
-          </svg>
-        </div>
-      </div>
-
-      {/* Recent Orders Section (Burmese Market Table Style) */}
-      <section className="panel" style={{ marginBottom: 20 }}>
-        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <h2>Recent orders</h2>
-          </div>
-          <button
-            type="button"
-            className="btn ghost small"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
-            onClick={() => onOpen('orders')}
-          >
-            <span>View all</span>
-            <ArrowUpRight size={14} />
+    <div className="dashboard-layout">
+      <header className="workspace-heading">
+        <div><h1>Dashboard</h1></div>
+        <button type="button" className="btn ghost" disabled={refreshing} onClick={() => void load(true)}>{refreshing ? 'Refreshing…' : 'Refresh'}</button>
+      </header>
+      {failed ? <p className="note bad" role="alert">Refresh failed. Showing the last loaded figures.</p> : null}
+      <div className="overview-metrics overview-essential">
+        {metrics.map(({ label, value, screen, primary }) => (
+          <button type="button" key={label} className={`overview-metric${primary ? ' featured' : ''}`} onClick={() => onOpen(screen)}>
+            <span className="metric-caption">{label}</span><strong>{value}</strong><span className="metric-foot">All time</span>
           </button>
-        </header>
-
-        <div className="scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Order</th>
-                <th>Customer</th>
-                <th>Status</th>
-                <th>Delivery</th>
-                <th className="right">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {stats.recent_orders.map((order) => {
-                const customerName = [order.first_name, order.last_name].filter(Boolean).join(' ') || order.username || `User ${order.tg_user_id}`;
-                const isWaiting = order.status === 'completed' && order.fulfillment === 'waiting';
-
-                return (
-                  <tr key={order.id} onClick={() => onOpen(`orders/${order.id}`)} style={{ cursor: 'pointer' }}>
-                    <td className="name">
-                      <strong>#{order.id}</strong>
-                      <small>{when(order.created_at)}</small>
-                    </td>
-                    <td>
-                      <div>{customerName}</div>
-                      <small className="hint">{order.username ? `@${order.username}` : order.tg_user_id}</small>
-                    </td>
-                    <td>
-                      {isWaiting ? (
-                        <span className="pill warn">waiting to send</span>
-                      ) : (
-                        <span className={`pill ${tone(order.status)}`}>{order.status}</span>
-                      )}
-                    </td>
-                    <td>
-                      <span className="pill" style={{ background: 'var(--surface-2)', border: '1px solid var(--line)' }}>
-                        {order.source === 'manual' ? 'Manual' : order.source === 'stock' ? 'Instant' : order.source || 'Instant'}
-                      </span>
-                    </td>
-                    <td className="right money">
-                      <strong>{money(order.price)}</strong>
-                    </td>
-                  </tr>
-                );
-              })}
-              {stats.recent_orders.length === 0 ? <EmptyRow columns={5}>No orders yet.</EmptyRow> : null}
-            </tbody>
-          </table>
-        </div>
+        ))}
+      </div>
+      <div className="overview-columns">
+        <section className="revenue-panel">
+          <header><div><h2>Revenue</h2><span className="muted">Last 14 days</span></div><span className="chart-period">{chart.orders.toLocaleString()} orders</span></header>
+          <div className="revenue-total">{money(chart.total)}</div>
+          <div className="revenue-readout" aria-live="polite">{point ? <><strong>{point.label}</strong><span>{money(point.revenue)} · {point.orders} orders</span></> : <span>Daily revenue</span>}</div>
+          {chart.points.length ? <div className="revenue-chart">
+            <svg viewBox="0 0 700 214" role="group" aria-label={`Revenue over the last 14 days: ${money(chart.total)}`}>
+              <defs><linearGradient id="revenue-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--accent)" stopOpacity=".16" /><stop offset="100%" stopColor="var(--accent)" stopOpacity=".01" /></linearGradient></defs>
+              {[28, 78, 128, 178].map((y) => <line key={y} x1="12" x2="688" y1={y} y2={y} stroke="var(--line)" strokeDasharray={y === 178 ? undefined : '3 5'} />)}
+              {chart.area ? <path d={chart.area} fill="url(#revenue-fill)" /> : null}
+              <path d={chart.line} fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+              {chart.points.map((item, index) => <g key={item.date} tabIndex={0} role="button" aria-label={`${item.label}: ${money(item.revenue)}, ${item.orders} orders`}
+                onFocus={() => setSelectedPoint(index)} onBlur={() => setSelectedPoint(null)} onMouseEnter={() => setSelectedPoint(index)} onMouseLeave={() => setSelectedPoint(null)} onClick={() => setSelectedPoint(index)}
+                onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedPoint(index); } }}>
+                <circle cx={item.x} cy={item.y} r="14" fill="transparent" /><circle cx={item.x} cy={item.y} r={selectedPoint === index || chart.points.length === 1 ? 4 : 2.5} fill="var(--surface)" stroke="var(--accent)" strokeWidth="2" />
+                {(index === 0 || index === chart.points.length - 1 || (index % 4 === 0 && index < chart.points.length - 2)) ? <text x={item.x} y="207" textAnchor={index === 0 ? 'start' : index === chart.points.length - 1 ? 'end' : 'middle'} fill="var(--muted)" fontSize="11">{item.label}</text> : null}
+              </g>)}
+            </svg>
+          </div> : <div className="chart-empty">Revenue will appear here after your first order.</div>}
+        </section>
+        <aside className="overview-aside">
+          <section className="operations-panel">
+            <header><h2>Operations</h2><span className={`pill ${pending ? 'warn' : 'good'}`}>{pending ? `${pending} pending` : 'All clear'}</span></header>
+            <button type="button" className="operation-link" onClick={() => onOpen('orders/waiting')}><span>Orders to deliver</span><strong>{stats.waiting_orders}</strong></button>
+            <button type="button" className="operation-link" onClick={() => onOpen('deposits')}><span>Deposits to review</span><strong>{stats.pending_deposits}</strong></button>
+            <button type="button" className="operation-link" onClick={() => onOpen('inventory')}><span>Available stock</span><strong>{stats.available_stock}</strong></button>
+          </section>
+          {supplier?.is_configured ? <button type="button" className="supplier-summary" onClick={() => onOpen('suppliers')}>
+            <span className="supplier-caption">Supplier balance</span>
+            <strong className={(supplier.account?.balance ?? 0) < (supplier.low_balance_alert ?? 50) ? 'bad-text' : ''}>{supplier.account?.currency_symbol || '৳'}{(supplier.account?.balance ?? 0).toFixed(2)}</strong>
+            <span>{supplier.account?.name || 'Supplier'} · {supplier.upstream_products_count} products</span>
+          </button> : null}
+        </aside>
+      </div>
+      <section className="panel recent-orders">
+        <header><h2>Recent orders</h2><button type="button" className="btn ghost small" onClick={() => onOpen('orders')}>View all</button></header>
+        <div className="scroll"><table className="overview-orders">
+          <thead><tr><th>Order</th><th>Customer</th><th>Status</th><th>Delivery</th><th className="right">Total</th></tr></thead>
+          <tbody>{stats.recent_orders.map((order) => {
+            const customer = [order.first_name, order.last_name].filter(Boolean).join(' ') || order.username || `User ${order.tg_user_id}`;
+            const waiting = order.status === 'completed' && order.fulfillment === 'waiting';
+            return <tr key={order.id}>
+              <td className="name"><button type="button" className="order-reference" onClick={() => onOpen(`orders/${order.id}`)}>O{order.id}</button><small>{when(order.created_at)}</small></td>
+              <td><div className="overview-customer" title={order.username ? `@${order.username}` : String(order.tg_user_id)}><span>{customer}</span></div></td>
+              <td><span className={`pill ${waiting ? 'warn' : tone(order.status)}`}>{waiting ? 'Awaiting delivery' : order.status}</span></td>
+              <td className="overview-delivery">{order.source === 'manual' ? 'Manual' : order.source === 'stock' ? 'Instant' : order.source || 'Instant'}</td>
+              <td className="right money">{money(order.price)}</td>
+            </tr>;
+          })}{!stats.recent_orders.length ? <EmptyRow columns={5}>No orders yet.</EmptyRow> : null}</tbody>
+        </table></div>
       </section>
-
-    </>
+      <nav className="workspace-shortcuts" aria-label="Quick actions">
+        {[{ label: 'Products', screen: 'products' }, { label: 'Broadcast', screen: 'broadcast' }, { label: 'Store settings', screen: 'settings' }].map(({ label, screen }) => <button key={screen} type="button" onClick={() => onOpen(screen)}><span>{label}</span></button>)}
+      </nav>
+    </div>
   );
 }

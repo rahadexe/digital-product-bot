@@ -1,0 +1,1253 @@
+/* Console presentation. Scoped so the customer storefront keeps its own theme.
+   Existing component CSS supplies behavior; this file owns workspace chrome,
+   shared visual tokens and the dashboard composition. */
+.console-root {
+  --bg: #f7f8fa;
+  --surface: #fff;
+  --surface-2: #f3f5f7;
+  --text: #202a35;
+  --text-dim: #52606d;
+  --muted: #697582;
+  --line: #edf0f3;
+  --line-strong: #d6dce2;
+  --border: #e5e9ed;
+  --accent: #126e66;
+  --accent-2: #0d5751;
+  --accent-soft: #eaf4f1;
+  --accent-ink: #fff;
+  --positive: #197052;
+  --danger: #bd3f45;
+  --warning: #936017;
+  --radius-lg: 18px;
+  --radius-md: 14px;
+  --radius-sm: 8px;
+  --shadow: 0 2px 5px #202a3503;
+  --shadow-raised: 0 24px 70px #202a3526;
+  --rail: 236px;
+  /* Compatibility for older, specialized cards. */
+  --panel: var(--surface);
+  --radius: var(--radius-md);
+  --negative: var(--danger);
+  background: var(--bg);
+  font-size: 13px;
+}
+html:has(.console-root), body:has(.console-root) { background: #f7f8fa; }
+.console-root h1, .console-root h2, .console-root h3 { font-weight: 650; }
+.console-root h1 { font-size: clamp(26px, 2.5vw, 32px); letter-spacing: -.045em; }
+.console-root h2 { font-size: 15px; letter-spacing: -.02em; }
+.console-root .console { min-height: 100dvh; }
+.console-root .main { padding: 36px clamp(24px, 3vw, 48px) 56px; }
+.console-root .main-inner { max-width: 1440px; }
+.console-root .page-head { margin-bottom: 28px; min-height: 50px; }
+.console-root .rail {
+  padding: 28px 16px 16px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  gap: 20px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(32, 42, 53, 0.16) transparent;
+}
+.console-root .rail::-webkit-scrollbar {
+  width: 4px;
+}
+.console-root .rail::-webkit-scrollbar-track {
+  background: transparent;
+}
+.console-root .rail::-webkit-scrollbar-thumb {
+  background: rgba(32, 42, 53, 0.14);
+  border-radius: 999px;
+}
+.console-root .rail:hover::-webkit-scrollbar-thumb {
+  background: rgba(32, 42, 53, 0.28);
+}
+.console-root .brand { padding: 4px 10px 16px; display: flex; align-items: center; }
+.console-root .brand-wordmark {
+  font-family: var(--font-display), sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.015em;
+  line-height: 1.25;
+  transition: color 140ms ease;
+}
+.console-root .mobile-brand-title .brand-wordmark { font-size: 17px; }
+.console-root .rail > button:hover .brand-wordmark,
+.console-root .drawer-brand:hover .brand-wordmark {
+  color: var(--accent);
+}
+.console-root .rail-items { gap: 4px; }
+.console-root .rail-items > button { padding: 10px 12px; min-height: 41px; font-size: 12.5px; font-weight: 500; border-radius: 9px; }
+.console-root .rail-items > button:hover { background: var(--surface-2); }
+.console-root .rail-items > button.active { background: var(--accent-soft); color: var(--accent); font-weight: 650; }
+.console-root .rail-items > button.active::before { display: none; }
+.console-root .rail .count { color: var(--accent); background: #d9eae4; font-size: 10px; border-radius: 6px; }
+.console-root .rail-foot { padding-top: 16px; }
+.console-root .rail .sign-out { color: var(--muted); }
+.console-root .rail .sign-out:hover { color: var(--danger); }
+
+/* The same quiet frame on every list and settings screen. */
+.console-root .panel { border-color: var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow); margin-bottom: 24px; }
+.console-root .panel > header { padding: 18px 22px; gap: 12px; min-height: 64px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.console-root .panel > header h2 { font-weight: 650; font-size: 14px; }
+.console-root .panel > header p, .console-root .panel > header small { color: var(--muted); font-size: 12px; line-height: 1.6; margin-top: 4px; }
+.console-root .panel-body { padding: 22px; }
+.console-root .panel-subhead { padding: 18px 22px; background: var(--surface); }
+.console-root .panel-subhead h3 { font-size: 13px; }
+.console-root th { background: #fafbfc; color: var(--muted); font-size: 11px; text-transform: none; letter-spacing: 0; font-weight: 550; padding: 12px 22px; border-bottom: 1px solid var(--line); }
+.console-root td { padding: 16px 22px; font-size: 12.5px; border-bottom: 1px solid var(--line); }
+.console-root tbody tr:last-child td { border-bottom: 0; }
+.console-root tbody tr:hover { background: #fafcfc; }
+.console-root td strong { font-weight: 600; }
+.console-root td small { font-size: 11px; line-height: 1.6; }
+.console-root .money { font-variant-numeric: tabular-nums; font-weight: 600; }
+.console-root .pill { font-size: 10.5px; font-weight: 550; line-height: 1.6; padding: 3px 9px; border-radius: 6px; text-transform: capitalize; }
+.console-root .pill.good { color: #197052; background: #edf7f1; border-color: #d9eee1; }
+.console-root .pill.warn { color: #926016; background: #fcf5e8; border-color: #f3e5c8; }
+.console-root .pill.bad { color: #b33d45; background: #fdf0f0; border-color: #f3dce0; }
+.console-root .filters { gap: 10px; min-width: 0; }
+.console-root .filters input[type='search'] { width: clamp(200px, 24vw, 330px); background: #fafbfc; }
+.console-root input:not([type='checkbox']):not([type='radio']):not([type='file']):focus,
+.console-root input:focus,
+.console-root select:focus,
+.console-root textarea:focus,
+.console-root .pm-select:focus,
+.console-root .custom-select-trigger:focus,
+.console-root .custom-select-trigger:focus-visible,
+.console-root .custom-select-trigger.open {
+  border-color: var(--accent) !important;
+  border-width: 1.5px !important;
+  outline: none !important;
+  outline-offset: 0;
+  box-shadow: none !important;
+}
+.console-root :is(input, textarea)::placeholder {
+  color: var(--muted) !important;
+  opacity: 0.72;
+}
+.console-root .btn { min-height: 39px; padding: 9px 15px; border-radius: 8px; font-size: 12px; font-weight: 600; gap: 7px; box-shadow: none; }
+.console-root .btn.ghost { background: var(--surface); border: 1px solid var(--border); color: var(--text-dim); }
+.console-root .btn.ghost:hover { background: var(--surface-2); border-color: var(--line-strong); }
+.console-root .btn.small { min-height: 34px; padding: 7px 12px; font-size: 11.5px; }
+.console-root .mini { min-height: 32px; border-radius: 7px; font-size: 11px; }
+.console-root .row-actions { gap: 6px; }
+.console-root .segmented { display: flex; width: fit-content; max-width: 100%; background: #edf0f3; border: 1px solid #e8ecf0; border-radius: 10px; padding: 4px; gap: 3px; margin-bottom: 20px; box-shadow: none; }
+.console-root .segmented button { min-height: 34px; padding: 7px 13px; font-size: 12px; font-weight: 550; color: var(--text-dim); border-radius: 7px; white-space: nowrap; }
+.console-root .segmented button.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 4px #24354312; }
+.console-root .segmented button:hover:not(.active) { background: #ffffff60; }
+.console-root .stat-cards-grid { gap: 16px; margin-bottom: 24px; }
+.console-root .stat-card { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 20px; background: var(--surface); box-shadow: var(--shadow); }
+.console-root .stat-card-label { text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 500; color: var(--muted); }
+.console-root .stat-card-value { font-size: clamp(23px, 2.3vw, 30px); font-weight: 650; letter-spacing: -.04em; margin-top: 14px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.console-root .settings-tabs { background: transparent; padding: 0 0 12px; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; width: 100%; gap: 6px; }
+.console-root .settings-tabs button { padding: 9px 16px; }
+.console-root .settings-tabs button.active { box-shadow: none; background: var(--accent-soft); color: var(--accent); }
+.console-root .settings-sections { gap: 22px; max-width: 1080px; }
+.console-root .settings-sections .settings-card > header { padding: 20px 24px; }
+.console-root .settings-sections .settings-card > .field-grid, .console-root .field-grid { padding: 22px 24px; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); }
+.console-root .field > span:first-child, .console-root .field > label { font-size: 12px; font-weight: 550; }
+.console-root .field small, .console-root .hint { line-height: 1.6; color: var(--muted); }
+.console-root .flag-row, .console-root .settings-sections .settings-card > .flag-row { padding: 16px 24px; gap: 20px; }
+.console-root .flag-row-text strong { font-size: 12.5px; font-weight: 550; }
+.console-root .flag-row-text small { font-size: 11.5px; max-width: 64ch; }
+.console-root .notification-details { margin: 16px 22px 22px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.console-root .notification-details summary { cursor: pointer; padding: 14px 16px; font-weight: 550; font-size: 12px; background: #fafbfc; }
+.console-root .notification-details summary span { color: var(--muted); font-size: 10.5px; font-weight: 400; margin-left: 10px; }
+.console-root .notification-details .mandatory-row { padding: 14px 16px; background: var(--surface); border-top: 1px solid var(--line); }
+.console-root .notification-details .mandatory-badge { background: var(--surface-2); color: var(--muted); border-color: var(--border); font-size: 9px; font-weight: 500; }
+.console-root .notification-details .mandatory-desc { font-size: 11.5px; line-height: 1.6; }
+.console-root .form-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.console-root .modal { border-radius: 18px; box-shadow: var(--shadow-raised); }
+.console-root .modal > header { padding: 22px 24px; }
+.console-root .modal > header h2 { font-size: 18px; }
+.console-root .modal .body { padding: 24px; gap: 20px; }
+.console-root .modal > footer { padding: 16px 24px; background: #fafbfc; }
+.console-root .pager { padding: 14px 22px; font-size: 11.5px; }
+.console-root .gate form { border-radius: 20px; border-color: var(--border); box-shadow: 0 12px 50px #202a3508; padding: 36px; }
+.console-root .gate .brand { padding: 0; }
+.console-root .signin-heading { margin: 24px 0; }
+.console-root .signin-heading h1 { font-size: 25px; }
+.console-root .signin-heading p { margin-top: 6px; color: var(--muted); font-size: 12px; }
+
+/* Dashboard: one clear visual hierarchy, with operations alongside revenue. */
+.dashboard-layout { display: grid; gap: 24px; }
+.workspace-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 4px; }
+.eyebrow { color: var(--muted); font-size: 12px; margin-bottom: 7px; }
+.overview-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.overview-metric { display: flex; flex-direction: column; text-align: left; min-width: 0; padding: 22px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); transition: border-color 150ms ease; }
+.overview-metric:hover { border-color: #b8cdc6; }
+.overview-metric.featured { background: #edf5f2; border-color: #d6e7df; }
+.metric-caption, .metric-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
+.overview-metric > strong { font-family: var(--font-display), sans-serif; font-weight: 650; font-size: clamp(24px, 2.5vw, 34px); line-height: 1.3; letter-spacing: -.05em; margin: 17px 0 12px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.overview-metric.featured > strong, .overview-metric.featured .metric-caption { color: var(--accent-2); }
+.metric-foot { font-size: 10.5px; }
+.overview-columns { display: grid; grid-template-columns: minmax(0, 1fr) 310px; gap: 24px; align-items: start; }
+.revenue-panel, .operations-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; }
+.revenue-panel { padding: 24px; min-width: 0; }
+.revenue-panel > header, .operations-panel > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.revenue-panel header .muted { display: block; font-size: 11px; margin-top: 5px; }
+.chart-period { white-space: nowrap; font-size: 11px; padding: 5px 9px; border-radius: 6px; background: var(--surface-2); color: var(--text-dim); }
+.revenue-total { font: 650 30px/1.4 var(--font-display), sans-serif; letter-spacing: -.04em; margin-top: 22px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.revenue-readout { display: flex; gap: 10px; flex-wrap: wrap; font-size: 11px; color: var(--muted); min-height: 22px; margin-top: 3px; }
+.revenue-chart { margin-top: 4px; }
+.revenue-chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.revenue-chart g { cursor: pointer; }
+.revenue-chart g:focus { outline: none; }
+.revenue-chart g:focus-visible circle:last-of-type { stroke-width: 4; }
+.chart-empty { min-height: 170px; display: grid; place-items: center; text-align: center; color: var(--muted); font-size: 12px; }
+.overview-aside { display: grid; gap: 16px; }
+.operations-panel { padding: 20px; }
+.operations-panel > header { margin-bottom: 14px; }
+.console-root .operations-panel h2 { font-size: 13px; }
+.operation-link { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 53px; border-top: 1px solid var(--line); font-size: 12px; text-align: left; }
+.operation-link > svg { flex-shrink: 0; color: var(--muted); }
+.operation-link > span { flex: 1; }
+.operation-link > strong { font-variant-numeric: tabular-nums; font-size: 15px; font-weight: 650; }
+.operation-link:hover { color: var(--accent); }
+.supplier-summary { padding: 20px; text-align: left; border: 1px solid var(--border); border-radius: 14px; display: grid; gap: 10px; background: #f0f3f5; }
+.supplier-caption { display: flex; align-items: center; gap: 8px; color: var(--text-dim); font-size: 11.5px; }
+.supplier-summary > strong { font: 650 26px/1.3 var(--font-display), sans-serif; letter-spacing: -.04em; }
+.supplier-summary > span:last-child { color: var(--muted); font-size: 11px; }
+.console-root .recent-orders { margin: 0; }
+.overview-customer { display: flex; align-items: center; gap: 10px; }
+.order-reference { display: inline-flex; gap: 5px; align-items: center; color: var(--text); font-weight: 600; min-height: 28px; }
+.order-reference:hover { color: var(--accent); }
+.overview-delivery { color: var(--muted); }
+.workspace-shortcuts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.workspace-shortcuts button { display: flex; align-items: center; gap: 11px; padding: 15px 18px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; font-size: 12px; color: var(--text-dim); text-align: left; }
+.workspace-shortcuts button span { flex: 1; }
+.workspace-shortcuts button:hover { border-color: #b8cdc6; color: var(--accent); }
+.dashboard-error { display: grid; justify-items: center; gap: 16px; padding: 40px; }
+.refreshing { animation: workspace-spin 1s linear infinite; }
+@keyframes workspace-spin { to { transform: rotate(360deg); } }
+
+.dashboard-loading { display: grid; gap: 22px; }
+.dashboard-loading-heading { display: flex; align-items: center; gap: 13px; }
+.console-root .dashboard-loading-heading h1 { margin: 0; font-size: clamp(18px, 2vw, 22px); letter-spacing: -.035em; }
+.dashboard-loading-heading p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+.dashboard-loading-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.dashboard-loading-metric, .dashboard-loading-chart, .dashboard-loading-operations, .dashboard-loading-orders { min-width: 0; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.dashboard-loading-metric { display: grid; align-content: space-between; gap: 14px; min-height: 128px; padding: 18px; }
+.dashboard-loading-metric:first-child { background: #edf5f2; border-color: #d6e7df; }
+.dashboard-loading-shape { display: block; height: 10px; border-radius: 5px; background: var(--surface-2); }
+.dashboard-loading-shape.short { width: 42%; }
+.dashboard-loading-shape.value { width: 58%; height: 25px; }
+.dashboard-loading-shape.tiny { width: 25%; height: 8px; }
+.dashboard-loading-content { display: grid; grid-template-columns: minmax(0, 1fr) 310px; gap: 24px; align-items: stretch; }
+.dashboard-loading-chart, .dashboard-loading-operations, .dashboard-loading-orders { padding: 20px; }
+.dashboard-loading-chart { display: grid; align-content: start; gap: 17px; min-height: 270px; }
+.dashboard-loading-chart-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.dashboard-loading-chart-head .short { width: 22%; }
+.dashboard-loading-shape.badge { width: 14%; height: 22px; }
+.dashboard-loading-chart > .value { width: 20%; }
+.dashboard-loading-chart svg { width: 100%; height: 146px; overflow: visible; }
+.dashboard-loading-chart svg path { fill: none; stroke: color-mix(in srgb, var(--accent) 48%, var(--surface-2)); stroke-width: 3; stroke-linecap: round; }
+.dashboard-loading-chart svg path.baseline { stroke: var(--line); stroke-width: 1; }
+.dashboard-loading-operations { display: grid; align-content: start; gap: 16px; }
+.dashboard-loading-operations > .short { width: 44%; margin-bottom: 2px; }
+.dashboard-loading-operation { display: flex; align-items: center; gap: 10px; min-height: 43px; border-top: 1px solid var(--line); padding-top: 12px; }
+.dashboard-loading-shape.row { flex: 1; max-width: 70%; }
+.dashboard-loading-shape.count { width: 24px; height: 14px; }
+.dashboard-loading-orders { display: grid; gap: 15px; }
+.dashboard-loading-orders > .short { width: 18%; margin-bottom: 2px; }
+.dashboard-loading-shape.order { width: 100%; height: 38px; border-radius: 7px; }
+@keyframes dashboard-loading-breathe { to { opacity: .48; } }
+@media (prefers-reduced-motion: no-preference) {
+  .dashboard-loading-shape { animation: dashboard-loading-breathe 1.6s ease-in-out infinite alternate; }
+}
+
+@media (max-width: 1180px) {
+  .overview-columns { grid-template-columns: minmax(0, 1fr); }
+  .dashboard-loading-content { grid-template-columns: minmax(0, 1fr); }
+  .dashboard-loading-operations { grid-template-columns: minmax(0, 1fr); }
+  .overview-aside { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+  .overview-metric { padding: 17px; }
+  .console-root .main { padding-inline: 24px; }
+}
+@media (max-width: 900px) {
+  .overview-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboard-loading-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .console-root .stat-cards-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .overview-aside { grid-template-columns: minmax(0, 1fr); }
+  .workspace-shortcuts { gap: 10px; }
+  .workspace-shortcuts button { padding: 14px; gap: 8px; }
+}
+@media (max-width: 760px) {
+  .console-root .rail { display: none; }
+  .console-root .main { padding: 22px 16px 40px; }
+  .console-root .mobile-header { background: var(--surface); border-bottom: 1px solid var(--border); box-shadow: none; }
+  .console-root .drawer-panel { background: var(--surface); }
+  .console-root .drawer-nav button { font-size: 13px; min-height: 44px; border-radius: 9px; }
+  .console-root .drawer-nav button.active { color: var(--accent); background: var(--accent-soft); }
+  .console-root .page-head { margin-bottom: 20px; min-height: auto; }
+  .console-root .panel { margin-bottom: 18px; }
+  .console-root .panel > header { padding: 16px; min-height: 58px; }
+  .console-root .filters { flex: 1 1 auto; }
+  .console-root .filters input[type='search'] { width: 100%; min-width: 0; }
+  .console-root .segmented { overflow-x: auto; flex-wrap: nowrap; mask-image: none; -webkit-mask-image: none; scrollbar-width: thin; margin-bottom: 18px; }
+  .console-root .segmented button { min-height: 40px; }
+  .console-root .stat-cards-grid { gap: 10px; margin-bottom: 18px; }
+  .console-root .stat-card { padding: 16px; min-height: 100px; }
+  .console-root .stat-card-label { font-size: 11px; }
+  .console-root .stat-card-value { font-size: 25px; }
+  .console-root .mobile-records tbody tr:not(.empty-row) { padding: 16px; gap: 8px 12px; }
+  .console-root .mobile-records tbody td { padding: 0; border-bottom: 0; }
+  .console-root .mobile-records .row-actions { padding-top: 8px; }
+  .console-root .mobile-records .row-actions > button { min-height: 42px; }
+  .console-root .settings-sections .settings-card > header, .console-root .panel-subhead { padding: 18px; }
+  .console-root .settings-sections .settings-card > .field-grid, .console-root .field-grid { padding: 18px; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .console-root .flag-row, .console-root .settings-sections .settings-card > .flag-row { padding: 16px 18px; }
+  .console-root .modal .body { padding: 20px; gap: 18px; }
+  .console-root .modal > header, .console-root .modal > footer { padding: 16px 20px; }
+  .console-root .form-columns { grid-template-columns: minmax(0, 1fr); }
+  .dashboard-layout { gap: 18px; }
+  .dashboard-loading { gap: 16px; }
+  .dashboard-loading-metrics { gap: 10px; }
+  .dashboard-loading-metric { min-height: 106px; padding: 15px; }
+  .dashboard-loading-content { gap: 16px; }
+  .dashboard-loading-chart, .dashboard-loading-operations, .dashboard-loading-orders { padding: 16px; }
+  .dashboard-loading-chart { min-height: 220px; }
+  .dashboard-loading-chart svg { height: 120px; }
+  .workspace-heading { align-items: center; }
+  .eyebrow { font-size: 11px; }
+  .overview-metrics { gap: 10px; }
+  .overview-metric { padding: 16px; }
+  .overview-metric > strong { font-size: 26px; margin: 12px 0 8px; }
+  .metric-caption { font-size: 11px; }
+  .metric-caption svg { width: 15px; }
+  .overview-columns { gap: 18px; }
+  .revenue-panel { padding: 18px; }
+  .revenue-total { font-size: 27px; margin-top: 18px; }
+  .operations-panel { padding: 18px; }
+  .supplier-summary { padding: 18px; }
+  .console-root .recent-orders { margin: 0; }
+  .console-root .overview-orders { min-width: 0; }
+  .console-root .overview-orders thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .console-root .overview-orders, .console-root .overview-orders tbody { display: block; width: 100%; }
+  .console-root .overview-orders tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px 12px; padding: 16px; border-bottom: 1px solid var(--line); }
+  .console-root .overview-orders td { display: block; padding: 0; border: 0; min-width: 0; }
+  .console-root .overview-orders td:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
+  .console-root .overview-orders td:nth-child(3) { text-align: right; }
+  .console-root .overview-orders td:nth-child(4) { align-self: center; font-size: 11px; }
+  .console-root .overview-orders .empty-row { display: block; }
+  .console-root .overview-orders .empty { padding: 24px; }
+  .workspace-shortcuts { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .workspace-shortcuts button { min-height: 48px; }
+}
+@media (max-width: 380px) {
+  .overview-metric { padding: 12px; }
+  .overview-metric > strong { font-size: 23px; }
+  .console-root .main { padding-inline: 12px; }
+  .console-root .overview-orders .pill { font-size: 9px; padding-inline: 5px; }
+}
+@media (pointer: coarse) {
+  .console-root .btn, .console-root .mini, .console-root .order-reference { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .refreshing { animation: none; }
+  .overview-metric { transition: none; }
+}
+
+/* Phone-first records for the three everyday operator screens. */
+@media (max-width: 760px) {
+  .console-root .main-inner[data-screen='users'] .stat-cards-grid,
+  .console-root .main-inner[data-screen='orders'] .compact-metrics {
+    gap: 0;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+  .console-root .main-inner[data-screen='users'] .stat-card,
+  .console-root .main-inner[data-screen='orders'] .compact-metrics .stat-card {
+    min-height: 68px;
+    padding: 10px 12px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .console-root .main-inner[data-screen='users'] .stat-card:nth-child(odd),
+  .console-root .main-inner[data-screen='orders'] .compact-metrics .stat-card:nth-child(odd) {
+    border-right: 1px solid var(--line);
+  }
+  .console-root .main-inner[data-screen='users'] .stat-card:nth-child(-n + 2),
+  .console-root .main-inner[data-screen='orders'] .compact-metrics .stat-card:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--line);
+  }
+
+  .console-root .main-inner[data-screen='users'] .stat-card {
+    min-height: 68px;
+  }
+  .console-root .main-inner[data-screen='users'] .stat-card-label {
+    font-size: 10.5px;
+  }
+  .console-root .main-inner[data-screen='users'] .stat-card-value {
+    margin-top: 6px;
+    font-size: clamp(17px, 6vw, 20px);
+    letter-spacing: -0.03em;
+    white-space: nowrap;
+  }
+
+  .console-root .main-inner[data-screen='orders'] .compact-metrics .stat-card {
+    min-height: 68px;
+    padding: 10px 12px;
+  }
+  .console-root .main-inner[data-screen='orders'] .compact-metrics .stat-card-label {
+    font-size: 10.5px;
+  }
+  .console-root .main-inner[data-screen='orders'] .compact-metrics .stat-card-value {
+    margin-top: 6px;
+    font-size: 22px;
+  }
+
+  .console-root .main-inner[data-screen='orders'] .orders-list thead,
+  .console-root .main-inner[data-screen='products'] .products-list thead {
+    display: none;
+  }
+  .console-root .main-inner[data-screen='orders'] .orders-list tbody tr:not(.empty-row) {
+    display: grid;
+    grid-template-areas: 'item status' 'buyer action';
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px 12px;
+    padding: 11px 14px;
+    margin: 0;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .console-root .main-inner[data-screen='orders'] .orders-list tbody td {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .console-root .main-inner[data-screen='orders'] .orders-list tbody td:first-child {
+    grid-area: item;
+    grid-column: auto;
+    font-size: 13px;
+    font-weight: 650;
+    line-height: 1.35;
+  }
+  .console-root .main-inner[data-screen='orders'] .orders-list tbody td:first-child small {
+    margin-top: 1px;
+    font-size: 10.5px;
+    line-height: 1.3;
+  }
+  .console-root .main-inner[data-screen='orders'] .orders-list tbody td:nth-child(2) {
+    grid-area: buyer;
+    display: block;
+    color: var(--text-dim);
+    overflow: hidden;
+    font-size: 11px;
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .console-root .main-inner[data-screen='orders'] .orders-list tbody td:nth-child(2)::before {
+    content: none;
+  }
+  .console-root .main-inner[data-screen='orders'] .orders-list tbody td:nth-child(2) small {
+    display: inline;
+    margin-inline-start: 5px;
+    color: var(--muted);
+    font-size: 10.5px;
+  }
+  .console-root .main-inner[data-screen='orders'] .orders-list tbody td:nth-child(3) {
+    grid-area: status;
+    justify-self: end;
+    align-self: start;
+    text-align: end;
+  }
+  .console-root .main-inner[data-screen='orders'] .orders-list tbody td:last-child {
+    grid-area: action;
+    width: auto;
+    margin: 0;
+  }
+  .console-root .main-inner[data-screen='orders'] .orders-list .row-actions {
+    width: auto;
+  }
+  .console-root .main-inner[data-screen='orders'] .orders-list .row-actions > button {
+    min-width: 84px;
+    min-height: 40px;
+  }
+
+  .console-root .main-inner[data-screen='products'] .panel > header .filters {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: center;
+  }
+  .console-root .main-inner[data-screen='products'] .panel > header .filters > div {
+    grid-column: 1 / -1;
+    min-width: 0;
+    max-width: none;
+  }
+  .console-root .main-inner[data-screen='products'] .panel > header .filters select {
+    width: 100%;
+    min-width: 0;
+  }
+  .console-root .main-inner[data-screen='products'] .panel > header .filters > span {
+    grid-column: 1 / -1;
+  }
+  .console-root .main-inner[data-screen='products'] .products-list tbody tr:not(.empty-row) {
+    position: relative;
+    display: grid;
+    grid-template-areas: 'product price' 'stock status' 'actions actions';
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px 12px;
+    padding: 12px 14px;
+    margin: 0;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .console-root .main-inner[data-screen='products'] .products-list tbody td {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .console-root .main-inner[data-screen='products'] .products-list tbody td:first-child {
+    position: absolute;
+    inset: 14px 14px auto auto;
+    z-index: 1;
+    padding: 0;
+  }
+  .console-root .main-inner[data-screen='products'] .products-list tbody td:nth-child(2) {
+    grid-area: product;
+    grid-column: auto;
+    padding-inline-end: 26px;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .console-root .main-inner[data-screen='products'] .products-list tbody td:nth-child(3) {
+    grid-area: price;
+    display: block;
+    text-align: end;
+    white-space: nowrap;
+  }
+  .console-root .main-inner[data-screen='products'] .products-list tbody td:nth-child(3)::before {
+    content: 'Price';
+    display: block;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 550;
+  }
+  .console-root .main-inner[data-screen='products'] .products-list tbody td:nth-child(4) {
+    grid-area: stock;
+    display: block;
+  }
+  .console-root .main-inner[data-screen='products'] .products-list tbody td:nth-child(5) {
+    grid-area: status;
+    justify-self: start;
+    justify-self: end;
+  }
+  .console-root .main-inner[data-screen='products'] .products-list tbody td:last-child {
+    grid-area: actions;
+    width: 100%;
+    margin: 0;
+  }
+  .console-root .main-inner[data-screen='products'] .products-list .row-actions {
+    display: flex;
+    width: 100%;
+    gap: 8px;
+  }
+  .console-root .main-inner[data-screen='products'] .products-list .row-actions > button {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 36px;
+    padding-inline: 8px;
+  }
+
+  .console-root .main-inner[data-screen='users'] .cust-table-responsive tbody tr {
+    display: grid;
+    grid-template-areas: 'customer status action' 'balance spent spent';
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 8px 10px;
+    padding: 11px 14px;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .console-root .main-inner[data-screen='users'] .cust-table-responsive tbody tr:not(:last-child) {
+    border-bottom: 1px solid var(--line);
+  }
+  .console-root .main-inner[data-screen='users'] .cust-table-responsive tbody td {
+    min-width: 0;
+    justify-content: flex-start;
+    overflow-wrap: anywhere;
+  }
+  .console-root .main-inner[data-screen='users'] .cust-table-responsive tbody td.name {
+    grid-area: customer;
+    grid-column: 1;
+    width: auto;
+    padding: 0;
+    border: 0;
+  }
+  .console-root .main-inner[data-screen='users'] .cust-table-responsive tbody td[data-label='Balance'] {
+    grid-area: balance;
+  }
+  .console-root .main-inner[data-screen='users'] .cust-table-responsive tbody td[data-label='Spent'] {
+    grid-area: spent;
+  }
+  .console-root .main-inner[data-screen='users'] .cust-table-responsive tbody td[data-label='Balance'],
+  .console-root .main-inner[data-screen='users'] .cust-table-responsive tbody td[data-label='Spent'] {
+    display: flex;
+    align-items: flex-start;
+    gap: 5px;
+    font-variant-numeric: tabular-nums;
+  }
+  .console-root .main-inner[data-screen='users'] .cust-table-responsive tbody td[data-label='Balance']::before,
+  .console-root .main-inner[data-screen='users'] .cust-table-responsive tbody td[data-label='Spent']::before {
+    font-size: 10px;
+    font-weight: 550;
+    color: var(--muted);
+  }
+  .console-root .main-inner[data-screen='users'] .cust-table-responsive tbody td[data-label='Balance']::before {
+    content: 'Balance';
+    display: inline;
+  }
+  .console-root .main-inner[data-screen='users'] .cust-table-responsive tbody td[data-label='Spent']::before {
+    content: 'Spent';
+    display: inline;
+  }
+  .console-root .main-inner[data-screen='users'] .cust-table-responsive tbody td[data-label='Status / Rank'] {
+    grid-area: status;
+    grid-column: auto;
+    margin: 0;
+    justify-content: flex-end;
+  }
+  .console-root .main-inner[data-screen='users'] .cust-status-stack {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 4px;
+  }
+  .console-root .main-inner[data-screen='users'] .cust-table-responsive tbody td.right {
+    grid-area: action;
+    grid-column: auto;
+    width: auto;
+    padding: 0;
+    border: 0;
+  }
+  .console-root .main-inner[data-screen='users'] .cust-table-responsive tbody td.right .row-actions {
+    width: auto;
+  }
+  .console-root .main-inner[data-screen='users'] .cust-view-btn {
+    width: auto;
+    min-height: 40px;
+    padding-inline: 10px;
+  }
+}
+
+/* ==========================================================================
+   Payment Methods & Provider Selection Styles
+   ========================================================================== */
+.console-root .payments-screen-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+}
+.console-root .gateway-config-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 550;
+}
+.console-root .gateway-config-btn .gateway-status-pill {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  font-weight: 600;
+}
+.console-root .settings-tabs button {
+  display: inline-flex;
+  align-items: center;
+}
+.console-root .payment-methods-screen { display: grid; width: 100%; gap: 14px; }
+.console-root .payment-methods-screen > .panel { min-width: 0; margin-bottom: 0; overflow: hidden; border-radius: 12px; }
+.console-root .payment-methods-screen > .panel > header { padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; }
+.console-root .payment-section-copy h2 { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin: 0; font-size: 15px; }
+.console-root .payment-account-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 23px;
+  height: 23px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.console-root .payment-account-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.console-root .payment-account-list-wrap { padding: 6px 18px 14px; }
+.console-root .payment-method-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+.console-root .payment-method-item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-width: 0;
+  padding: 13px 6px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  transition: background-color 120ms ease;
+}
+.console-root .payment-method-item:last-child { border-bottom: 0; }
+.console-root .payment-method-item:hover {
+  background: var(--surface-2);
+}
+.console-root .payment-method-item.is-disabled {
+  opacity: 0.8;
+}
+.console-root .payment-method-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.console-root .payment-method-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: #f4f7f6;
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 14px;
+  transition: transform 150ms ease;
+}
+.console-root .payment-method-icon.bkash {
+  border-color: #f8bbd0;
+  background: #fdf0f5;
+  color: #e2136e;
+}
+.console-root .payment-method-icon.nagad {
+  border-color: #ffd8a8;
+  background: #fff4e6;
+  color: #f7941d;
+}
+.console-root .payment-method-icon.rocket {
+  border-color: #e0bbf2;
+  background: #f6eaf8;
+  color: #8c3494;
+}
+.console-root .payment-method-icon.binance,
+.console-root .payment-method-icon.is-crypto {
+  border-color: #f3e4bd;
+  background: #fff8e8;
+  color: #a96b08;
+}
+.console-root .payment-method-copy {
+  min-width: 0;
+}
+.console-root .payment-method-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.console-root .payment-method-title > strong {
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 650;
+}
+.console-root .payment-type-pill {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 6px;
+}
+.console-root .payment-order-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--text-dim);
+  background: var(--surface-3, var(--surface-2));
+  border: 1px solid var(--line, var(--border));
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+.console-root .payment-availability {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.console-root .payment-availability::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  content: '';
+}
+.console-root .payment-availability.available {
+  color: var(--positive);
+}
+.console-root .payment-availability.paused {
+  color: var(--muted);
+}
+.console-root .payment-method-details {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.console-root .payment-method-details code {
+  max-width: min(100%, 42ch);
+  overflow-wrap: anywhere;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f8fafc;
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.console-root .payment-copy-button {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+.console-root .payment-copy-button:hover {
+  border-color: var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+}
+.console-root .payment-minimum {
+  margin-left: 6px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+.console-root .payment-minimum strong {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.console-root .payment-order-tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10.5px;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-variant-numeric: tabular-nums;
+  margin-left: 6px;
+}
+.console-root .payment-method-actions {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 10px;
+}
+.console-root .payment-method-btns {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.console-root .payment-action-switch-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 9px;
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.console-root .payment-switch-status {
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 38px;
+}
+.console-root .payment-switch-status.is-active,
+.console-root .payment-switch-status.is-on {
+  color: var(--positive);
+}
+.console-root .payment-switch-status.is-paused,
+.console-root .payment-switch-status.is-off {
+  color: var(--muted);
+}
+.console-root .payment-empty-state {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 44px 20px;
+  text-align: center;
+}
+.console-root .payment-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 2px;
+  border-radius: 14px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.console-root .payment-empty-state > strong {
+  color: var(--text);
+  font-size: 14.5px;
+}
+.console-root .payment-empty-state p,
+.console-root .payment-list-message {
+  max-width: 52ch;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.console-root .payment-list-message {
+  margin: 0 auto;
+  padding: 28px 12px;
+  text-align: center;
+}
+
+/* Modal UI Redesign for Payment Methods */
+.console-root .pm-provider-selection {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 4px 0 8px;
+}
+.console-root .pm-provider-selection-head h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 4px;
+}
+.console-root .pm-provider-selection-head p {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin: 0;
+}
+.console-root .pm-provider-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.console-root .pm-provider-select-card {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 140ms ease;
+  position: relative;
+}
+.console-root .pm-provider-select-card:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-2);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
+}
+.console-root .pm-provider-select-badge {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+.console-root .pm-provider-select-badge.bkash {
+  background: rgba(226, 19, 110, 0.12);
+  color: #e2136e;
+  border: 1px solid rgba(226, 19, 110, 0.25);
+}
+.console-root .pm-provider-select-badge.nagad {
+  background: rgba(247, 147, 30, 0.12);
+  color: #f7931e;
+  border: 1px solid rgba(247, 147, 30, 0.25);
+}
+.console-root .pm-provider-select-badge.rocket {
+  background: rgba(140, 52, 148, 0.12);
+  color: #a34cae;
+  border: 1px solid rgba(140, 52, 148, 0.25);
+}
+.console-root .pm-provider-select-badge.binance {
+  background: rgba(240, 185, 11, 0.12);
+  color: #d99a00;
+  border: 1px solid rgba(240, 185, 11, 0.25);
+}
+.console-root .pm-provider-select-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.console-root .pm-provider-select-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14.5px;
+  color: var(--text);
+  font-weight: 600;
+}
+.console-root .pm-provider-select-sub {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.console-root .pm-provider-select-arrow {
+  color: var(--muted);
+  flex-shrink: 0;
+  transition: transform 140ms ease, color 140ms ease;
+}
+.console-root .pm-provider-select-card:hover .pm-provider-select-arrow {
+  color: var(--text);
+  transform: translateX(2px);
+}
+.console-root .pm-step2-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 6px;
+}
+.console-root .pm-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-dim);
+  background: transparent;
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+.console-root .pm-back-btn:hover {
+  color: var(--text);
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+}
+.console-root .pm-presets-grid {
+  display: flex;
+  gap: 6px;
+}
+.console-root .pm-preset-card {
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--text-dim);
+  transition: all 120ms ease;
+}
+.console-root .pm-preset-card:hover {
+  border-color: var(--line-strong);
+}
+.console-root .pm-preset-card.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.console-root .pm-form {
+  display: grid;
+  gap: 12px;
+}
+.console-root .pm-form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.console-root .pm-optional {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+  margin-left: 4px;
+}
+.console-root .pm-password-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+.console-root .pm-password-input-wrap input {
+  width: 100%;
+  padding-right: 36px;
+}
+.console-root .pm-eye-button {
+  position: absolute;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.console-root .pm-eye-button:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+.console-root .pm-form .custom-select-container {
+  width: 100% !important;
+  min-width: 100% !important;
+}
+.console-root .pm-form .custom-select-trigger {
+  min-height: 42px;
+  border-radius: 8px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: none;
+}
+.console-root .pm-form .custom-select-trigger:focus-visible,
+.console-root .pm-form .custom-select-trigger.open {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.console-root .pm-form .custom-select-dropdown {
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+  z-index: 1050;
+}
+.console-root .pm-select,
+.console-root .pm-textarea {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+.console-root .pm-select {
+  min-height: 42px;
+  padding-right: 34px;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2352606d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  cursor: pointer;
+}
+.console-root .pm-select:focus,
+.console-root .pm-textarea:focus,
+.console-root input:focus,
+.console-root textarea:focus {
+  outline: none !important;
+  border-color: var(--accent) !important;
+  box-shadow: none !important;
+}
+.console-root .pm-input-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  letter-spacing: -0.01em;
+}
+.console-root .pm-input-currency {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+.console-root .pm-input-currency input {
+  width: 100%;
+  padding-right: 32px;
+}
+.console-root .pm-currency-tag {
+  position: absolute;
+  right: 12px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  pointer-events: none;
+}
+.console-root .pm-status-switch-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 16px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface-2);
+  margin-top: 4px;
+}
+.console-root .pm-switch-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.console-root .pm-status-switch-info strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text);
+}
+.console-root .pm-status-switch-info span {
+  display: block;
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.console-root .pm-status-switch-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+@media (max-width: 760px) {
+  .console-root .pm-provider-cards-grid { grid-template-columns: 1fr; }
+  .console-root .pm-form-row { grid-template-columns: 1fr; }
+  .console-root .payment-method-item { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .console-root .payment-method-actions { width: 100%; justify-content: space-between; border-top: 1px solid var(--line); padding-top: 8px; }
+}

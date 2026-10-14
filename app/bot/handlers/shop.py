@@ -3,9 +3,11 @@ from __future__ import annotations
 import asyncio
 import math
 import re
+import time
 from contextlib import suppress
 from html import escape
 from typing import Any
+from uuid import uuid4
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
@@ -20,31 +22,27 @@ from aiogram.types import (
 )
 
 from app.bot.formatting import callback_int, forget_menu_message, format_dual_price, respond
+from app.core.identifiers import format_order_id
 from app.bot.handlers import search
 from app.bot.handlers.navigation import is_navigation, navigate
 from app.bot.icons import (
-    ICON_BALANCE,
-    ICON_CART,
     ICON_CHECK,
     ICON_CROSS,
-    ICON_DEPOSIT,
-    ICON_MONEY,
     ICON_NOTE,
     ICON_ORDERS,
     ICON_SHOP,
-    ICON_STATS,
     ICON_TIMER,
-    ICON_VIP,
     ICON_WARNING,
-    Icons,
     tg_icon,
 )
 from app.bot.keyboards import (
+    extract_emoji_and_name,
     get_categories_keyboard,
     get_custom_quantity_keypad,
     get_products_keyboard,
     get_quantity_selector_keyboard,
     get_validity_selector_keyboard,
+    product_display_labels,
 )
 from app.core.i18n import t
 from app.services import Services
@@ -64,15 +62,43 @@ async def _clear_banner(message: Message, seconds: int) -> None:
     with suppress(Exception):
         await message.delete()
 
-PAGE_SIZE = 10
+PAGE_SIZE = 7
 
 
 class ShopQuantityStates(StatesGroup):
     waiting_for_quantity = State()
+    waiting_for_customer_input = State()
 
 
 class CategoryTextFilter(BaseFilter):
     """Dynamically matches any active category name from the database, whether pinned or unpinned."""
+
+    _cached_map: tuple[float, dict[str, dict[str, Any]]] | None = None
+    _EMOJIS = ("📁", "🛡️", "🛡", "🌐", "✉️", "📦", "💎", "⚡", "📱", "🚀", "🤖", "🧠", "🎨", "💻", "✨", "🍿", "🎵", "📺", "⭐", "🎬", "❌")
+
+    @classmethod
+    def _build_map(cls, categories: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+        lookup: dict[str, dict[str, Any]] = {}
+        for c in categories:
+            name = c.get("name", "").strip().casefold()
+            if not name:
+                continue
+            lookup[name] = c
+            clean = name
+            for em in cls._EMOJIS:
+                if clean.startswith(em):
+                    clean = clean[len(em):].strip()
+                    break
+            if clean:
+                lookup[clean] = c
+            regex_clean = re.sub(r'^[^\w\s]+\s*', '', name).strip()
+            if regex_clean:
+                lookup[regex_clean] = c
+            icon = (c.get("icon") or "").strip().casefold()
+            if icon:
+                lookup[f"{icon} {name}"] = c
+                lookup[f"{icon} {clean}"] = c
+        return lookup
 
     async def __call__(self, message: Message, services: Services) -> bool | dict[str, Any]:
         text = (message.text or "").strip()
@@ -83,43 +109,39 @@ class CategoryTextFilter(BaseFilter):
         ignored = {
             "add balance", "refer & earn", "my profile", "support", "apply as a reseller",
             "become reseller", "reseller panel", "admin panel",
-            "other products", "other product", "others", "premium products", "all products",
-            "cancel", "shop", "products", "deposit", "account", "orders", "guide", "channel",
-            "updates", "search", "search products",
+            "premium products", "all products",
+            "cancel", "shop", "store", "products", "deposit", "account", "orders", "guide", "channel",
+            "updates", "search", "search products", "wallet", "referral", "reseller", "settings",
             # Bengali
             "অ্যাড ব্যালেন্স", "সার্চ", "রেফার ও ইনকাম", "আমার প্রোফাইল", "সাপোর্ট",
-            "রিসেলার হন", "রিসেলার প্যানেল", "অ্যাডমিন প্যানেল", "অন্যান্য প্রোডাক্ট",
-            # Hindi
-            "बैलेंस जोड़ें", "खोजें", "रेफर और कमाएं", "मेरी प्रोफाइल", "सहायता",
-            "रीसेलर बनें", "रीसेलर पैनल", "एडमिन पैनल", "अन्य उत्पाद",
-            # Urdu
-            "بیلنس شامل کریں", "تلاش کریں", "ریفر اور کمائیں", "میری پروفائل", "سپورٹ",
-            "ری سیلر بنیں", "ری سیلر پینل", "ایڈمن پینل", "دیگر مصنوعات",
+            "রিসেলার হন", "রিসেলার প্যানেল", "অ্যাডমিন প্যানেল",
+            "ওয়ালেট", "অর্ডার", "অর্ডারস", "একাউন্ট", "অ্যাকাউন্ট", "রেফারেল", "রেফার", "রিসেলার", "সকল প্রোডাক্ট",
+            "স্টোর", "শপ",
         }
-        if text.casefold() in ignored:
+        clean_text = text.casefold()
+        for em in self._EMOJIS:
+            if clean_text.startswith(em):
+                clean_text = clean_text[len(em):].strip()
+                break
+        regex_clean = re.sub(r'^[^\w\s]+\s*', '', text.casefold()).strip()
+
+        if clean_text in ignored or regex_clean in ignored:
             return False
 
-        categories = await services.catalog.categories(active_only=True)
-        # 1. Exact match
-        for c in categories:
-            if text.casefold() == c["name"].strip().casefold():
-                return {"category": c}
+        now = time.monotonic()
+        if not self._cached_map or now - self._cached_map[0] > 60.0:
+            categories = await services.catalog.categories(active_only=True, with_products=False)
+            self.__class__._cached_map = (now, self._build_map(categories))
 
-        # 2. Match without leading emojis
-        clean = text
-        for em in ["🛡️", "🛡", "🌐", "✉️", "📦", "💎", "⚡", "📱", "🚀", "🤖", "🧠", "🎨", "💻", "✨", "🍿", "🎵", "📺", "⭐", "🎬", "❌"]:
-            if clean.startswith(em):
-                clean = clean[len(em):].strip()
-                break
+        lookup = self._cached_map[1]
+        c = lookup.get(text.casefold()) or lookup.get(clean_text) or lookup.get(regex_clean)
+        if c:
+            return {"category": c}
 
-        for c in categories:
-            c_name = c["name"].strip()
-            if clean.casefold() == c_name.casefold():
-                return {"category": c}
-            if clean.casefold().startswith("buy ") and clean[4:].strip().casefold() == c_name.casefold():
-                return {"category": c}
-            if c_name.casefold().startswith("buy ") and c_name[4:].strip().casefold() == clean.casefold():
-                return {"category": c}
+        # Fallback suffix check
+        for name, cat in lookup.items():
+            if text.casefold().endswith(name) or clean_text.endswith(name):
+                return {"category": cat}
 
         return False
 
@@ -139,20 +161,13 @@ async def show_category_or_validity(
     if category.get("has_validity_filter") == 1:
         validities = await services.catalog.category_validities(cat_id)
         if validities:
-            cat_emoji_id = category.get("custom_emoji_id")
-            cat_icon = category.get("icon") or "📁"
-            if cat_emoji_id and str(cat_emoji_id).strip().isdigit():
-                icon_display = f"{tg_icon(str(cat_emoji_id).strip(), cat_icon)} "
-            else:
-                icon_display = f"{cat_icon} "
-
             kb = get_validity_selector_keyboard(
                 category_id=cat_id,
                 validities=validities,
                 show_all_option=True,
                 back_target=back_target,
             )
-            title = f"{icon_display}<b>Select Validity:</b>"
+            title = "<b>Select Validity:</b>"
             await respond(event, title, kb)
             return
 
@@ -178,11 +193,175 @@ async def handle_category_by_text(message: Message, state: FSMContext, services:
     )
 
 
+class ProductTextFilter(BaseFilter):
+    """Matches product names clicked from the reply keyboard."""
+    _cached_products: tuple[float, dict[str, dict[str, Any]]] = (0.0, {})
+
+    async def __call__(self, message: Message, services: Services) -> bool | dict[str, Any]:
+        text = (message.text or "").strip()
+        if not text or len(text) < 2:
+            return False
+
+        ignored = {
+            "search", "wallet", "orders", "account", "support", "admin panel",
+            "all catalog", "all products", "back to main", "main menu", "back to catalog",
+            "back to products", "back", "cancel", "refresh", "price list", "balance history",
+            "refer & earn", "refer", "language", "reseller panel", "become reseller",
+            "stats", "products", "deposits", "users", "settings", "guide", "store", "shop",
+            "সার্চ", "ওয়ালেট", "অর্ডার", "একাউন্ট", "সাপোর্ট", "অ্যাডমিন প্যানেল",
+            "সকল প্রোডাক্ট", "মেইন মেনু", "ব্যাক", "বাতিল", "রিফ্রেশ", "প্রাইস লিস্ট",
+            "ব্যালেন্স হিস্ট্রি", "রেফার", "ভাষা", "রিসেলার", "গাইড", "স্টোর", "শপ",
+        }
+        clean_text = text.casefold()
+        regex_clean = re.sub(r'^[^\w\s]+\s*', '', clean_text).strip()
+        title_only = re.split(r'\s*[·—\-]\s*', regex_clean)[0].strip()
+        title_with_emoji = re.split(r'\s*[·—\-]\s*', clean_text)[0].strip()
+
+        if clean_text in ignored or regex_clean in ignored or title_only in ignored:
+            return False
+
+        if title_only.startswith("buy now") or title_only.startswith("কিনুন") or title_only.startswith("buy"):
+            return False
+
+        now = time.monotonic()
+        if not self._cached_products or now - self._cached_products[0] > 30.0:
+            all_prods = await services.catalog.products(active_only=True, limit=200)
+            prod_map = {}
+            for p in all_prods:
+                t_lower = p["title"].strip().casefold()
+                prod_map[t_lower] = p
+                p_clean = re.sub(r'^[^\w\s]+\s*', '', t_lower).strip()
+                prod_map[p_clean] = p
+                custom_icon = (p.get("icon") or "").strip().casefold()
+                if custom_icon:
+                    prod_map[f"{custom_icon} {t_lower}"] = p
+                    prod_map[f"{custom_icon} {p_clean}"] = p
+            self.__class__._cached_products = (now, prod_map)
+
+        lookup = self._cached_products[1]
+        p = (
+            lookup.get(title_only)
+            or lookup.get(title_with_emoji)
+            or lookup.get(regex_clean)
+            or lookup.get(clean_text)
+        )
+        if p:
+            return {"product": p}
+
+        for name, prod in lookup.items():
+            if len(name) >= 3 and (name == title_only or title_only.startswith(name)):
+                return {"product": prod}
+
+        return False
+
+
+@router.message(ProductTextFilter())
+async def handle_product_by_text(message: Message, state: FSMContext, services: Services, product: dict[str, Any]):
+    """Dynamic handler when a customer taps a product button from the reply keyboard."""
+    await state.clear()
+    await state.update_data(active_product_id=product["id"])
+    text, keyboard = await product_view(services, product, message.from_user.id)
+    await respond(message, text, keyboard)
+
+
+@router.message(F.text.func(lambda text: bool(text and (
+    text.strip().startswith("⚡ BUY NOW")
+    or text.strip().startswith("BUY NOW")
+    or text.strip().startswith("⚡ Buy Now")
+    or text.strip().startswith("Buy Now")
+    or text.strip().startswith("⚡ কিনুন")
+    or text.strip().startswith("কিনুন")
+))))
+async def handle_buy_now_by_text(message: Message, state: FSMContext, services: Services):
+    """Executes instant purchase when customer taps BUY NOW in reply keyboard."""
+    buyer_id = message.from_user.id
+    lang = await services.users.get_language(buyer_id)
+    data = await state.get_data()
+    product_id = data.get("active_product_id")
+    if not product_id:
+        not_selected = "অনুগ্রহ করে প্রথমে ক্যাটালগ থেকে প্রোডাক্ট সিলেক্ট করুন।" if lang == "bn" else "Please select a product from catalog first."
+        await message.answer(not_selected)
+        return
+
+    token = uuid4().hex[:12]
+    product = await services.catalog.product(product_id)
+    if not product or not product.get("is_active"):
+        unavail = "❌ এই প্রোডাক্টটি বর্তমানে পাওয়া যাচ্ছে না।" if lang == "bn" else "❌ Product unavailable."
+        await message.answer(unavail)
+        return
+
+    if product.get("requires_customer_input"):
+        prompt_custom = (product.get("customer_input_prompt") or "").strip()
+        if lang == "bn":
+            header = "📝 <b>অর্ডার সম্পন্ন করতে তথ্য প্রদান করুন:</b>"
+            default_prompt = "দয়া করে আপনার জিমেইল এড্রেস বা প্রয়োজনীয় তথ্য লিখে রিপ্লাই দিন:"
+            hint = f"📌 {escape(prompt_custom)}" if prompt_custom else f"📌 {default_prompt}"
+            instr = f"{header}\n\n{hint}\n\n<i>নিচে মেসেজ বক্সে লিখে সেন্ড করুন 👇</i>"
+            cancel_btn = "❌ বাতিল করুন"
+        else:
+            header = "📝 <b>Required Information:</b>"
+            default_prompt = "Please reply with your Gmail address or account details:"
+            hint = f"📌 {escape(prompt_custom)}" if prompt_custom else f"📌 {default_prompt}"
+            instr = f"{header}\n\n{hint}\n\n<i>Type your info below and send 👇</i>"
+            cancel_btn = "❌ Cancel"
+
+        await state.set_state(ShopQuantityStates.waiting_for_customer_input)
+        await state.update_data(product_id=product_id, quantity=1, token=token)
+        cancel_kb = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text=cancel_btn, callback_data=f"prod_view_{product_id}")
+        ]])
+        await message.answer(instr, reply_markup=cancel_kb)
+        return
+
+    success, result_msg, order = await services.purchases.purchase(
+        buyer_id, product_id, quantity=1, request_id=f"bot-{token}"
+    )
+    if not success or not order:
+        wallet_kb = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(
+                text="💳 Wallet" if lang != "bn" else "💳 ওয়ালেট",
+                callback_data="open_deposit",
+            )
+        ]])
+        add_bal_hint = "👇 <i>অনুগ্রহ করে ওয়ালেটে ব্যালেন্স যোগ করুন:</i>" if lang == "bn" else "👇 <i>Please add balance to your wallet:</i>"
+        await message.answer(f"⚠️ {result_msg}\n\n{add_bal_hint}", reply_markup=wallet_kb)
+        return
+
+    orders_kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="View order", callback_data=f"view_order_{order.get('order_id', order.get('id'))}")
+    ]])
+    order_id = order.get("order_id", order.get("id"))
+    creds = order.get("delivered_item") or order.get("credentials_delivered") or ""
+    symbol = await services.settings.get("currency_symbol")
+    paid_val = order.get("price") if order.get("price") is not None else order.get("price_paid", 0)
+    paid_txt = f"{paid_val} {symbol}"
+
+    if lang == "bn":
+        delivered_txt = f"\n\n🔑 <b>ডেলিভারি:</b>\n<code>{escape(creds)}</code>" if creds else ""
+        msg_text = (
+            f"🎉 <b>ক্রয় সফল হয়েছে!</b>\n\n"
+            f"📦 <b>অর্ডার আইডি:</b> {format_order_id(order_id)}\n"
+            f"💰 <b>পরিশোধিত মূল্য:</b> {paid_txt}"
+            f"{delivered_txt}\n\n"
+            f"<i>আমাদের সাথে থাকার জন্য ধন্যবাদ!</i>"
+        )
+    else:
+        delivered_txt = f"\n\n🔑 <b>Delivered Item:</b>\n<code>{escape(creds)}</code>" if creds else ""
+        msg_text = (
+            f"🎉 <b>Order placed</b>\n\n"
+            f"📦 <b>Order ID:</b> {format_order_id(order_id)}\n"
+            f"💰 <b>Total Paid:</b> {paid_txt}"
+            f"{delivered_txt}\n\n"
+            f"<i>Thank you for your purchase!</i>"
+        )
+    await message.answer(msg_text, reply_markup=orders_kb)
+
+
 @router.callback_query(F.data.in_({"open_cat_vpn", "open_cat_proxy", "open_cat_mailbox"}))
 async def handle_legacy_cat_callbacks(query: CallbackQuery, state: FSMContext, services: Services):
     """Graceful fallback for legacy callback buttons."""
     await state.clear()
-    categories = await services.catalog.categories(active_only=True)
+    categories = await services.catalog.categories(active_only=True, with_products=False)
     slug = query.data.replace("open_cat_", "").lower()
     cat = next((c for c in categories if slug in c["name"].lower()), None)
     cat = cat or (categories[0] if categories else None)
@@ -191,12 +370,18 @@ async def handle_legacy_cat_callbacks(query: CallbackQuery, state: FSMContext, s
 
 
 @router.message(F.text.in_({
+    "🛍️ Store", "Store", "store", "STORE", "🛍️ STORE",
+    "🛍️ Shop", "Shop", "shop", "SHOP", "🛍️ SHOP",
+    "🛍️ স্টোর", "স্টোর",
+    "🛍️ শপ", "শপ",
     "🛍️ Other Products", "Other Products", "other products",
+    "🛍️ OTHER PRODUCTS", "OTHER PRODUCTS",
+    "🛍️ ALL CATALOG", "ALL CATALOG",
+    "🛍️ ALL PRODUCTS", "ALL PRODUCTS",
     "🛍️ Other Product", "Other Product", "other product",
     "🛍️ অন্যান্য প্রোডাক্ট", "অন্যান্য প্রোডাক্ট",
-    "🛍️ अन्य उत्पाद", "अन्य उत्पाद",
-    "🛍️ دیگر مصنوعات", "دیگر مصنوعات",
-    "👑 Other Products", "💎 Other Products", "Others", "others",
+    "🛍️ সকল প্রোডাক্ট", "সকল প্রোডাক্ট",
+    "👑 Other Products", "💎 Other Products",
     "Premium Products", "premium products", "👑 Premium Products",
     "🛍️ Products", "🛒 Products", "Products", "products",
     "🛍️ Buy Products", "🛒 Buy Products", "Buy Products",
@@ -209,12 +394,13 @@ async def show_other_products_hub(event: Message | CallbackQuery, state: FSMCont
     tg_user = event.from_user
     lang = await services.users.get_language(tg_user.id) if tg_user else "en"
 
-    categories = await services.catalog.categories(active_only=True)
+    categories = await services.catalog.categories(active_only=True, with_products=False)
+    title = "📂 <b>Select a Category:</b>" if lang != "bn" else "📂 <b>ক্যাটাগরি নির্বাচন করুন:</b>"
+
     kb = get_categories_keyboard(categories, show_all_option=True, lang=lang, back_target="back_to_main")
-    title = t("btn_all_products", lang).replace("🛍️ ", "").strip()
     await respond(
         event,
-        f"{ICON_SHOP} <b>{title}:</b>",
+        title,
         kb,
     )
 
@@ -230,7 +416,7 @@ async def paginate_categories(query: CallbackQuery, state: FSMContext, services:
     tg_user = query.from_user
     lang = await services.users.get_language(tg_user.id) if tg_user else "en"
 
-    categories = await services.catalog.categories(active_only=True)
+    categories = await services.catalog.categories(active_only=True, with_products=False)
     kb = get_categories_keyboard(categories, show_all_option=True, page=page, lang=lang, back_target="back_to_main")
     title = t("btn_all_products", lang).replace("🛍️ ", "").strip()
     text = f"{ICON_SHOP} <b>{title}:</b>"
@@ -278,52 +464,35 @@ async def product_view(
     product: dict[str, Any],
     tg_user_id: int,
     quantity: int = 1,
+    back_target: str | None = None,
 ) -> tuple[str, InlineKeyboardMarkup]:
     user = await services.users.get(tg_user_id)
     balance = user["balance"] if user else 0.0
     symbol = await services.settings.get("currency_symbol")
     usd_rate = await services.settings.number("usd_rate")
-    show_usd = await services.settings.flag("show_usd_price")
     stock = product.get("stock", 0)
-    title = escape(product["title"])
-    duration = escape(product.get("duration_label") or "")
+    display_title, duration_label, warranty_label = product_display_labels(product)
+    title = escape(display_title)
+    duration = escape(duration_label)
+    warranty = escape(warranty_label)
 
+    lang = "en"
     is_manual = product.get("delivery_type") == "manual"
     is_upstream = bool(product.get("upstream_product_id"))
-    if is_manual:
-        stock_text = f"<b>Available (Manual Delivery) {ICON_TIMER}</b>"
-    elif is_upstream:
-        stock_text = f"<b>Available (Automated) {ICON_LIGHTNING}</b>"
-    elif stock > 0:
-        stock_text = f"<b>{stock}</b> Available"
-    else:
-        stock_text = f"<b>Out of Stock {ICON_CROSS}</b>"
-
+    available = is_manual or is_upstream or stock > 0
+    stock_text = t("product_available", lang) if available else t("product_unavailable", lang)
+    delivery_text = t("product_manual", lang) if is_manual else t("product_automatic", lang)
     cat_id = product.get("category_id")
-    cat = await services.catalog.category(cat_id) if cat_id else None
-    category_name = cat["name"] if cat else "Uncategorized"
-    cat_emoji_id = cat.get("custom_emoji_id") if cat else None
-    cat_icon = cat.get("icon") or "📁" if cat else "📝"
-    if not cat:
-        cat_icon_display = f"{ICON_NOTE} "
-    elif cat_emoji_id and str(cat_emoji_id).strip().isdigit():
-        cat_icon_display = tg_icon(str(cat_emoji_id).strip(), cat_icon)
-    else:
-        cat_icon_display = cat_icon
 
     custom_emoji_id = product.get("custom_emoji_id")
     clean_title = title
     if custom_emoji_id and str(custom_emoji_id).strip().isdigit():
-        for em in ["🌐", "🛡️", "🛡", "⚡", "📱", "🚀", "🤖", "🧠", "🎨", "💻", "✨", "🍿", "🎵", "📺", "⭐", "🎬", "❌", "💎", "📦"]:
-            if clean_title.startswith(em):
-                clean_title = clean_title[len(em):].strip()
-                break
-        prod_icon_display = tg_icon(str(custom_emoji_id).strip(), product.get("icon") or "📦")
+        leading_emoji, remaining_title = extract_emoji_and_name(clean_title)
+        if leading_emoji and remaining_title:
+            clean_title = remaining_title
+        prod_icon_display = tg_icon(str(custom_emoji_id).strip(), "")
     else:
-        prod_icon_display = product.get("icon") or "📦"
-
-    if cat_emoji_id and custom_emoji_id and str(cat_emoji_id).strip() == str(custom_emoji_id).strip():
-        prod_icon_display = "📦"
+        prod_icon_display = tg_icon(None, product.get("icon") or "")
 
     is_reseller = (user.get("rank") or "").strip().lower() == "reseller" if user else False
     reseller_price = product.get("reseller_price")
@@ -332,26 +501,21 @@ async def product_view(
     unit_price = unit_price_for(product, user)
     total_price = round(unit_price * quantity, 2)
 
-    unit_price_str = format_dual_price(unit_price, symbol, usd_rate=usd_rate, show_usd=show_usd)
-    total_price_str = format_dual_price(total_price, symbol, usd_rate=usd_rate, show_usd=show_usd)
-    balance_str = format_dual_price(balance, symbol, usd_rate=usd_rate, show_usd=show_usd)
+    lang = "en"
+    unit_price_str = format_dual_price(unit_price, symbol, usd_rate=usd_rate, lang=lang)
+    total_price_str = format_dual_price(total_price, symbol, usd_rate=usd_rate, lang=lang)
 
-    if has_reseller_rate:
-        reg_price = float(product["price"])
-        reg_price_str = format_dual_price(reg_price, symbol, usd_rate=usd_rate, show_usd=show_usd)
-        price_rate_line = f"{ICON_MONEY} <b>Price Rate:</b> <code>{unit_price_str}</code> (🔥 <i>Reseller Price</i> · <s>{reg_price_str}</s>)\n"
-    else:
-        price_rate_line = f"{ICON_MONEY} <b>Price Rate:</b> <code>{unit_price_str}</code>\n"
-
-    text = (
-        f"{ICON_BALANCE} <b>Your Balance:</b> <code>{balance_str}</code>\n\n"
-        f"{cat_icon_display} <b>Category:</b> {escape(category_name)}\n"
-        f"{prod_icon_display} <b>Package:</b> <b>{clean_title}</b>\n"
-        f"{price_rate_line}"
-        f"{ICON_STATS} <b>Available Stock:</b> {stock_text}\n"
-    )
+    text = f"{prod_icon_display + ' ' if prod_icon_display else ''}<b>{clean_title}</b>\n"
     if duration and duration.lower() not in {"instant", "none", "n/a", ""}:
-        text += f"{ICON_TIMER} <b>Validity:</b> {duration}\n"
+        text += f"{t('product_validity', lang)}: {duration}\n"
+    if warranty and warranty.lower() not in {"instant", "none", "n/a"}:
+        text += f"Warranty: {warranty}\n"
+    text += f"\n{t('product_price', lang)}: <b>{unit_price_str}</b>"
+    if has_reseller_rate:
+        text += f" · {t('rank_reseller', lang)}"
+    text += f"\n{stock_text}"
+    if available:
+        text += f" · {delivery_text}"
 
     # The description lives behind its own button rather than in the card, so a
     # long one does not push the price and the quantity controls off the screen.
@@ -362,16 +526,19 @@ async def product_view(
         and not is_redundant_description(product["title"], desc)
     )
 
-    text += (
-        f"\n{ICON_CART} <b>Quantity:</b> <code>{quantity}</code>\n"
-        f"{ICON_DEPOSIT} <b>Total Price:</b> <code>{total_price_str}</code>"
-    )
+    if quantity > 1:
+        text += f"\n{t('product_quantity', lang)}: {quantity} · {t('product_total', lang)}: <b>{total_price_str}</b>"
+    if balance < total_price and available:
+        short = round(total_price - balance, 2)
+        short_str = format_dual_price(short, symbol, usd_rate=usd_rate, lang=lang)
+        text += f"\n\n{t('product_shortfall', lang, amount=short_str)}"
 
-    back_target = f"cat_{cat_id}" if cat_id else "shop_uncat"
-    # Opened from search results: Back returns to them. Every redraw of this screen
-    # (the +/- buttons, a typed quantity) comes through here, so it stays that way.
-    if search.opened_from_search(tg_user_id, product["id"]):
-        back_target = f"sback_{product['id']}"
+    if not back_target:
+        back_target = f"cat_{cat_id}" if cat_id else "shop_uncat"
+        # Opened from search results: Back returns to them. Every redraw of this screen
+        # (the +/- buttons, a typed quantity) comes through here, so it stays that way.
+        if search.opened_from_search(tg_user_id, product["id"]):
+            back_target = f"sback_{product['id']}"
 
     bot_username = await services.notifier.bot_username()
     product_link = f"https://t.me/{bot_username}?start=prod_{product['id']}" if bot_username else ""
@@ -387,9 +554,14 @@ async def product_view(
         is_upstream=is_upstream,
         back_target=back_target,
         usd_rate=usd_rate,
-        show_usd=show_usd,
         product_link=product_link,
         has_description=has_description,
+        lang=lang,
+        product_icon_custom_emoji_id=(
+            str(custom_emoji_id).strip()
+            if custom_emoji_id and str(custom_emoji_id).strip().isdigit()
+            else None
+        ),
     )
     return text, keyboard
 
@@ -397,44 +569,25 @@ async def product_view(
 @router.message(Command("products"))
 @router.message(Command("shop"))
 @router.message(Command("buy"))
-@router.message(F.text == "🛍️ Products")
-@router.message(F.text == "💎 Other Products")
-@router.message(F.text == "🛒 Products")
-@router.message(F.text == "🛍️ Buy Products")
-@router.message(F.text == "🛒 Buy Products")
-@router.message(F.text == "🛍️ Shop")
-@router.message(F.text == "🛒 Shop")
-@router.message(F.text == "🔥 Shop 🔥")
-@router.message(F.text.casefold() == "products")
-@router.message(F.text.casefold() == "shop")
+@router.message(F.text.in_({
+    "Other Products", "other products", "OTHER PRODUCTS",
+    "🛍️ Other Products", "🛍️ OTHER PRODUCTS",
+    "Other Product", "other product",
+    "Others", "others",
+    "Premium Products", "premium products",
+    "All Products", "all products", "ALL PRODUCTS",
+    "🛍️ All Products", "🛍️ ALL PRODUCTS",
+    "Products", "products", "PRODUCTS",
+    "🛍️ Products", "🛍️ PRODUCTS",
+    "Shop", "shop", "SHOP", "🛍️ Shop", "🛒 Shop", "🛒 Products",
+    "অন্যান্য প্রোডাক্ট", "🛍️ অন্যান্য প্রোডাক্ট",
+    "সকল প্রোডাক্ট", "🛍️ সকল প্রোডাক্ট",
+    "পণ্য কিনুন",
+}))
 @router.callback_query(F.data == "open_shop")
-@router.callback_query(F.data == "open_categories")
 async def show_shop_entry(event: Message | CallbackQuery, state: FSMContext, services: Services):
-    """
-    Shop entry point.
-    If unpinned categories exist, displays the Category Selection Menu.
-    If no unpinned categories exist, directly displays the product catalog list.
-    """
-    await state.clear()
-    paused_msg = await services.settings.paused_message()
-    if paused_msg:
-        await respond(event, f"{ICON_WARNING} <b>Shop Temporarily Closed</b>\n\n{escape(paused_msg)}")
-        return
-
-    unpinned = await services.catalog.unpinned_categories(active_only=True)
-    if unpinned:
-        tg_user = event.from_user
-        lang = await services.users.get_language(tg_user.id) if tg_user else "en"
-        keyboard = get_categories_keyboard(unpinned, show_all_option=True, lang=lang)
-        title = t("btn_other_products", lang).replace("🛍️ ", "").strip()
-        await respond(
-            event,
-            f"{ICON_VIP} <b>{title}:</b>",
-            keyboard,
-        )
-        return
-
-    await show_products_list(event, state, services, category_id=None)
+    """Shop entry point displaying all active categories."""
+    return await show_other_products_hub(event, state, services)
 
 
 @router.callback_query(F.data == "shop_all")
@@ -443,25 +596,30 @@ async def show_all_products(query: CallbackQuery, state: FSMContext, services: S
     await show_products_list(query, state, services, category_id=None, back_target="open_categories")
 
 
-@router.callback_query(F.data.in_({"shop_uncat", "shop_uncategorized"}))
-@router.message(F.text.in_({"Uncategorized", "uncategorized"}))
+@router.callback_query(F.data.in_({"shop_uncat", "shop_uncategorized", "shop_others"}))
+@router.message(F.text.in_({"Others", "others", "📁 Others", "আদার্স", "📁 আদার্স", "অন্যান্য", "Uncategorized", "uncategorized"}))
 async def show_uncat_products(event: Message | CallbackQuery, state: FSMContext, services: Services):
     await state.clear()
-    await show_products_list(event, state, services, category_id="uncategorized", back_target="open_categories")
+    await show_products_list(event, state, services, category_id="others", back_target="open_categories")
 
 
 @router.callback_query(F.data.startswith("cat_"))
+@router.callback_query(F.data.startswith("mcat_"))
 async def show_category_products(query: CallbackQuery, state: FSMContext, services: Services):
     """Show products or validity selector for a specific selected category."""
     await state.clear()
-    cat_id = callback_int(query.data, "cat_")
+    is_main = bool(query.data and query.data.startswith("mcat_"))
+    cat_id = callback_int(query.data, "mcat_" if is_main else "cat_")
     if cat_id is None:
+        with suppress(TelegramBadRequest):
+            await query.answer("Category unavailable.", show_alert=True)
         return
     cat = await services.catalog.category(cat_id)
     if not cat:
+        with suppress(TelegramBadRequest):
+            await query.answer("Category not found.", show_alert=True)
         return
-    is_other = not cat.get("is_pinned")
-    back_target = "open_categories" if is_other else "back_to_main"
+    back_target = "open_categories"
     await show_category_or_validity(query, state, services, category=cat, back_target=back_target)
 
 
@@ -475,8 +633,7 @@ async def handle_validity_menu_back(query: CallbackQuery, state: FSMContext, ser
     cat = await services.catalog.category(cat_id)
     if not cat:
         return
-    is_other = not cat.get("is_pinned")
-    back_target = "open_categories" if is_other else "back_to_main"
+    back_target = "open_categories"
     await show_category_or_validity(query, state, services, category=cat, back_target=back_target)
 
 
@@ -542,33 +699,39 @@ async def show_products_list(
     )
     symbol = await services.settings.get("currency_symbol")
     usd_rate = await services.settings.number("usd_rate")
-    show_usd = await services.settings.flag("show_usd_price")
 
     category_name = ""
     category_icon_display = ""
     cat = None
+
+    tg_user = event.from_user
+    lang = await services.users.get_language(tg_user.id) if tg_user else "en"
+    user_row = await services.users.get(tg_user.id) if tg_user else None
+    is_reseller = (user_row.get("rank") or "").strip().lower() == "reseller" if user_row else False
+
     if category_id == "uncategorized":
-        category_name = "Uncategorized"
-        category_icon_display = f"{ICON_NOTE} "
+        category_name = "Others" if lang != "bn" else "আদার্স"
     elif isinstance(category_id, int):
         cat = await services.catalog.category(category_id)
         if cat:
             category_name = cat["name"]
             cat_emoji_id = cat.get("custom_emoji_id")
-            cat_icon = cat.get("icon") or "🏷️"
+            cat_icon = cat.get("icon") or ""
             if cat_emoji_id and str(cat_emoji_id).strip().isdigit():
-                category_icon_display = f"{tg_icon(str(cat_emoji_id).strip(), cat_icon)} "
+                category_icon = tg_icon(str(cat_emoji_id).strip(), "")
             elif cat_icon:
-                category_icon_display = f"{cat_icon} "
-
-    is_other_products = (back_target == "open_categories") or (category_id is None) or (category_id == "uncategorized") or bool(cat is not None and not cat.get("is_pinned"))
+                category_icon = tg_icon(None, cat_icon)
+            else:
+                category_icon = ""
+            if category_icon:
+                category_icon_display = f"{category_icon} "
 
     if cat and cat.get("has_validity_filter") == 1:
         effective_back_target = f"catval_menu_{cat['id']}"
-    elif back_target and (back_target.startswith("catval_menu_") or back_target == "open_categories"):
+    elif back_target and back_target.startswith("catval_menu_"):
         effective_back_target = back_target
     else:
-        effective_back_target = "open_categories" if is_other_products else "back_to_main"
+        effective_back_target = "open_categories"
 
     if not products:
         if category_name and duration_label:
@@ -579,17 +742,13 @@ async def show_products_list(
             header = f"{ICON_SHOP} <b>Available Products:</b>"
         msg = f"{header}\n\n{ICON_SHOP} <b>No products available right now.</b>"
         effective_back = effective_back_target if effective_back_target != "none" else "open_categories"
-        nav_btns = [InlineKeyboardButton(text="Back", callback_data=effective_back, style="primary", icon_custom_emoji_id=Icons.BACK)]
+        nav_btns = [InlineKeyboardButton(text=t("btn_back", lang), callback_data=effective_back)]
         await respond(event, msg, InlineKeyboardMarkup(inline_keyboard=[nav_btns]))
         return
 
     total_pages = max(1, math.ceil(len(products) / PAGE_SIZE))
     page = 1
     page_products = products[0:PAGE_SIZE]
-
-    tg_user = event.from_user
-    user_row = await services.users.get(tg_user.id) if tg_user else None
-    is_reseller = (user_row.get("rank") or "").strip().lower() == "reseller" if user_row else False
 
     keyboard = get_products_keyboard(
         products=page_products,
@@ -600,7 +759,7 @@ async def show_products_list(
         back_target=effective_back_target,
         is_reseller=is_reseller,
         usd_rate=usd_rate,
-        show_usd=show_usd,
+        lang=lang,
     )
     if category_name and duration_label:
         title = f"{category_icon_display}<b>{escape(category_name)} ({escape(duration_label)}):</b>"
@@ -608,6 +767,7 @@ async def show_products_list(
         title = f"{category_icon_display}<b>{escape(category_name)}:</b>"
     else:
         title = f"{ICON_SHOP} <b>Available Products:</b>"
+
     await respond(event, title, keyboard)
 
 
@@ -646,36 +806,42 @@ async def paginate_products(query: CallbackQuery, state: FSMContext, services: S
     requested_page = int(parts[-1]) if parts[-1].isdigit() else 1
 
     with suppress(TelegramBadRequest):
-        await query.answer("Refreshed! 🔄")
+        await query.answer("Refreshed")
 
     products = await services.catalog.products(category_id=category_id, active_only=True, limit=100, in_stock_first=True)
     symbol = await services.settings.get("currency_symbol")
     usd_rate = await services.settings.number("usd_rate")
-    show_usd = await services.settings.flag("show_usd_price")
 
     category_name = ""
     category_icon_display = ""
     cat = None
+
+    tg_user = query.from_user
+    lang = await services.users.get_language(tg_user.id) if tg_user else "en"
+    user_row = await services.users.get(tg_user.id) if tg_user else None
+    is_reseller = (user_row.get("rank") or "").strip().lower() == "reseller" if user_row else False
+
     if category_id == "uncategorized":
-        category_name = "Uncategorized"
-        category_icon_display = f"{ICON_NOTE} "
+        category_name = "Others" if lang != "bn" else "আদার্স"
     elif isinstance(category_id, int):
         cat = await services.catalog.category(category_id)
         if cat:
             category_name = cat["name"]
             cat_emoji_id = cat.get("custom_emoji_id")
-            cat_icon = cat.get("icon") or "🏷️"
+            cat_icon = cat.get("icon") or ""
             if cat_emoji_id and str(cat_emoji_id).strip().isdigit():
-                category_icon_display = f"{tg_icon(str(cat_emoji_id).strip(), cat_icon)} "
+                category_icon = tg_icon(str(cat_emoji_id).strip(), "")
             elif cat_icon:
-                category_icon_display = f"{cat_icon} "
-
-    is_other_products = (category_id is None) or (category_id == "uncategorized") or bool(cat is not None and not cat.get("is_pinned"))
+                category_icon = tg_icon(None, cat_icon)
+            else:
+                category_icon = ""
+            if category_icon:
+                category_icon_display = f"{category_icon} "
 
     if cat and cat.get("has_validity_filter") == 1:
         back_target = f"catval_menu_{cat['id']}"
     else:
-        back_target = "open_categories" if is_other_products else "back_to_main"
+        back_target = "open_categories"
 
     if not products:
         header = (
@@ -685,7 +851,7 @@ async def paginate_products(query: CallbackQuery, state: FSMContext, services: S
         )
         msg = f"{header}\n\n{ICON_SHOP} <b>No products available right now.</b>"
         effective_back = back_target if back_target and back_target != "none" else "open_categories"
-        nav_btns = [InlineKeyboardButton(text="Back", callback_data=effective_back, style="primary", icon_custom_emoji_id=Icons.BACK)]
+        nav_btns = [InlineKeyboardButton(text=t("btn_back", lang), callback_data=effective_back)]
         if query.message:
             with suppress(TelegramBadRequest):
                 await query.message.edit_text(msg, reply_markup=InlineKeyboardMarkup(inline_keyboard=[nav_btns]))
@@ -694,10 +860,6 @@ async def paginate_products(query: CallbackQuery, state: FSMContext, services: S
     total_pages = max(1, math.ceil(len(products) / PAGE_SIZE))
     page = min(max(requested_page, 1), total_pages)
     page_products = products[(page - 1) * PAGE_SIZE : page * PAGE_SIZE]
-
-    tg_user = query.from_user
-    user_row = await services.users.get(tg_user.id) if tg_user else None
-    is_reseller = (user_row.get("rank") or "").strip().lower() == "reseller" if user_row else False
 
     keyboard = get_products_keyboard(
         products=page_products,
@@ -708,7 +870,7 @@ async def paginate_products(query: CallbackQuery, state: FSMContext, services: S
         back_target=back_target,
         is_reseller=is_reseller,
         usd_rate=usd_rate,
-        show_usd=show_usd,
+        lang=lang,
     )
     title = (
         f"{category_icon_display}<b>{escape(category_name)}:</b>"
@@ -730,18 +892,63 @@ async def show_product_detail(query: CallbackQuery, state: FSMContext, services:
     await show_product(query, state, services, product_id, category_back=True)
 
 
+@router.callback_query(F.data.regexp(r"^prod_p_\d+_\d+_\w+$"))
+async def show_product_detail_paginated(query: CallbackQuery, state: FSMContext, services: Services):
+    parts = query.data.split("_")
+    product_id = int(parts[2])
+    page = int(parts[3])
+    cat_key = parts[4]
+
+    if cat_key == "all":
+        back_target = f"shop_p_all_{page}"
+    elif cat_key == "uncat":
+        back_target = f"shop_p_uncat_{page}"
+    elif cat_key.isdigit():
+        cat_id = int(cat_key)
+        cat = await services.catalog.category(cat_id)
+        if cat and cat.get("has_validity_filter") == 1:
+            back_target = f"catval_menu_{cat_id}"
+        else:
+            back_target = f"shop_p_{cat_id}_{page}"
+    else:
+        back_target = "back_to_main"
+
+    await show_product(query, state, services, product_id, back_target=back_target)
+
+
+@router.callback_query(F.data.regexp(r"^prod_m_\d+$"))
+async def show_main_product_detail(query: CallbackQuery, state: FSMContext, services: Services):
+    product_id = callback_int(query.data, "prod_m_")
+    await show_product(query, state, services, product_id, back_target="back_to_main")
+
+
+@router.callback_query(F.data.regexp(r"^prod_bo_\d+_\d+_\d+_\d+$"))
+async def show_order_buy_again(query: CallbackQuery, state: FSMContext, services: Services):
+    # Format: prod_bo_{product_id}_{order_id}_{page}_{from_acc}
+    parts = query.data.split("_")
+    product_id = int(parts[2])
+    order_id = int(parts[3])
+    page = int(parts[4])
+    from_acc = parts[5] == "1"
+    back_target = f"vord_{order_id}_{page}_1" if from_acc else f"vord_{order_id}_{page}"
+    await show_product(query, state, services, product_id, back_target=back_target)
+
+
 async def show_product(query: CallbackQuery, state: FSMContext, services: Services,
-                       product_id: int | None, *, category_back: bool = False) -> None:
+                       product_id: int | None, *, category_back: bool = False,
+                       back_target: str | None = None) -> None:
     """Draw one product. category_back: reached from a category, so Back goes there."""
     await state.clear()
     if category_back and product_id is not None:
         search.forget_search_origin(query.from_user.id, product_id)
+    if back_target and product_id is not None:
+        await state.update_data(**{f"back_target_{product_id}": back_target})
     product = await services.catalog.product(product_id) if product_id is not None else None
     if not product or not product["is_active"]:
         with suppress(TelegramBadRequest):
             await query.answer("Product not found or currently unavailable.", show_alert=True)
         return
-    text, keyboard = await product_view(services, product, query.from_user.id, quantity=1)
+    text, keyboard = await product_view(services, product, query.from_user.id, quantity=1, back_target=back_target)
     await respond(query, text, keyboard)
 
 
@@ -769,23 +976,24 @@ async def show_product_description(query: CallbackQuery, state: FSMContext, serv
 
     data = await state.get_data()
     quantity = max(1, int(data.get(f"qty_{product_id}", 1) or 1))
-    icon = product.get("icon") or "📦"
+    icon = product.get("icon") or ""
     custom_emoji_id = product.get("custom_emoji_id")
     if custom_emoji_id and str(custom_emoji_id).strip().isdigit():
-        icon = tg_icon(str(custom_emoji_id).strip(), icon)
+        icon = tg_icon(str(custom_emoji_id).strip(), "")
+    else:
+        icon = tg_icon(None, icon)
+    description_title, _, _ = product_display_labels(product)
 
     text = (
         f"{ICON_NOTE} <b>Description</b>\n\n"
-        f"{icon} <b>{escape(product['title'])}</b>\n\n"
+        f"{icon + ' ' if icon else ''}<b>{escape(description_title)}</b>\n\n"
         f"{escape(desc)}"
     )
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[[
             InlineKeyboardButton(
-                text="Back to product",
+                text="🔙 Back to product",
                 callback_data=f"qty_set_{product_id}_{quantity}",
-                style="primary",
-                icon_custom_emoji_id=Icons.BACK,
             )
         ]]
     )
@@ -828,7 +1036,10 @@ async def adjust_quantity(query: CallbackQuery, state: FSMContext, services: Ser
     # does not quietly reset the quantity the customer chose.
     await state.update_data(**{f"qty_{product_id}": quantity})
 
-    text, keyboard = await product_view(services, product, query.from_user.id, quantity=quantity)
+    data = await state.get_data()
+    back_target = data.get(f"back_target_{product_id}")
+
+    text, keyboard = await product_view(services, product, query.from_user.id, quantity=quantity, back_target=back_target)
     if query.message:
         with suppress(TelegramBadRequest):
             await query.message.edit_text(text, reply_markup=keyboard)
@@ -840,75 +1051,11 @@ async def get_keypad_view_text(
     tg_user_id: int,
     buffer: str = "1",
 ) -> str:
-    user = await services.users.get(tg_user_id)
-    balance = user["balance"] if user else 0.0
-    symbol = await services.settings.get("currency_symbol")
-    usd_rate = await services.settings.number("usd_rate")
-    show_usd = await services.settings.flag("show_usd_price")
-    stock = product.get("stock", 0)
-    is_manual = product.get("delivery_type") == "manual"
-    title = escape(product["title"])
-
-    cat_id = product.get("category_id")
-    cat = await services.catalog.category(cat_id) if cat_id else None
-    category_name = cat["name"] if cat else "General"
-    cat_emoji_id = cat.get("custom_emoji_id") if cat else None
-    cat_icon = cat.get("icon") or "📁" if cat else "📁"
-    if cat_emoji_id and str(cat_emoji_id).strip().isdigit():
-        cat_icon_display = tg_icon(str(cat_emoji_id).strip(), cat_icon)
-    else:
-        cat_icon_display = cat_icon
-
-    custom_emoji_id = product.get("custom_emoji_id")
-    clean_title = title
-    if custom_emoji_id and str(custom_emoji_id).strip().isdigit():
-        for em in ["🌐", "🛡️", "🛡", "⚡", "📱", "🚀", "🤖", "🧠", "🎨", "💻", "✨", "🍿", "🎵", "📺", "⭐", "🎬", "❌", "💎", "📦"]:
-            if clean_title.startswith(em):
-                clean_title = clean_title[len(em):].strip()
-                break
-        prod_icon_display = tg_icon(str(custom_emoji_id).strip(), product.get("icon") or "📦")
-    else:
-        prod_icon_display = product.get("icon") or "📦"
-
-    if cat_emoji_id and custom_emoji_id and str(cat_emoji_id).strip() == str(custom_emoji_id).strip():
-        prod_icon_display = "📦"
-
-    if is_manual:
-        stock_text = f"<b>Available (Manual Delivery) {ICON_TIMER}</b>"
-    elif stock > 0:
-        stock_text = f"<b>{stock}</b> Available"
-    else:
-        stock_text = f"<b>Out of Stock {ICON_CROSS}</b>"
-
-    is_reseller = (user.get("rank") or "").strip().lower() == "reseller" if user else False
-    reseller_price = product.get("reseller_price")
-    if is_reseller and reseller_price is not None and float(reseller_price) > 0:
-        unit_price = float(reseller_price)
-    else:
-        unit_price = float(product["price"])
-    unit_price_str = format_dual_price(unit_price, symbol, usd_rate=usd_rate, show_usd=show_usd)
-    balance_str = format_dual_price(balance, symbol, usd_rate=usd_rate, show_usd=show_usd)
-
-    duration = escape(product.get("duration_label") or "")
-    duration_line = ""
-    if duration and duration.lower() not in {"instant", "none", "n/a", ""}:
-        duration_line = f"{ICON_TIMER} <b>Validity:</b> {duration}\n"
-
-    desc = (product.get("description") or "").strip()
-    desc_line = ""
-    if desc and desc.lower() not in {"n/a", "none", "no description", "null"} and not is_redundant_description(product["title"], desc):
-        desc_line = f"{ICON_NOTE} <b>Description:</b> {escape(desc)}\n"
-
+    text, _ = await product_view(services, product, tg_user_id)
     return (
-        f"{ICON_BALANCE} <b>Your Balance:</b> <code>{balance_str}</code>\n\n"
-        f"{cat_icon_display} <b>Category:</b> {escape(category_name)}\n"
-        f"{prod_icon_display} <b>Package:</b> <b>{clean_title}</b>\n"
-        f"{ICON_MONEY} <b>Price Rate:</b> <code>{unit_price_str}</code>\n"
-        f"{ICON_STATS} <b>Available Stock:</b> {stock_text}\n"
-        f"{duration_line}"
-        f"{desc_line}\n"
-        f"💡 <b>How to use:</b> tap the digits below or send a number, then tap <b>Confirm</b>.\n\n"
-        f"🔢 <b>Current Quantity:</b> <code>{buffer}</code>"
+        f"{text}\n\n"
+        f"Quantity: <code>{escape(buffer)}</code>\n"
+        "Enter a quantity, then select Confirm."
     )
 
 
@@ -963,23 +1110,25 @@ async def handle_keypad_action(query: CallbackQuery, state: FSMContext, services
     has_typed = bool(data.get("has_typed", False))
 
     if action == "back":
+        back_target = data.get(f"back_target_{product_id}")
         await state.clear()
         with suppress(TelegramBadRequest):
             await query.answer()
         qty = int(buffer) if buffer.isdigit() and int(buffer) >= 1 else 1
-        text, kb = await product_view(services, product, query.from_user.id, quantity=qty)
+        text, kb = await product_view(services, product, query.from_user.id, quantity=qty, back_target=back_target)
         if query.message:
             with suppress(TelegramBadRequest):
                 await query.message.edit_text(text, reply_markup=kb)
         return
 
     if action == "confirm":
+        back_target = data.get(f"back_target_{product_id}")
         await state.clear()
         with suppress(TelegramBadRequest):
             await query.answer()
         qty = int(buffer) if buffer.isdigit() and int(buffer) >= 1 else 1
         qty = min(max(1, qty), upper_bound)
-        text, kb = await product_view(services, product, query.from_user.id, quantity=qty)
+        text, kb = await product_view(services, product, query.from_user.id, quantity=qty, back_target=back_target)
         if query.message:
             with suppress(TelegramBadRequest):
                 await query.message.edit_text(text, reply_markup=kb)
@@ -1044,6 +1193,7 @@ async def process_custom_quantity(message: Message, state: FSMContext, services:
     qty = int(text)
     data = await state.get_data()
     product_id = data.get("product_id")
+    back_target = data.get(f"back_target_{product_id}")
     await state.clear()
 
     product = await services.catalog.product(product_id) if product_id else None
@@ -1058,7 +1208,7 @@ async def process_custom_quantity(message: Message, state: FSMContext, services:
         qty = stock
         await message.answer(f"{ICON_WARNING} Quantity adjusted to available stock: {stock}")
 
-    view_text, keyboard = await product_view(services, product, message.from_user.id, quantity=qty)
+    view_text, keyboard = await product_view(services, product, message.from_user.id, quantity=qty, back_target=back_target)
     await message.answer(view_text, reply_markup=keyboard)
 
 
@@ -1075,12 +1225,17 @@ async def execute_quantity_purchase(query: CallbackQuery, state: FSMContext, ser
     quantity = int(parts[3])
     token = parts[4]
 
+    product = await services.catalog.product(product_id)
+    if not product or not product.get("is_active"):
+        with suppress(TelegramBadRequest):
+            await query.answer("Product unavailable.", show_alert=True)
+        return
+
     # Scrolling back to an older message shows an older price, and the charge always
     # comes from the database. Rather than quietly take a different amount than the one
     # on screen, show the product again at today's price and let them decide.
     shown_cents = int(parts[5]) if len(parts) > 5 and parts[5].isdigit() else None
     if shown_cents is not None:
-        product = await services.catalog.product(product_id)
         buyer = await services.users.get(query.from_user.id)
         now = unit_price_for(product, buyer) if product else 0.0
         if product and round(now * 100) != shown_cents:
@@ -1097,6 +1252,40 @@ async def execute_quantity_purchase(query: CallbackQuery, state: FSMContext, ser
                     await query.message.edit_text(view_text, reply_markup=keyboard)
             return
 
+    # Check if this product requires customer input (e.g. Gmail for Gemini)
+    if product.get("requires_customer_input"):
+        lang = await services.users.get_language(query.from_user.id)
+        prompt_custom = (product.get("customer_input_prompt") or "").strip()
+        if lang == "bn":
+            header = "📝 <b>অর্ডার সম্পন্ন করতে তথ্য প্রদান করুন:</b>"
+            default_prompt = "দয়া করে আপনার জিমেইল এড্রেস বা প্রয়োজনীয় তথ্য লিখে মেসেজ পাঠান:"
+            hint = f"📌 {escape(prompt_custom)}" if prompt_custom else f"📌 {default_prompt}"
+            instr = f"{header}\n\n{hint}\n\n<i>নিচে মেসেজ বক্সে লিখে সেন্ড করুন 👇</i>"
+            cancel_btn = "❌ বাতিল করুন"
+        else:
+            header = "📝 <b>Required Information:</b>"
+            default_prompt = "Please reply with your Gmail address or account details:"
+            hint = f"📌 {escape(prompt_custom)}" if prompt_custom else f"📌 {default_prompt}"
+            instr = f"{header}\n\n{hint}\n\n<i>Type your info below and send 👇</i>"
+            cancel_btn = "❌ Cancel"
+
+        await state.set_state(ShopQuantityStates.waiting_for_customer_input)
+        await state.update_data(
+            product_id=product_id,
+            quantity=quantity,
+            token=token,
+            shown_cents=shown_cents,
+        )
+        cancel_kb = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text=cancel_btn, callback_data=f"prod_view_{product_id}")
+        ]])
+        with suppress(TelegramBadRequest):
+            await query.answer()
+        if query.message:
+            with suppress(TelegramBadRequest):
+                await query.message.edit_text(instr, reply_markup=cancel_kb)
+        return
+
     success, message, order = await services.purchases.purchase(
         query.from_user.id, product_id, quantity=quantity, request_id=f"bot-{token}"
     )
@@ -1105,19 +1294,20 @@ async def execute_quantity_purchase(query: CallbackQuery, state: FSMContext, ser
             await query.answer(f"⚠️ {message}", show_alert=True)
         return
 
+    lang = await services.users.get_language(query.from_user.id)
     with suppress(TelegramBadRequest):
-        await query.answer("🎉 Purchase Successful!", show_alert=False)
+        toast_success = "🎉 ক্রয় সফল হয়েছে!" if lang == "bn" else "Order placed"
+        await query.answer(toast_success, show_alert=False)
 
     if query.message:
         is_waiting = order.get("fulfillment") == "waiting"
-        success_title = f"{ICON_TIMER} <b>Order Placed!</b>" if is_waiting else f"{ICON_CHECK} <b>Purchase Successful!</b>"
-        # A manual order gets its own message from the delivery queue a moment later, with
-        # the order number and how long it usually takes. Repeating it here read as two
-        # separate confirmations for one purchase.
-        below_text = "" if is_waiting else "<i>Your order details and delivery are below 👇</i>"
+        if lang == "bn":
+            success_title = f"{ICON_TIMER} <b>অর্ডার সম্পন্ন হয়েছে!</b>" if is_waiting else f"{ICON_CHECK} <b>ক্রয় সফল হয়েছে!</b>"
+            below_text = "" if is_waiting else "<i>আপনার অর্ডার বিবরণ এবং ডেলিভারি নিচে রয়েছে 👇</i>"
+        else:
+            success_title = f"{ICON_TIMER} <b>Order placed</b>" if is_waiting else f"{ICON_CHECK} <b>Order placed</b>"
+            below_text = "" if is_waiting else "<i>Your order details and delivery are below 👇</i>"
         if not is_waiting:
-            # A manual order says it is being prepared, which stays true until a
-            # human sends it, so only the instant one is cleared away.
             services.notifier.in_background(
                 _clear_banner(query.message, PURCHASE_BANNER_SECONDS))
         with suppress(TelegramBadRequest):
@@ -1138,27 +1328,67 @@ async def execute_legacy_purchase(query: CallbackQuery, state: FSMContext, servi
         await query.answer("Please reopen the product to confirm your purchase.", show_alert=True)
         return
 
+    prod_id = int(parts[1])
+    product = await services.catalog.product(prod_id)
+    if not product or not product.get("is_active"):
+        with suppress(TelegramBadRequest):
+            await query.answer("Product unavailable.", show_alert=True)
+        return
+
+    if product.get("requires_customer_input"):
+        lang = await services.users.get_language(query.from_user.id)
+        prompt_custom = (product.get("customer_input_prompt") or "").strip()
+        if lang == "bn":
+            header = "📝 <b>অর্ডার সম্পন্ন করতে তথ্য প্রদান করুন:</b>"
+            default_prompt = "দয়া করে আপনার জিমেইল এড্রেস বা প্রয়োজনীয় তথ্য লিখে মেসেজ পাঠান:"
+            hint = f"📌 {escape(prompt_custom)}" if prompt_custom else f"📌 {default_prompt}"
+            instr = f"{header}\n\n{hint}\n\n<i>নিচে মেসেজ বক্সে লিখে সেন্ড করুন 👇</i>"
+            cancel_btn = "❌ বাতিল করুন"
+        else:
+            header = "📝 <b>Required Information:</b>"
+            default_prompt = "Please reply with your Gmail address or account details:"
+            hint = f"📌 {escape(prompt_custom)}" if prompt_custom else f"📌 {default_prompt}"
+            instr = f"{header}\n\n{hint}\n\n<i>Type your info below and send 👇</i>"
+            cancel_btn = "❌ Cancel"
+
+        await state.set_state(ShopQuantityStates.waiting_for_customer_input)
+        await state.update_data(
+            product_id=prod_id,
+            quantity=1,
+            token=parts[2],
+        )
+        cancel_kb = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text=cancel_btn, callback_data=f"prod_view_{prod_id}")
+        ]])
+        with suppress(TelegramBadRequest):
+            await query.answer()
+        if query.message:
+            with suppress(TelegramBadRequest):
+                await query.message.edit_text(instr, reply_markup=cancel_kb)
+        return
+
     success, message, order = await services.purchases.purchase(
-        query.from_user.id, int(parts[1]), quantity=1, request_id=f"bot-{parts[2]}"
+        query.from_user.id, prod_id, quantity=1, request_id=f"bot-{parts[2]}"
     )
     if not success or not order:
         with suppress(TelegramBadRequest):
             await query.answer(f"⚠️ {message}", show_alert=True)
         return
 
+    lang = await services.users.get_language(query.from_user.id)
     with suppress(TelegramBadRequest):
-        await query.answer("🎉 Purchase Successful!", show_alert=False)
+        toast_success = "🎉 ক্রয় সফল হয়েছে!" if lang == "bn" else "Order placed"
+        await query.answer(toast_success, show_alert=False)
 
     if query.message:
         is_waiting = order.get("fulfillment") == "waiting"
-        success_title = f"{ICON_TIMER} <b>Order Placed!</b>" if is_waiting else f"{ICON_CHECK} <b>Purchase Successful!</b>"
-        # A manual order gets its own message from the delivery queue a moment later, with
-        # the order number and how long it usually takes. Repeating it here read as two
-        # separate confirmations for one purchase.
-        below_text = "" if is_waiting else "<i>Your order details and delivery are below 👇</i>"
+        if lang == "bn":
+            success_title = f"{ICON_TIMER} <b>অর্ডার সম্পন্ন হয়েছে!</b>" if is_waiting else f"{ICON_CHECK} <b>ক্রয় সফল হয়েছে!</b>"
+            below_text = "" if is_waiting else "<i>আপনার অর্ডার বিবরণ এবং ডেলিভারি নিচে রয়েছে 👇</i>"
+        else:
+            success_title = f"{ICON_TIMER} <b>Order placed</b>" if is_waiting else f"{ICON_CHECK} <b>Order placed</b>"
+            below_text = "" if is_waiting else "<i>Your order details and delivery are below 👇</i>"
         if not is_waiting:
-            # A manual order says it is being prepared, which stays true until a
-            # human sends it, so only the instant one is cleared away.
             services.notifier.in_background(
                 _clear_banner(query.message, PURCHASE_BANNER_SECONDS))
         with suppress(TelegramBadRequest):
@@ -1169,3 +1399,68 @@ async def execute_legacy_purchase(query: CallbackQuery, state: FSMContext, servi
                 reply_markup=None,
             )
 
+
+@router.message(ShopQuantityStates.waiting_for_customer_input)
+async def process_customer_input_purchase(message: Message, state: FSMContext, services: Services):
+    """Processes customer text input (e.g. Gmail for Gemini) to complete the purchase."""
+    text = (message.text or "").strip()
+    if is_navigation(text):
+        await navigate(text, message, state, services)
+        return
+
+    lang = await services.users.get_language(message.from_user.id)
+    if text.lower() in ("/cancel", "cancel", "বাতিল"):
+        await state.clear()
+        cancel_msg = "❌ অর্ডার বাতিল করা হয়েছে।" if lang == "bn" else "❌ Order cancelled."
+        await message.answer(cancel_msg)
+        return
+
+    if len(text) < 2 or len(text) > 300:
+        err_msg = "দয়া করে সঠিক তথ্য দিন (২-৩০০ অক্ষরের মধ্যে):" if lang == "bn" else "Please enter valid info (2-300 characters):"
+        await message.answer(f"{ICON_WARNING} {err_msg}")
+        return
+
+    data = await state.get_data()
+    product_id = data.get("product_id")
+    quantity = data.get("quantity", 1)
+    token = data.get("token") or uuid4().hex[:12]
+    await state.clear()
+
+    product = await services.catalog.product(product_id) if product_id else None
+    if not product or not product.get("is_active"):
+        unavail = "❌ এই প্রোডাক্টটি বর্তমানে পাওয়া যাচ্ছে না।" if lang == "bn" else "❌ Product is currently unavailable."
+        await message.answer(unavail)
+        return
+
+    success, result_message, order = await services.purchases.purchase(
+        message.from_user.id,
+        product_id,
+        quantity=quantity,
+        request_id=f"bot-{token}",
+        customer_input=text,
+    )
+    if not success or not order:
+        await message.answer(f"⚠️ {result_message}")
+        return
+
+    is_waiting = order.get("fulfillment") == "waiting"
+    if lang == "bn":
+        success_title = f"{ICON_TIMER} <b>অর্ডার সফলভাবে গ্রহণ করা হয়েছে!</b>" if is_waiting else f"{ICON_CHECK} <b>ক্রয় সফল হয়েছে!</b>"
+        info_line = f"\n📝 <b>প্রদত্ত তথ্য:</b> <code>{escape(text)}</code>"
+        below_text = "<i>এডমিন আপনার প্রদত্ত তথ্য যাচাই করে শীঘ্রই ডেলিভারি সম্পন্ন করবেন।</i>" if is_waiting else "<i>আপনার অর্ডার বিবরণ নিচে দেওয়া হলো 👇</i>"
+    else:
+        success_title = f"{ICON_TIMER} <b>Order Placed!</b>" if is_waiting else f"{ICON_CHECK} <b>Purchase Successful!</b>"
+        info_line = f"\n📝 <b>Provided Info:</b> <code>{escape(text)}</code>"
+        below_text = "<i>The admin will review your information and deliver shortly.</i>" if is_waiting else "<i>Your order details are below 👇</i>"
+
+    order_id = order.get("order_id", order.get("id"))
+    orders_kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="📦 My Orders" if lang != "bn" else "📦 আমার অর্ডার", callback_data=f"view_order_{order_id}")
+    ]])
+    await message.answer(
+        f"{success_title}\n\n"
+        f"{ICON_ORDERS} <b>{escape(order.get('product_title', 'Product'))}</b>"
+        f"{info_line}\n\n"
+        f"{below_text}",
+        reply_markup=orders_kb,
+    )

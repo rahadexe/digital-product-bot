@@ -112,16 +112,28 @@ class AuditFixes(unittest.IsolatedAsyncioTestCase):
             )
 
     async def test_force_join_outage_is_distinct_and_does_not_poison_cache(self):
+        from unittest.mock import MagicMock
         from app.bot.handlers.start import gate_text
 
         self.s.gate.settings.flag = AsyncMock(return_value=True)
         channels = [{'channel_username': '@test', 'title': 'Test'}]
         self.s.gate.channels = AsyncMock(return_value=channels)
         self.s.notifier.is_member = AsyncMock(side_effect=RuntimeError('unavailable'))
+        self.s.notifier.send_admin = AsyncMock()
         ok, missing = await self.s.gate.check(100)
         self.assertFalse(ok)
-        self.assertIn('temporarily unavailable', gate_text(missing))
+        self.assertIn('Test', gate_text(missing))
         self.assertNotIn('verification_unavailable', channels[0])
+
+        # Test grant_access and notify_admin_channel_issue
+        self.s.gate.grant_access(100)
+        ok2, missing2 = await self.s.gate.check(100)
+        self.assertTrue(ok2)
+
+        user_mock = MagicMock(id=100, full_name="John Doe")
+        await self.s.gate.notify_admin_channel_issue(missing, user_mock)
+        self.s.notifier.send_admin.assert_called_once()
+        self.assertIn('Force Join Gate Alert', self.s.notifier.send_admin.call_args[0][0])
 
     async def test_automatic_deposit_has_delayed_restart_fallback(self):
         method = await self.s.deposits.create_method('Test', 'account')

@@ -31,62 +31,62 @@ export function UpdateChannels({ say }: { say: Say }) {
   return (
     <>
       {confirmDialog}
-      <div className="panel-subhead">
+      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <h3>Buttons shown to customers</h3>
+          <h2>Help & Support Links</h2>
         </div>
-        <div className="actions">
-          <button
-            type="button"
-            className="btn small"
-            onClick={() => setDraft({ id: null, title: '', url: '', sort_order: String((channels?.length ?? 0) + 1), is_active: true })}
-          >
-            Add channel
-          </button>
-        </div>
-      </div>
-      {channels && channels.length === 0 ? <p className="note" style={{ padding: '12px 18px', margin: 0 }}>No channel buttons added yet.</p> : null}
-      <div className="rows">
-        {(channels ?? []).map((channel) => (
-          <div key={channel.id} className={`row${channel.is_active ? '' : ' off'}`}>
-            <div className="text">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                <strong>{channel.title}</strong>
-                {channel.is_active ? (
-                  <span className="channel-status-badge active">Active</span>
-                ) : (
-                  <span className="channel-status-badge inactive">Inactive</span>
-                )}
+        <button
+          type="button"
+          className="btn small"
+          onClick={() => setDraft({ id: null, title: '', url: '', sort_order: String((channels?.length ?? 0) + 1), is_active: true })}
+        >
+          Add button
+        </button>
+      </header>
+      <div style={{ padding: '16px 20px 20px' }}>
+        {channels && channels.length === 0 ? <p className="note" style={{ padding: '12px 18px', margin: 0 }}>No extra link buttons added.</p> : null}
+        <div className="rows">
+          {(channels ?? []).map((channel) => (
+            <div key={channel.id} className={`row${channel.is_active ? '' : ' off'}`}>
+              <div className="text">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <strong>{channel.title}</strong>
+                  {channel.is_active ? (
+                    <span className="channel-status-badge active">Active</span>
+                  ) : (
+                    <span className="channel-status-badge inactive">Inactive</span>
+                  )}
+                </div>
+                <small>
+                  #{channel.sort_order} ·{' '}
+                  <a href={channel.url} target="_blank" rel="noreferrer">
+                    {channel.url.replace('https://', '')}
+                  </a>
+                </small>
               </div>
-              <small>
-                #{channel.sort_order} ·{' '}
-                <a href={channel.url} target="_blank" rel="noreferrer">
-                  {channel.url.replace('https://', '')}
-                </a>
-              </small>
+              <div className="row-actions">
+                <button
+                  type="button"
+                  className="mini"
+                  onClick={() =>
+                    setDraft({
+                      id: channel.id,
+                      title: channel.title,
+                      url: channel.url,
+                      sort_order: String(channel.sort_order),
+                      is_active: Boolean(channel.is_active),
+                    })
+                  }
+                >
+                  Edit
+                </button>
+                <button type="button" className="mini danger" onClick={() => remove(channel)}>
+                  Remove
+                </button>
+              </div>
             </div>
-            <div className="row-actions">
-              <button
-                type="button"
-                className="mini"
-                onClick={() =>
-                  setDraft({
-                    id: channel.id,
-                    title: channel.title,
-                    url: channel.url,
-                    sort_order: String(channel.sort_order),
-                    is_active: Boolean(channel.is_active),
-                  })
-                }
-              >
-                Edit
-              </button>
-              <button type="button" className="mini danger" onClick={() => remove(channel)}>
-                Remove
-              </button>
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
       {draft ? (

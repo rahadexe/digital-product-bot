@@ -1,293 +1,95 @@
 'use client';
 
-// Settings as a list of panels. Each panel owns its fields and saves them itself; a switch saves the moment
-// it flips. To add a control, add a field to a section below.
-
 import { Fragment, useEffect, useState } from 'react';
 import { api, type BinanceStatus, type PaymentsStatus } from '@/lib/api';
 import { resetCurrencySymbol } from '@/lib/currency';
 import { AdminNotifications } from './AdminNotifications';
 import { BotAdmins } from './BotAdmins';
-import { CustomSelect } from './CustomSelect';
 import { GateChannels } from './GateChannels';
 import { PaymentMethods } from './PaymentMethods';
 import { UpdateChannels } from './UpdateChannels';
-import { PageLoading, FlagRow, Switch, errorText, useConfirm, type Say } from './ui';
-import { Eye, EyeOff, RotateCcw, Save } from 'lucide-react';
+import { PageLoading, Switch, errorText, useConfirm, type Say } from './ui';
 
-export type SettingsTab = 'general' | 'payments' | 'channels' | 'notifications';
+export type SettingsTab = 'economics' | 'gate' | 'payments' | 'notifications';
 
-const TABS: { key: SettingsTab; label: string }[] = [
-  { key: 'general', label: 'Store' },
-  { key: 'payments', label: 'Payments' },
-  { key: 'channels', label: 'Channels' },
-  { key: 'notifications', label: 'Notifications' },
-];
-
-/** Where a tab that no longer exists should land, so old links still work. */
-const MOVED: Record<string, SettingsTab> = { access: 'channels' };
-
-const TOGGLE_NAMES: Record<string, string> = {
-  store_paused: 'Pause Store',
-  referral_enabled: 'Refer & Earn',
-  show_usd_price: 'Show USD Price on Products',
-  zinipay_enabled: 'ZiniPay Instant Deposits',
-  zinipay_web_gateway_enabled: 'ZiniPay Web Gateway',
-  binance_enabled: 'Binance Pay Deposits',
-  force_join_enabled: 'Force Join Channel Gate',
-  auto_restock_alerts: 'Auto-post on Restock',
-  auto_price_drop_alerts: 'Auto-post on Price Drop',
-  notify_admin_orders: 'Instant Stock Purchases Alert',
-  notify_admin_payments: 'Automatic Gateway Deposits Alert',
-  notify_admin_restock: 'Stock Restock Alert',
-  notify_admin_low_stock: 'Low Stock & Out of Stock Alert',
-  notify_admin_price_change: 'Price Change Alert',
-  notify_admin_new_user: 'New Customers Alert',
-  notify_user_referral: 'Referral Bonus Alert',
-};
-
-/** Switches that only decide whether a message is sent, so flipping one asks nothing. */
-const ALERT_TOGGLES = (key: string) =>
-  key.startsWith('notify_') || key === 'auto_restock_alerts' || key === 'auto_price_drop_alerts';
-
-type Secret = 'zinipay_api_key' | 'binance_api_key' | 'binance_api_secret';
-
-type Field = {
-  key: string;
+const TABS: {
+  key: SettingsTab;
   label: string;
-  hint?: string;
-  type?: 'text' | 'number' | 'password' | 'toggle' | 'textarea' | 'select';
-  options?: { value: string; label: string }[];
-  placeholder?: string;
-  rows?: number;
-  maxLength?: number;
-  fallback?: string;
-  /** Password fields are write-only: kept apart and sent only when typed. */
-  secret?: Secret;
-  /** Shown with the store's currency symbol. */
-  money?: boolean;
-};
-
-type Section = {
-  id: string;
-  tab: SettingsTab;
-  title: string;
-  /** The switch the whole panel hangs from, with what it means in each position. */
-  master?: { key: string; on?: string; off?: string };
-  fields: Field[];
-  extra?: 'zinipay' | 'binance';
-};
-
-const SECTIONS: Section[] = [
-  // ── Store ────────────────────────────────────────────────
-  {
-    id: 'store',
-    tab: 'general',
-    title: 'Store profile',
-    fields: [
-      { key: 'store_name', label: 'Store name', placeholder: 'Store name' },
-      { key: 'support_username', label: 'Support username', placeholder: '@username' },
-      {
-        key: 'welcome_text',
-        label: 'Welcome message',
-        hint: 'The first thing a customer sees. Leave blank for the default.',
-        type: 'textarea',
-        rows: 3,
-        placeholder: 'Custom welcome message (optional)',
-      },
-    ],
-  },
-  {
-    id: 'admins',
-    tab: 'general',
-    title: 'Who runs this shop',
-    fields: [],
-  },
-  {
-    id: 'availability',
-    tab: 'general',
-    title: 'Store availability',
-    master: {
-      key: 'store_paused',
-      on: 'Store paused · Blocking new orders and deposits',
-      off: 'Store open · Normal ordering and deposits active',
-    },
-    fields: [
-      {
-        key: 'maintenance_message',
-        label: 'Message while paused',
-        type: 'textarea',
-        rows: 2,
-        placeholder: 'Store maintenance is in progress...',
-        hint: 'Displayed on /start and when users try to purchase while paused.',
-      },
-    ],
-  },
-  {
-    id: 'pricing_display',
-    tab: 'general',
-    title: 'Price display',
-    master: {
-      key: 'show_usd_price',
-      on: 'Showing both ৳ and $ prices on products',
-      off: 'Showing only ৳ price on products',
-    },
-    fields: [
-      {
-        key: 'usd_rate',
-        label: 'Exchange Rate: 1 USD',
-        type: 'number',
-        fallback: '125',
-        money: true,
-        hint: 'Used to convert product prices from ৳ to $ when dual currency display is active.',
-      },
-    ],
-  },
-  {
-    id: 'referral',
-    tab: 'general',
-    title: 'Refer & Earn',
-    master: {
-      key: 'referral_enabled',
-      on: 'Referral rewards active · Users earn bonus balance on successful invites',
-      off: 'Referral rewards disabled',
-    },
-    fields: [
-      {
-        key: 'referral_reward_amount',
-        label: 'Bonus per Referral',
-        type: 'number',
-        fallback: '3',
-        money: true,
-        hint: 'Reward credited to inviter balance once referral qualifies.',
-      },
-    ],
-  },
-  // ── Payments ─────────────────────────────────────────────
-  {
-    id: 'deposit_limits',
-    tab: 'payments',
-    title: 'Deposit limits',
-    fields: [
-      {
-        key: 'max_deposit_limit',
-        label: 'Most a customer may add at once',
-        hint: 'Applies to every method below.',
-        type: 'number',
-        fallback: '500',
-        money: true,
-      },
-    ],
-  },
-  {
-    id: 'zinipay_autoverify',
-    tab: 'payments',
-    title: 'ZiniPay Auto-Verification',
-    master: {
-      key: 'zinipay_enabled',
-      on: 'Automatic bKash / Nagad verification active',
-      off: 'ZiniPay auto-verification disabled',
-    },
-    fields: [
-      {
-        key: 'zinipay_api_key',
-        label: 'ZiniPay API Key',
-        type: 'password',
-        secret: 'zinipay_api_key',
-      },
-    ],
-  },
-  {
-    id: 'zinipay_web',
-    tab: 'payments',
-    title: 'ZiniPay checkout',
-    master: {
-      key: 'zinipay_web_gateway_enabled',
-      on: 'ZiniPay hosted web checkout enabled',
-      off: 'ZiniPay web checkout disabled',
-    },
-    fields: [
-      { key: 'zinipay_brand_url', label: 'Brand website URL', placeholder: 'https://myshop.com' },
-      { key: 'zinipay_label', label: 'Name customers see', maxLength: 40, placeholder: 'Instant Web Checkout' },
-      { key: 'zinipay_min_deposit', label: 'Smallest deposit', type: 'number', fallback: '10', money: true },
-    ],
-    extra: 'zinipay',
-  },
-  {
-    id: 'binance',
-    tab: 'payments',
-    title: 'Binance',
-    master: {
-      key: 'binance_enabled',
-      on: 'Automated USDT deposits via Binance Pay enabled',
-      off: 'Binance Pay deposits disabled',
-    },
-    fields: [
-      { key: 'binance_pay_id', label: 'Binance UID', placeholder: '750176717' },
-      { key: 'binance_pay_name', label: 'Account name customers see', placeholder: 'Leave blank to show only the UID' },
-      { key: 'binance_api_key', label: 'API Key (Read-only)', type: 'password', secret: 'binance_api_key' },
-      { key: 'binance_api_secret', label: 'API Secret', type: 'password', secret: 'binance_api_secret' },
-      { key: 'binance_pay_rate', label: 'Rate per 1 USDT (৳)', type: 'number', fallback: '125' },
-      { key: 'binance_pay_min', label: 'Smallest deposit ($)', type: 'number', fallback: '1' },
-      { key: 'binance_pay_instructions', label: 'Custom instructions (optional)', type: 'textarea', rows: 2, placeholder: 'Leave blank for default instructions' },
-    ],
-    extra: 'binance',
-  },
-  // ── Channels ─────────────────────────────────────────────
-  // Announcements (post notifications) placed first for quick daily access.
-  {
-    id: 'announcements',
-    tab: 'channels',
-    title: 'Announcement channels',
-    fields: [
-      {
-        key: 'announcement_channel',
-        label: 'Public announcement channels',
-        hint: 'Public Telegram channels where the bot posts restock and price drop alerts. Enter single or multiple channels separated by commas (e.g. -1004331909607, @MyChannel).',
-        placeholder: '-1004331909607, @SecondChannel',
-      },
-    ],
-  },
-  {
-    id: 'force_join',
-    tab: 'channels',
-    title: 'Force join',
-    master: {
-      key: 'force_join_enabled',
-      on: 'Force join active · Customers must join mandatory channels to use the bot',
-      off: 'Force join disabled · All users can access the bot freely',
-    },
-    fields: [],
-  },
-  {
-    id: 'update_channels',
-    tab: 'channels',
-    title: 'Customer channel buttons',
-    fields: [],
-  },
-  // ── Notifications ────────────────────────────────────────
-  { id: 'notifications', tab: 'notifications', title: 'Notifications', fields: [] },
+  icon: 'sliders' | 'shield' | 'card' | 'bell';
+}[] = [
+  { key: 'economics', label: 'Economics & Fees', icon: 'sliders' },
+  { key: 'gate', label: 'Force Join Gate', icon: 'shield' },
+  { key: 'payments', label: 'Deposit Methods', icon: 'card' },
+  { key: 'notifications', label: 'Notifications', icon: 'bell' },
 ];
 
+const MOVED: Record<string, SettingsTab> = {
+  general: 'economics',
+  store: 'economics',
+  channels: 'gate',
+  access: 'gate',
+  admins: 'economics',
+};
 
-export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTab?: SettingsTab; onTabChange?: (tab: SettingsTab) => void }) {
+function TabIcon({ icon }: { icon: 'sliders' | 'shield' | 'card' | 'bell' }) {
+  if (icon === 'sliders') {
+    return (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
+        <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
+        <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
+        <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
+      </svg>
+    );
+  }
+  if (icon === 'shield') {
+    return (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        <path d="m9 12 2 2 4-4" />
+      </svg>
+    );
+  }
+  if (icon === 'card') {
+    return (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect width="20" height="14" x="2" y="5" rx="2" />
+        <line x1="2" x2="22" y1="10" y2="10" />
+      </svg>
+    );
+  }
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+      <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+    </svg>
+  );
+}
+
+export function Settings({
+  say,
+  initialTab,
+  onTabChange,
+}: {
+  say: Say;
+  initialTab?: SettingsTab;
+  onTabChange?: (tab: SettingsTab) => void;
+}) {
   const resolve = (wanted?: string): SettingsTab =>
-    TABS.some((item) => item.key === wanted) ? (wanted as SettingsTab) : MOVED[wanted ?? ''] ?? 'general';
+    TABS.some((item) => item.key === wanted)
+      ? (wanted as SettingsTab)
+      : MOVED[wanted ?? ''] ?? 'economics';
+
   const [tab, setTab] = useState<SettingsTab>(resolve(initialTab));
   const [loadError, setLoadError] = useState('');
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [saved, setSaved] = useState<Record<string, string> | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
-  const [secrets, setSecrets] = useState<Record<string, string>>({});
-  const [visibleSecrets, setVisibleSecrets] = useState<Record<string, boolean>>({});
-  const [savingSection, setSavingSection] = useState('');
   const [payStatus, setPayStatus] = useState<PaymentsStatus | null>(null);
   const [binance, setBinance] = useState<BinanceStatus | null>(null);
+  const [confirm, confirmDialog] = useConfirm();
 
-  // Following a link to another tab (#settings/payments) while Settings is already open.
   useEffect(() => {
-    // #settings with no tab means the first tab. Leaving the previous one showing
-    // would put the address and the screen at odds.
     setTab(resolve(initialTab));
   }, [initialTab]);
 
@@ -301,585 +103,492 @@ export function Settings({ say, initialTab, onTabChange }: { say: Say; initialTa
         setSaved(settings);
         setValues(settings);
       })
-      .catch((cause) => { if (active) setLoadError(errorText(cause, 'Could not load settings.')); });
+      .catch((cause) => {
+        if (active) setLoadError(errorText(cause, 'Could not load settings.'));
+      });
     void refreshGateways();
-    return () => { active = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      active = false;
+    };
   }, [loadAttempt]);
 
   async function refreshGateways() {
-    const [payments, checker] = await Promise.all([api.paymentsStatus().catch(() => null), api.binanceStatus().catch(() => null)]);
+    const [payments, checker] = await Promise.all([
+      api.paymentsStatus().catch(() => null),
+      api.binanceStatus().catch(() => null),
+    ]);
     setPayStatus(payments);
     setBinance(checker);
   }
 
-  const valueOf = (field: Field) => values[field.key] ?? field.fallback ?? '';
-  const DEFAULTS_OFF = new Set(['store_paused', 'force_join_enabled', 'zinipay_enabled', 'zinipay_web_gateway_enabled', 'binance_enabled']);
-  const isOn = (key: string) => {
-    if (values[key] !== undefined) return values[key] === '1';
-    return DEFAULTS_OFF.has(key) ? false : true;
-  };
-  const changedIn = (section: Section) =>
-    section.fields.filter((field) => field.type !== 'toggle' && (field.secret ? Boolean(secrets[field.key]?.trim()) : (values[field.key] ?? '') !== (saved?.[field.key] ?? '')));
-  const unsaved = SECTIONS.some((section) => changedIn(section).length > 0);
-  const symbol = values.currency_symbol || '৳';
+  const symbol = '$';
 
-  // Leaving or reloading with typed but unsaved values asks first.
+  const isStoreActive = values.store_paused !== '1';
+  const isDepositsActive = values.zinipay_enabled === '1' || values.binance_enabled === '1';
+  const isReferralActive = values.referral_enabled !== '0';
+  const isForceJoinActive = values.force_join_enabled === '1';
+
+  const isLimitsDirty = Boolean(
+    saved &&
+      ((values.store_name ?? '') !== (saved.store_name ?? '') ||
+        (values.max_deposit_limit ?? '') !== (saved.max_deposit_limit ?? '') ||
+        (values.referral_reward_amount ?? '') !== (saved.referral_reward_amount ?? '') ||
+        (values.usd_rate ?? '') !== (saved.usd_rate ?? ''))
+  );
+
+  const isSupportDirty = Boolean(
+    saved &&
+      ((values.support_username ?? '') !== (saved.support_username ?? '') ||
+        (values.announcement_channel ?? '') !== (saved.announcement_channel ?? ''))
+  );
+
+  const [savingLimits, setSavingLimits] = useState(false);
+  const [savingSupport, setSavingSupport] = useState(false);
+
+  const hasUnsaved = isLimitsDirty || isSupportDirty;
+
   useEffect(() => {
-    if (!unsaved) return;
+    if (!hasUnsaved) return;
     const warn = (event: BeforeUnloadEvent) => event.preventDefault();
-    const leave = (event: Event) => { if (!window.confirm('Discard unsaved settings changes?')) event.preventDefault(); };
+    const leave = (event: Event) => {
+      if (!window.confirm('Discard unsaved settings changes?')) event.preventDefault();
+    };
     window.addEventListener('beforeunload', warn);
     window.addEventListener('console-leave-settings', leave);
-    return () => { window.removeEventListener('beforeunload', warn); window.removeEventListener('console-leave-settings', leave); };
-  }, [unsaved]);
+    return () => {
+      window.removeEventListener('beforeunload', warn);
+      window.removeEventListener('console-leave-settings', leave);
+    };
+  }, [hasUnsaved]);
 
-  const [confirm, confirmDialog] = useConfirm();
-
-  async function flip(key: string, on: boolean, customLabel?: string) {
-    const name = customLabel || TOGGLE_NAMES[key] || key.replace(/_/g, ' ');
-    let title: string;
-    let message: string;
-    let confirmLabel: string;
-    let isDanger: boolean;
-
-    // Asking first is worth it when a stray tap changes the shop itself: stopping sales,
-    // changing prices, turning off a payment method or the referral programme. A switch
-    // that only decides whether a message gets sent changes nothing about the store, is
-    // undone by tapping again, and gets flipped often — so those just go.
-    if (ALERT_TOGGLES(key)) {
-      await applyFlip(key, on, name);
-      return;
-    }
-
-    if (key === 'store_paused') {
-      if (on) {
-        title = 'Pause Store?';
-        message = 'Are you sure you want to pause the store? Customers will not be able to purchase products while maintenance mode is active.';
-        confirmLabel = 'Pause Store';
-        isDanger = true;
-      } else {
-        title = 'Reopen Store?';
-        message = 'Are you sure you want to reopen the store? Customers will be able to browse and purchase products normally.';
-        confirmLabel = 'Reopen Store';
-        isDanger = false;
-      }
-    } else {
-      const action = on ? 'Turn On' : 'Turn Off';
-      const actionVerb = on ? 'enable' : 'disable';
-      title = `${action} "${name}"?`;
-      message = `Are you sure you want to ${actionVerb} "${name}"?`;
-      confirmLabel = action;
-      isDanger = !on;
-    }
-
-    const confirmed = await confirm(title, message, confirmLabel, isDanger);
-    if (!confirmed) return;
-    await applyFlip(key, on, name);
-  }
-
-  async function applyFlip(key: string, on: boolean, name: string) {
-    const value = on ? '1' : '0';
+  async function flipToggle(key: string, next: boolean, label?: string) {
+    const value = next ? '1' : '0';
     const before = values[key];
-    setValues((current) => ({ ...current, [key]: value }));
+    setValues((cur) => ({ ...cur, [key]: value }));
+
     try {
       await api.updateSettings({ [key]: value });
-      setSaved((current) => ({ ...(current ?? {}), [key]: value }));
-      // "On." alone leaves the reader to remember what they just touched, and makes a
-      // stunted little box in the corner. Name the thing that changed.
-      say(key === 'store_paused'
-        ? (on ? 'Store paused.' : 'Store is open.')
-        : `${name} is ${on ? 'on' : 'off'}.`);
-      if (key === 'zinipay_enabled' || key === 'zinipay_web_gateway_enabled' || key === 'binance_enabled') void refreshGateways();
-    } catch (cause) {
-      setValues((current) => ({ ...current, [key]: before }));
-      say(errorText(cause, `Could not change ${name}.`), 'bad');
-    }
-  }
-
-  /** One field, saved straight away — for controls that commit on change rather than on blur. */
-  async function saveValue(section: Section, key: string, value: string) {
-    const before = values[key];
-    setSavingSection(section.id);
-    try {
-      await api.updateSettings({ [key]: value });
-      setSaved((current) => ({ ...(current ?? {}), [key]: value }));
-      resetCurrencySymbol();
-      if (key === 'store_name' && typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('store-name-updated', { detail: value }));
+      setSaved((cur) => ({ ...(cur ?? {}), [key]: value }));
+      if (label) {
+        say(`${label} ${next ? 'activated' : 'deactivated'}.`);
       }
-      if (section.extra === 'zinipay' || section.extra === 'binance') void refreshGateways();
-      say(`${section.title} saved.`);
+      if (key === 'zinipay_enabled' || key === 'binance_enabled') {
+        void refreshGateways();
+      }
     } catch (cause) {
-      setValues((current) => ({ ...current, [key]: before }));
-      say(errorText(cause, `Could not save ${section.title}.`), 'bad');
-    } finally {
-      setSavingSection('');
+      setValues((cur) => ({ ...cur, [key]: before }));
+      say(errorText(cause, `Could not change ${label || key}.`), 'bad');
     }
   }
 
-  async function save(section: Section) {
-    const changed = changedIn(section);
-    if (!changed.length) return;
-    const payload: Record<string, string> = {};
-    for (const field of changed) payload[field.key] = field.secret ? secrets[field.key].trim() : values[field.key] ?? '';
-    setSavingSection(section.id);
+  async function toggleStoreActive(nextActive: boolean) {
+    const title = nextActive ? 'Reopen Store?' : 'Pause Store?';
+    const message = nextActive
+      ? 'Customers will be able to browse and place new orders normally.'
+      : 'Customers will be blocked from placing new orders while store is paused.';
+    const confirmLabel = nextActive ? 'Reopen Store' : 'Pause Store';
+    const ok = await confirm(title, message, confirmLabel, !nextActive);
+    if (!ok) return;
+
+    await flipToggle('store_paused', !nextActive, 'Store');
+  }
+
+  async function toggleDepositsActive(next: boolean) {
+    const title = next ? 'Enable Deposits?' : 'Pause Deposits?';
+    const message = next
+      ? 'Customers will be able to submit deposit requests.'
+      : 'Customers will be prevented from submitting new deposits.';
+    const confirmLabel = next ? 'Enable Deposits' : 'Pause Deposits';
+    const ok = await confirm(title, message, confirmLabel, !next);
+    if (!ok) return;
+
+    await flipToggle('zinipay_enabled', next, 'Deposit requests');
+  }
+
+  async function toggleReferralActive(next: boolean) {
+    const title = next ? 'Enable Refer & Earn?' : 'Pause Refer & Earn?';
+    const message = next
+      ? 'Customers will earn bonus rewards for qualifying referrals.'
+      : 'Referral rewards distribution will be temporarily paused.';
+    const confirmLabel = next ? 'Enable' : 'Pause';
+    const ok = await confirm(title, message, confirmLabel, !next);
+    if (!ok) return;
+
+    await flipToggle('referral_enabled', next, 'Refer & Earn');
+  }
+
+  async function toggleForceJoinActive(next: boolean) {
+    const title = next ? 'Activate Force Join Gate?' : 'Deactivate Force Join Gate?';
+    const message = next
+      ? 'Customers will be required to join all channels before using the bot.'
+      : 'Anyone will be able to access the bot without joining channels.';
+    const confirmLabel = next ? 'Activate Gate' : 'Deactivate Gate';
+    const ok = await confirm(title, message, confirmLabel, !next);
+    if (!ok) return;
+
+    await flipToggle('force_join_enabled', next, 'Force Join Gate');
+  }
+
+  async function saveLimits() {
+    if (!saved || !isLimitsDirty) return;
+    setSavingLimits(true);
     try {
+      const depositLimitNum = Math.max(1, parseFloat(values.max_deposit_limit || '500') || 500);
+      const referralNum = Math.max(0, parseFloat(values.referral_reward_amount || '0.10') || 0);
+      const usdRateNum = Math.max(0.0001, parseFloat(values.usd_rate || '125') || 125);
+      const payload: Record<string, string> = {
+        store_name: values.store_name?.trim() || 'Premium Haven',
+        max_deposit_limit: String(depositLimitNum),
+        referral_reward_amount: String(referralNum),
+        usd_rate: String(usdRateNum),
+      };
       await api.updateSettings(payload);
-      if (payload.store_name !== undefined && typeof window !== 'undefined') {
+      setSaved((cur) => ({ ...(cur ?? {}), ...payload }));
+      setValues((cur) => ({ ...cur, ...payload }));
+      if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('store-name-updated', { detail: payload.store_name }));
       }
-      const fresh = await api.settings().catch(() => null);
-      if (fresh) {
-        setSaved(fresh);
-        setValues(fresh);
-      } else {
-        setSaved((current) => ({ ...(current ?? {}), ...Object.fromEntries(changed.filter((field) => !field.secret).map((field) => [field.key, payload[field.key]])) }));
-      }
-      setSecrets((current) => {
-        const next = { ...current };
-        for (const field of changed) if (field.secret) delete next[field.key];
-        return next;
-      });
-      setVisibleSecrets((current) => {
-        const next = { ...current };
-        for (const field of changed) if (field.secret) delete next[field.key];
-        return next;
-      });
-      resetCurrencySymbol();
-      if (section.extra === 'zinipay' || section.extra === 'binance') void refreshGateways();
-      // Name what was saved: several cards can be open at once, and a bare "Saved."
-      // leaves the reader checking which one it meant.
-      say(changed.length === 1 ? `${changed[0].label} saved.` : `${section.title} saved.`);
+      say('Limits & rules saved.');
     } catch (cause) {
-      say(errorText(cause, `Could not save ${section.title}.`), 'bad');
+      say(errorText(cause, 'Could not save limits and rules.'), 'bad');
     } finally {
-      setSavingSection('');
+      setSavingLimits(false);
     }
   }
 
-  function discard(section: Section) {
-    setValues((current) => ({ ...current, ...Object.fromEntries(section.fields.map((field) => [field.key, saved?.[field.key] ?? ''])) }));
-    setSecrets((current) => {
-      const next = { ...current };
-      for (const field of section.fields) delete next[field.key];
-      return next;
-    });
-    setVisibleSecrets((current) => {
-      const next = { ...current };
-      for (const field of section.fields) delete next[field.key];
-      return next;
-    });
-  }
-
-  if (!saved) return loadError ? <section className="panel"><div className="panel-body" role="alert"><p>{loadError}</p><button className="btn" onClick={() => setLoadAttempt((n) => n + 1)}>Retry</button></div></section> : <PageLoading label="Loading…" />;
-
-  // A switch saves the moment it is flipped, so a field that still waited for a Save
-  // button made the same card behave two different ways. Fields now save themselves
-  // when you leave them, and the Save button only appears while an edit is still open.
-  function sectionOf(key: string) {
-    return SECTIONS.find((section) => section.fields.some((field) => field.key === key));
-  }
-
-  function autoSave(key: string, related: EventTarget | null) {
-    // Undo and Save live in the footer; clicking either must not be pre-empted by a save.
-    if (related instanceof HTMLElement && related.closest('[data-settings-footer]')) return;
-    const section = sectionOf(key);
-    if (!section) return;
-    const changed = changedIn(section);
-    // A gateway credential is worth one deliberate press: a half-pasted key saved by
-    // clicking away would take payments down quietly. Its Save button is already on
-    // screen, because the footer only appears once something is unsaved.
-    if (!changed.length || changed.some((field) => field.secret)) return;
-    void save(section);
-  }
-
-  function renderInput(field: Field) {
-    const coinName = values['binance_coin'] || 'USDT';
-    const label =
-      field.key === 'binance_pay_rate'
-        ? `Rate per 1 ${coinName} (${symbol})`
-        : field.money
-        ? `${field.label} (${symbol})`
-        : field.label;
-
-    if (field.type === 'textarea') {
-      const storeName = values['store_name']?.trim() || 'Premium Haven';
-      const placeholder =
-        field.key === 'welcome_text'
-          ? `✨ Welcome to ${storeName}!`
-          : field.placeholder;
-      const hint =
-        field.key === 'welcome_text'
-          ? `Default: "✨ Welcome to ${storeName}!". Admins can also set or reset this directly in Telegram using /setwelcome.`
-          : field.hint;
-
-      return (
-        <label key={field.key} className="field wide">
-          <span>{label}</span>
-          <textarea
-            rows={field.rows ?? 3}
-            placeholder={placeholder}
-            value={valueOf(field)}
-            onBlur={(event) => autoSave(field.key, event.relatedTarget)}
-            onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))}
-          />
-          {hint ? <small>{hint}</small> : null}
-        </label>
-      );
+  async function saveSupport() {
+    if (!saved || !isSupportDirty) return;
+    setSavingSupport(true);
+    try {
+      const payload: Record<string, string> = {
+        support_username: values.support_username?.trim() || '',
+        announcement_channel: values.announcement_channel?.trim() || '',
+      };
+      await api.updateSettings(payload);
+      setSaved((cur) => ({ ...(cur ?? {}), ...payload }));
+      setValues((cur) => ({ ...cur, ...payload }));
+      say('Support & channels saved.');
+    } catch (cause) {
+      say(errorText(cause, 'Could not save support and channels.'), 'bad');
+    } finally {
+      setSavingSupport(false);
     }
-
-    if (field.type === 'select' && field.options) {
-      // CustomSelect, not a native <select>: the browser draws its own list,
-      // which does not follow the console's type, spacing or dark mode.
-      return (
-        <label key={field.key} className="field">
-          <span>{label}</span>
-          <CustomSelect
-            value={valueOf(field)}
-            options={field.options}
-            onChange={(next) => {
-              // Picking from a list is a finished decision, like flipping a switch.
-              setValues((current) => ({ ...current, [field.key]: next }));
-              const target = sectionOf(field.key);
-              if (target) void saveValue(target, field.key, next);
-            }}
-          />
-          {field.hint ? <small>{field.hint}</small> : null}
-        </label>
-      );
-    }
-    if (field.secret) {
-      const maskedVal = values[field.key] || '';
-      const isVisible = Boolean(visibleSecrets[field.key]);
-      const isEntering = Boolean(secrets[field.key]);
-
-      return (
-        <label key={field.key} className="field">
-          <span>{label}</span>
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '100%' }}>
-            <input
-              type={isVisible ? 'text' : 'password'}
-              maxLength={field.maxLength}
-              autoComplete="off"
-              style={{
-                width: '100%',
-                paddingRight: isEntering ? '36px' : '12px',
-                fontFamily: isEntering ? 'inherit' : 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-              }}
-              placeholder={maskedVal ? maskedVal : 'Enter key...'}
-              value={secrets[field.key] ?? ''}
-              onBlur={(event) => autoSave(field.key, event.relatedTarget)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  const targetSection = sectionOf(field.key);
-                  if (targetSection) void save(targetSection);
-                }
-              }}
-              onChange={(event) =>
-                setSecrets((current) => ({ ...current, [field.key]: event.target.value }))
-              }
-            />
-            {isEntering && (
-              <button
-                type="button"
-                tabIndex={-1}
-                onClick={() => setVisibleSecrets((cur) => ({ ...cur, [field.key]: !cur[field.key] }))}
-                style={{
-                  position: 'absolute',
-                  right: '8px',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: 'var(--muted)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: '4px',
-                }}
-                title={isVisible ? 'Hide key' : 'Show key'}
-              >
-                {isVisible ? <EyeOff size={15} /> : <Eye size={15} />}
-              </button>
-            )}
-          </div>
-          {field.hint ? <small>{field.hint}</small> : null}
-        </label>
-      );
-    }
-
-    return (
-      <label key={field.key} className="field">
-        <span>{label}</span>
-        <input
-          type={field.type === 'number' ? 'number' : 'text'}
-          step={field.type === 'number' ? 'any' : undefined}
-          min={field.type === 'number' ? '0' : undefined}
-          maxLength={field.maxLength}
-          autoComplete="off"
-          placeholder={field.placeholder}
-          value={valueOf(field)}
-          onBlur={(event) => autoSave(field.key, event.relatedTarget)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') {
-              event.preventDefault();
-              const targetSection = sectionOf(field.key);
-              if (targetSection) void save(targetSection);
-            }
-          }}
-          onChange={(event) => setValues((current) => ({ ...current, [field.key]: event.target.value }))}
-        />
-        {field.hint ? <small>{field.hint}</small> : null}
-      </label>
-    );
   }
 
-  function renderSaveActions(section: Section, changed: boolean) {
-    const isSaving = savingSection === section.id;
-    // Nothing being edited means nothing to decide: a permanent "Saved / Save" pair
-    // next to switches that save themselves only invited the question of which
-    // controls the button covered.
-    if (!changed && !isSaving) return null;
-    return (
-      <div className="panel-save-actions" data-settings-footer>
-        <span className="unsaved-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: 600, color: 'var(--warning)', marginRight: '6px' }}>
-          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--warning)', display: 'inline-block' }} />
-          Unsaved changes
-        </span>
-        <button
-          type="button"
-          className="btn ghost small"
-          disabled={isSaving}
-          onClick={() => discard(section)}
-          title="Discard unsaved changes"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-        >
-          <RotateCcw size={13} />
-          <span>Undo</span>
-        </button>
-        <button
-          type="button"
-          className="btn small"
-          disabled={isSaving}
-          onClick={() => void save(section)}
-          title="Save changes"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-        >
-          <Save size={14} />
-          <span>{isSaving ? 'Saving…' : 'Save'}</span>
-        </button>
-      </div>
+  if (!saved) {
+    return loadError ? (
+      <section className="panel">
+        <div className="panel-body" role="alert">
+          <p>{loadError}</p>
+          <button className="btn" onClick={() => setLoadAttempt((n) => n + 1)}>
+            Retry
+          </button>
+        </div>
+      </section>
+    ) : (
+      <PageLoading label="Loading…" />
     );
   }
 
   return (
     <>
-      <div className="segmented settings-tabs" role="tablist" aria-label="Settings">
+      <div className="settings-tabs-modern" role="tablist" aria-label="Settings navigation">
         {TABS.map((item) => (
           <button
             key={item.key}
             type="button"
             role="tab"
             aria-selected={tab === item.key}
-            className={tab === item.key ? 'active' : ''}
+            className={`settings-tab-btn ${tab === item.key ? 'active' : ''}`}
             onClick={() => {
               setTab(item.key);
               onTabChange?.(item.key);
             }}
           >
-            {item.label}
+            <TabIcon icon={item.icon} />
+            <span>{item.label}</span>
           </button>
         ))}
       </div>
 
-      <div className={`settings-sections settings-sections-${tab}`}>
-      {SECTIONS.filter((section) => section.tab === tab).map((section) => {
-        const on = section.master ? isOn(section.master.key) : true;
-        const changed = changedIn(section).length > 0;
-        const inputs = section.fields.filter((field) => field.type !== 'toggle');
-        const toggles = section.fields.filter((field) => field.type === 'toggle');
-        return (
-          <Fragment key={section.id}>
-            <section className={`panel settings-card settings-card-${section.id}${on ? '' : ' off'}`}>
+      {tab === 'economics' && (
+        <div className="settings-sections">
+          {/* User Service Controls Card */}
+          <section className="panel settings-card">
+            <header>
+              <div>
+                <h2>User service controls</h2>
+              </div>
+            </header>
+            <div className="service-control-list">
+              <div className="service-control-item">
+                <div className="service-control-text">
+                  <strong>Store purchases & orders</strong>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {isStoreActive && <span className="badge-active-pill">On</span>}
+                  <Switch
+                    label="Store purchases"
+                    on={isStoreActive}
+                    onChange={(next) => void toggleStoreActive(next)}
+                  />
+                </div>
+              </div>
+
+              {!isStoreActive && (
+                <div style={{ padding: '12px 20px', background: 'var(--surface-2, #F9FAFB)' }}>
+                  <label className="field wide" style={{ margin: 0 }}>
+                    <span>Message while paused</span>
+                    <textarea
+                      rows={2}
+                      placeholder="Store maintenance is in progress..."
+                      value={values.maintenance_message ?? ''}
+                      onChange={(e) =>
+                        setValues((cur) => ({ ...cur, maintenance_message: e.target.value }))
+                      }
+                    />
+                  </label>
+                </div>
+              )}
+
+              <div className="service-control-item">
+                <div className="service-control-text">
+                  <strong>Accept deposits</strong>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {isDepositsActive && <span className="badge-active-pill">On</span>}
+                  <Switch
+                    label="Accept deposits"
+                    on={isDepositsActive}
+                    onChange={(next) => void toggleDepositsActive(next)}
+                  />
+                </div>
+              </div>
+
+              <div className="service-control-item">
+                <div className="service-control-text">
+                  <strong>Refer & Earn</strong>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {isReferralActive && <span className="badge-active-pill">On</span>}
+                  <Switch
+                    label="Refer & Earn"
+                    on={isReferralActive}
+                    onChange={(next) => void toggleReferralActive(next)}
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* 2-Column Limits & Administrators Grid */}
+          <div className="settings-grid-2col">
+            <section className="panel settings-card">
+              <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <h2>Limits & Rules</h2>
+                  {isLimitsDirty && (
+                    <span className="unsaved-dot-indicator" title="Unsaved changes">
+                      ●
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className={`btn-card-save ${isLimitsDirty ? 'active' : 'dhundhla'}`}
+                  disabled={!isLimitsDirty || savingLimits}
+                  onClick={() => void saveLimits()}
+                >
+                  {savingLimits ? 'Saving…' : 'Save'}
+                </button>
+              </header>
+              <div className="field-grid" style={{ padding: '16px 20px' }}>
+                <label className="field wide">
+                  <span>Store name</span>
+                  <input
+                    type="text"
+                    placeholder="Premium Haven"
+                    value={values.store_name ?? ''}
+                    onChange={(e) => setValues((cur) => ({ ...cur, store_name: e.target.value }))}
+                  />
+                </label>
+
+                <label className="field wide">
+                  <span>Maximum single deposit limit ($)</span>
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="500"
+                    value={values.max_deposit_limit ?? '500'}
+                    onChange={(e) =>
+                      setValues((cur) => ({ ...cur, max_deposit_limit: e.target.value }))
+                    }
+                  />
+                </label>
+
+                <label className="field wide">
+                  <span>Bonus per Referral ($)</span>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    placeholder="0.10"
+                    value={values.referral_reward_amount ?? '0.10'}
+                    onChange={(e) =>
+                      setValues((cur) => ({ ...cur, referral_reward_amount: e.target.value }))
+                    }
+                  />
+                </label>
+
+                <label className="field wide">
+                  <span>Exchange Rate (1 USD in BDT)</span>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0.0001"
+                    placeholder="125"
+                    value={values.usd_rate ?? '125'}
+                    onChange={(e) => setValues((cur) => ({ ...cur, usd_rate: e.target.value }))}
+                  />
+                </label>
+              </div>
+            </section>
+
+            <section className="panel settings-card">
               <header>
                 <div>
-                  <h2>{section.title}</h2>
-                  {section.master && (on ? section.master.on : section.master.off) ? <p>{on ? section.master.on : section.master.off}</p> : null}
-                </div>
-                <div className="actions">
-                  {section.master ? <Switch label={section.title} on={on} onChange={(next) => void flip(section.master!.key, next, section.title)} /> : null}
+                  <h2>Bot Administrators</h2>
                 </div>
               </header>
-
-              {inputs.length ? <div className="field-grid">{inputs.map(renderInput)}</div> : null}
-              {toggles.map((field) => (
-                <FlagRow key={field.key} label={field.label} hint={field.hint} on={isOn(field.key)} onChange={(next) => void flip(field.key, next, field.label)} />
-              ))}
-              {section.extra === 'zinipay' ? (
-                <ZiniPayExtra
-                  status={payStatus}
-                  setStatus={setPayStatus}
-                  say={say}
-                  saveActions={renderSaveActions(section, changed)}
-                />
-              ) : null}
-              {section.extra === 'binance' ? (
-                <BinanceExtra
-                  status={binance}
-                  say={say}
-                  saveActions={renderSaveActions(section, changed)}
-                />
-              ) : null}
-              {!section.extra && inputs.length && changed ? (
-                <div className="panel-actions panel-actions-save-only">
-                  {renderSaveActions(section, changed)}
-                </div>
-              ) : null}
-
-              {/* Embedded Sub-components inside the unified card */}
-              {section.id === 'admins' ? (
-                <BotAdmins say={say} values={values} setValues={setValues} setSaved={setSaved} />
-              ) : null}
-              {section.id === 'notifications' ? (
-                <AdminNotifications
+              <div style={{ padding: '0 20px 20px' }}>
+                <BotAdmins
                   say={say}
                   values={values}
                   setValues={setValues}
                   setSaved={setSaved}
-                  flip={flip}
                 />
-              ) : null}
-              {section.id === 'update_channels' ? <UpdateChannels say={say} /> : null}
-              {section.id === 'force_join' ? <GateChannels say={say} /> : null}
+              </div>
+            </section>
+          </div>
+        </div>
+      )}
+
+      {tab === 'gate' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div className="settings-grid-2col">
+            {/* Left Column: Force Join Gate */}
+            <section className="panel settings-card">
+              <header>
+                <div>
+                  <h2>Force Join Gate</h2>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {isForceJoinActive && <span className="badge-active-pill">Active</span>}
+                  <Switch
+                    label="Force Join Gate"
+                    on={isForceJoinActive}
+                    onChange={(next) => void toggleForceJoinActive(next)}
+                  />
+                </div>
+              </header>
+
+              <div style={{ padding: '16px 20px 20px' }}>
+                <GateChannels say={say} isGateEnabled={isForceJoinActive} />
+              </div>
             </section>
 
-            {section.id === 'zinipay_autoverify' ? <PaymentMethods say={say} symbol={symbol} zinipayActive={isOn('zinipay_enabled')} /> : null}
-          </Fragment>
-        );
-      })}
-      </div>
+            {/* Right Column: Support & Channels */}
+            <section className="panel settings-card">
+              <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <h2>Support & Channels</h2>
+                  {isSupportDirty && (
+                    <span className="unsaved-dot-indicator" title="Unsaved changes">
+                      ●
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className={`btn-card-save ${isSupportDirty ? 'active' : 'dhundhla'}`}
+                  disabled={!isSupportDirty || savingSupport}
+                  onClick={() => void saveSupport()}
+                >
+                  {savingSupport ? 'Saving…' : 'Save'}
+                </button>
+              </header>
+              <div className="field-grid" style={{ padding: '16px 20px' }}>
+                <label className="field wide">
+                  <span>Support username</span>
+                  <input
+                    type="text"
+                    placeholder="@username"
+                    value={values.support_username ?? ''}
+                    onChange={(e) =>
+                      setValues((cur) => ({ ...cur, support_username: e.target.value }))
+                    }
+                  />
+                </label>
+
+                <label className="field wide">
+                  <span>Announcement Channel or Group</span>
+                  <input
+                    type="text"
+                    placeholder="@channel or -100..."
+                    value={values.announcement_channel ?? ''}
+                    onChange={(e) =>
+                      setValues((cur) => ({ ...cur, announcement_channel: e.target.value }))
+                    }
+                  />
+                </label>
+              </div>
+            </section>
+          </div>
+
+          {/* Dedicated Separate Box: Help & Support Links */}
+          <section className="panel settings-card">
+            <UpdateChannels say={say} />
+          </section>
+        </div>
+      )}
+
+      {tab === 'payments' && (
+        <div className="payments-screen-layout">
+          <PaymentMethods
+            say={say}
+            symbol={symbol}
+            zinipayActive={Boolean((values.zinipay_api_key || '').trim())}
+            values={values}
+            setValues={setValues}
+            setSaved={setSaved}
+            payStatus={payStatus}
+            setPayStatus={setPayStatus}
+            refreshGateways={refreshGateways}
+          />
+        </div>
+      )}
+
+      {tab === 'notifications' && (
+        <section className="panel settings-card">
+          <header>
+            <div>
+              <h2>Administrator Notifications</h2>
+            </div>
+          </header>
+          <div style={{ padding: '16px 20px' }}>
+            <AdminNotifications
+              say={say}
+              values={values}
+              setValues={setValues}
+              setSaved={setSaved}
+              flip={flipToggle}
+              confirm={confirm}
+            />
+          </div>
+        </section>
+      )}
+
       {confirmDialog}
     </>
   );
 }
-
-function useRunner(say: Say) {
-  const [busy, setBusy] = useState(false);
-  async function run(action: () => Promise<string>) {
-    setBusy(true);
-    try {
-      say(await action());
-    } catch (cause) {
-      say(errorText(cause), 'bad');
-    } finally {
-      setBusy(false);
-    }
-  }
-  return { busy, run };
-}
-
-function ZiniPayExtra({
-  status,
-  setStatus,
-  say,
-  saveActions,
-}: {
-  status: PaymentsStatus | null;
-  setStatus: (status: PaymentsStatus | null) => void;
-  say: Say;
-  saveActions?: React.ReactNode;
-}) {
-  const { busy, run } = useRunner(say);
-  const ready = Boolean(status?.has_api_key);
-  return (
-    <>
-      {status?.public_url ? (
-        <div className="facts">
-          <span>
-            Website in ZiniPay: <code>{status.public_url.replace('https://', '')}</code>
-          </span>
-          <span>
-            {status.counts.completed ?? 0} paid · {status.counts.pending ?? 0} unpaid · {status.counts.failed ?? 0} failed
-          </span>
-          {status.last_error ? <span className="bad-text">Last refusal: {status.last_error}</span> : null}
-        </div>
-      ) : null}
-      <div className="panel-actions">
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          <button type="button" className="mini" disabled={busy || !ready} onClick={() => run(async () => (await api.testPayments()).message)}>
-            Test connection
-          </button>
-          <button
-            type="button"
-            className="mini"
-            disabled={busy || !ready}
-            onClick={() =>
-              run(async () => {
-                const result = await api.testPaymentPage();
-                if (!result.ok) throw new Error(result.message);
-                if (result.payment_url) window.open(result.payment_url, '_blank', 'noopener');
-                return result.message;
-              })
-            }
-          >
-            Open a test payment
-          </button>
-          <button
-            type="button"
-            className="mini"
-            disabled={busy || !ready}
-            onClick={() =>
-              run(async () => {
-                const result = await api.checkPendingPayments();
-                setStatus(await api.paymentsStatus().catch(() => null));
-                return result.checked ? `Checked ${result.checked}.` : 'Nothing unpaid.';
-              })
-            }
-          >
-            Check unpaid
-          </button>
-        </div>
-        {saveActions}
-      </div>
-    </>
-  );
-}
-
-function BinanceExtra({
-  status,
-  say,
-  saveActions,
-}: {
-  status: BinanceStatus | null;
-  say: Say;
-  saveActions?: React.ReactNode;
-}) {
-  const { busy, run } = useRunner(say);
-  const ready = Boolean(status?.has_credentials);
-  return (
-    <div className="panel-actions">
-      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-        <button type="button" className="mini" disabled={busy || !ready} onClick={() => run(async () => (await api.testBinance()).message)}>
-          Test connection
-        </button>
-        <button
-          type="button"
-          className="mini"
-          disabled={busy || !ready}
-          onClick={() =>
-            run(async () => {
-              const result = await api.recheckBinanceDeposits();
-              return result.checked ? `Checked ${result.checked}.` : 'Nothing waiting.';
-            })
-          }
-        >
-          Check waiting
-        </button>
-      </div>
-      {saveActions}
-    </div>
-  );
-}
-
-
-

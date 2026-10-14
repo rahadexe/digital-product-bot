@@ -19,6 +19,8 @@ export function Validities({ say }: { say: Say }) {
   const [presets, setPresets] = useState<string[]>([]);
   const [products, setProducts] = useState<Product[] | null>(null);
   const [categories, setCategories] = useState<Category[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [search, setSearch] = useState('');
   const [isCreating, setIsCreating] = useState(false);
@@ -27,6 +29,8 @@ export function Validities({ say }: { say: Say }) {
   const [confirm, confirmDialog] = useConfirm();
 
   const loadData = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
     try {
       const [sets, prods, cats] = await Promise.all([
         api.settings(),
@@ -45,7 +49,11 @@ export function Validities({ say }: { say: Say }) {
       setProducts(prods);
       setCategories(cats);
     } catch (cause) {
-      say(errorText(cause), 'bad');
+      const message = errorText(cause);
+      setLoadError(message);
+      say(message, 'bad');
+    } finally {
+      setLoading(false);
     }
   }, [say]);
 
@@ -183,15 +191,15 @@ export function Validities({ say }: { say: Say }) {
               setIsCreating(true);
             }}
           >
-            <Plus size={16} style={{ marginRight: 4 }} /> New Validity
+            <Plus size={16} style={{ marginRight: 4 }} /> Add validity
           </button>
         </header>
 
-        <div className="scroll" style={{ minHeight: '220px' }}>
+        <div className="scroll">
           <table className="validities-table">
             <thead>
               <tr>
-                <th>Duration</th>
+                <th>Validity</th>
                 <th style={{ textAlign: 'center' }}>Linked Products</th>
                 <th className="right" aria-label="Actions" />
               </tr>
@@ -250,9 +258,35 @@ export function Validities({ say }: { say: Say }) {
                 );
               })}
 
-              {filteredDurations.length === 0 ? (
-                <EmptyRow columns={4}>
-                  {search ? 'Nothing matches.' : 'No validities found.'}
+              {loading && filteredDurations.length === 0 ? (
+                <tr className="empty-row validity-loading-row">
+                  <td colSpan={3}>
+                    <div className="validity-loading" role="status" aria-live="polite">
+                      <span>Loading validities…</span>
+                      <div className="validity-skeleton-list" aria-hidden="true">
+                        {[0, 1, 2].map((row) => (
+                          <div className="validity-skeleton-row" key={row}>
+                            <span className={`validity-skeleton-name validity-skeleton-name-${row + 1}`} />
+                            <span className="validity-skeleton-count" />
+                            <span className="validity-skeleton-action" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredDurations.length === 0 ? (
+                <EmptyRow columns={3}>
+                  {loadError ? (
+                    <span className="validity-load-error">
+                      <span>Unable to load validities. {loadError}</span>
+                      <button type="button" className="mini ghost" onClick={() => void loadData()}>
+                        Retry
+                      </button>
+                    </span>
+                  ) : (
+                    'No validities found'
+                  )}
                 </EmptyRow>
               ) : null}
             </tbody>
@@ -263,7 +297,7 @@ export function Validities({ say }: { say: Say }) {
       {/* Simple Create Modal */}
       {isCreating ? (
         <Modal
-          title="New Validity"
+          title="Add validity"
           onClose={() => setIsCreating(false)}
           onSubmit={handleCreate}
           footer={
@@ -282,11 +316,11 @@ export function Validities({ say }: { say: Say }) {
           }
         >
           <label className="field">
-            <span>Duration Label</span>
+            <span>Validity</span>
             <input
               type="text"
               required
-              placeholder="e.g. 7 Days, 1 Month"
+              placeholder="7 Days, 1 Month"
               value={newLabel}
               autoFocus
               onChange={(e) => setNewLabel(e.target.value)}

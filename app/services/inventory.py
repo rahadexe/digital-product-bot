@@ -93,7 +93,6 @@ class InventoryService:
                                         text="⚡ Buy Now",
                                         callback_data=f"prod_{product_id}",
                                         style="success",
-                                        icon_custom_emoji_id=Icons.CONFIRM,
                                     )
                                 ]]
                             )

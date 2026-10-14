@@ -14,6 +14,7 @@ tapping Search gets no reply at all.
 
 from __future__ import annotations
 
+import asyncio
 from collections import OrderedDict
 from contextlib import suppress
 from contextvars import ContextVar
@@ -22,12 +23,20 @@ from typing import Any
 
 from aiogram import BaseMiddleware, F, Router
 from aiogram.exceptions import TelegramBadRequest
+from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
-from app.bot.formatting import format_dual_price, respond
+from app.bot.formatting import (
+    _quiet_delete,
+    format_dual_price,
+    get_last_menu_message,
+    remember_menu_message,
+    respond,
+)
 from app.bot.icons import ICON_CROSS, ICON_SHOP, ICON_VIP, Icons
+from app.bot.keyboards import extract_emoji_and_name
 from app.core.i18n import t
 from app.services import Services
 
@@ -84,9 +93,11 @@ def _prompt_keyboard(lang: str = "en") -> InlineKeyboardMarkup:
         InlineKeyboardButton(
             text=t("btn_back", lang),
             callback_data="back_to_main",
-            style="primary",
-            icon_custom_emoji_id=Icons.BACK,
-        )
+        ),
+        InlineKeyboardButton(
+            text=t("btn_all_products", lang),
+            callback_data="open_categories",
+        ),
     ]])
 
 
@@ -97,22 +108,37 @@ async def _examples(services: Services) -> str:
 
 async def prompt_search(message: Message, state: FSMContext, services: Services) -> None:
     """What the Search button does: arm one search and ask for the term."""
+    await search_entry(message, state, services)
+
+
+@router.message(Command("search"))
+@router.message(F.text.in_({
+    "🔍 Search", "Search Products", "Search", "search",
+    "🔍 SEARCH", "SEARCH", "SEARCH PRODUCTS",
+    "🔍 সার্চ", "সার্চ",
+}))
+@router.callback_query(F.data == "open_search")
+async def search_entry(event: Message | CallbackQuery, state: FSMContext, services: Services) -> None:
     _search_handled.set(True)
     await state.clear()
     await state.set_state(SearchStates.waiting_for_term)
-    lang = await services.users.get_language(message.from_user.id) if message.from_user else "en"
+    tg_user = event.from_user
+    lang = await services.users.get_language(tg_user.id) if tg_user else "en"
     examples = await _examples(services)
-    await respond(message, _prompt_text(examples, lang=lang), _prompt_keyboard(lang=lang))
+    text = _prompt_text(examples, lang=lang)
+    kb = _prompt_keyboard(lang=lang)
 
-
-@router.message(F.text.in_({
-    "🔍 Search", "Search Products", "Search", "search",
-    "🔍 সার্চ", "সার্চ",
-    "🔍 खोजें", "खोजें",
-    "🔍 تلاش کریں", "تلاش کریں",
-}))
-async def search_button(message: Message, state: FSMContext, services: Services) -> None:
-    await prompt_search(message, state, services)
+    if isinstance(event, CallbackQuery):
+        with suppress(TelegramBadRequest):
+            await event.answer()
+        if event.message:
+            await state.update_data(search_msg_id=event.message.message_id)
+            with suppress(TelegramBadRequest):
+                await event.message.edit_text(text, reply_markup=kb)
+    else:
+        sent = await event.answer(text, reply_markup=kb)
+        if sent:
+            await state.update_data(search_msg_id=sent.message_id)
 
 
 @router.callback_query(F.data == "search_again")
@@ -123,6 +149,7 @@ async def search_again(query: CallbackQuery, state: FSMContext, services: Servic
     with suppress(TelegramBadRequest):
         await query.answer()
     if query.message:
+        await state.update_data(search_msg_id=query.message.message_id)
         lang = await services.users.get_language(query.from_user.id) if query.from_user else "en"
         examples = await _examples(services)
         with suppress(TelegramBadRequest):
@@ -132,21 +159,46 @@ async def search_again(query: CallbackQuery, state: FSMContext, services: Servic
             )
 
 
-def _product_button(product: dict, symbol: str, usd_rate: float | None, show_usd: bool,
-                    callback: str = "prod") -> InlineKeyboardButton:
-    emoji_id = str(product.get("custom_emoji_id") or "")
-    price = format_dual_price(product["price"], symbol, usd_rate=usd_rate, show_usd=show_usd)
-    label = f"{product['title'][:26]} · {price}"
+def _product_button(product: dict, symbol: str, usd_rate: float | None = None,
+                    show_usd: bool = True, callback: str = "prod", lang: str = "en", **kwargs) -> InlineKeyboardButton:
+    icon = (product.get("icon") or "").strip()
+    title = product['title'].strip()
+    custom_id = str(product.get("custom_emoji_id") or "").strip()
+    if custom_id.isdigit():
+        leading_emoji, remaining_title = extract_emoji_and_name(title)
+        if leading_emoji and remaining_title:
+            title = remaining_title
+    elif icon and not title.startswith(icon):
+        title = f"{icon} {title}"
+    price = format_dual_price(product["price"], symbol, usd_rate=usd_rate, show_usd=show_usd, lang=lang)
+    label = f"{title[:26]} · {price}"
     return InlineKeyboardButton(
-        text=label[:64], callback_data=f"{callback}_{product['id']}",
-        icon_custom_emoji_id=emoji_id if emoji_id.isdigit() else Icons.CART,
+        text=label[:64],
+        callback_data=f"{callback}_{product['id']}",
+        icon_custom_emoji_id=custom_id if custom_id.isdigit() else None,
     )
 
 
-_CLOSING_ROW = [
-    InlineKeyboardButton(text="Search again", callback_data="search_again", icon_custom_emoji_id=Icons.REFRESH),
-    InlineKeyboardButton(text="Back", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK),
-]
+def _closing_row(lang: str = "en") -> list[list[InlineKeyboardButton]]:
+    search_again = "🔍 Search again" if lang != "bn" else "🔍 আবার খুঁজুন"
+    return [
+        [
+            InlineKeyboardButton(
+                text=search_again,
+                callback_data="search_again",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text=t("btn_all_products", lang),
+                callback_data="open_categories",
+            ),
+            InlineKeyboardButton(
+                text=t("btn_main_menu", lang),
+                callback_data="back_to_main",
+            ),
+        ],
+    ]
 
 
 # Which product screens were opened from a search, and with what term, so their Back
@@ -175,41 +227,76 @@ def forget_search_origin(tg_user_id: int, product_id: int) -> None:
     _OPENED_FROM_SEARCH.pop((tg_user_id, product_id), None)
 
 
-async def _results(services: Services, term: str) -> tuple[str, InlineKeyboardMarkup]:
+async def _results(services: Services, term: str, lang: str = "en") -> tuple[str, InlineKeyboardMarkup]:
     matches = await services.catalog.search(term, limit=RESULTS)
     values = await services.settings.values()
-    symbol = values.get("currency_symbol", "৳")
+    symbol = values.get("currency_symbol", "$")
     usd_rate = float(values.get("usd_rate") or 0) or None
-    show_usd = values.get("show_usd_price", "1") != "0"
+    closing = _closing_row(lang)
 
     if not matches:
         recent_products = await services.catalog.products(limit=5, active_only=True)
-        rows = [[_product_button(p, symbol, usd_rate, show_usd, "sprod")] for p in recent_products]
-        rows.append(_CLOSING_ROW)
-        return f"{ICON_CROSS} <b>Please try a different name:</b>", InlineKeyboardMarkup(inline_keyboard=rows)
+        rows = [[_product_button(p, symbol, usd_rate=usd_rate, callback="sprod", lang=lang)] for p in recent_products]
+        rows.extend(closing)
+        no_match_text = (
+            f"{ICON_CROSS} <b>Please try a different name:</b>"
+            if lang != "bn"
+            else f"{ICON_CROSS} <b>ভিন্ন নাম লিখে চেষ্টা করুন:</b>"
+        )
+        return no_match_text, InlineKeyboardMarkup(inline_keyboard=rows)
 
-    rows = [[_product_button(p, symbol, usd_rate, show_usd, "sprod")] for p in matches]
-    rows.append(_CLOSING_ROW)
+    rows = [[_product_button(p, symbol, usd_rate=usd_rate, callback="sprod", lang=lang)] for p in matches]
+    rows.extend(closing)
     shown = escape(term[:40])
-    more = ("\n<i>Showing the closest matches. Type more of the name to narrow it.</i>"
-            if len(matches) >= RESULTS else "")
-    text = (f"{ICON_SHOP} <b>{len(matches)} match{'es' if len(matches) != 1 else ''} "
-            f"for “{shown}”</b>{more}")
+    if lang == "bn":
+        text = f"{ICON_SHOP} <b>“{shown}”-এর জন্য {len(matches)}টি ফলাফল পাওয়া গেছে:</b>"
+    else:
+        more = ("\n<i>Showing the closest matches. Type more of the name to narrow it.</i>"
+                if len(matches) >= RESULTS else "")
+        text = (f"{ICON_SHOP} <b>{len(matches)} match{'es' if len(matches) != 1 else ''} "
+                f"for “{shown}”</b>{more}")
     return text, InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 @router.message(SearchStates.waiting_for_term, F.text)
 async def search_products(message: Message, state: FSMContext, services: Services) -> None:
     _search_handled.set(True)
-    # One search per tap of Search; "Search again" arms the next one.
+    state_data = await state.get_data()
+    search_msg_id = state_data.get("search_msg_id")
     await state.clear()
+
     term = (message.text or "").strip()
     if not term or term.startswith("/") or len(term) > MAX_TERM or not message.from_user:
         return
+
+    chat = getattr(message, "chat", None)
+    chat_id = getattr(chat, "id", None)
+    if chat_id and getattr(chat, "type", "") == "private":
+        asyncio.create_task(_quiet_delete(message.bot, chat_id, message.message_id))
+
     _remember(_LAST_TERM, message.from_user.id, term)
-    text, keyboard = await _results(services, term)
-    with suppress(TelegramBadRequest):
-        await message.answer(text, reply_markup=keyboard)
+    lang = await services.users.get_language(message.from_user.id)
+    text, keyboard = await _results(services, term, lang=lang)
+
+    target_msg_id = search_msg_id or (get_last_menu_message(chat_id) if chat_id else None)
+    edited = False
+    if target_msg_id and message.bot and chat_id:
+        try:
+            await message.bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=target_msg_id,
+                text=text,
+                reply_markup=keyboard,
+            )
+            remember_menu_message(chat_id, target_msg_id)
+            edited = True
+        except Exception:
+            edited = False
+
+    if not edited and chat_id:
+        sent = await message.answer(text, reply_markup=keyboard)
+        if sent:
+            remember_menu_message(chat_id, sent.message_id)
 
 
 @router.callback_query(F.data.regexp(r"^sprod_\d+$"))
@@ -236,7 +323,8 @@ async def back_to_results(query: CallbackQuery, state: FSMContext, services: Ser
         await show_product(query, state, services, product_id, category_back=True)
         return
     await state.clear()
-    text, keyboard = await _results(services, term)
+    lang = await services.users.get_language(query.from_user.id) if query.from_user else "en"
+    text, keyboard = await _results(services, term, lang=lang)
     with suppress(TelegramBadRequest):
         await query.answer()
     if query.message:

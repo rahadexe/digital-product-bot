@@ -29,6 +29,9 @@ async def run(role: str, config: Settings) -> None:
         if role == "migrate":
             return
 
+        # Supplier credentials live in settings, never source-code defaults.
+        await services.suppliers.load_config()
+
         if role in ("all", "web") and services.notifier.bot is not None:
             from app.bot.app import create_dispatcher
 
@@ -118,19 +121,31 @@ async def run_polling(services: Services) -> None:
     if bot is None or dispatcher is None:
         return
 
-    await services.notifier.configure_bot(config.webapp_url)
-
     logger.info("Starting Telegram bot in LONG POLLING mode (no webhook/tunnel needed)...")
     services.runtime.bot = "polling"
-    await bot.delete_webhook(drop_pending_updates=False)
 
     try:
-        await dispatcher.start_polling(
-            bot,
-            allowed_updates=dispatcher.resolve_used_update_types(),
-            handle_signals=False,
-            close_bot_session=False,
-        )
+        configured = False
+        while True:
+            try:
+                if not configured:
+                    await services.notifier.configure_bot(config.webapp_url)
+                    await bot.delete_webhook(drop_pending_updates=False)
+                    configured = True
+
+                await dispatcher.start_polling(
+                    bot,
+                    allowed_updates=dispatcher.resolve_used_update_types(),
+                    handle_signals=False,
+                    close_bot_session=False,
+                    tasks_concurrency_limit=max(4, config.db_pool_size),
+                )
+                break
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.warning("Telegram connection error (%s); retrying in 5s (check internet/VPN)...", exc)
+                await asyncio.sleep(5)
     finally:
         tasks = list(services.runtime.update_tasks)
         if tasks:
@@ -151,11 +166,10 @@ async def run_webhook(services: Services) -> None:
     if bot is None or dispatcher is None:
         return
 
-    await services.notifier.configure_bot(config.webapp_url)
-
     backoff = 3
     while True:
         try:
+            await services.notifier.configure_bot(config.webapp_url)
             await bot.set_webhook(
                 url=config.webhook_url,
                 secret_token=config.webhook_secret,
@@ -210,3 +224,22 @@ async def run_worker(services: Services) -> None:
         AdminNotificationWorker(services).run(),
         UpstreamWorker(services).run(),
     )
+
+
+def run_worker_entrypoint(role: str = "all") -> None:
+    """Target function for watchfiles auto-reload or standalone execution."""
+    import sys
+    from app.core.config import get_settings
+    from app.core.logging import configure_logging
+
+    configure_logging()
+    try:
+        asyncio.run(run(role, get_settings()))
+    except KeyboardInterrupt:
+        pass
+    except Exception:
+        logging.getLogger("app").critical("SubsMarket stopped after a fatal error.", exc_info=True)
+        sys.stderr.flush()
+        sys.stdout.flush()
+        sys.exit(1)
+

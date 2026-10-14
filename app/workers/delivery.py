@@ -72,10 +72,9 @@ class DeliveryWorker:
                 if order and order.get('delivered_item') and len(order['delivered_item']) <= 256:
                     kb_rows.append([
                         InlineKeyboardButton(
-                            text="Copy Credentials",
+                            text="🔑 Copy Credentials",
                             copy_text=CopyTextButton(text=order['delivered_item']),
                             style="success",
-                            icon_custom_emoji_id=Icons.KEY,
                         )
                     ])
                 if order and order.get('id'):
@@ -85,7 +84,6 @@ class DeliveryWorker:
                             text="🛠️ Report Issue",
                             callback_data=f"claim_warranty_{order_id}",
                             style="danger",
-                            icon_custom_emoji_id=Icons.WARNING,
                         )
                     ]
                     if order.get('product_id'):
@@ -94,7 +92,6 @@ class DeliveryWorker:
                                 text="🔄 Buy Again",
                                 callback_data=f"prod_{order['product_id']}",
                                 style="primary",
-                                icon_custom_emoji_id=Icons.REFRESH,
                             )
                         )
                     kb_rows.append(actions_row)
@@ -104,7 +101,6 @@ class DeliveryWorker:
                             text="🛍️ Shop Now",
                             callback_data="back_to_main",
                             style="success",
-                            icon_custom_emoji_id=Icons.SHOP,
                         )
                     ])
                 if kb_rows:

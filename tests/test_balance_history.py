@@ -61,25 +61,27 @@ class BalanceHistoryUITests(unittest.IsolatedAsyncioTestCase):
 
         query.message.edit_text.assert_called_once()
         text_arg, kwargs = query.message.edit_text.call_args[0][0], query.message.edit_text.call_args[1]
-        self.assertIn("Balance History", text_arg)
+        self.assertIn("Deposit History", text_arg)
+        self.assertNotIn("TRX101", text_arg)
+        self.assertNotIn("TRX102", text_arg)
+
         kb = kwargs["reply_markup"]
         self.assertIsInstance(kb, InlineKeyboardMarkup)
 
-        # Text feed contains full details from A to Z
-        self.assertIn("bKash Personal", text_arg)
-        self.assertIn("#101", text_arg)
-        self.assertIn("TRX101", text_arg)
-        self.assertIn("✅", text_arg)
-        self.assertIn("Nagad", text_arg)
-        self.assertIn("#102", text_arg)
-        self.assertIn("TRX102", text_arg)
-        self.assertIn("⏳", text_arg)
-
-        # Refresh, Add Balance, Back present; Close removed for pure inline navigation
         all_texts = [btn.text for r in kb.inline_keyboard for btn in r]
-        self.assertIn("Refresh", all_texts)
-        self.assertTrue(any("Add Balance" in t for t in all_texts))
+        all_cbs = [btn.callback_data for r in kb.inline_keyboard for btn in r if btn.callback_data]
+        self.assertIn("✅ bKash Personal · $0.80 · D101", all_texts)
+        self.assertIn("⏳ Nagad · $0.40 · D102", all_texts)
+        self.assertIn("vdep_101_1_0", all_cbs)
+        self.assertIn("vdep_102_1_0", all_cbs)
+        self.assertFalse(any("Add Balance" in t for t in all_texts))
+        self.assertNotIn("open_deposit_from_history", all_cbs)
+
+        # Refresh and Back present; Back button returns strictly to open_deposit (wallet)
+        self.assertTrue(any("Refresh" in t or "🔄" in t for t in all_texts))
         self.assertTrue(any("Back" in t for t in all_texts))
+        self.assertIn("open_deposit", all_cbs)
+        self.assertNotIn("open_account", all_cbs)
         self.assertFalse(any("Close" in t for t in all_texts))
 
     async def test_view_deposit_detail(self):
@@ -88,9 +90,9 @@ class BalanceHistoryUITests(unittest.IsolatedAsyncioTestCase):
             "id": 101,
             "method_name": "bKash Personal",
             "amount": 100.0,
-            "status": "approved",
+            "status": "rejected",
             "transaction_id": "BLX998877",
-            "admin_note": None,
+            "admin_note": "Transaction could not be verified.",
             "created_at": datetime(2026, 9, 22, 14, 0),
             "reviewed_at": datetime(2026, 9, 22, 14, 5),
         })
@@ -115,16 +117,57 @@ class BalanceHistoryUITests(unittest.IsolatedAsyncioTestCase):
         services.deposits.get_for_customer.assert_called_once_with(12345, 101)
         query.message.edit_text.assert_called_once()
         text_arg, kwargs = query.message.edit_text.call_args[0][0], query.message.edit_text.call_args[1]
-        self.assertIn("Deposit #101 Details", text_arg)
-        self.assertIn("APPROVED", text_arg)
+        self.assertIn("<b>Deposit D101</b>", text_arg)
+        self.assertIn("<b>Rejected</b> ❌", text_arg)
+        self.assertIn("<i>Transaction could not be verified.</i>", text_arg)
         self.assertIn("bKash Personal", text_arg)
         self.assertIn("BLX998877", text_arg)
+        self.assertNotIn("#101", text_arg)
+        self.assertNotIn("✅", text_arg)
+        self.assertNotIn("📝", text_arg)
+        self.assertIn("Submitted:</b> 22 Sep 2026 · 14:00", text_arg)
+        self.assertIn("Reviewed:</b> 22 Sep 2026 · 14:05", text_arg)
 
         kb = kwargs["reply_markup"]
         all_cbs = [btn.callback_data for r in kb.inline_keyboard for btn in r]
-        # Back button returns to page 2!
-        self.assertIn("dep_page_2", all_cbs)
+        # Back button returns to page 2 with wallet context preserved!
+        self.assertIn("dep_page_2_w", all_cbs)
+        self.assertEqual(all_cbs, ["dep_page_2_w"])
+        self.assertNotIn("open_deposit_from_history", all_cbs)
         self.assertNotIn("close_menu", all_cbs)
+
+    async def test_approved_deposit_detail_shows_check_after_status(self):
+        services = MagicMock()
+        services.deposits.get_for_customer = AsyncMock(return_value={
+            "id": 102,
+            "method_name": "Nagad",
+            "amount": 50.0,
+            "status": "approved",
+            "transaction_id": "NG12345",
+            "admin_note": None,
+            "created_at": datetime(2026, 9, 22, 14, 0),
+            "reviewed_at": datetime(2026, 9, 22, 14, 5),
+        })
+        services.settings.get = AsyncMock(return_value="৳")
+        services.settings.number = AsyncMock(return_value=125.0)
+        services.settings.flag = AsyncMock(return_value=True)
+        services.users.get_language = AsyncMock(return_value="en")
+
+        query = MagicMock(spec=CallbackQuery)
+        query.from_user = User(id=12345, is_bot=False, first_name="Test")
+        query.data = "vdep_102_1_0"
+        query.message = MagicMock(spec=Message)
+        query.message.edit_text = AsyncMock()
+        query.answer = AsyncMock()
+
+        state = MagicMock(spec=FSMContext)
+        state.clear = AsyncMock()
+
+        await view_deposit_detail(query, state, services)
+
+        text_arg = query.message.edit_text.call_args.args[0]
+        self.assertIn("<b>Approved</b> ✅", text_arg)
+        self.assertNotIn("❌", text_arg)
 
 
 class OrderHistoryUITests(unittest.IsolatedAsyncioTestCase):
@@ -161,18 +204,19 @@ class OrderHistoryUITests(unittest.IsolatedAsyncioTestCase):
 
         query.message.edit_text.assert_called_once()
         text_arg, kwargs = query.message.edit_text.call_args[0][0], query.message.edit_text.call_args[1]
-        self.assertIn("Order History", text_arg)
+        self.assertIn("Orders", text_arg)
         kb = kwargs["reply_markup"]
         self.assertIsInstance(kb, InlineKeyboardMarkup)
 
         row0 = kb.inline_keyboard[0]
-        self.assertIn("#501", row0[0].text)
-        self.assertIn("✅", row0[0].text)
+        self.assertIn("Discord Nitro", row0[0].text)
+        self.assertNotIn("#501", row0[0].text)
+        self.assertTrue("✅" in row0[0].text or bool(row0[0].icon_custom_emoji_id))
         self.assertEqual(row0[0].callback_data, "vord_501_1")
 
+        self.assertNotIn("•", text_arg)
         all_texts = [btn.text for r in kb.inline_keyboard for btn in r]
-        self.assertIn("Refresh", all_texts)
-        self.assertTrue(any("Browse Products" in t for t in all_texts))
+        self.assertTrue(any("Refresh" in t or "🔄" in t for t in all_texts))
         self.assertTrue(any("Back" in t for t in all_texts))
         self.assertFalse(any("Close" in t for t in all_texts))
 
@@ -208,8 +252,9 @@ class OrderHistoryUITests(unittest.IsolatedAsyncioTestCase):
         services.purchases.order_for_customer.assert_called_once_with(12345, 501)
         query.message.edit_text.assert_called_once()
         text_arg, kwargs = query.message.edit_text.call_args[0][0], query.message.edit_text.call_args[1]
-        self.assertIn("Order #501 Details", text_arg)
-        self.assertIn("DELIVERED", text_arg)
+        self.assertIn("O501", text_arg)
+        self.assertNotIn("#501", text_arg)
+        self.assertIn("Delivered", text_arg)
         self.assertIn("nitro-token-xyz", text_arg)
 
         kb = kwargs["reply_markup"]
@@ -217,4 +262,3 @@ class OrderHistoryUITests(unittest.IsolatedAsyncioTestCase):
         # Back button returns to page 3!
         self.assertIn("orders_page_3", all_cbs)
         self.assertNotIn("close_menu", all_cbs)
-

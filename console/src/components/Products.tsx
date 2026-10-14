@@ -1,18 +1,60 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Clock, Zap } from 'lucide-react';
 import { api, type Category, type Product } from '@/lib/api';
 import { useMoney } from '@/lib/currency';
 import { EmptyRow, FlagRow, Modal, errorText, useConfirm, type Say } from './ui';
-import { EmojiPicker } from './EmojiPicker';
+import { EmojiPicker, splitLeadingEmoji } from './EmojiPicker';
 import { ValidityPicker } from './ValidityPicker';
 import { CustomSelect } from './CustomSelect';
 
-// Older products kept their emoji apart from the name; the form edits them as one text.
-function editableName(name: string, icon?: string) {
-  const prefix = icon?.trim();
-  return prefix && !name.trimStart().startsWith(prefix) ? `${prefix} ${name}` : name;
+function editableProductFields(title: string, icon: string, customEmojiId: string) {
+  const leading = splitLeadingEmoji(title);
+  return {
+    title: leading.emoji ? leading.text : title,
+    icon: customEmojiId ? '' : icon || leading.emoji,
+  };
+}
+
+function separateProductLabels(name: string, selectedValidity: string, selectedWarranty: string) {
+  const cleanName = name.trim();
+  const validity = selectedValidity.trim();
+  const warranty = selectedWarranty.trim();
+  const warrantySuffix = /(?:[\s|·\-–—(]+)((?:full\s+warranty)|(?:\d+\s*[- ]?\s*(?:days?|weeks?)\s+warranty)|(?:fw|sww))\)?$/i;
+  const nameWarranty = cleanName.match(warrantySuffix);
+  let titleWithoutWarranty = cleanName;
+  let warrantyLabel = warranty;
+  if (warranty) {
+    const selectedSuffix = new RegExp(
+      `(?:[\\s|·\\-–—(]+)${warranty.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)?$`,
+      'i'
+    );
+    titleWithoutWarranty = cleanName.replace(selectedSuffix, '').trim();
+  }
+  if (nameWarranty) {
+    if (!warrantyLabel) warrantyLabel = nameWarranty[1].trim();
+    titleWithoutWarranty = titleWithoutWarranty.replace(warrantySuffix, '').trim();
+  }
+
+  if (validity) {
+    const suffix = new RegExp(
+      `(?:[\\s|·\\-–—(]+)${validity.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)?$`,
+      'i'
+    );
+    const withoutSelectedValidity = titleWithoutWarranty.replace(suffix, '').trim();
+    if (withoutSelectedValidity !== titleWithoutWarranty) {
+      return { title: withoutSelectedValidity, duration_label: validity, warranty_label: warrantyLabel };
+    }
+  }
+
+  const match = titleWithoutWarranty.match(/(?:[\s|·\-–—(]+)(\d+\s*(?:days?|weeks?|months?|years?|hours?))(?:\s+validity)?\)?$/i);
+  return match
+    ? {
+        title: titleWithoutWarranty.slice(0, match.index).trim(),
+        duration_label: match[1].trim(),
+        warranty_label: warrantyLabel,
+      }
+    : { title: titleWithoutWarranty, duration_label: validity, warranty_label: warrantyLabel };
 }
 
 type Draft = {
@@ -20,10 +62,13 @@ type Draft = {
   category_id: number | null;
   title: string;
   description: string;
+  icon: string;
   price: number;
   reseller_price?: number | null;
   duration_label: string;
+  warranty_label: string;
   sort_order: number;
+  is_pinned: boolean;
   is_active: boolean;
   delivery_type: 'stock' | 'manual';
   custom_emoji_id: string;
@@ -31,8 +76,11 @@ type Draft = {
   supplier_code?: string | null;
   upstream_devices?: number;
   upstream_share_hours?: number;
+  requires_customer_input: boolean;
+  customer_input_prompt: string;
 };
 type ProductFilter = 'all' | 'in_stock' | 'low_stock' | 'out_of_stock' | 'supplier' | 'hidden';
+type SupplierFilter = 'all' | 'digital_mart' | 'safwan_tiger' | 'local' | 'manual';
 
 const LOW_STOCK_MAX = 3;
 
@@ -41,6 +89,13 @@ export function Products({ say }: { say: Say }) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<ProductFilter>('all');
+  const [supplierFilter, setSupplierFilter] = useState<SupplierFilter>('all');
+  const [categoryFilter, setCategoryFilter] = useState<number | 'all'>('all');
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [bulkActing, setBulkActing] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(50);
+
   const [draft, setDraft] = useState<Draft | null>(null);
   const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
   const [posting, setPosting] = useState(false);
@@ -74,6 +129,7 @@ export function Products({ say }: { say: Say }) {
     try {
       await api.deleteProduct(product.id);
       say('Product deleted.');
+      setSelectedIds((prev) => prev.filter((id) => id !== product.id));
       await load();
     } catch (cause) {
       say(errorText(cause), 'bad');
@@ -97,6 +153,33 @@ export function Products({ say }: { say: Say }) {
     }
   }
 
+  // Bulk actions on selected products
+  async function handleBulkAction(action: 'activate' | 'hide' | 'delete') {
+    if (!selectedIds.length) return;
+    const label = action === 'activate' ? 'Activate' : action === 'hide' ? 'Hide' : 'Permanently Delete';
+    if (
+      !(await confirm(
+        `${label} ${selectedIds.length} Products?`,
+        `Are you sure you want to ${action} the selected ${selectedIds.length} product(s)?`,
+        label,
+        action === 'delete'
+      ))
+    ) {
+      return;
+    }
+    setBulkActing(true);
+    try {
+      const res = await api.bulkProducts(action, selectedIds);
+      say(res.message, 'good');
+      setSelectedIds([]);
+      await load();
+    } catch (cause) {
+      say(errorText(cause, `Failed to bulk ${action} products.`), 'bad');
+    } finally {
+      setBulkActing(false);
+    }
+  }
+
   const inStockCount = (products ?? []).filter((p) => p.delivery_type === 'manual' || (p.stock ?? 0) > 0 || Boolean(p.upstream_product_id)).length;
   const lowStockCount = (products ?? []).filter((p) => !p.upstream_product_id && p.delivery_type !== 'manual' && (p.stock ?? 0) > 0 && (p.stock ?? 0) <= LOW_STOCK_MAX).length;
   const outOfStockCount = (products ?? []).filter((p) => !p.upstream_product_id && p.delivery_type !== 'manual' && (p.stock ?? 0) === 0).length;
@@ -104,15 +187,70 @@ export function Products({ say }: { say: Say }) {
   const hiddenCount = (products ?? []).filter((p) => !p.is_active).length;
   const totalStockUnits = (products ?? []).reduce((sum, p) => sum + (p.stock ?? 0), 0);
 
+  // Filtered products list
   const shown = (products ?? []).filter((product) => {
-    if (search && !product.title.toLowerCase().includes(search.toLowerCase())) return false;
-    if (filter === 'in_stock') return product.delivery_type === 'manual' || (product.stock ?? 0) > 0 || Boolean(product.upstream_product_id);
-    if (filter === 'low_stock') return !product.upstream_product_id && product.delivery_type !== 'manual' && (product.stock ?? 0) > 0 && (product.stock ?? 0) <= LOW_STOCK_MAX;
-    if (filter === 'out_of_stock') return !product.upstream_product_id && product.delivery_type !== 'manual' && (product.stock ?? 0) === 0;
-    if (filter === 'supplier') return Boolean(product.upstream_product_id);
-    if (filter === 'hidden') return !product.is_active;
+    // 1. Enhanced search
+    if (search) {
+      const q = search.toLowerCase().trim();
+      const cat = categories.find((c) => c.id === product.category_id);
+      const titleMatch = product.title.toLowerCase().includes(q);
+      const durationMatch = (product.duration_label || '').toLowerCase().includes(q);
+      const catMatch = (cat?.name || '').toLowerCase().includes(q);
+      const idMatch = String(product.id) === q || String(product.upstream_product_id) === q || `#${product.upstream_product_id}` === q;
+      const supplierMatch = (product.supplier_code || '').toLowerCase().includes(q);
+      if (!titleMatch && !durationMatch && !catMatch && !idMatch && !supplierMatch) {
+        return false;
+      }
+    }
+
+    // 2. Tab Filter
+    if (filter === 'in_stock') {
+      if (!(product.delivery_type === 'manual' || (product.stock ?? 0) > 0 || Boolean(product.upstream_product_id))) return false;
+    } else if (filter === 'low_stock') {
+      if (!(!product.upstream_product_id && product.delivery_type !== 'manual' && (product.stock ?? 0) > 0 && (product.stock ?? 0) <= LOW_STOCK_MAX)) return false;
+    } else if (filter === 'out_of_stock') {
+      if (!(!product.upstream_product_id && product.delivery_type !== 'manual' && (product.stock ?? 0) === 0)) return false;
+    } else if (filter === 'supplier') {
+      if (!Boolean(product.upstream_product_id)) return false;
+    } else if (filter === 'hidden') {
+      if (Boolean(product.is_active)) return false;
+    }
+
+    // 3. Supplier Filter
+    if (supplierFilter === 'digital_mart') {
+      if (!product.upstream_product_id || (product.supplier_code && product.supplier_code !== 'digital_mart')) return false;
+    } else if (supplierFilter === 'safwan_tiger') {
+      if (!product.upstream_product_id || product.supplier_code !== 'safwan_tiger') return false;
+    } else if (supplierFilter === 'local') {
+      if (product.upstream_product_id || product.delivery_type === 'manual') return false;
+    } else if (supplierFilter === 'manual') {
+      if (product.delivery_type !== 'manual') return false;
+    }
+
+    // 4. Category Filter
+    if (categoryFilter !== 'all') {
+      if (product.category_id !== categoryFilter) return false;
+    }
+
     return true;
   });
+
+  // Pagination calculation
+  const totalPages = Math.max(1, Math.ceil(shown.length / pageSize));
+  const paginatedShown = shown.slice((page - 1) * pageSize, page * pageSize);
+
+  const allVisibleSelected =
+    paginatedShown.length > 0 && paginatedShown.every((p) => selectedIds.includes(p.id));
+
+  const toggleSelectAllVisible = () => {
+    if (allVisibleSelected) {
+      const pageIds = new Set(paginatedShown.map((p) => p.id));
+      setSelectedIds(selectedIds.filter((id) => !pageIds.has(id)));
+    } else {
+      const newIds = new Set([...selectedIds, ...paginatedShown.map((p) => p.id)]);
+      setSelectedIds(Array.from(newIds));
+    }
+  };
 
   return (
     <>
@@ -124,7 +262,10 @@ export function Products({ say }: { say: Say }) {
           type="button"
           aria-pressed={filter === 'all'}
           className={filter === 'all' ? 'active' : ''}
-          onClick={() => setFilter('all')}
+          onClick={() => {
+            setFilter('all');
+            setPage(1);
+          }}
         >
           All ({products?.length ?? 0})
         </button>
@@ -132,7 +273,10 @@ export function Products({ say }: { say: Say }) {
           type="button"
           aria-pressed={filter === 'in_stock'}
           className={filter === 'in_stock' ? 'active' : ''}
-          onClick={() => setFilter('in_stock')}
+          onClick={() => {
+            setFilter('in_stock');
+            setPage(1);
+          }}
         >
           Available ({inStockCount})
         </button>
@@ -140,15 +284,21 @@ export function Products({ say }: { say: Say }) {
           type="button"
           aria-pressed={filter === 'supplier'}
           className={filter === 'supplier' ? 'active' : ''}
-          onClick={() => setFilter('supplier')}
+          onClick={() => {
+            setFilter('supplier');
+            setPage(1);
+          }}
         >
-          ⚡ Supplier ({supplierCount})
+          Supplier ({supplierCount})
         </button>
         <button
           type="button"
           aria-pressed={filter === 'low_stock'}
           className={filter === 'low_stock' ? 'active' : ''}
-          onClick={() => setFilter('low_stock')}
+          onClick={() => {
+            setFilter('low_stock');
+            setPage(1);
+          }}
         >
           Low Stock ({lowStockCount})
         </button>
@@ -156,7 +306,10 @@ export function Products({ say }: { say: Say }) {
           type="button"
           aria-pressed={filter === 'out_of_stock'}
           className={filter === 'out_of_stock' ? 'active' : ''}
-          onClick={() => setFilter('out_of_stock')}
+          onClick={() => {
+            setFilter('out_of_stock');
+            setPage(1);
+          }}
         >
           Out of Stock ({outOfStockCount})
         </button>
@@ -164,70 +317,244 @@ export function Products({ say }: { say: Say }) {
           type="button"
           aria-pressed={filter === 'hidden'}
           className={filter === 'hidden' ? 'active' : ''}
-          onClick={() => setFilter('hidden')}
+          onClick={() => {
+            setFilter('hidden');
+            setPage(1);
+          }}
         >
           Hidden ({hiddenCount})
         </button>
       </div>
 
       <section className="panel">
-        <header>
-          <div className="filters">
-            <input type="search" aria-label="Search products" placeholder="Search products" value={search} onChange={(event) => setSearch(event.target.value)} />
-            <span className="muted">{totalStockUnits} stock units</span>
+        <header className="product-toolbar" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
+          {/* Top row: search & filters */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+            <div className="filters" style={{ flexWrap: 'wrap', gap: 10, flex: 1 }}>
+              {/* Search input */}
+              <div style={{ position: 'relative', minWidth: 220, flex: 1, maxWidth: 360 }}>
+                <input
+                  type="search"
+                  aria-label="Search products"
+                  placeholder="Search title, ID (#41), category..."
+                  value={search}
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                    setPage(1);
+                  }}
+                  style={{ width: '100%', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              {/* Supplier dropdown filter */}
+              <CustomSelect
+                value={supplierFilter}
+                onChange={(val) => {
+                  setSupplierFilter(val as any);
+                  setPage(1);
+                }}
+                options={[
+                  { value: 'all', label: 'All Sources' },
+                  { value: 'digital_mart', label: 'Digital Mart' },
+                  { value: 'safwan_tiger', label: 'Safwan Tiger' },
+                  { value: 'local', label: 'Local Stock' },
+                  { value: 'manual', label: 'Manual Delivery' },
+                ]}
+                minWidth={135}
+              />
+
+              {/* Category dropdown filter */}
+              <CustomSelect
+                value={String(categoryFilter)}
+                onChange={(val) => {
+                  setCategoryFilter(val === 'all' ? 'all' : Number(val));
+                  setPage(1);
+                }}
+                options={[
+                  { value: 'all', label: 'All Categories' },
+                  ...categories.map((c) => ({
+                    value: String(c.id),
+                    label: c.name,
+                  })),
+                ]}
+                minWidth={145}
+              />
+
+              {/* Items per page */}
+              <CustomSelect
+                value={String(pageSize)}
+                onChange={(val) => {
+                  setPageSize(Number(val));
+                  setPage(1);
+                }}
+                options={[
+                  { value: '25', label: '25 / page' },
+                  { value: '50', label: '50 / page' },
+                  { value: '100', label: '100 / page' },
+                  { value: '500', label: 'All / page' },
+                ]}
+                minWidth={110}
+              />
+
+              <span className="muted" style={{ fontSize: '12px', alignSelf: 'center' }}>
+                {shown.length} of {products?.length ?? 0} shown ({totalStockUnits} local units)
+              </span>
+            </div>
+
+            <button
+              type="button"
+              className="btn primary"
+              onClick={() =>
+                setDraft({
+                  id: null,
+                  category_id: null,
+                  title: '',
+                  description: '',
+                  icon: '',
+                  price: 1,
+                  reseller_price: null,
+                  duration_label: '1 Month',
+                  warranty_label: '',
+                  sort_order: 0,
+                  is_pinned: false,
+                  is_active: true,
+                  delivery_type: 'stock',
+                  custom_emoji_id: '',
+                  upstream_product_id: null,
+                  supplier_code: 'digital_mart',
+                  upstream_devices: 1,
+                  upstream_share_hours: 24,
+                  requires_customer_input: false,
+                  customer_input_prompt: '',
+                })
+              }
+              style={{ fontWeight: 600 }}
+            >
+              + New product
+            </button>
           </div>
-          <button
-            type="button"
-            className="btn"
-            onClick={() =>
-              setDraft({
-                id: null,
-                category_id: null,
-                title: '',
-                description: '',
-                price: 1,
-                reseller_price: null,
-                duration_label: '1 Month',
-                sort_order: 0,
-                is_active: true,
-                delivery_type: 'stock',
-                custom_emoji_id: '',
-                upstream_product_id: null,
-                supplier_code: 'digital_mart',
-                upstream_devices: 1,
-                upstream_share_hours: 24,
-              })
-            }
-          >
-            New product
-          </button>
+
+          {/* Bulk actions bar if items are selected */}
+          {selectedIds.length > 0 && (
+            <div
+              style={{
+                padding: '8px 14px',
+                background: 'rgba(14, 165, 233, 0.08)',
+                borderRadius: '6px',
+                border: '1px solid rgba(14, 165, 233, 0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: 8,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '13px', fontWeight: 600 }}>
+                <span>{selectedIds.length} product(s) selected</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn small"
+                  disabled={bulkActing}
+                  onClick={() => handleBulkAction('activate')}
+                  style={{ color: '#16a34a', borderColor: '#16a34a' }}
+                >
+                  Bulk Activate
+                </button>
+                <button
+                  type="button"
+                  className="btn small"
+                  disabled={bulkActing}
+                  onClick={() => handleBulkAction('hide')}
+                >
+                  Bulk Hide
+                </button>
+                <button
+                  type="button"
+                  className="btn small danger"
+                  disabled={bulkActing}
+                  onClick={() => handleBulkAction('delete')}
+                >
+                  Bulk Delete
+                </button>
+                <button
+                  type="button"
+                  className="btn small ghost"
+                  onClick={() => setSelectedIds([])}
+                >
+                  Deselect
+                </button>
+              </div>
+            </div>
+          )}
         </header>
+
         <div className="scroll">
           <table className="mobile-records products-list">
             <thead>
               <tr>
+                <th style={{ width: 36, textAlign: 'center' }}>
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={toggleSelectAllVisible}
+                    style={{ cursor: 'pointer' }}
+                    title="Select all on this page"
+                  />
+                </th>
                 <th>Product</th>
                 <th>Price</th>
-                <th>Stock / Delivery</th>
+                <th>Stock / Source</th>
                 <th style={{ width: '100px', textAlign: 'center' }}>Status</th>
                 <th className="right" aria-label="Actions" />
               </tr>
             </thead>
             <tbody>
-              {shown.map((product) => {
+              {paginatedShown.map((product) => {
                 const cat = categories.find((c) => c.id === product.category_id);
+                const isSelected = selectedIds.includes(product.id);
+                const isTiger = product.supplier_code === 'safwan_tiger';
+                const isDM = Boolean(product.upstream_product_id) && !isTiger;
                 return (
-                  <tr key={product.id}>
+                  <tr key={product.id} style={{ background: isSelected ? 'rgba(14, 165, 233, 0.04)' : undefined }}>
+                    <td style={{ textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedIds([...selectedIds, product.id]);
+                          } else {
+                            setSelectedIds(selectedIds.filter((id) => id !== product.id));
+                          }
+                        }}
+                        style={{ cursor: 'pointer' }}
+                      />
+                    </td>
                     <td className="name">
                       {product.icon ? `${product.icon} ` : ''}
                       {product.title}
-                      <small>{[cat?.name, product.duration_label].filter(Boolean).join(' · ')}</small>
+                      {product.is_pinned ? (
+                        <span className="pill good mini" style={{ marginLeft: 6, fontSize: '10.5px', padding: '1px 5px' }}>
+                          📌 Top
+                        </span>
+                      ) : null}
+                      {product.requires_customer_input ? (
+                        <span className="pill info mini" style={{ marginLeft: 6, fontSize: '10.5px', padding: '1px 5px' }} title={product.customer_input_prompt || 'Requires customer input'}>
+                          📝 Input
+                        </span>
+                      ) : null}
+                      <small style={{ display: 'block', color: 'var(--muted)', marginTop: 2 }}>
+                        {[cat?.name, product.duration_label, product.warranty_label].filter(Boolean).join(' · ')}
+                        {product.upstream_product_id ? ` · Upstream ID: #${product.upstream_product_id}` : ''}
+                      </small>
                     </td>
                     <td className="money">
-                      <div>{money(product.price)}</div>
+                      <div style={{ fontWeight: 700 }}>{money(product.price)}</div>
                       {product.reseller_price != null && product.reseller_price > 0 ? (
                         <small style={{ color: 'var(--accent)', fontSize: '11px', fontWeight: 600, display: 'block' }}>
-                          Reseller: {money(product.reseller_price)}
+                          Wholesale: {money(product.reseller_price)}
                         </small>
                       ) : null}
                     </td>
@@ -238,14 +565,14 @@ export function Products({ say }: { say: Say }) {
                             className="pill info"
                             style={{
                               fontWeight: 600,
-                              background: 'rgba(14, 165, 233, 0.12)',
-                              color: '#0284c7',
-                              border: '1px solid rgba(14, 165, 233, 0.25)',
+                              fontSize: '11px',
+                              background: isTiger ? 'rgba(59, 130, 246, 0.1)' : 'rgba(34, 197, 94, 0.1)',
+                              color: isTiger ? '#2563eb' : '#16a34a',
+                              border: `1px solid ${isTiger ? 'rgba(59, 130, 246, 0.25)' : 'rgba(34, 197, 94, 0.25)'}`,
                             }}
-                            title={`Fulfilled automatically by Upstream Supplier (ID: #${product.upstream_product_id})`}
+                            title={`Fulfilled automatically by ${isTiger ? 'Safwan Tiger Shop' : 'Digital Mart'} (ID: #${product.upstream_product_id})`}
                           >
-                            <Zap size={12} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 4 }} />
-                            Supplier
+                            {isTiger ? 'Tiger Shop' : 'Digital Mart'}
                           </span>
                           {(product.upstream_devices ?? 1) > 1 ? (
                             <span
@@ -265,14 +592,14 @@ export function Products({ say }: { say: Say }) {
                           ) : null}
                         </div>
                       ) : product.delivery_type === 'manual' ? (
-                        <span className="pill info" style={{ fontWeight: 600 }}>
-                          <Clock size={12} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 4 }} />
+                        <span className="pill info" style={{ fontWeight: 600, fontSize: '11.5px' }}>
                           Manual
                         </span>
                       ) : (
                         <span
                           className={`pill ${!product.stock ? 'bad' : product.stock <= LOW_STOCK_MAX ? 'warn' : 'good'}`}
                           title={product.stock && product.stock <= LOW_STOCK_MAX ? `Low stock (≤ ${LOW_STOCK_MAX} remaining)` : undefined}
+                          style={{ fontSize: '11.5px' }}
                         >
                           {product.stock ? `${product.stock} in stock` : 'out of stock'}
                         </span>
@@ -312,6 +639,22 @@ export function Products({ say }: { say: Say }) {
                     </td>
                     <td>
                       <div className="row-actions">
+                        <button
+                          type="button"
+                          className={`mini ${product.is_pinned ? 'btn' : 'ghost'}`}
+                          onClick={async () => {
+                            try {
+                              await api.pinProduct(product.id);
+                              say(product.is_pinned ? 'Product unpinned from top.' : 'Product pinned to top!');
+                              await load();
+                            } catch (e) {
+                              say(errorText(e), 'bad');
+                            }
+                          }}
+                          title={product.is_pinned ? 'Pinned to top (click to unpin)' : 'Pin to top of category'}
+                        >
+                          📌 {product.is_pinned ? 'Top' : 'Pin'}
+                        </button>
                         <button type="button" className="mini" onClick={() => setPreviewProduct(product)}>
                           Post
                         </button>
@@ -319,23 +662,40 @@ export function Products({ say }: { say: Say }) {
                           type="button"
                           className="mini"
                           onClick={() =>
-                            setDraft({
-                              id: product.id,
-                              category_id: product.category_id ?? null,
-                              title: editableName(product.title, product.icon),
-                              description: product.description,
-                              price: product.price,
-                              reseller_price: product.reseller_price ?? null,
-                              duration_label: product.duration_label,
-                              sort_order: product.sort_order,
-                              is_active: Boolean(product.is_active),
-                              delivery_type: product.delivery_type || 'stock',
-                              custom_emoji_id: product.custom_emoji_id || '',
-                              upstream_product_id: product.upstream_product_id ?? null,
-                              supplier_code: product.supplier_code || 'digital_mart',
-                              upstream_devices: product.upstream_devices ?? 1,
-                              upstream_share_hours: product.upstream_share_hours ?? 24,
-                            })
+                            {
+                              const iconFields = editableProductFields(
+                                product.title,
+                                product.icon || '',
+                                product.custom_emoji_id || ''
+                              );
+                              const separated = separateProductLabels(
+                                iconFields.title,
+                                product.duration_label,
+                                product.warranty_label || ''
+                              );
+                              setDraft({
+                                id: product.id,
+                                category_id: product.category_id ?? null,
+                                title: separated.title,
+                                description: product.description,
+                                icon: iconFields.icon,
+                                price: product.price,
+                                reseller_price: product.reseller_price ?? null,
+                                duration_label: separated.duration_label,
+                                warranty_label: separated.warranty_label,
+                                sort_order: product.sort_order,
+                                is_pinned: Boolean(product.is_pinned),
+                                is_active: Boolean(product.is_active),
+                                delivery_type: product.delivery_type || 'stock',
+                                custom_emoji_id: product.custom_emoji_id || '',
+                                upstream_product_id: product.upstream_product_id ?? null,
+                                supplier_code: product.supplier_code || 'digital_mart',
+                                upstream_devices: product.upstream_devices ?? 1,
+                                upstream_share_hours: product.upstream_share_hours ?? 24,
+                                requires_customer_input: Boolean(product.requires_customer_input),
+                                customer_input_prompt: product.customer_input_prompt || '',
+                              });
+                            }
                           }
                         >
                           Edit
@@ -349,19 +709,61 @@ export function Products({ say }: { say: Say }) {
                 );
               })}
               {products && shown.length === 0 ? (
-                <EmptyRow columns={5}>
+                <EmptyRow columns={6}>
                   {search
-                    ? 'Nothing matches.'
+                    ? 'No products match your search.'
                     : filter === 'low_stock'
                     ? 'No low stock products right now.'
-                    : 'No products yet.'}
+                    : 'No products found.'}
                 </EmptyRow>
               ) : null}
-              {!products ? <EmptyRow columns={5}>Loading…</EmptyRow> : null}
+              {!products ? <EmptyRow columns={6}>Loading…</EmptyRow> : null}
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Footer */}
+        {shown.length > 0 && (
+          <div
+            style={{
+              padding: '12px 18px',
+              borderTop: '1px solid var(--border)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 10,
+              fontSize: '13px',
+            }}
+          >
+            <div style={{ color: 'var(--muted)' }}>
+              Showing {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, shown.length)} of {shown.length} products
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <button
+                type="button"
+                className="btn small"
+                disabled={page <= 1}
+                onClick={() => setPage(page - 1)}
+              >
+                Prev
+              </button>
+              <span style={{ padding: '0 6px', fontWeight: 600 }}>
+                Page {page} of {totalPages}
+              </span>
+              <button
+                type="button"
+                className="btn small"
+                disabled={page >= totalPages}
+                onClick={() => setPage(page + 1)}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </section>
+
 
       {draft ? (
         <ProductForm
@@ -444,7 +846,7 @@ export function Products({ say }: { say: Say }) {
                 <span>👑</span>
                 <div>
                   <strong>Product: </strong>
-                  <span>{previewProduct.icon ? `${previewProduct.icon} ` : '⚡ '}{previewProduct.title}</span>
+                  <span>{previewProduct.icon ? `${previewProduct.icon} ` : ''}{previewProduct.title}</span>
                 </div>
               </div>
 
@@ -480,8 +882,7 @@ export function Products({ say }: { say: Say }) {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span>✅</span>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
                 <div>
                   <strong>Delivery: </strong>
                   <span>{previewProduct.delivery_type === 'manual' ? 'Manual Delivery' : 'Instant Automatic Delivery'}</span>
@@ -548,22 +949,29 @@ function ProductForm({
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
+    const enteredTitle = form.title.trim();
+    const leading = splitLeadingEmoji(enteredTitle);
+    const customEmojiId = form.custom_emoji_id.trim();
     const payload = {
       category_id: form.category_id ?? undefined,
-      title: form.title.trim(),
+      title: leading.emoji && leading.text ? leading.text : enteredTitle,
       description: (form.description || '').trim(),
       price: form.price,
       reseller_price: form.reseller_price != null && form.reseller_price > 0 ? form.reseller_price : null,
-      icon: '',
+      icon: customEmojiId ? '' : form.icon.trim() || leading.emoji,
       duration_label: form.duration_label,
+      warranty_label: form.warranty_label,
       sort_order: form.sort_order,
+      is_pinned: form.is_pinned ? 1 : 0,
       is_active: form.is_active ? 1 : 0,
       delivery_type: form.delivery_type,
-      custom_emoji_id: form.custom_emoji_id ? form.custom_emoji_id.trim() : '',
+      custom_emoji_id: customEmojiId,
       upstream_product_id: form.upstream_product_id || null,
       supplier_code: form.upstream_product_id ? (form.supplier_code || 'digital_mart') : null,
       upstream_devices: form.upstream_devices ?? 1,
       upstream_share_hours: form.upstream_share_hours ?? 24,
+      requires_customer_input: form.requires_customer_input ? 1 : 0,
+      customer_input_prompt: form.customer_input_prompt ? form.customer_input_prompt.trim() : '',
     };
     try {
       if (form.id) await api.updateProduct(form.id, payload);
@@ -608,7 +1016,6 @@ function ProductForm({
               marginBottom: '12px',
             }}
           >
-            <Zap size={18} style={{ color: '#0284c7', flexShrink: 0 }} />
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <strong>
@@ -625,21 +1032,23 @@ function ProductForm({
                 </button>
               </div>
               <div style={{ color: 'var(--muted)', fontSize: '11.5px', marginTop: '2px' }}>
-                Orders are fulfilled automatically via {form.supplier_code === 'safwan_tiger' ? 'Safwan Tiger Shop API (USDT)' : 'Digital Mart wholesale API (BDT)'}. Custom name, emoji, duration, and prices are preserved across catalog syncs.
+                Automatic fulfillment. Your name, emoji, duration and prices are kept when syncing.
               </div>
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+          <div className="form-columns">
             <label className="field" style={{ margin: 0 }}>
               <span style={{ fontWeight: 600 }}>Supplier Provider</span>
-              <select
+              <CustomSelect
                 value={form.supplier_code || 'digital_mart'}
-                onChange={(e) => set({ supplier_code: e.target.value })}
-              >
-                <option value="digital_mart">Digital Mart (BDT)</option>
-                <option value="safwan_tiger">Safwan Tiger Shop (USDT)</option>
-              </select>
+                onChange={(val) => set({ supplier_code: val })}
+                options={[
+                  { value: 'digital_mart', label: 'Digital Mart (BDT)' },
+                  { value: 'safwan_tiger', label: 'Safwan Tiger Shop (USDT)' },
+                ]}
+                minWidth="100%"
+              />
             </label>
             <label className="field" style={{ margin: 0 }}>
               <span style={{ fontWeight: 600 }}>Supplier Product ID</span>
@@ -648,12 +1057,12 @@ function ProductForm({
                 min="1"
                 required
                 value={form.upstream_product_id ?? ''}
-                onChange={(e) => set({ upstream_product_id: parseInt(e.target.value) || 1 })}
+                onChange={(e) => set({ upstream_product_id: e.target.value === '' ? (null as any) : parseInt(e.target.value) || 1 })}
               />
             </label>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+          <div className="form-columns">
             <label className="field" style={{ margin: 0 }}>
               <span style={{ fontWeight: 600 }}>Devices per Account <small style={{ color: 'var(--muted)' }}>(Pool)</small></span>
               <input
@@ -662,10 +1071,10 @@ function ProductForm({
                 max="50"
                 required
                 value={form.upstream_devices ?? 1}
-                onChange={(e) => set({ upstream_devices: parseInt(e.target.value) || 1 })}
+                onChange={(e) => set({ upstream_devices: e.target.value === '' ? ('' as any) : parseInt(e.target.value) || 1 })}
               />
               <small style={{ color: 'var(--muted)', fontSize: '11px', marginTop: '2px', display: 'block' }}>
-                e.g. 7 for shared VPN. Customers 2-7 receive seats from local pool at ৳0 extra supplier cost.
+                Seats per supplier account. Extra seats use the same purchase.
               </small>
             </label>
             <label className="field" style={{ margin: 0 }}>
@@ -676,10 +1085,10 @@ function ProductForm({
                 max="720"
                 required
                 value={form.upstream_share_hours ?? 24}
-                onChange={(e) => set({ upstream_share_hours: parseInt(e.target.value) || 24 })}
+                onChange={(e) => set({ upstream_share_hours: e.target.value === '' ? ('' as any) : parseInt(e.target.value) || 24 })}
               />
               <small style={{ color: 'var(--muted)', fontSize: '11px', marginTop: '2px', display: 'block' }}>
-                Unused seats expire after this duration. New orders will trigger fresh supplier purchase.
+                Unused seats expire after this time; the next order buys a new account.
               </small>
             </label>
           </div>
@@ -687,14 +1096,33 @@ function ProductForm({
       ) : null}
 
       <label className="field">
-        <span>Name</span>
-        <input type="text" required placeholder="e.g. NordVPN 30 Days" value={form.title} onChange={(event) => set({ title: event.target.value })} />
+        <span>Name <small style={{ color: 'var(--muted)', fontWeight: 'normal' }}>(validity goes in the field below)</small></span>
+        <input
+          type="text"
+          required
+          placeholder="e.g. NordVPN"
+          value={form.title}
+          onChange={(event) => set({ title: event.target.value })}
+          onBlur={() => {
+            const separated = separateProductLabels(form.title, form.duration_label, form.warranty_label);
+            if (
+              separated.title !== form.title ||
+              separated.duration_label !== form.duration_label ||
+              separated.warranty_label !== form.warranty_label
+            ) {
+              set(separated);
+            }
+          }}
+        />
       </label>
 
       <div className="field">
         <EmojiPicker
           value={form.custom_emoji_id}
-          onChange={(id) => set({ custom_emoji_id: id })}
+          icon={form.icon}
+          onChange={({ icon, customEmojiId }) =>
+            set({ icon, custom_emoji_id: customEmojiId })
+          }
         />
       </div>
 
@@ -706,7 +1134,7 @@ function ProductForm({
           value={String(form.category_id ?? '')}
           onChange={(val) => set({ category_id: val ? Number(val) : null })}
           options={[
-            { value: '', label: 'None (Uncategorized)' },
+            { value: '', label: 'None (Others)' },
             ...categories.map((c) => ({
               value: String(c.id),
               label: c.name,
@@ -717,7 +1145,7 @@ function ProductForm({
         />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+      <div className="form-columns">
         <label className="field" style={{ margin: 0 }}>
           <span>Regular Price</span>
           <input type="number" step="any" min="0" required value={form.price} onChange={(event) => set({ price: parseFloat(event.target.value) || 0 })} />
@@ -756,6 +1184,17 @@ function ProductForm({
         />
       </div>
 
+      <label className="field">
+        <span>Warranty <small style={{ color: 'var(--muted)', fontWeight: 'normal' }}>(Optional)</small></span>
+        <input
+          type="text"
+          maxLength={64}
+          placeholder="e.g. Full Warranty or 7 Days Warranty"
+          value={form.warranty_label}
+          onChange={(event) => set({ warranty_label: event.target.value })}
+        />
+      </label>
+
       <div className="field">
         <span>Delivery Method</span>
         {form.upstream_product_id ? (
@@ -773,7 +1212,6 @@ function ProductForm({
               color: '#0284c7',
             }}
           >
-            <Zap size={16} />
             <span>Automated Supplier Dropshipping (Zero Local Stock Required)</span>
           </div>
         ) : (
@@ -783,7 +1221,6 @@ function ProductForm({
               className={`delivery-method-card ${form.delivery_type === 'stock' ? 'active' : ''}`}
               onClick={() => set({ delivery_type: 'stock' })}
             >
-              <span className="delivery-method-icon"><Zap size={14} /></span>
               <span className="delivery-method-title">Instant Stock</span>
             </button>
             <button
@@ -791,7 +1228,6 @@ function ProductForm({
               className={`delivery-method-card ${form.delivery_type === 'manual' ? 'active' : ''}`}
               onClick={() => set({ delivery_type: 'manual' })}
             >
-              <span className="delivery-method-icon"><Clock size={14} /></span>
               <span className="delivery-method-title">Manual Delivery</span>
             </button>
           </div>
@@ -814,13 +1250,32 @@ function ProductForm({
         />
       </label>
       <FlagRow
+        label={form.is_pinned ? '📌 Pinned to Top of Category' : 'Pin to Top of Category'}
+        on={form.is_pinned}
+        onChange={(on) => set({ is_pinned: on })}
+      />
+      <FlagRow
+        label={form.requires_customer_input ? '📝 Require Customer Input (e.g. Gmail / ID)' : 'Require Customer Input (e.g. Gmail)'}
+        on={form.requires_customer_input}
+        onChange={(on) => set({ requires_customer_input: on })}
+      />
+      {form.requires_customer_input ? (
+        <label className="field" style={{ marginTop: '8px', background: 'rgba(59, 130, 246, 0.05)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(59, 130, 246, 0.15)' }}>
+          <span style={{ fontSize: '12px', fontWeight: 600 }}>Input Prompt <small style={{ color: 'var(--muted)', fontWeight: 'normal' }}>(Shown to customer before purchase)</small></span>
+          <input
+            type="text"
+            placeholder="e.g. Enter your Gmail address for invite"
+            value={form.customer_input_prompt || ''}
+            onChange={(e) => set({ customer_input_prompt: e.target.value.slice(0, 200) })}
+            style={{ marginTop: '4px' }}
+          />
+        </label>
+      ) : null}
+      <FlagRow
         label={form.is_active ? 'Active' : 'Hidden'}
-        hint={form.is_active ? 'Visible in bot store' : 'Hidden from customers in store'}
         on={form.is_active}
         onChange={(on) => set({ is_active: on })}
       />
     </Modal>
   );
 }
-
-

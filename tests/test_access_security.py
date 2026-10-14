@@ -7,6 +7,9 @@
 import os
 import unittest
 import uuid
+import asyncio
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 from urllib.parse import urlsplit
 
 from pydantic import ValidationError
@@ -141,11 +144,11 @@ class AccessTests(unittest.IsolatedAsyncioTestCase):
         await self.s.reseller.revoke_key(CUSTOMER)
         self.assertIsNone(await self.s.reseller.authenticate_key(raw))
 
-    async def test_losing_the_reseller_rank_stops_the_key(self):
+    async def test_losing_reseller_rank_preserves_customer_api_access(self):
         await self.s.users.set_rank(CUSTOMER, 'Reseller')
         raw, _ = await self.s.reseller.generate_key(CUSTOMER)
         await self.s.users.set_rank(CUSTOMER, 'Standard')
-        self.assertIsNone(await self.s.reseller.authenticate_key(raw))
+        self.assertIsNotNone(await self.s.reseller.authenticate_key(raw))
 
     async def test_a_banned_reseller_cannot_use_their_key(self):
         await self.s.users.set_rank(CUSTOMER, 'Reseller')
@@ -160,10 +163,134 @@ class AccessTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(await self.s.reseller.authenticate_key(first))
         self.assertIsNotNone(await self.s.reseller.authenticate_key(second))
 
-    async def test_a_non_reseller_cannot_mint_a_key(self):
-        from app.services.errors import PermissionDeniedError
-        with self.assertRaises(PermissionDeniedError):
-            await self.s.reseller.generate_key(INTRUDER)
+    async def test_a_customer_can_mint_a_key(self):
+        raw, _ = await self.s.reseller.generate_key(INTRUDER)
+        authenticated = await self.s.reseller.authenticate_key(raw)
+        self.assertEqual(authenticated['tg_user_id'], INTRUDER)
+
+    async def test_customer_api_key_revocation_is_checked_inside_purchase(self):
+        await self.s.users.adjust_balance(CUSTOMER, 1000)
+        _, key = await self.s.reseller.generate_key(CUSTOMER)
+        await self.s.reseller.revoke_key(CUSTOMER)
+        ok, _, _ = await self.s.purchases.purchase(
+            CUSTOMER, self.product, request_id='revoked-customer-api',
+            require_reseller=False, reseller_key_id=key['id'],
+        )
+        self.assertFalse(ok)
+        async with self.db.connect() as conn:
+            self.assertEqual(await conn.fetchval('SELECT balance FROM users WHERE tg_user_id=$1', CUSTOMER), 1000)
+
+    async def test_accepted_supplier_order_cannot_be_purchased_again(self):
+        await self.s.users.adjust_balance(CUSTOMER, 1000)
+        product = await self.s.catalog.create_product(self.category, 'Manual', price=100, delivery_type='manual')
+        ok, _, receipt = await self.s.purchases.purchase(CUSTOMER, product, request_id='supplier-accepted')
+        self.assertTrue(ok)
+        async with self.db.connect() as conn:
+            await conn.execute("UPDATE orders SET supplier_order_id='remote-123' WHERE id=$1", receipt['order_id'])
+        retried, message, _ = await self.s.purchases.retry_supplier_fulfillment(receipt['order_id'])
+        self.assertFalse(retried)
+        self.assertIn('already accepted', message)
+
+    async def test_unknown_supplier_outcome_is_retained_and_cannot_be_retried(self):
+        await self.s.users.adjust_balance(CUSTOMER, 1000)
+        await self.s.settings.update({'supplier_fallback_to_waiting': '0'})
+        async with self.db.connect() as conn:
+            await conn.execute('UPDATE products SET upstream_product_id=77 WHERE id=$1', self.product)
+        supplier = SimpleNamespace(is_configured=True, purchase=AsyncMock(return_value={
+            'success': False, 'detail': 'Read timed out', 'outcome_unknown': True,
+        }))
+        self.s.purchases.suppliers = SimpleNamespace(get=lambda code: supplier)
+        ok, _, receipt = await self.s.purchases.purchase(CUSTOMER, self.product, request_id='unknown-outcome')
+        self.assertTrue(ok)
+        self.assertEqual(receipt['fulfillment'], 'waiting')
+        repeated, _, _ = await self.s.purchases.purchase(CUSTOMER, self.product, request_id='unknown-outcome')
+        self.assertTrue(repeated)
+        retried, message, _ = await self.s.purchases.retry_supplier_fulfillment(receipt['order_id'])
+        self.assertFalse(retried)
+        self.assertIn('Reconcile', message)
+        supplier.purchase.assert_awaited_once()
+        async with self.db.connect() as conn:
+            self.assertEqual(await conn.fetchval('SELECT balance FROM users WHERE tg_user_id=$1', CUSTOMER), 900)
+
+    async def test_supplier_success_survives_wallet_rollback_and_service_restart(self):
+        from app.services.supplier_attempts import SupplierAttempts
+        from app.db.scripts.supplier_reconciliation import unresolved_attempts
+        await self.s.users.adjust_balance(CUSTOMER, 1000)
+        async with self.db.connect() as conn:
+            await conn.execute('UPDATE products SET upstream_product_id=77 WHERE id=$1', self.product)
+        supplier = SimpleNamespace(is_configured=True, purchase=AsyncMock(return_value={
+            'success': True, 'credentials': 'test-delivery', 'order_id': 'remote-77',
+            'total_price': 50, 'fulfillment': 'delivered',
+        }))
+        self.s.purchases.suppliers = SimpleNamespace(get=lambda code: supplier)
+        with patch.object(self.s.delivery, 'enqueue_order', side_effect=RuntimeError('Simulated pre-commit failure')):
+            ok, _, _ = await self.s.purchases.purchase(CUSTOMER, self.product, request_id='crash-after-supplier')
+        self.assertFalse(ok)
+        async with self.db.connect() as conn:
+            self.assertEqual(await conn.fetchval('SELECT count(*) FROM orders'), 0)
+            self.assertEqual(await conn.fetchval('SELECT balance FROM users WHERE tg_user_id=$1', CUSTOMER), 1000)
+            await conn.execute("UPDATE supplier_order_attempts SET updated_at=now()-interval '6 minutes'")
+        unresolved = await unresolved_attempts(self.db)
+        self.assertEqual(len(unresolved), 1)
+        self.assertEqual(unresolved[0]['supplier_order_id'], 'remote-77')
+        self.assertNotIn('test-delivery', str(unresolved))
+        await self.s.purchases.supplier_attempts.close()
+        self.s.purchases.supplier_attempts = SupplierAttempts(self.db)
+        ok, _, receipt = await self.s.purchases.purchase(CUSTOMER, self.product, request_id='crash-after-supplier')
+        self.assertTrue(ok)
+        self.assertEqual(receipt['delivered_item'], 'test-delivery')
+        supplier.purchase.assert_awaited_once()
+        self.assertEqual(await unresolved_attempts(self.db), [])
+        async with self.db.connect() as conn:
+            self.assertEqual(await conn.fetchval('SELECT balance FROM users WHERE tg_user_id=$1', CUSTOMER), 900)
+
+    async def test_interrupted_supplier_call_is_never_automatically_sent_again(self):
+        await self.s.users.adjust_balance(CUSTOMER, 1000)
+        async with self.db.connect() as conn:
+            await conn.execute('UPDATE products SET upstream_product_id=77 WHERE id=$1', self.product)
+        supplier = SimpleNamespace(is_configured=True, purchase=AsyncMock(side_effect=asyncio.CancelledError))
+        self.s.purchases.suppliers = SimpleNamespace(get=lambda code: supplier)
+        with self.assertRaises(asyncio.CancelledError):
+            await self.s.purchases.purchase(CUSTOMER, self.product, request_id='interrupted-supplier')
+        ok, _, receipt = await self.s.purchases.purchase(CUSTOMER, self.product, request_id='interrupted-supplier')
+        self.assertTrue(ok)
+        self.assertEqual(receipt['fulfillment'], 'waiting')
+        supplier.purchase.assert_awaited_once()
+
+    async def test_definitively_refused_supplier_attempt_can_be_explicitly_retried(self):
+        await self.s.users.adjust_balance(CUSTOMER, 1000)
+        async with self.db.connect() as conn:
+            await conn.execute('UPDATE products SET upstream_product_id=77 WHERE id=$1', self.product)
+        supplier = SimpleNamespace(is_configured=True, purchase=AsyncMock(side_effect=[
+            {'success': False, 'detail': 'Low balance', 'insufficient_balance': True},
+            {'success': True, 'credentials': 'test-delivery', 'order_id': 'remote-88'},
+        ]))
+        self.s.purchases.suppliers = SimpleNamespace(get=lambda code: supplier)
+        ok, _, receipt = await self.s.purchases.purchase(CUSTOMER, self.product, request_id='refused-supplier')
+        self.assertTrue(ok)
+        ok, _, result = await self.s.purchases.retry_supplier_fulfillment(receipt['order_id'])
+        self.assertTrue(ok)
+        self.assertEqual(result['fulfillment'], 'delivered')
+        self.assertEqual(supplier.purchase.await_count, 2)
+        self.assertEqual(supplier.purchase.await_args_list[0].kwargs['custom_id'],
+                         supplier.purchase.await_args_list[1].kwargs['custom_id'])
+
+    async def test_api_customer_pays_retail_and_approved_reseller_pays_discount(self):
+        await self.s.catalog.update_product(self.product, reseller_price=80)
+        for user_id, rank, expected in ((CUSTOMER, 'Standard', 100), (INTRUDER, 'Reseller', 80)):
+            await self.s.users.set_rank(user_id, rank)
+            await self.s.users.adjust_balance(user_id, 1000)
+            _, key = await self.s.reseller.generate_key(user_id)
+            product = await self.s.reseller.get_reseller_product(self.product, is_reseller=rank == 'Reseller')
+            self.assertEqual(product['reseller_price'], expected)
+            ok, _, _ = await self.s.purchases.purchase(
+                user_id, self.product, request_id=f'api-price-{user_id}',
+                require_reseller=False, reseller_key_id=key['id'],
+            )
+            self.assertTrue(ok)
+            async with self.db.connect() as conn:
+                balance = await conn.fetchval('SELECT balance FROM users WHERE tg_user_id=$1', user_id)
+            self.assertEqual(balance, 1000 - expected)
 
     async def test_secret_settings_are_never_read_back(self):
         await self.s.settings.update({'zinipay_api_key': 'super-secret-key-value',
@@ -237,6 +364,17 @@ class ProductionConfigTests(unittest.TestCase):
 
     def test_trusted_proxies_never_default_to_everything(self):
         self.assertNotIn('*', self.settings().trusted_proxy_ips)
+
+    def test_unsafe_production_network_boundaries_are_refused(self):
+        for overrides in (
+            {'trusted_proxy_ips': '*'},
+            {'allowed_hosts': '*'},
+            {'allowed_origins': '*'},
+            {'allowed_origins': 'http://shop.example'},
+            {'webhook_base_url': '', 'bot_token': '', 'allowed_hosts': ''},
+        ):
+            with self.subTest(overrides=overrides), self.assertRaises(ValidationError):
+                self.settings(**overrides)
 
     def test_the_webhook_secret_is_derived_when_absent(self):
         config = self.settings()

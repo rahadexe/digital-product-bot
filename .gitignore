@@ -27,6 +27,7 @@ htmlcov/
 
 # ─── Node and the Next.js console ───────────────────────────────
 node_modules/
+.next/
 console/.next/
 console/out/
 *.tsbuildinfo

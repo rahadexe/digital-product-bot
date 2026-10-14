@@ -1,16 +1,17 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, Copy, Lock, Plus, RefreshCw, Search, Sparkles, Trash2 } from 'lucide-react';
+import { Check, Copy, Lock, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { api, type EmojiLibraryItem, type EmojiLibraryResponse } from '@/lib/api';
 import { errorText, Modal, useConfirm, type Say } from './ui';
 import { invalidateEmojiCache } from './EmojiPicker';
 
 export function Emojis({ say }: { say: Say }) {
   const [data, setData] = useState<EmojiLibraryResponse | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [filterTab, setFilterTab] = useState<'all' | 'custom' | 'services' | 'vpn' | 'payment' | 'system'>('all');
+  const [filterTab, setFilterTab] = useState<'all' | 'custom' | 'system'>('all');
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [form, setForm] = useState({ name: '', emoji_id: '' });
   const [saving, setSaving] = useState(false);
@@ -19,11 +20,14 @@ export function Emojis({ say }: { say: Say }) {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await api.emojis();
       setData(res);
     } catch (cause) {
-      say(errorText(cause), 'bad');
+      const message = errorText(cause);
+      setLoadError(message);
+      say(message, 'bad');
     } finally {
       setLoading(false);
     }
@@ -66,7 +70,7 @@ export function Emojis({ say }: { say: Say }) {
     if (item.is_system) return;
     const confirmed = await confirm(
       `Delete Emoji '${item.name}'?`,
-      `This will remove the custom emoji ID '${item.emoji_id}' from your library.`,
+      `This will remove the emoji ID '${item.emoji_id}' from your library.`,
       'Delete',
       true,
     );
@@ -84,38 +88,16 @@ export function Emojis({ say }: { say: Say }) {
 
   const allItems = useMemo(() => {
     if (!data) return [];
-    return data.all || [...(data.custom || []), ...(data.system || [])];
+    return [...(data.system || []), ...(data.custom || [])];
   }, [data]);
-
-  const vpnCount = useMemo(() => {
-    return allItems.filter((i) => i.category === 'VPN').length;
-  }, [allItems]);
-
-  const servicesCount = useMemo(() => {
-    return allItems.filter((i) => i.category === 'Services').length;
-  }, [allItems]);
-
-  const paymentCount = useMemo(() => {
-    return allItems.filter((i) => i.category === 'Payment').length;
-  }, [allItems]);
-
-  const systemCount = useMemo(() => {
-    return allItems.filter((i) => i.category === 'System').length;
-  }, [allItems]);
-
-  const customCount = useMemo(() => {
-    return (data?.custom || []).length;
-  }, [data]);
+  const systemCount = data?.system.length ?? 0;
+  const customCount = data?.custom.length ?? 0;
 
   const filteredItems = useMemo(() => {
     const q = search.trim().toLowerCase();
     return allItems.filter((item) => {
-      // Tab filter
+      if (filterTab === 'system' && !item.is_system) return false;
       if (filterTab === 'custom' && item.is_system) return false;
-      if (filterTab === 'services' && item.category !== 'Services') return false;
-      if (filterTab === 'vpn' && item.category !== 'VPN') return false;
-      if (filterTab === 'payment' && item.category !== 'Payment') return false;
-      if (filterTab === 'system' && item.category !== 'System') return false;
 
       // Search filter
       if (q) {
@@ -129,44 +111,45 @@ export function Emojis({ say }: { say: Say }) {
     <>
       {confirmDialog}
 
-      {/* Top Metric Cards */}
-      <div className="stat-cards-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', marginBottom: '16px' }}>
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <span className="stat-card-label">Total Emojis</span>
-            <Sparkles className="stat-card-icon" />
+      <section className="emoji-library panel" aria-label="Emoji library">
+        <header className="emoji-library-toolbar">
+          <div className="emoji-library-filters" role="group" aria-label="Filter emoji library by source">
+            {(['all', 'system', 'custom'] as const).map((filter) => {
+              const label = filter === 'all' ? 'All' : filter === 'system' ? 'System' : 'Custom';
+              const count = filter === 'all' ? allItems.length : filter === 'system' ? systemCount : customCount;
+              return (
+                <button
+                  key={filter}
+                  type="button"
+                  className={filterTab === filter ? 'active' : ''}
+                  aria-pressed={filterTab === filter}
+                  aria-label={`${label}: ${count} ${count === 1 ? 'emoji' : 'emojis'}`}
+                  onClick={() => setFilterTab(filter)}
+                >
+                  {label}<span className="emoji-filter-count" aria-hidden="true">{count}</span>
+                </button>
+              );
+            })}
           </div>
-          <div className="stat-card-value">{allItems.length}</div>
-        </div>
 
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <span className="stat-card-label">Custom Added</span>
-            <Sparkles className="stat-card-icon" style={{ color: 'var(--accent)' }} />
-          </div>
-          <div className="stat-card-value" style={{ color: 'var(--accent)' }}>{customCount}</div>
-        </div>
+          <label className="emoji-library-search">
+            <Search size={15} aria-hidden="true" />
+            <input
+              type="search"
+              aria-label="Search emoji names or IDs"
+              placeholder="Search name or ID..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </label>
 
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <span className="stat-card-label">Built-in Presets</span>
-            <Lock className="stat-card-icon" />
-          </div>
-          <div className="stat-card-value">{vpnCount + systemCount}</div>
-        </div>
-      </div>
-
-      <div className="panel">
-        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
-          <div>
-            <h2>Emoji Library</h2>
-          </div>
-          <div className="actions">
+          <div className="actions emoji-library-toolbar-actions">
             <button
               type="button"
-              className="mini ghost"
+              className="mini ghost emoji-refresh"
               onClick={() => void load()}
               disabled={loading}
+              aria-label="Refresh emoji library"
               title="Refresh"
             >
               <RefreshCw size={13} className={loading ? 'spin' : ''} />
@@ -175,140 +158,60 @@ export function Emojis({ say }: { say: Say }) {
               type="button"
               className="btn mini"
               onClick={() => setAddModalOpen(true)}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              aria-label="Add emoji"
+              title="Add emoji"
             >
               <Plus size={13} />
-              Add Emoji
+              Add emoji
             </button>
           </div>
         </header>
 
-        <div className="panel-body stack" style={{ gap: '14px' }}>
-          {/* Search and Category Filter Tabs */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
-            {/* Filter Tabs */}
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                className={`mini ${filterTab === 'all' ? 'btn' : 'ghost'}`}
-                onClick={() => setFilterTab('all')}
-              >
-                All ({allItems.length})
-              </button>
-              <button
-                type="button"
-                className={`mini ${filterTab === 'services' ? 'btn' : 'ghost'}`}
-                onClick={() => setFilterTab('services')}
-              >
-                Services ({servicesCount})
-              </button>
-              <button
-                type="button"
-                className={`mini ${filterTab === 'vpn' ? 'btn' : 'ghost'}`}
-                onClick={() => setFilterTab('vpn')}
-              >
-                VPN ({vpnCount})
-              </button>
-              <button
-                type="button"
-                className={`mini ${filterTab === 'payment' ? 'btn' : 'ghost'}`}
-                onClick={() => setFilterTab('payment')}
-              >
-                Payment ({paymentCount})
-              </button>
-              <button
-                type="button"
-                className={`mini ${filterTab === 'system' ? 'btn' : 'ghost'}`}
-                onClick={() => setFilterTab('system')}
-              >
-                System ({systemCount})
-              </button>
-              <button
-                type="button"
-                className={`mini ${filterTab === 'custom' ? 'btn' : 'ghost'}`}
-                onClick={() => setFilterTab('custom')}
-              >
-                Custom ({customCount})
-              </button>
-            </div>
-
-            {/* Search Input */}
-            <div style={{ position: 'relative', width: '260px', maxWidth: '100%' }}>
-              <Search
-                size={13}
-                style={{
-                  position: 'absolute',
-                  left: '10px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  color: 'var(--muted)',
-                  pointerEvents: 'none',
-                }}
-              />
-              <input
-                type="text"
-                placeholder="Search name or ID..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                style={{
-                  width: '100%',
-                  boxSizing: 'border-box',
-                  paddingLeft: '30px',
-                  paddingRight: '10px',
-                  paddingBlock: '6px',
-                  fontSize: '13px',
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Emojis Table */}
-          <div className="scroll" style={{ border: '1px solid var(--border)', borderRadius: '8px' }}>
-            <table className="mobile-records emoji-list">
+        <div className="scroll emoji-library-scroll">
+          <table className="mobile-records emoji-list">
               <thead>
                 <tr>
-                  <th>Emoji Name</th>
-                  <th>Category</th>
-                  <th>Type</th>
-                  <th>Telegram Custom Emoji ID</th>
-                  <th style={{ textAlign: 'right', width: '90px' }}>Actions</th>
+                  <th scope="col">Emoji name</th>
+                  <th scope="col">Emoji ID</th>
+                  <th scope="col" className="emoji-actions-heading">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredItems.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="empty" style={{ textAlign: 'center', padding: '24px', color: 'var(--muted)' }}>
-                      {search ? 'No matching emojis found.' : 'No emojis available.'}
+                  <tr className="empty-row">
+                    <td colSpan={3} className="empty emoji-library-empty">
+                      <strong aria-live="polite">
+                        {loading
+                          ? 'Loading emojis…'
+                          : loadError
+                            ? 'Unable to load emojis'
+                            : 'No emojis found'}
+                      </strong>
+                      {loadError ? (
+                        <>
+                          <span>{loadError}</span>
+                          <button type="button" className="mini ghost" onClick={() => void load()}>
+                            Retry
+                          </button>
+                        </>
+                      ) : null}
                     </td>
                   </tr>
                 ) : (
                   filteredItems.map((item) => (
                     <tr key={item.emoji_id}>
-                      <td>
-                        <div style={{ fontWeight: 600, fontSize: '13.5px', color: 'var(--text)' }}>
-                          {item.name}
+                      <td data-label="Emoji name">
+                        <div className="emoji-library-name">
+                          <strong>{item.name}</strong>
                         </div>
                       </td>
-                      <td>
-                        <span style={{ fontSize: '12px', color: 'var(--text-dim)' }}>
-                          {item.category || 'General'}
-                        </span>
-                      </td>
-                      <td>
-                        {item.is_system ? (
-                          <span className="pill" style={{ background: 'var(--surface-2)', color: 'var(--muted)' }}>
-                            Built-in
-                          </span>
-                        ) : (
-                          <span className="pill good">Custom</span>
-                        )}
-                      </td>
-                      <td>
+                      <td data-label="Emoji ID">
                         <button
                           type="button"
                           className="copy-chip"
                           onClick={() => copyId(item.emoji_id)}
-                          title="Click to copy Emoji ID"
+                          aria-label={`Copy emoji ID for ${item.name}`}
+                          title="Copy ID"
                         >
                           <code>{item.emoji_id}</code>
                           {copiedId === item.emoji_id ? (
@@ -318,21 +221,22 @@ export function Emojis({ say }: { say: Say }) {
                           )}
                         </button>
                       </td>
-                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <td className="emoji-library-actions">
                         {item.is_system ? (
                           <span
-                            title="Protected system emoji (cannot be edited or deleted)"
-                            style={{ display: 'inline-flex', alignItems: 'center', color: 'var(--muted)', padding: '4px 8px' }}
+                            className="emoji-protected"
+                            title="System emoji is protected"
+                            aria-label="System emoji is protected"
                           >
                             <Lock size={13} />
                           </span>
                         ) : (
                           <button
                             type="button"
-                            className="mini ghost"
+                            className="mini ghost emoji-delete"
                             onClick={() => void handleDelete(item)}
+                            aria-label={`Delete custom emoji ${item.name}`}
                             title="Delete custom emoji"
-                            style={{ padding: '4px 6px', color: 'var(--danger)' }}
                           >
                             <Trash2 size={13} />
                           </button>
@@ -342,15 +246,14 @@ export function Emojis({ say }: { say: Say }) {
                   ))
                 )}
               </tbody>
-            </table>
-          </div>
+          </table>
         </div>
-      </div>
+      </section>
 
-      {/* Add Emoji Modal */}
+      {/* Add emoji modal */}
       {addModalOpen && (
         <Modal
-          title="Add Custom Emoji"
+          title="Add emoji"
           onClose={() => setAddModalOpen(false)}
           onSubmit={handleCreate}
           footer={
@@ -367,35 +270,34 @@ export function Emojis({ say }: { say: Say }) {
                 className="btn mini"
                 disabled={saving || !form.name.trim() || !form.emoji_id.trim()}
               >
-                {saving ? 'Saving...' : 'Add Emoji'}
+                {saving ? 'Saving...' : 'Add emoji'}
               </button>
             </>
           }
         >
           <div className="stack" style={{ gap: '14px' }}>
             <label className="field">
-              <span>Emoji Name</span>
+              <span>Emoji name</span>
               <input
                 type="text"
                 required
                 autoFocus
-                placeholder="e.g. Netflix, Spotify, Disney+"
+                placeholder="Netflix, Spotify, Disney+"
                 value={form.name}
                 onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
               />
-              <small>Display name to recognize this emoji in selector</small>
             </label>
 
             <label className="field">
-              <span>Telegram Custom Emoji ID</span>
+              <span>Emoji ID</span>
               <input
                 type="text"
                 required
-                placeholder="e.g. 5379742233853451967"
+                inputMode="numeric"
+                placeholder="5379742233853451967"
                 value={form.emoji_id}
                 onChange={(e) => setForm((p) => ({ ...p, emoji_id: e.target.value }))}
               />
-              <small>Numeric Telegram Document ID of the custom emoji</small>
             </label>
           </div>
         </Modal>

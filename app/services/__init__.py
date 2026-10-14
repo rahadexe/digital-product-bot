@@ -20,6 +20,7 @@ from app.services.admin_access import AdminAccessService
 from app.services.announcements import AnnouncementService
 from app.services.audit import AuditService
 from app.services.binance import BinanceDepositService
+from app.services.binance_credentials import BinanceCredentialsService
 from app.services.catalog import CatalogService
 from app.services.dashboard import DashboardService
 from app.services.delivery import DeliveryService
@@ -69,6 +70,7 @@ class Services:
     deposits: DepositService
     payments: PaymentService
     binance: BinanceDepositService
+    binance_credentials: BinanceCredentialsService
     zinipay: ZiniPayVerificationService
     gate: GateService
     update_channels: UpdateChannelService
@@ -87,6 +89,7 @@ class Services:
         await asyncio.gather(self.payments.http.aclose(), self.binance.http.aclose(), self.zinipay.http.aclose())
         if self.notifier.bot is not None:
             await self.notifier.bot.session.close()
+        await self.purchases.supplier_attempts.close()
         await self.db.close()
 
 
@@ -117,6 +120,7 @@ def build_services(
     limits = RateLimits(db)
     upstream_reseller = UpstreamResellerService(db, config, settings)
     suppliers = SupplierManager(db, config, settings)
+    binance_credentials = BinanceCredentialsService(db, config.secret_key)
     purchases = PurchaseService(db, settings, delivery, notifier, upstream_reseller=upstream_reseller, suppliers=suppliers)
     # Stock warnings need a quiet period; the limiter is the only thing that remembers
     # across restarts and replicas.
@@ -136,7 +140,8 @@ def build_services(
         purchases=purchases,
         deposits=deposits,
         payments=PaymentService(db, settings, notifier, config),
-        binance=BinanceDepositService(db, settings, deposits, notifier, config),
+        binance=BinanceDepositService(db, settings, deposits, notifier, config, binance_credentials=binance_credentials),
+        binance_credentials=binance_credentials,
         zinipay=ZiniPayVerificationService(db, settings, deposits, notifier, config),
         gate=GateService(db, settings, notifier),
         update_channels=UpdateChannelService(db),

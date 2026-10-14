@@ -106,13 +106,11 @@ class SettingSpec:
 
 SPECS: dict[str, SettingSpec] = {
     "store_name": SettingSpec("PremiumOne", max_length=64),
-    "currency": SettingSpec("BDT", _currency_code, 10),
-    "currency_symbol": SettingSpec("৳", max_length=8),
-    "show_usd_price": SettingSpec("1", _flag, 1),
+    "currency": SettingSpec("USD", _currency_code, 10),
+    "currency_symbol": SettingSpec("$", max_length=8),
     "usd_rate": SettingSpec("125", _number(0.0001, 1_000_000), 16),
     "validity_presets": SettingSpec("", max_length=2000),
     "support_username": SettingSpec("@rahadhasanrafi", _username, 65),
-    "welcome_text": SettingSpec("", max_length=3500),
     "referral_enabled": SettingSpec("1", _flag, 1),
     "referral_reward_amount": SettingSpec("3.0", _number(0, 100), 16),
     "force_join_enabled": SettingSpec("0", _flag, 1),
@@ -228,8 +226,7 @@ class SettingsService:
         try:
             from app.bot.formatting import configure_pricing
             usd_rate = float(values.get("usd_rate", "125"))
-            show_usd = values.get("show_usd_price", "1") == "1"
-            configure_pricing(usd_rate=usd_rate, show_usd=show_usd)
+            configure_pricing(usd_rate=usd_rate)
         except Exception:
             pass
         return dict(values)
@@ -246,7 +243,10 @@ class SettingsService:
         return res
 
     async def get(self, key: str) -> str:
-        return (await self.values())[key]
+        vals = await self.values()
+        if key not in vals:
+            return "1" if key == "show_usd_price" else ""
+        return vals[key]
 
     async def flag(self, key: str) -> bool:
         return await self.get(key) == "1"

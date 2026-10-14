@@ -10,15 +10,15 @@ RUN npm run build
 FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 # Container defaults, so the deployment only has to provide secrets and the public address.
-ENV APP_ENV=production HOST=0.0.0.0 PORT=8000
+ENV APP_ENV=production HOST=0.0.0.0 PORT=8000 APP_RELOAD=false USE_POLLING=false
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app/ ./app/
 COPY --from=console /console/out ./console/out
-RUN useradd --create-home appuser
+RUN useradd --create-home appuser && chown -R appuser:appuser /app
 USER appuser
 EXPOSE 8000
-HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=4)"
-CMD ["python", "-m", "app"]
+CMD ["python", "-m", "app", "all", "--no-reload"]

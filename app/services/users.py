@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+from collections import OrderedDict
 from html import escape
 from typing import Any
 
@@ -29,6 +31,13 @@ class UserService:
         self.db = db
         self.settings = settings
         self.notifier = notifier
+        self._user_cache: OrderedDict[int, tuple[float, dict[str, Any] | None]] = OrderedDict()
+        self._cache_ttl: float = 30.0  # 30s cache for fast in-memory access during menu browsing
+        self._lang_cache: dict[int, str] = {}
+
+    def invalidate_cache(self, tg_user_id: int) -> None:
+        self._user_cache.pop(tg_user_id, None)
+        self._lang_cache.pop(tg_user_id, None)
 
     async def sync_profile(
         self,
@@ -60,6 +69,9 @@ class UserService:
                 referred_by,
             )
             result = dict(row)
+            self._user_cache[tg_user_id] = (time.monotonic(), result)
+            if result.get("language"):
+                self._lang_cache[tg_user_id] = str(result["language"]).strip().lower()
             if row["is_new"]:
                 cust = f" · @{escape(username)}" if username else ""
                 full_name = escape(" ".join(filter(None, [first_name, last_name])) or "No name")
@@ -139,17 +151,36 @@ class UserService:
         return {"referrer_id": referrer_id, "amount": reward_amount}
 
     async def get(self, tg_user_id: int) -> dict[str, Any] | None:
+        # Wallet, rank and ban state can change in another service or replica.
+        # A profile cache must never authorize access or show an old balance.
+        now = time.monotonic()
         async with self.db.connect() as conn:
             row = await conn.fetchrow("SELECT * FROM users WHERE tg_user_id = $1", tg_user_id)
-            return dict(row) if row else None
+            res = dict(row) if row else None
+            self._user_cache[tg_user_id] = (now, res)
+            if len(self._user_cache) > 10000:
+                self._user_cache.popitem(last=False)
+            return res
+
+    async def referral_summary(self, tg_user_id: int) -> dict[str, Any]:
+        """The same rewarded-referral totals shown in the bot."""
+        async with self.db.connect() as conn:
+            row = await conn.fetchrow(
+                "SELECT COUNT(*) AS total, COALESCE(SUM(amount), 0) AS earned "
+                "FROM referral_rewards WHERE referrer_tg_id = $1", tg_user_id,
+            )
+        return {"total": row["total"], "earned": row["earned"]}
 
     async def get_language(self, tg_user_id: int) -> str:
-        async with self.db.connect() as conn:
-            val = await conn.fetchval("SELECT language FROM users WHERE tg_user_id = $1", tg_user_id)
-            return (val or "en").strip().lower()
+        """Return the fixed language used by the Telegram bot."""
+        return "en"
 
     async def get_raw_language(self, tg_user_id: int) -> str | None:
         """Returns None if user has not yet explicitly selected a language."""
+        cached_user = self._user_cache.get(tg_user_id)
+        if cached_user and cached_user[1]:
+            val = cached_user[1].get("language")
+            return val.strip().lower() if val else None
         async with self.db.connect() as conn:
             val = await conn.fetchval("SELECT language FROM users WHERE tg_user_id = $1", tg_user_id)
             return val.strip().lower() if val else None
@@ -264,6 +295,7 @@ class UserService:
                 "adjust_balance",
                 f"Adjusted balance of {tg_user_id} by {delta:+.2f} (new balance: {new_balance:.2f}). Reason: {reason}",
             )
+        self.invalidate_cache(tg_user_id)
         if notify:
             self.notifier.in_background(self._notify_adjustment(tg_user_id, delta, user["balance"], reason))
         return dict(user)
@@ -289,6 +321,7 @@ class UserService:
             if value != row["is_banned"]:
                 await conn.execute("UPDATE users SET is_banned = $1 WHERE tg_user_id = $2", value, tg_user_id)
                 await record(conn, "user_banned" if value else "user_unbanned", f"User {tg_user_id}")
+            self.invalidate_cache(tg_user_id)
             return bool(value)
 
     async def set_rank(self, tg_user_id: int, rank: str) -> str:
@@ -300,14 +333,52 @@ class UserService:
         async with self.db.transaction() as conn:
             await conn.execute("UPDATE users SET rank = $1, updated_at = now() WHERE tg_user_id = $2", clean_rank, tg_user_id)
             await record(conn, "user_rank_updated", f"User #{tg_user_id} rank set to {clean_rank}")
+        self.invalidate_cache(tg_user_id)
         return clean_rank
 
     async def set_language(self, tg_user_id: int, language: str) -> str:
-        """Update customer preferred language ('en', 'bn', 'hi', 'ur')."""
+        """Update customer preferred language ('en', 'bn')."""
         clean_lang = language.strip().lower()
-        if clean_lang not in ("en", "bn", "hi", "ur"):
+        if clean_lang not in ("en", "bn"):
             clean_lang = "en"
         async with self.db.transaction() as conn:
             await conn.execute("UPDATE users SET language = $1, updated_at = now() WHERE tg_user_id = $2", clean_lang, tg_user_id)
+        self.invalidate_cache(tg_user_id)
+        self._lang_cache[tg_user_id] = clean_lang
         return clean_lang
 
+    async def get_notification_preferences(self, tg_user_id: int) -> dict[str, bool]:
+        """Fetch user notification preferences (defaults to all true)."""
+        async with self.db.connect() as conn:
+            row = await conn.fetchrow(
+                "SELECT notify_orders, notify_deposits, notify_news FROM user_notification_preferences WHERE tg_user_id = $1",
+                tg_user_id,
+            )
+            if not row:
+                return {"notify_orders": True, "notify_deposits": True, "notify_news": True}
+            return {
+                "notify_orders": bool(row["notify_orders"]),
+                "notify_deposits": bool(row["notify_deposits"]),
+                "notify_news": bool(row["notify_news"]),
+            }
+
+    async def toggle_notification_preference(self, tg_user_id: int, key: str) -> dict[str, bool]:
+        """Toggle a specific notification preference and return updated map."""
+        valid_keys = {"notify_orders", "notify_deposits", "notify_news"}
+        if key not in valid_keys:
+            return await self.get_notification_preferences(tg_user_id)
+
+        current = await self.get_notification_preferences(tg_user_id)
+        new_val = not current.get(key, True)
+        async with self.db.connect() as conn:
+            await conn.execute(
+                f"""
+                INSERT INTO user_notification_preferences (tg_user_id, {key}, updated_at)
+                VALUES ($1, $2, now())
+                ON CONFLICT (tg_user_id) DO UPDATE SET {key} = $2, updated_at = now()
+                """,
+                tg_user_id,
+                new_val,
+            )
+        current[key] = new_val
+        return current

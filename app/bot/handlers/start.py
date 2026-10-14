@@ -15,12 +15,13 @@ from aiogram.types import (
     ChatMemberUpdated,
     LinkPreviewOptions,
     Message,
-    ReplyKeyboardRemove,
 )
 
 from app.bot.formatting import (
+    AUTO_DELETE_ENABLED,
     _quiet_delete,
     clean_previous_menu,
+    format_dual_price,
     remember_menu_message,
     send_operator_html,
 )
@@ -34,8 +35,6 @@ from app.bot.icons import (
 )
 from app.bot.keyboards import (
     get_gate_keyboard,
-    get_language_selection_keyboard,
-    get_main_inline_keyboard,
     get_persistent_reply_keyboard,
 )
 from app.core.i18n import t
@@ -44,43 +43,63 @@ from app.services import Services
 logger = logging.getLogger("app.bot.start")
 
 
-def build_welcome_text(store_name: str, support_handle: str, custom_text: str = "", paused_notice: str = "", lang: str = "en") -> str:
+def build_welcome_text(
+    paused_notice: str = "",
+    lang: str = "en",
+    balance_str: str = "",
+    user_name: str = "",
+) -> str:
     prefix = t("maintenance_notice", lang, icon_warning=ICON_WARNING, notice=escape(paused_notice)) if paused_notice else ""
-    if custom_text:
-        formatted = (
-            custom_text
-            .replace("{store_name}", escape(store_name))
-            .replace("[Store Name]", escape(store_name))
-            .replace("{store}", escape(store_name))
-        )
-        return prefix + formatted
-    default_text = t("welcome_default", lang, icon_sparkles=ICON_SPARKLES, store_name=escape(store_name))
-    return prefix + default_text
+    greeting = f"Welcome, {escape(user_name)}" if user_name else "Welcome"
+    if lang == "bn":
+        greeting = f"স্বাগতম, {escape(user_name)}" if user_name else "স্বাগতম"
+    bal_label = "Balance" if lang != "bn" else "ব্যালেন্স"
+    lines = [f"<b>{greeting}</b>"]
+    if balance_str:
+        lines.append(f"{bal_label}: <code>{balance_str}</code>")
+    return prefix + "\n".join(lines)
 
 
 router = Router(name="start_router")
 
 
 async def render_main_dashboard(message: Message, services: Services, tg_user_id: int, edit: bool = False) -> None:
-    """The welcome screen — clean text message with pure inline keyboard (no persistent bottom keyboard)."""
-    values = await services.settings.values()
+    values, paused_notice, user, admin_ids = await asyncio.gather(
+        services.settings.values(),
+        services.settings.paused_message(),
+        services.users.get(tg_user_id),
+        services.settings.admin_chat_ids(),
+    )
     store_name = values.get("store_name", "Premium Haven")
     support_handle = values.get("support_username", "")
-    custom_welcome = values.get("welcome_text", "").strip()
-    paused_notice = await services.settings.paused_message()
 
-    user = await services.users.get(tg_user_id)
-    lang = (user.get("language") or "en").strip().lower() if user else "en"
-    text = build_welcome_text(store_name, support_handle, custom_welcome, paused_notice, lang=lang)
+    lang = "en"
+    symbol = values.get("currency_symbol", "$")
+    usd_rate = float(values.get("usd_rate", 125.0))
+    user_balance = float(user.get("balance", 0.0)) if user else 0.0
+    balance_display = format_dual_price(user_balance, symbol, usd_rate=usd_rate, lang=lang)
 
-    pinned_categories = await services.catalog.pinned_categories(active_only=True)
-    unpinned_categories = await services.catalog.unpinned_categories(active_only=True)
-    is_admin = tg_user_id in await services.settings.admin_chat_ids()
-    inline_kb = get_main_inline_keyboard(
-        pinned_categories=pinned_categories,
-        has_unpinned=bool(unpinned_categories),
+    user_name = ""
+    if user:
+        user_name = user.get("first_name") or user.get("username") or ""
+    if not user_name and getattr(message, "from_user", None):
+        user_name = message.from_user.first_name or ""
+
+    text = build_welcome_text(
+        paused_notice=paused_notice,
+        lang=lang,
+        balance_str=balance_display,
+        user_name=user_name,
+    )
+
+    is_admin = tg_user_id in admin_ids
+    is_reseller = (user.get("rank") or "").strip().lower() == "reseller" if user else False
+
+    main_reply_kb = get_persistent_reply_keyboard(
+        is_reseller=is_reseller,
         is_admin=is_admin,
         lang=lang,
+        show_icons=True,
     )
 
     chat = getattr(message, "chat", None)
@@ -89,33 +108,32 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
 
     if edit and message:
         try:
-            await message.edit_text(text, reply_markup=inline_kb)
+            await message.edit_text(text, reply_markup=None)
             if chat_id and message.message_id:
                 remember_menu_message(chat_id, message.message_id)
             return
-        except TelegramBadRequest:
-            with suppress(TelegramBadRequest):
-                await message.delete()
+        except TelegramBadRequest as exc:
+            if "message is not modified" in str(exc).lower():
+                return
+            if AUTO_DELETE_ENABLED:
+                with suppress(TelegramBadRequest):
+                    await message.delete()
 
     if chat_id and bot:
         clean_previous_menu(bot, chat_id)
 
-    sent = await send_operator_html(message.answer, text, reply_markup=inline_kb)
+    sent = await send_operator_html(message.answer, text, reply_markup=main_reply_kb)
     if sent and chat_id:
         remember_menu_message(chat_id, sent.message_id)
 
     # In private chat, quietly delete incoming command message (e.g. /start or /menu)
     msg_id = getattr(message, "message_id", None)
-    if bot and chat_id and msg_id and getattr(chat, "type", "") == "private":
+    msg_text = (getattr(message, "text", "") or "").strip()
+    if bot and chat_id and msg_id and getattr(chat, "type", "") == "private" and msg_text.startswith("/"):
         asyncio.create_task(_quiet_delete(bot, chat_id, msg_id))
 
 
-def gate_text(missing: list[dict[str, Any]], store_name: str = "Digital Mart") -> str:
-    if any(ch.get('verification_unavailable') for ch in missing):
-        return (
-            "<b>Channel verification is temporarily unavailable.</b>\n\n"
-            "If you already joined, you do not need to join again. Tap <b>I've Joined</b> to retry shortly, or contact support if this continues."
-        )
+def gate_text(missing: list[dict[str, Any]], store_name: str = "Premium Haven") -> str:
     is_single = len(missing) == 1
     channel_word = "our channel" if is_single else "our channels"
     links = []
@@ -128,8 +146,11 @@ def gate_text(missing: list[dict[str, Any]], store_name: str = "Digital Mart") -
         else:
             links.append(f"{ICON_CHANNEL} <b>{title}</b>")
     titles = "\n".join(links)
+    notice = ("Verification is temporarily unavailable. Please try again shortly.\n\n"
+              if any(ch.get("verification_unavailable") for ch in missing) else "")
     return (
         f"{ICON_LOCK} <b>Membership Required</b>\n\n"
+        f"{notice}"
         f"Please join {channel_word} to continue:\n\n"
         f"{titles}\n\n"
         f"👇 <i>Join and click <b>I've Joined</b> to unlock!</i>"
@@ -159,6 +180,8 @@ def referral_parameter(text: str | None) -> int | None:
         val = param[3:]
         if val.isdigit() and len(val) <= 18:
             return int(val)
+    elif param.isdigit() and len(param) <= 18:
+        return int(param)
     return None
 
 
@@ -171,7 +194,7 @@ async def handle_start(message: Message, state: FSMContext, services: Services):
         return
     ref_id = referral_parameter(message.text)
     product_id = start_parameter(message.text)
-    sync_user, (passed, missing) = await asyncio.gather(
+    _, (passed, missing) = await asyncio.gather(
         services.users.sync_profile(tg_user.id, tg_user.username, tg_user.first_name, tg_user.last_name, referred_by=ref_id),
         services.gate.check(tg_user.id),
     )
@@ -180,6 +203,9 @@ async def handle_start(message: Message, state: FSMContext, services: Services):
     bot = getattr(message, "bot", None)
 
     if not passed:
+        errored = [ch for ch in missing if ch.get("verification_unavailable")]
+        if errored:
+            services.notifier.in_background(services.gate.notify_admin_channel_issue(errored, tg_user))
         store_name = await services.settings.get("store_name")
         if chat_id and bot:
             clean_previous_menu(bot, chat_id)
@@ -197,6 +223,14 @@ async def handle_start(message: Message, state: FSMContext, services: Services):
     # User passed gate directly (or no gate channels configured): process pending referral reward
     await services.users.process_referral_reward(tg_user.id)
 
+    # Mini App handoffs keep sensitive reseller/key and warranty actions in the bot.
+    mini_target = (message.text or "").split(maxsplit=1)
+    if len(mini_target) == 2 and mini_target[1] in {"mini_reseller", "mini_orders"}:
+        from app.bot.handlers.profile import show_order_history, show_reseller_info
+        handler = show_reseller_info if mini_target[1] == "mini_reseller" else show_order_history
+        await handler(message, state, services)
+        return
+
     # Opened from an announcement button: show that product directly.
     if product_id:
         product = await services.catalog.product(product_id)
@@ -212,72 +246,43 @@ async def handle_start(message: Message, state: FSMContext, services: Services):
                 asyncio.create_task(_quiet_delete(bot, chat_id, message.message_id))
             return
 
-    # If user hasn't explicitly chosen a language yet (e.g. fresh onboarding)
-    raw_lang = sync_user.get("language")
-    if not raw_lang:
-        prompt_text = (
-            "🌐 <b>Select Your Language / ভাষা নির্বাচন করুন / भाषा चुनें / زبان منتخب کریں:</b>\n\n"
-            "🇬🇧 English | 🇧🇩 বাংলা | 🇮🇳 हिन्दी | 🇵🇰 اردو\n\n"
-            "<i>💡 You can change this anytime from My Profile.</i>"
-        )
-        if chat_id and bot:
-            clean_previous_menu(bot, chat_id)
-        sent = await message.answer(
-            prompt_text,
-            reply_markup=get_language_selection_keyboard(current_lang="en", back_target=None),
-        )
-        if sent and chat_id:
-            remember_menu_message(chat_id, sent.message_id)
-        if bot and chat_id and getattr(chat, "type", "") == "private":
-            asyncio.create_task(_quiet_delete(bot, chat_id, message.message_id))
-        return
-
-    # Remove any leftover persistent reply keyboard on user's device
-    with suppress(TelegramBadRequest):
-        rm_msg = await message.answer("\u200b", reply_markup=ReplyKeyboardRemove())
-        await rm_msg.delete()
-
-    # Render main welcome banner directly with pure inline keyboard attached
+    # Render main welcome banner directly with keyboard attached
     await render_main_dashboard(message, services, tg_user.id)
 
 
-@router.callback_query(F.data.startswith("set_lang_"))
-async def handle_set_language_callback(query: CallbackQuery, state: FSMContext, services: Services):
-    await state.clear()
-    lang_code = query.data.removeprefix("set_lang_").strip().lower()
-    user_id = query.from_user.id
-    saved_lang = await services.users.set_language(user_id, lang_code)
-
-    toast_msg = t("lang_switched_toast", saved_lang)
-    with suppress(TelegramBadRequest):
-        await query.answer(toast_msg)
-
-    if query.message:
-        await render_main_dashboard(query.message, services, user_id, edit=True)
 
 
 @router.callback_query(F.data == "gate_verify")
 async def handle_gate_verify(query: CallbackQuery, state: FSMContext, services: Services):
     await state.clear()
-    passed, missing = await services.gate.check(query.from_user.id)
-    if not passed:
-        with suppress(TelegramBadRequest):
-            alert_msg = "Please join our channel first!" if len(missing) == 1 else "Please join the channels first!"
-            await query.answer(
-                "Verification is temporarily unavailable. Please retry shortly."
-                if any(c.get("verification_unavailable") for c in missing)
-                else f"⚠️ {alert_msg}",
-                show_alert=True,
-            )
+    tg_user = query.from_user
+    if not tg_user:
         return
+    passed, missing = await services.gate.check(tg_user.id)
+    if not passed:
+        unjoined = [c for c in missing if not c.get("verification_unavailable")]
+        errored = [c for c in missing if c.get("verification_unavailable")]
+        if errored:
+            services.notifier.in_background(services.gate.notify_admin_channel_issue(errored, tg_user))
+
+        if unjoined:
+            with suppress(TelegramBadRequest):
+                alert_msg = "Please join our channel first!" if len(unjoined) == 1 else "Please join the channels first!"
+                await query.answer(f"⚠️ {alert_msg}", show_alert=True)
+            return
+
+        if errored:
+            with suppress(TelegramBadRequest):
+                await query.answer("Verification is temporarily unavailable. Please try again shortly.", show_alert=True)
+            return
 
     # User verified channel join: award referral bonus to referrer
-    await services.users.process_referral_reward(query.from_user.id)
+    await services.users.process_referral_reward(tg_user.id)
 
     with suppress(TelegramBadRequest):
         await query.answer("✅ Verified successfully!")
     if query.message:
-        await render_main_dashboard(query.message, services, query.from_user.id, edit=True)
+        await render_main_dashboard(query.message, services, tg_user.id, edit=True)
 
 
 @router.chat_member()
@@ -291,7 +296,7 @@ async def on_gate_channel_membership_changed(event: ChatMemberUpdated, services:
     for real. Without that admin right no report arrives and the cache is the only bound.
     """
     status = event.new_chat_member.status
-    if status not in ("left", "kicked"):
+    if status not in ("left", "kicked", "member", "administrator", "creator", "restricted"):
         return
     user_id = event.new_chat_member.user.id
     if not await services.gate.guards(event.chat.id, event.chat.username):
@@ -300,10 +305,22 @@ async def on_gate_channel_membership_changed(event: ChatMemberUpdated, services:
     logger.info("Gate: user %s left channel %s; cached membership dropped", user_id, event.chat.id)
 
 
+@router.message(F.text.in_({
+    "🔙 BACK TO MAIN", "🔙 Back to Main", "Back to Main", "back to main",
+    "🔙 BACK", "BACK", "🔙 Back", "Back", "back", "🔙 back",
+    "🔙 ব্যাক", "ব্যাক", "🏠 MAIN MENU", "🏠 Main Menu", "Main Menu", "main menu",
+    "🏠 মেইন মেনু", "মেইন মেনু", "🔙 BACK TO CATALOG", "🔙 Back to Catalog",
+}))
 @router.callback_query(F.data == "back_to_main")
-async def handle_back_to_main(query: CallbackQuery, state: FSMContext, services: Services):
+async def handle_back_to_main(event: Message | CallbackQuery, state: FSMContext, services: Services):
     await state.clear()
-    with suppress(TelegramBadRequest):
-        await query.answer()
-    if query.message:
-        await render_main_dashboard(query.message, services, query.from_user.id, edit=True)
+    tg_user = event.from_user
+    if not tg_user:
+        return
+    if isinstance(event, CallbackQuery):
+        with suppress(TelegramBadRequest):
+            await event.answer()
+        if event.message:
+            await render_main_dashboard(event.message, services, tg_user.id, edit=True)
+    else:
+        await render_main_dashboard(event, services, tg_user.id, edit=False)

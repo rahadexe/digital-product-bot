@@ -35,6 +35,7 @@ from app.bot.icons import (
     Icons,
 )
 from app.core.config import Settings
+from app.core.identifiers import format_deposit_id
 from app.core.money import money
 from app.db import Database
 from app.services.audit import record
@@ -273,8 +274,7 @@ class PaymentService:
             return {"ok": False, "message": "Switch instant payments on, save the API key, and set WEBAPP_URL or Brand URL first."}
         values = await self.settings.values()
         base = self.public_base_url(values.get("zinipay_brand_url", ""))
-        rate = _decimal(values["zinipay_rate"])
-        pay_amount = (_decimal(options["min_amount"]) * rate).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        pay_amount = _decimal(options["min_amount"]).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         reference = f"{REFERENCE_PREFIX}{secrets.token_hex(8).upper()}"
         return_url = f"{base}/api/payments/return?reference={reference}"
         payload = {
@@ -672,10 +672,9 @@ class PaymentService:
                 kb = InlineKeyboardMarkup(
                     inline_keyboard=[[
                         InlineKeyboardButton(
-                            text="Deposit Menu",
+                            text="💳 Deposit Menu",
                             callback_data="open_deposit",
                             style="primary",
-                            icon_custom_emoji_id=Icons.DEPOSIT,
                         )
                     ]]
                 )
@@ -710,7 +709,7 @@ class PaymentService:
             pass
 
         await self.notifier.send_admin(
-            f"{ICON_DEPOSIT} <b>Automatic Deposit #{deposit_id}</b>\n\n"
+            f"{ICON_DEPOSIT} <b>Automatic Deposit {format_deposit_id(deposit_id)}</b>\n\n"
             f"{ICON_ACCOUNT} <b>Customer:</b> {customer_name}\n"
             f"{ICON_ID} <b>Customer ID:</b> <code>{row['tg_user_id']}</code>\n"
             f"{ICON_MONEY} <b>Amount:</b> <code>{credit:.2f} {symbol}</code>{paid_line}\n"

@@ -4,6 +4,7 @@ import math
 from contextlib import suppress
 from datetime import datetime
 from html import escape
+from typing import Any
 from urllib.parse import quote
 
 from aiogram import F, Router
@@ -20,6 +21,7 @@ from aiogram.types import (
 )
 
 from app.bot.formatting import callback_int, format_dual_price, price, respond
+from app.core.identifiers import format_deposit_id, format_order_id
 from app.bot.icons import (
     ICON_ACCOUNT,
     ICON_BALANCE,
@@ -47,11 +49,16 @@ from app.bot.icons import (
     ICON_STATS,
     ICON_SUPPORT,
     ICON_TIMER,
+    ICON_USER,
     ICON_VIP,
     ICON_WARNING,
     Icons,
 )
-from app.bot.keyboards import get_account_keyboard, get_language_selection_keyboard
+from app.bot.keyboards import (
+    get_account_keyboard,
+    get_language_selection_keyboard,
+    get_notification_settings_keyboard,
+)
 from app.core.i18n import t
 from app.services import Services
 
@@ -65,18 +72,22 @@ def reseller_api_links(config) -> tuple[str, list[list[InlineKeyboardButton]]]:
     """The endpoint to show and the docs button row.
 
     Telegram refuses a button pointing at a private address and drops the whole message with it,
-    so a store without a public https address gets the text without the link.
+    so if no public https console_url is configured, we provide the in-bot Quick Guide button.
     """
     base = config.console_url
-    if not base:
-        return "<i>Available once the store has a public address. Contact support.</i>", []
+    if base and base.startswith("https://"):
+        return (
+            f"<code>{base}/api/v1/reseller</code>",
+            [[InlineKeyboardButton(
+                text="API Docs",
+                url=f"{base}/api/v1/reseller/docs",
+            )]],
+        )
     return (
-        f"<code>{base}/api/v1/reseller</code>",
+        "<code>https://api.yourdomain.com/api/v1/reseller</code>",
         [[InlineKeyboardButton(
-            text="View API Docs",
-            url=f"{base}/api/v1/reseller/docs",
-            style="primary",
-            icon_custom_emoji_id=Icons.NOTE,
+            text="API Docs",
+            callback_data="reseller_quick_guide",
         )]],
     )
 
@@ -91,12 +102,16 @@ def reseller_api_links(config) -> tuple[str, list[list[InlineKeyboardButton]]]:
     "My Profile",
     "my profile",
     "👤 My Profile",
+    "👤 MY PROFILE",
+    "MY PROFILE",
     "Profile",
     "profile",
     "👤 Profile",
     "Account",
     "account",
     "👤 Account",
+    "👤 ACCOUNT",
+    "ACCOUNT",
     "💼 Account",
     "Balance",
     "balance",
@@ -104,17 +119,32 @@ def reseller_api_links(config) -> tuple[str, list[list[InlineKeyboardButton]]]:
     "💰 My Balance",
     "My Balance",
     "my balance",
+    "MY BALANCE",
     "👤 আমার প্রোফাইল",
     "আমার প্রোফাইল",
-    "👤 मेरी प्रोफाइल",
-    "मेरी प्रोफाइल",
-    "👤 میری پروفائل",
-    "میری پروفائل",
+    "👤 একাউন্ট",
+    "একাউন্ট",
+    "👤 অ্যাকাউন্ট",
+    "অ্যাকাউন্ট",
+    "👤 একাউন্ট ও রেফার",
+    "একাউন্ট ও রেফার",
+    "👤 অ্যাকাউন্ট ও রেফার",
+    "অ্যাকাউন্ট ও রেফার",
+    "Account & Refer",
+    "account & refer",
+    "👤 Account & Refer",
+    "👤 ACCOUNT & REFER",
+    "ACCOUNT & REFER",
+    "Settings",
+    "settings",
+    "⚙️ Settings",
 }))
 @router.message(F.text.casefold() == "my profile")
 @router.message(F.text.casefold() == "profile")
 @router.message(F.text.casefold() == "account")
 @router.message(F.text.casefold() == "balance")
+@router.message(F.text.casefold() == "account & refer")
+@router.message(F.text.casefold() == "account and refer")
 @router.callback_query(F.data == "open_account")
 @router.callback_query(F.data == "open_balance")
 async def show_user_profile(event: Message | CallbackQuery, state: FSMContext, services: Services):
@@ -123,31 +153,73 @@ async def show_user_profile(event: Message | CallbackQuery, state: FSMContext, s
     if not tg_user:
         return
 
-    stats = await services.users.stats(tg_user.id)
-    user = stats.get("user", {})
+    user = await services.users.get(tg_user.id) or {}
     user_name = escape(tg_user.full_name or tg_user.first_name or "Customer")
 
-    lang = (user.get("language") or "en").strip().lower()
+    lang = await services.users.get_language(tg_user.id)
     rank_val = (user.get("rank") or "Standard").strip()
     is_reseller = rank_val.lower() in {"reseller", "reseller partner"}
     account_type_label = t("rank_reseller", lang) if is_reseller else t("rank_standard", lang)
 
-    tg_username = tg_user.username
+    symbol = await services.settings.get("currency_symbol")
+    usd_rate = await services.settings.number("usd_rate")
+    user_balance = float(user.get("balance", 0.0))
+    balance_display = price(symbol, user_balance, usd_rate=usd_rate, lang=lang)
+
+    stats_data = await services.users.stats(tg_user.id) or {}
+    order_count = int(stats_data.get("order_count", 0))
+    total_spent_val = stats_data.get("total_spent", 0.0)
+    spent_display = price(symbol, float(total_spent_val), usd_rate=usd_rate, lang=lang)
+
+    tg_username = getattr(tg_user, "username", None)
     username_line = (
-        f"{ICON_SPARKLES} <b>{t('profile_username', lang)}:</b> @{escape(tg_username)}\n"
+        f"<b>Username:</b> @{escape(tg_username)}\n"
         if tg_username
         else ""
     )
 
-    text = (
-        f"{t('account_title', lang, icon_account=ICON_ACCOUNT)}\n\n"
-        f"{ICON_USER} <b>{t('profile_name', lang)}:</b> {user_name}\n"
-        f"{username_line}"
-        f"{ICON_ID} <b>{t('profile_user_id', lang)}:</b> <code>{tg_user.id}</code>\n"
-        f"{ICON_VIP} <b>{t('profile_account_type', lang)}:</b> <b>{account_type_label}</b>"
+    async with services.db.connect() as conn:
+        row = await conn.fetchrow(
+            "SELECT COUNT(*) AS total_invited FROM referral_rewards WHERE referrer_tg_id = $1",
+            tg_user.id,
+        )
+        total_invited = row["total_invited"] if row else 0
+
+    bot_user = await services.notifier.bot_username()
+    ref_link = f"https://t.me/{bot_user}?start={tg_user.id}" if bot_user else ""
+
+    status_name = "Reseller" if is_reseller else "Member"
+    if lang != "bn":
+        text = (
+            f"<b>Name:</b> {user_name}\n"
+            f"<b>User ID:</b> <code>{tg_user.id}</code>\n"
+            f"<b>Status:</b> {status_name}\n\n"
+            f"<b>Balance:</b> <code>{balance_display}</code>\n"
+            f"<b>Orders:</b> {order_count}\n"
+            f"<b>Spent:</b> <code>{spent_display}</code>\n"
+            f"<b>Referrals:</b> {total_invited}\n\n"
+            f"<b>Referral Link:</b>\n"
+            f"<code>{ref_link}</code>"
+        )
+    else:
+        status_bn = "রিসেলার" if is_reseller else "মেম্বার"
+        text = (
+            f"<b>নাম:</b> {user_name}\n"
+            f"<b>ইউজার আইডি:</b> <code>{tg_user.id}</code>\n"
+            f"<b>স্ট্যাটাস:</b> {status_bn}\n\n"
+            f"<b>ব্যালেন্স:</b> <code>{balance_display}</code>\n"
+            f"<b>অর্ডার:</b> {order_count}\n"
+            f"<b>মোট খরচ:</b> <code>{spent_display}</code>\n"
+            f"<b>রেফারেল:</b> {total_invited}\n\n"
+            f"<b>রেফারেল লিংক:</b>\n"
+            f"<code>{ref_link}</code>"
+        )
+    account_kb = get_account_keyboard(
+        lang=lang,
+        is_reseller=is_reseller,
+        order_count=order_count,
     )
-    is_admin = tg_user.id in await services.settings.admin_chat_ids()
-    await respond(event, text, get_account_keyboard(lang=lang, is_admin=is_admin, is_reseller=is_reseller))
+    await respond(event, text, account_kb)
 
 
 @router.message(Command("language"))
@@ -158,11 +230,29 @@ async def show_language_menu(event: Message | CallbackQuery, state: FSMContext, 
     tg_user = event.from_user
     if not tg_user:
         return
-    current_lang = await services.users.get_language(tg_user.id)
-    text = t("select_language_prompt", current_lang)
-    back_target = "open_account" if isinstance(event, CallbackQuery) else "back_to_main"
-    kb = get_language_selection_keyboard(current_lang=current_lang, back_target=back_target)
+    text = "Choose your preferred language:"
+    back_target = "open_account"
+    user_lang = "en"
+    if getattr(services, "users", None) and hasattr(services.users, "get_language"):
+        user_lang = (await services.users.get_language(tg_user.id)) or "en"
+    kb = get_language_selection_keyboard(current_lang=user_lang, back_target=back_target)
     await respond(event, text, kb)
+
+
+@router.callback_query(F.data == "set_lang_en")
+async def select_english_language(event: CallbackQuery, state: FSMContext, services: Services):
+    await state.clear()
+    tg_user = event.from_user
+    if not tg_user:
+        return
+    await services.users.set_language(tg_user.id, "en")
+    await show_user_profile(event, state, services)
+
+
+@router.callback_query(F.data == "language_coming_soon")
+async def notify_language_coming_soon(event: CallbackQuery):
+    with suppress(TelegramBadRequest):
+        await event.answer("বাংলা ভাষা শীঘ্রই যুক্ত করা হচ্ছে! / Bangla language coming soon!", show_alert=True)
 
 
 @router.message(Command("referral"))
@@ -171,12 +261,23 @@ async def show_language_menu(event: Message | CallbackQuery, state: FSMContext, 
     "🎁 Refer & Earn",
     "Refer & Earn",
     "refer & earn",
+    "🎁 REFER & EARN",
+    "REFER & EARN",
+    "🎁 Refer",
+    "Refer",
+    "🎁 REFER",
+    "REFER",
+    "🎁 Referral",
+    "Referral",
+    "referral",
+    "🎁 REFERRAL",
+    "REFERRAL",
     "🎁 রেফার ও ইনকাম",
     "রেফার ও ইনকাম",
-    "🎁 रेफर और कमाएं",
-    "रेफर और कमाएं",
-    "🎁 ریفر اور کمائیں",
-    "ریفر اور کمائیں",
+    "🎁 রেফারেল",
+    "রেফারেল",
+    "🎁 রেফার",
+    "রেফার",
 }))
 @router.callback_query(F.data == "open_referral")
 async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, services: Services):
@@ -185,18 +286,20 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
     if not tg_user:
         return
 
+    user = await services.users.get(tg_user.id)
+    lang = await services.users.get_language(tg_user.id) if tg_user else "en"
+
     symbol = await services.settings.get("currency_symbol")
     reward_amount = await services.settings.number("referral_reward_amount")
     reward_enabled = await services.settings.flag("referral_enabled")
     usd_rate = await services.settings.number("usd_rate")
-    show_usd = await services.settings.flag("show_usd_price")
 
-    reward_str = format_dual_price(reward_amount, symbol, usd_rate=usd_rate, show_usd=show_usd)
+    reward_str = format_dual_price(reward_amount, symbol, usd_rate=usd_rate, lang=lang)
 
     async with services.db.connect() as conn:
         row = await conn.fetchrow(
             """
-            SELECT 
+            SELECT
                 COUNT(*) AS total_invited,
                 COALESCE(SUM(amount), 0) AS total_earned
             FROM referral_rewards
@@ -207,100 +310,93 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
         total_invited = row["total_invited"] if row else 0
         total_earned = float(row["total_earned"]) if row else 0.0
 
-    total_earned_str = format_dual_price(total_earned, symbol, usd_rate=usd_rate, show_usd=show_usd)
+    total_earned_str = format_dual_price(total_earned, symbol, usd_rate=usd_rate, lang=lang)
 
     bot_user = await services.notifier.bot_username()
-    ref_link = f"https://t.me/{bot_user}?start=ref_{tg_user.id}"
+    ref_link = f"https://t.me/{bot_user}?start={tg_user.id}"
     store_name = (await services.settings.get("store_name")) or "Premium Haven"
 
     reward_display = reward_str if reward_enabled and reward_amount > 0 else f"0 {symbol}"
     earned_display = total_earned_str
 
-    user = await services.users.get(tg_user.id)
-    lang = (user.get("language") or "en").strip().lower() if user else "en"
-
-    if reward_enabled and reward_amount > 0:
-        steps_text = (
-            f"{t('referral_step_1', lang)}\n"
-            f"{t('referral_step_2', lang)}\n"
-            f"{t('referral_step_3', lang, reward=reward_display)}\n\n"
+    if lang != "bn":
+        reward_line = f"Reward: <code>{reward_display}</code> per friend\n" if reward_enabled and reward_amount > 0 else f"Reward: <code>0 {symbol}</code> per friend\n"
+        text = (
+            f"Invited: <code>{total_invited}</code>\n"
+            f"Earned: <code>{earned_display}</code>\n"
+            f"{reward_line}\n"
+            "Your referral link:\n"
+            f"<code>{ref_link}</code>"
         )
+        copy_label = "Copy Link"
+        share_label = "Share"
+        back_label = "Back"
+        share_msg = quote(f"Join {store_name}:\n{ref_link}")
     else:
-        steps_text = f"{t('referral_step_1', lang)}\n\n"
+        reward_line = f"বোনাস: <code>{reward_display}</code> (প্রতি রেফার)\n" if reward_enabled and reward_amount > 0 else f"বোনাস: <code>0 {symbol}</code> (প্রতি রেফার)\n"
+        text = (
+            f"মোট ইনভাইট: <code>{total_invited}</code>\n"
+            f"মোট আয়: <code>{earned_display}</code>\n"
+            f"{reward_line}\n"
+            "আপনার রেফারেল লিংক:\n"
+            f"<code>{ref_link}</code>"
+        )
+        copy_label = "লিংক কপি করুন"
+        share_label = "শেয়ার"
+        back_label = "Back"
+        share_msg = quote(f"{store_name}-এ জয়েন করুন:\n{ref_link}")
 
-    stats_header = t("referral_stats_header", lang, icon_stats=ICON_STATS)
-
-    text = (
-        f"{t('referral_title', lang, icon_refer=ICON_REFER)}\n\n"
-        f"{steps_text}"
-        f"{stats_header}\n"
-        f"{ICON_ACCOUNT} <b>{t('referral_stat_total', lang)}:</b> <code>{total_invited}</code>\n"
-        f"{ICON_COIN} <b>{t('referral_stat_earned', lang)}:</b> <code>{earned_display}</code>\n\n"
-        f"{ICON_LINK} <b>{t('referral_link_label', lang)}:</b>\n"
-        f"<code>{ref_link}</code>"
-    )
-
-    share_text = quote(f"🔥 Join {store_name}!\n\n👉 {ref_link}")
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text=t("btn_share_referral", lang),
-                    url=f"https://t.me/share/url?url={ref_link}&text={share_text}",
-                    style="success",
-                    icon_custom_emoji_id=Icons.CHANNEL,
-                ),
-                InlineKeyboardButton(
-                    text=t("btn_copy_link", lang),
-                    copy_text=CopyTextButton(text=ref_link),
-                    style="primary",
-                    icon_custom_emoji_id=Icons.NOTE,
-                ),
-            ],
-            [
-                InlineKeyboardButton(
-                    text=t("btn_back", lang),
-                    callback_data="back_to_main",
-                    style="primary",
-                    icon_custom_emoji_id=Icons.BACK,
-                ),
-            ],
-        ]
-    )
+    buttons: list[list[InlineKeyboardButton]] = [
+        [
+            InlineKeyboardButton(
+                text=copy_label,
+                copy_text=CopyTextButton(text=ref_link),
+            ),
+            InlineKeyboardButton(
+                text=share_label,
+                url=f"https://t.me/share/url?url={ref_link}&text={share_msg}",
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text=back_label,
+                callback_data="open_account",
+            ),
+        ],
+    ]
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
     await respond(event, text, kb)
 
 
-@router.message(Command("api"))
+
+# --- Reseller Portal (Wholesale & Business Program) ---
 @router.message(Command("reseller"))
 @router.message(F.text.in_({
+    "💼 Reseller Panel",
+    "Reseller Panel",
+    "reseller panel",
+    "RESELLER PANEL",
+    "💼 RESELLER PANEL",
+    "reseller",
+    "RESELLER",
+    "💼 Reseller",
+    "Reseller",
+    "💼 RESELLER",
     "💼 Become Reseller",
     "Become Reseller",
     "become reseller",
     "💼 Apply as a Reseller",
     "Apply as a Reseller",
-    "apply as a reseller",
-    "Reseller Panel",
-    "💼 Reseller Panel",
-    "reseller panel",
-    "reseller",
     "💼 রিসেলার হন",
     "রিসেলার হন",
     "💼 রিসেলার প্যানেল",
     "রিসেলার প্যানেল",
-    "💼 रीसेलर बनें",
-    "रीसेलर बनें",
-    "💼 रीसेलर पैनल",
-    "रीसेलर पैनल",
-    "💼 ری سیلر بنیں",
-    "ری سیلر بنیں",
-    "💼 ری سیلر پینل",
-    "ری سیلر پینل",
-    "/api",
-    "api",
-    "API",
+    "💼 রিসেলার",
+    "রিসেলার",
 }))
+@router.callback_query(F.data == "open_reseller_hub")
 @router.callback_query(F.data == "open_reseller")
-async def show_reseller_info(event: Message | CallbackQuery, state: FSMContext | None, services: Services):
+async def show_reseller_hub(event: Message | CallbackQuery, state: FSMContext | None, services: Services):
     if state:
         await state.clear()
     tg_user = event.from_user
@@ -308,165 +404,326 @@ async def show_reseller_info(event: Message | CallbackQuery, state: FSMContext |
         return
 
     user = await services.users.get(tg_user.id)
-    is_reseller = (user.get("rank") or "").strip().lower() == "reseller" if user else False
-
-    endpoint_text, docs_rows = reseller_api_links(services.config)
-
-    if is_reseller:
-        key = await services.reseller.get_latest_key(tg_user.id)
-        stats = await services.reseller.get_reseller_stats(tg_user.id)
-        symbol = await services.settings.get("currency_symbol")
-        usd_rate = await services.settings.number("usd_rate")
-        show_usd = await services.settings.flag("show_usd_price")
-
-        balance_str = price(symbol, user.get("balance", 0.0), usd_rate=usd_rate, show_usd=show_usd)
-        recent_spend_str = price(symbol, stats["total_spent"], usd_rate=usd_rate, show_usd=show_usd)
-
-        if key and key.get("is_active"):
-            status_line = f"{ICON_CHECK} <b>Status:</b> Connected"
-            key_display = f"<code>{key['key_prefix']}••••••••</code>"
-            is_connected = True
-        elif key:
-            status_line = f"{ICON_CROSS} <b>Status:</b> Disabled"
-            key_display = f"<code>{key['key_prefix']}••••••••</code>"
-            is_connected = False
-        else:
-            status_line = f"{ICON_WARNING} <b>Status:</b> Not Generated"
-            key_display = "<i>None</i>"
-            is_connected = False
-
-        lang = (user.get("language") or "en").strip().lower() if user else "en"
-        text = (
-            f"{t('reseller_panel_title', lang, icon_reseller=ICON_RESELLER)}\n\n"
-            f"Connect your own bot, website, or reseller panel to this shop. "
-            f"Orders are delivered from live stock and paid from your wallet balance.\n\n"
-            f"{status_line}\n"
-            f"{ICON_BALANCE} <b>API Balance:</b> <code>{balance_str}</code>\n"
-            f"{ICON_ORDERS} <b>Total API Orders:</b> <code>{stats['total_orders']}</code>\n"
-            f"{ICON_SPENT} <b>Recent Spend:</b> <code>{recent_spend_str}</code>\n"
-            f"{ICON_KEY} <b>Current Key:</b> {key_display}\n\n"
-            f"<b>Available actions</b>\n"
-            f"{ICON_SHOP} <b>Product list:</b> <code>GET /api/v1/reseller/products</code>\n"
-            f"{ICON_ACCOUNT} <b>Balance check:</b> <code>GET /api/v1/reseller/me</code>\n"
-            f"{ICON_CART} <b>Place order:</b> <code>POST /api/v1/reseller/orders</code>\n\n"
-            f"<b>Endpoint URL</b>\n"
-            f"{endpoint_text}"
-        )
-
-        rows = []
-        if key:
-            rows.append([
-                InlineKeyboardButton(
-                    text="Regenerate Key",
-                    callback_data="reseller_regen_prompt",
-                    style="primary",
-                    icon_custom_emoji_id=Icons.REFRESH,
-                )
-            ])
-            if is_connected:
-                rows.append([
-                    InlineKeyboardButton(
-                        text="Disable API",
-                        callback_data="reseller_toggle_active",
-                        style="danger",
-                        icon_custom_emoji_id=Icons.CROSS,
-                    )
-                ])
-            else:
-                rows.append([
-                    InlineKeyboardButton(
-                        text="Enable API",
-                        callback_data="reseller_toggle_active",
-                        style="success",
-                        icon_custom_emoji_id=Icons.CHECK,
-                    )
-                ])
-        else:
-            rows.append([
-                InlineKeyboardButton(
-                    text="Generate Key",
-                    callback_data="reseller_generate_key",
-                    style="success",
-                    icon_custom_emoji_id=Icons.KEY,
-                )
-            ])
-
-        rows.extend(docs_rows)
-        rows.append([
-            InlineKeyboardButton(
-                text="Refresh",
-                callback_data="open_reseller",
-                style="primary",
-                icon_custom_emoji_id=Icons.REFRESH,
-            )
-        ])
-        rows.append([
-            InlineKeyboardButton(
-                text=t("btn_back", lang),
-                callback_data="back_to_main",
-                style="primary",
-                icon_custom_emoji_id=Icons.BACK,
-            )
-        ])
-        await respond(event, text, InlineKeyboardMarkup(inline_keyboard=rows))
-        return
-
-    # Non-reseller flow (Application form)
-    handle = (await services.settings.get("support_username")).lstrip("@")
+    is_reseller = (user.get("rank") or "").strip().lower() in {"reseller", "reseller partner"} if user else False
+    lang = "en"
+    symbol = await services.settings.get("currency_symbol")
+    usd_rate = await services.settings.number("usd_rate")
+    handle = ((await services.settings.get("support_username")) or "").lstrip("@")
     store_name = (await services.settings.get("store_name")) or "Premium Haven"
 
-    format_copy_text = (
-        "Name: \n"
-        "Telegram Username: \n"
-        "Mobile Number: \n"
-        "Channel Link: "
-    )
+    rows: list[list[InlineKeyboardButton]] = []
 
-    lang = (user.get("language") or "en").strip().lower() if user else "en"
-    text = (
-        f"{t('reseller_apply_title', lang, icon_reseller=ICON_RESELLER)}\n\n"
-        f"{t('reseller_apply_text', lang)}\n\n"
-        f"{ICON_NOTE} <b>{t('reseller_format_label', lang)}:</b>\n"
-        f"<code>{format_copy_text}</code>\n\n"
-        f"{ICON_VIP} <b>{t('reseller_benefits_title', lang)}:</b>\n"
-        f"{ICON_COIN} {t('reseller_b1', lang)}\n"
-        f"{ICON_KEY} {t('reseller_b2', lang)}\n"
-        f"{ICON_LIGHTNING} {t('reseller_b3', lang)}\n"
-        f"{ICON_SUPPORT} {t('reseller_b4', lang)}"
-    )
+    if is_reseller:
+        stats = await services.reseller.get_reseller_stats(tg_user.id)
+        balance_str = price(symbol, user.get("balance", 0.0), usd_rate=usd_rate, lang=lang)
+        recent_spend_str = price(symbol, stats["total_spent"], usd_rate=usd_rate, lang=lang)
 
-    rows = [
-        [
-            InlineKeyboardButton(
-                text=t("btn_copy_format", lang),
-                copy_text=CopyTextButton(text=format_copy_text),
-                style="primary",
-                icon_custom_emoji_id=Icons.NOTE,
+        if lang != "bn":
+            text = (
+                "<b>Reseller Partner</b>\n\n"
+                "Status: <b>Active Partner</b>\n"
+                "Pricing: Wholesale Rates Active\n"
+                f"Orders: <b>{stats['total_orders']}</b>\n"
+                f"Spent: <b>{recent_spend_str}</b>\n"
+                f"Balance: <b>{balance_str}</b>"
             )
-        ]
-    ]
-    if handle:
-        prefill = (
-            f"Hello, I would like to apply as a Reseller at {store_name}.\n\n"
-            f"{format_copy_text}"
+            api_btn_text = "Developer API"
+            refresh_btn_text = "Refresh"
+            back_btn_text = "Back"
+        else:
+            text = (
+                "<b>রিসেলার পার্টনার</b>\n\n"
+                "স্ট্যাটাস: <b>সক্রিয় পার্টনার</b>\n"
+                "টিয়ার: পাইকারি ডিসকাউন্ট চালু\n"
+                f"অর্ডার: <b>{stats['total_orders']}</b>\n"
+                f"খরচ: <b>{recent_spend_str}</b>\n"
+                f"ব্যালেন্স: <b>{balance_str}</b>"
+            )
+            api_btn_text = "ডেভেলপার এপিআই"
+            refresh_btn_text = "রিফ্রেশ"
+            back_btn_text = "ব্যাক"
+
+        rows.append([InlineKeyboardButton(text=api_btn_text, callback_data="open_api_hub")])
+        rows.append([
+            InlineKeyboardButton(text=refresh_btn_text, callback_data="open_reseller_hub"),
+            InlineKeyboardButton(text=back_btn_text, callback_data="open_account"),
+        ])
+    else:
+        # Check pending applications
+        async with services.db.connect() as conn:
+            pending_app = await conn.fetchrow(
+                "SELECT id, status FROM reseller_applications WHERE tg_user_id = $1 AND status = 'pending'",
+                tg_user.id,
+            )
+
+        if pending_app:
+            if lang != "bn":
+                text = (
+                    "<b>Reseller Application</b>\n\n"
+                    "Status: <b>Under Review</b>\n\n"
+                    "Your application has been submitted and is currently being reviewed."
+                )
+                cancel_btn_text = "Cancel Application"
+                contact_btn_text = "Contact Support"
+                back_btn_text = "Back"
+            else:
+                text = (
+                    "<b>রিসেলার আবেদন</b>\n\n"
+                    "স্ট্যাটাস: <b>পর্যালোচনায় রয়েছে</b>\n\n"
+                    "আপনার আবেদনটি জমা হয়েছে এবং বর্তমানে যাচাই করা হচ্ছে।"
+                )
+                cancel_btn_text = "আবেদন বাতিল করুন"
+                contact_btn_text = "সাপোর্ট যোগাযোগ"
+                back_btn_text = "ব্যাক"
+
+            rows.append([InlineKeyboardButton(text=cancel_btn_text, callback_data="reseller_cancel_pending")])
+            if handle:
+                rows.append([InlineKeyboardButton(text=contact_btn_text, url=f"https://t.me/{handle}")])
+            rows.append([InlineKeyboardButton(text=back_btn_text, callback_data="open_account")])
+        else:
+            # Fetch up to 3 active products with configured reseller discounts
+            async with services.db.connect() as conn:
+                sample_prods = await conn.fetch(
+                    """
+                    SELECT title, price, reseller_price
+                    FROM products
+                    WHERE is_active = 1
+                      AND reseller_price IS NOT NULL
+                      AND reseller_price > 0
+                      AND reseller_price < price
+                    ORDER BY id DESC
+                    LIMIT 3
+                    """
+                )
+
+            comparison_lines = []
+            for p in sample_prods:
+                reg_str = price(symbol, p["price"], usd_rate=usd_rate, lang=lang)
+                res_str = price(symbol, p["reseller_price"], usd_rate=usd_rate, lang=lang)
+                comparison_lines.append(f"• {p['title']}: {reg_str} → <b>{res_str}</b>")
+
+            comp_block = ""
+            if comparison_lines:
+                comp_header = "<b>Price Comparison:</b>" if lang != "bn" else "<b>মূল্য তুলনা:</b>"
+                comp_block = f"\n\n{comp_header}\n" + "\n".join(comparison_lines)
+
+            if lang != "bn":
+                text = (
+                    "<b>Reseller Program</b>\n\n"
+                    "Get exclusive wholesale discount pricing across our entire catalog and maximize your profit margins on every order."
+                    f"{comp_block}"
+                )
+                apply_btn_text = "Apply as Reseller"
+                contact_btn_text = "Contact Support"
+                back_btn_text = "Back"
+            else:
+                text = (
+                    "<b>রিসেলার প্রোগ্রাম</b>\n\n"
+                    "আমাদের সম্পূর্ণ ক্যাটালগে আকর্ষণীয় পাইকারি ডিসকাউন্ট রেট উপভোগ করুন এবং প্রতিটি বিক্রয়ে সর্বোচ্চ মুনাফা নিশ্চিত করুন।"
+                    f"{comp_block}"
+                )
+                apply_btn_text = "রিসেলার আবেদন করুন"
+                contact_btn_text = "সাপোর্ট যোগাযোগ"
+                back_btn_text = "ব্যাক"
+
+            rows.append([InlineKeyboardButton(text=apply_btn_text, callback_data="reseller_start_apply")])
+            if handle:
+                prefill = f"Hello, I would like to inquire about becoming a Reseller at {store_name}."
+                rows.append([InlineKeyboardButton(text=contact_btn_text, url=f"https://t.me/{handle}?text={quote(prefill)}")])
+            rows.append([InlineKeyboardButton(text=back_btn_text, callback_data="open_account")])
+
+    kb = InlineKeyboardMarkup(inline_keyboard=rows)
+    await respond(event, text, kb)
+
+show_reseller_info = show_reseller_hub
+
+
+# --- Developer REST API Portal ---
+@router.message(Command("api"))
+@router.message(F.text.in_({
+    "🔑 Developer API",
+    "Developer API",
+    "🔑 API",
+    "API",
+    "api",
+    "/api",
+    "🔑 ডেভেলপার এপিআই",
+    "ডেভেলপার এপিআই",
+    "🔑 এপিআই",
+    "এপিআই",
+}))
+@router.callback_query(F.data == "open_api_hub")
+async def show_api_hub(event: Message | CallbackQuery, state: FSMContext | None, services: Services):
+    if state:
+        await state.clear()
+    tg_user = event.from_user
+    if not tg_user:
+        return
+
+    user = await services.users.get(tg_user.id)
+    is_reseller = (user.get("rank") or "").strip().lower() in {"reseller", "reseller partner"} if user else False
+    lang = "en"
+
+    endpoint_text, docs_rows = reseller_api_links(services.config)
+    key = await services.reseller.get_latest_key(tg_user.id)
+    stats = await services.reseller.get_reseller_stats(tg_user.id)
+    symbol = await services.settings.get("currency_symbol")
+    usd_rate = await services.settings.number("usd_rate")
+
+    balance_str = price(symbol, user.get("balance", 0.0), usd_rate=usd_rate, lang=lang)
+    recent_spend_str = price(symbol, stats["total_spent"], usd_rate=usd_rate, lang=lang)
+
+    if key and key.get("is_active"):
+        status_line = "Connected"
+        raw_prefix = (key.get("key_prefix") or "").strip()
+        last4 = raw_prefix[-4:] if len(raw_prefix) >= 4 else "••••"
+        key_display = f"<code>rklive••••••••{last4}</code>"
+        is_connected = True
+    elif key:
+        status_line = "Disabled"
+        raw_prefix = (key.get("key_prefix") or "").strip()
+        last4 = raw_prefix[-4:] if len(raw_prefix) >= 4 else "••••"
+        key_display = f"<code>rklive••••••••{last4}</code>"
+        is_connected = False
+    else:
+        status_line = "Not Generated"
+        key_display = "None"
+        is_connected = False
+
+    tier_label = "Reseller" if is_reseller else "Member"
+
+    if lang != "bn":
+        text = (
+            "<b>Developer API</b>\n\n"
+            f"Status: <b>{status_line}</b> ({tier_label})\n"
+            f"API Key: {key_display}\n"
+            f"Balance: <b>{balance_str}</b>\n"
+            f"Orders: <b>{stats['total_orders']}</b>\n\n"
+            "Endpoint:\n"
+            f"{endpoint_text}"
         )
+        refresh_text = "Refresh"
+        back_text = "Back"
+    else:
+        text = (
+            "<b>ডেভেলপার এপিআই</b>\n\n"
+            f"স্ট্যাটাস: <b>{status_line}</b> ({tier_label})\n"
+            f"এপিআই কি: {key_display}\n"
+            f"ব্যালেন্স: <b>{balance_str}</b>\n"
+            f"অর্ডার: <b>{stats['total_orders']}</b>\n\n"
+            "এন্ডপয়েন্ট:\n"
+            f"{endpoint_text}"
+        )
+        refresh_text = "রিফ্রেশ"
+        back_text = "ব্যাক"
+
+    rows = []
+    if key:
         rows.append([
             InlineKeyboardButton(
-                text=t("btn_contact_management", lang),
-                url=f"https://t.me/{handle}?text={quote(prefill)}",
-                style="success",
-                icon_custom_emoji_id=Icons.RESELLER,
+                text="Regenerate Key" if lang != "bn" else "কি পুনরায় তৈরি",
+                callback_data="reseller_regen_prompt",
             )
         ])
+        if is_connected:
+            rows.append([
+                InlineKeyboardButton(
+                    text="Disable API" if lang != "bn" else "এপিআই বন্ধ করুন",
+                    callback_data="reseller_toggle_active",
+                )
+            ])
+        else:
+            rows.append([
+                InlineKeyboardButton(
+                    text="Enable API" if lang != "bn" else "এপিআই চালু করুন",
+                    callback_data="reseller_toggle_active",
+                )
+            ])
+    else:
+        rows.append([
+            InlineKeyboardButton(
+                text="Generate API Key" if lang != "bn" else "এপিআই কি তৈরি করুন",
+                callback_data="reseller_generate_key",
+            )
+        ])
+
+    if docs_rows and docs_rows[0]:
+        docs_btn = docs_rows[0][0]
+        docs_btn.text = "API Docs" if lang != "bn" else "এপিআই ডক্স"
+        rows.append([docs_btn])
+
     rows.append([
-        InlineKeyboardButton(
-            text=t("btn_back", lang),
-            callback_data="back_to_main",
-            style="primary",
-            icon_custom_emoji_id=Icons.BACK,
-        )
+        InlineKeyboardButton(text=back_text, callback_data="open_account"),
     ])
-    await respond(event, text, InlineKeyboardMarkup(inline_keyboard=rows))
+    kb = InlineKeyboardMarkup(inline_keyboard=rows)
+    await respond(event, text, kb)
+
+
+# --- User Notification Settings Hub ---
+@router.message(F.text.in_({
+    "🔔 Notifications",
+    "Notifications",
+    "notifications",
+    "🔔 নোটিফিকেশন",
+    "নোটিফিকেশন",
+}))
+@router.callback_query(F.data == "open_notifications_hub")
+async def show_notifications_hub(event: Message | CallbackQuery, state: FSMContext | None, services: Services):
+    if state:
+        await state.clear()
+    tg_user = event.from_user
+    if not tg_user:
+        return
+
+    lang = await services.users.get_language(tg_user.id)
+    prefs = await services.users.get_notification_preferences(tg_user.id)
+
+    if lang != "bn":
+        text = (
+            "🔔 <b>Notification Settings</b>\n\n"
+            "Control what updates and messages you receive from this bot:\n\n"
+            "• <b>Order Status:</b> Instant alert when your order is delivered or processed.\n"
+            "• <b>Deposit Alerts:</b> Instant confirmation when your wallet is credited.\n"
+            "• <b>News & Offers:</b> Notifications about new products, restocks, and promotions.\n\n"
+            "<i>Tap any button below to toggle ON or OFF:</i>"
+        )
+    else:
+        text = (
+            "🔔 <b>নোটিফিকেশন সেটিংস</b>\n\n"
+            "বট থেকে কোন কোন নোটিফিকেশন পেতে চান তা নিয়ন্ত্রণ করুন:\n\n"
+            "• <b>অর্ডার আপডেট:</b> অর্ডার সম্পন্ন ও ডেলিভারি হলে তাৎক্ষণিক নোটিফিকেশন।\n"
+            "• <b>ডিপোজিট নোটিশ:</b> ওয়ালেটে টাকা জমা হওয়া মাত্রই মেসেজ।\n"
+            "• <b>অফার ও নোটিশ:</b> নতুন প্রোডাক্ট রিস্টক ও আকর্ষণীয় ডিসকাউন্ট অফার।\n\n"
+            "<i>চালু বা বন্ধ করতে নিচের বাটনে ট্যাপ করুন:</i>"
+        )
+
+    kb = get_notification_settings_keyboard(prefs, lang=lang)
+    await respond(event, text, kb)
+
+
+@router.callback_query(F.data.startswith("notif_toggle_"))
+async def handle_notification_toggle(query: CallbackQuery, services: Services):
+    tg_user = query.from_user
+    if not tg_user:
+        return
+
+    key = query.data.removeprefix("notif_toggle_")
+    updated_prefs = await services.users.toggle_notification_preference(tg_user.id, key)
+    lang = await services.users.get_language(tg_user.id)
+
+    new_kb = get_notification_settings_keyboard(updated_prefs, lang=lang)
+    with suppress(TelegramBadRequest):
+        if query.message:
+            await query.message.edit_reply_markup(reply_markup=new_kb)
+
+    if lang == "bn":
+        status_str = "চালু করা হয়েছে ✅" if updated_prefs.get(key, True) else "বন্ধ করা হয়েছে 🔕"
+        toast = f"নোটিফিকেশন {status_str}"
+    else:
+        status_str = "Enabled ✅" if updated_prefs.get(key, True) else "Disabled 🔕"
+        toast = f"Notification: {status_str}"
+    with suppress(TelegramBadRequest):
+        await query.answer(toast)
 
 
 @router.callback_query(F.data == "reseller_toggle_active")
@@ -475,7 +732,7 @@ async def reseller_toggle_active_handler(event: CallbackQuery, services: Service
     if not tg_user:
         return
     user = await services.users.get(tg_user.id)
-    if not user or (user.get("rank") or "").strip().lower() != "reseller":
+    if not user or user.get("is_banned"):
         await event.answer("Access denied.", show_alert=True)
         return
 
@@ -489,7 +746,7 @@ async def reseller_toggle_active_handler(event: CallbackQuery, services: Service
     alert_text = "API Key enabled successfully!" if new_active else "API Key disabled."
     with suppress(TelegramBadRequest):
         await event.answer(alert_text)
-    await show_reseller_info(event, None, services)
+    await show_api_hub(event, None, services)
 
 
 @router.callback_query(F.data == "reseller_generate_key")
@@ -498,21 +755,21 @@ async def reseller_generate_key_handler(event: CallbackQuery, services: Services
     if not tg_user:
         return
     user = await services.users.get(tg_user.id)
-    if not user or (user.get("rank") or "").strip().lower() != "reseller":
-        await event.answer("Access denied. You must be an authorized Reseller.", show_alert=True)
+    if not user or user.get("is_banned"):
+        await event.answer("Access denied.", show_alert=True)
         return
 
     raw_key, _ = await services.reseller.generate_key(tg_user.id)
     endpoint_text, docs_rows = reseller_api_links(services.config)
 
     text = (
-        f"{ICON_CHECK} <b>Reseller API Key Generated!</b>\n\n"
-        f"{ICON_KEY} <b>Your Secret API Key:</b>\n"
+        "<b>API Key Generated</b>\n\n"
+        "Your Secret API Key:\n"
         f"<code>{raw_key}</code>\n\n"
-        f"{ICON_WARNING} <b>Important Security Notice:</b>\n"
-        f"• Keep this API key confidential. Anyone with this key can make purchases using your wallet balance.\n"
-        f"• It will only be displayed once. Copy and store it safely.\n\n"
-        f"{ICON_GLOBE} <b>API Base URL:</b>\n{endpoint_text}"
+        "<b>Important Notice:</b>\n"
+        "• Anyone with this key can make purchases using your wallet balance.\n"
+        "• It will only be displayed once. Copy and store it safely.\n\n"
+        f"Endpoint URL:\n{endpoint_text}"
     )
 
     kb = InlineKeyboardMarkup(
@@ -521,17 +778,13 @@ async def reseller_generate_key_handler(event: CallbackQuery, services: Services
                 InlineKeyboardButton(
                     text="Copy API Key",
                     copy_text=CopyTextButton(text=raw_key),
-                    style="primary",
-                    icon_custom_emoji_id=Icons.NOTE,
                 )
             ],
             *docs_rows,
             [
                 InlineKeyboardButton(
-                    text="Back to Portal",
-                    callback_data="open_reseller",
-                    style="danger",
-                    icon_custom_emoji_id=Icons.BACK,
+                    text="Back",
+                    callback_data="open_api_hub",
                 )
             ],
         ]
@@ -551,13 +804,15 @@ async def reseller_reveal_key_handler(event: CallbackQuery, services: Services):
         return
 
     _, docs_rows = reseller_api_links(services.config)
+    created_at_str = active_key['created_at'].strftime('%Y-%m-%d %H:%M') if active_key.get('created_at') else 'N/A'
+    last_used_str = active_key['last_used_at'].strftime('%Y-%m-%d %H:%M') if active_key.get('last_used_at') else 'Never'
 
     text = (
-        f"{ICON_KEY} <b>Reseller API Key Info</b>\n\n"
-        f"{ICON_LOCK} <b>Active Key Prefix:</b> <code>{active_key['key_prefix']}</code>\n"
-        f"{ICON_TIMER} <b>Created At:</b> {active_key['created_at'].strftime('%Y-%m-%d %H:%M') if active_key.get('created_at') else 'N/A'}\n"
-        f"{ICON_STATS} <b>Last Used:</b> {active_key['last_used_at'].strftime('%Y-%m-%d %H:%M') if active_key.get('last_used_at') else 'Never'}\n\n"
-        f"{ICON_SHIELD} <i>For maximum security, your complete secret key is securely hashed in the database. If you lost your key, you can regenerate a new one below.</i>"
+        "<b>API Key Details</b>\n\n"
+        f"Prefix: <code>{active_key['key_prefix']}</code>\n"
+        f"Created: {created_at_str}\n"
+        f"Last Used: {last_used_str}\n\n"
+        "<i>Your full secret key is securely hashed. If lost, you can regenerate a new key below.</i>"
     )
 
     kb = InlineKeyboardMarkup(
@@ -566,17 +821,13 @@ async def reseller_reveal_key_handler(event: CallbackQuery, services: Services):
                 InlineKeyboardButton(
                     text="Regenerate Key",
                     callback_data="reseller_regen_prompt",
-                    style="danger",
-                    icon_custom_emoji_id=Icons.REFRESH,
                 )
             ],
             *docs_rows,
             [
                 InlineKeyboardButton(
-                    text="Back to Portal",
-                    callback_data="open_reseller",
-                    style="primary",
-                    icon_custom_emoji_id=Icons.BACK,
+                    text="Back",
+                    callback_data="open_api_hub",
                 )
             ],
         ]
@@ -588,10 +839,10 @@ async def reseller_reveal_key_handler(event: CallbackQuery, services: Services):
 @router.callback_query(F.data == "reseller_regen_prompt")
 async def reseller_regen_prompt_handler(event: CallbackQuery):
     text = (
-        f"{ICON_WARNING} <b>Regenerate Reseller API Key?</b>\n\n"
-        f"Generating a new API key will immediately deactivate your existing key. "
-        f"Any bots or websites connected using your current key will stop working until updated with the new key.\n\n"
-        f"Are you sure you want to regenerate your API key?"
+        "<b>Regenerate API Key</b>\n\n"
+        "Generating a new API key will immediately deactivate your existing key. "
+        "Any bots or systems using your current key will stop working until updated.\n\n"
+        "Are you sure you want to proceed?"
     )
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
@@ -599,16 +850,12 @@ async def reseller_regen_prompt_handler(event: CallbackQuery):
                 InlineKeyboardButton(
                     text="Yes, Regenerate Key",
                     callback_data="reseller_regen_confirm",
-                    style="danger",
-                    icon_custom_emoji_id=Icons.CHECK,
                 )
             ],
             [
                 InlineKeyboardButton(
                     text="Back",
-                    callback_data="open_reseller",
-                    style="primary",
-                    icon_custom_emoji_id=Icons.BACK,
+                    callback_data="open_api_hub",
                 ),
             ],
         ]
@@ -623,7 +870,7 @@ async def reseller_regen_confirm_handler(event: CallbackQuery, services: Service
     if not tg_user:
         return
     user = await services.users.get(tg_user.id)
-    if not user or (user.get("rank") or "").strip().lower() != "reseller":
+    if not user or user.get("is_banned"):
         await event.answer("Access denied.", show_alert=True)
         return
 
@@ -631,10 +878,10 @@ async def reseller_regen_confirm_handler(event: CallbackQuery, services: Service
     _, docs_rows = reseller_api_links(services.config)
 
     text = (
-        f"{ICON_CHECK} <b>New API Key Generated Successfully!</b>\n\n"
-        f"{ICON_KEY} <b>Your New Secret API Key:</b>\n"
+        "<b>New API Key Generated</b>\n\n"
+        "Your New Secret API Key:\n"
         f"<code>{raw_key}</code>\n\n"
-        f"{ICON_WARNING} <i>Your previous API key has been deactivated. Configure this new key in your bot or website.</i>"
+        "<i>Your previous API key has been deactivated. Configure this new key in your integration.</i>"
     )
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
@@ -642,17 +889,13 @@ async def reseller_regen_confirm_handler(event: CallbackQuery, services: Service
                 InlineKeyboardButton(
                     text="Copy New Key",
                     copy_text=CopyTextButton(text=raw_key),
-                    style="primary",
-                    icon_custom_emoji_id=Icons.NOTE,
                 )
             ],
             *docs_rows,
             [
                 InlineKeyboardButton(
-                    text="Back to Portal",
-                    callback_data="open_reseller",
-                    style="danger",
-                    icon_custom_emoji_id=Icons.BACK,
+                    text="Back",
+                    callback_data="open_api_hub",
                 )
             ],
         ]
@@ -663,36 +906,52 @@ async def reseller_regen_confirm_handler(event: CallbackQuery, services: Service
 
 @router.callback_query(F.data == "reseller_quick_guide")
 async def reseller_quick_guide_handler(event: CallbackQuery, services: Services):
-    _, docs_rows = reseller_api_links(services.config)
+    base = services.config.console_url
 
     text = (
-        f"{ICON_NOTE} <b>Reseller API Quick Integration Guide</b>\n\n"
-        f"<b>1. Header Authentication:</b>\n"
-        f"Include your API Key in every request header:\n"
-        f"<code>X-API-Key: rk_live_your_key</code>\n\n"
-        f"<b>2. Endpoints:</b>\n"
-        f"• <code>GET /api/v1/reseller/me</code>\n  Check your balance & profile\n"
-        f"• <code>GET /api/v1/reseller/products</code>\n  List products & reseller rates\n"
-        f"• <code>POST /api/v1/reseller/orders</code>\n  Instant order placement (JSON: <code>{{\"product_id\": 1, \"quantity\": 1}}</code>)\n\n"
-        f"<b>3. Response:</b>\n"
-        f"Upon successful order, delivered credentials or license keys are returned in the <code>credentials</code> field!\n\n"
-        f"{ICON_GLOBE} <i>For full API documentation, parameter specifications, and code samples, open the web docs link below.</i>"
+        "<b>Developer API Quick Guide</b>\n\n"
+        "<b>Authentication Header:</b>\n"
+        "<code>X-API-Key: YOUR_API_KEY</code>\n"
+        "<i>(Example placeholder — pass your secret key here)</i>\n\n"
+        "<b>Endpoints:</b>\n"
+        "• <code>GET /api/v1/reseller/me</code> — Profile & balance\n"
+        "• <code>GET /api/v1/reseller/products</code> — Catalog & stock\n"
+        "• <code>POST /api/v1/reseller/orders</code> — Instant purchase\n\n"
+        "<i>For full interactive documentation, OpenAPI schemas, and code samples, open Web Docs below.</i>"
     )
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            *docs_rows,
-            [
-                InlineKeyboardButton(
-                    text="Back to Portal",
-                    callback_data="open_reseller",
-                    style="danger",
-                    icon_custom_emoji_id=Icons.BACK,
-                )
-            ],
-        ]
-    )
+    rows = []
+    if base and base.startswith("https://"):
+        rows.append([
+            InlineKeyboardButton(
+                text="Open Web Docs",
+                url=f"{base}/api/v1/reseller/docs",
+            )
+        ])
+    else:
+        rows.append([
+            InlineKeyboardButton(
+                text="Open Web Docs",
+                callback_data="reseller_web_docs_notice",
+            )
+        ])
+    rows.append([
+        InlineKeyboardButton(
+            text="Back",
+            callback_data="open_api_hub",
+        )
+    ])
+    kb = InlineKeyboardMarkup(inline_keyboard=rows)
     if event.message:
         await event.message.edit_text(text, reply_markup=kb)
+
+
+@router.callback_query(F.data == "reseller_web_docs_notice")
+async def reseller_web_docs_notice_handler(event: CallbackQuery, services: Services):
+    with suppress(TelegramBadRequest):
+        await event.answer(
+            "Web docs are hosted at /api/v1/reseller/docs on your server.",
+            show_alert=True,
+        )
 
 
 @router.message(Command("orders"))
@@ -702,18 +961,26 @@ async def reseller_quick_guide_handler(event: CallbackQuery, services: Services)
     "Orders",
     "orders",
     "📦 Orders",
+    "📦 ORDERS",
+    "ORDERS",
     "My Orders",
     "my orders",
     "📦 My Orders",
+    "📦 MY ORDERS",
+    "MY ORDERS",
     "Order History",
     "order history",
     "📦 Order History",
+    "📦 ORDER HISTORY",
+    "ORDER HISTORY",
 }))
 @router.message(F.text.casefold() == "orders")
 @router.message(F.text.casefold() == "my orders")
 @router.message(F.text.casefold() == "order history")
 @router.callback_query(F.data == "open_orders")
+@router.callback_query(F.data == "open_orders_acc")
 @router.callback_query(F.data.startswith("orders_page_"))
+@router.callback_query(F.data.startswith("orders_acc_page_"))
 async def show_order_history(event: Message | CallbackQuery, state: FSMContext, services: Services):
     await state.clear()
     tg_user = event.from_user
@@ -722,99 +989,116 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
 
     lang = await services.users.get_language(tg_user.id)
 
+    from_acc = False
     page = 1
-    if isinstance(event, CallbackQuery) and event.data and event.data.startswith("orders_page_"):
-        suffix = event.data[len("orders_page_") :]
-        if suffix.isdigit():
-            page = max(1, int(suffix))
+    if isinstance(event, CallbackQuery) and event.data:
+        if event.data == "open_orders_acc" or event.data.startswith("orders_acc_page_"):
+            from_acc = True
+            suffix = event.data[len("orders_acc_page_") :]
+            if suffix.isdigit():
+                page = max(1, int(suffix))
+        elif event.data.startswith("orders_page_"):
+            suffix = event.data[len("orders_page_") :]
+            if suffix.isdigit():
+                page = max(1, int(suffix))
+
+    back_target = "open_account" if from_acc else "back_to_main"
+    page_prefix = "orders_acc_page_" if from_acc else "orders_page_"
 
     orders, total = await services.purchases.customer_orders(tg_user.id, limit=ORDERS_PAGE_SIZE, offset=(page - 1) * ORDERS_PAGE_SIZE)
     symbol = await services.settings.get("currency_symbol")
     usd_rate = await services.settings.number("usd_rate")
-    show_usd = await services.settings.flag("show_usd_price")
 
     if not orders:
-        text = (
-            f"{t('order_history_title', lang, icon_orders=ICON_ORDERS)}\n\n"
-            f"{t('order_history_empty', lang)}"
-        )
+        empty_title = "<b>Orders</b>" if lang != "bn" else "<b>অর্ডার</b>"
+        empty_desc = "No orders yet.\nBrowse products to get started." if lang != "bn" else "এখনো কোনো অর্ডার নেই।\nশুরু করতে প্রোডাক্ট ব্রাউজ করুন।"
+        text = f"{empty_title}\n\n{empty_desc}"
+        empty_nav = [
+            InlineKeyboardButton(text="Back", callback_data=back_target),
+        ]
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
                 [
                     InlineKeyboardButton(
-                        text=t("btn_browse_products", lang),
+                        text="Browse Products" if lang != "bn" else "প্রোডাক্ট ব্রাউজ করুন",
                         callback_data="open_categories",
-                        style="success",
-                        icon_custom_emoji_id=Icons.PRODUCTS,
                     ),
                 ],
-                [
-                    InlineKeyboardButton(text=t("btn_back", lang), callback_data="open_account", style="primary", icon_custom_emoji_id=Icons.BACK),
-                    InlineKeyboardButton(text=t("btn_main_menu", lang), callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.HOME),
-                ],
+                empty_nav,
             ]
         )
     else:
         total_pages = max(1, math.ceil(total / ORDERS_PAGE_SIZE)) if total > 0 else 1
         page = min(page, total_pages)
-        if total_pages > 1:
-            text = t("order_history_page", lang, icon_orders=ICON_ORDERS, page=page, total_pages=total_pages)
-        else:
-            text = t("order_history_title", lang, icon_orders=ICON_ORDERS)
+        badge = f" ({total})" if total > 0 else ""
+        text = f"<b>Orders{badge}</b>" if lang != "bn" else f"<b>অর্ডার{badge}</b>"
+
         buttons = []
         for order in orders:
             price_val = order["price"]
-            price_str = format_dual_price(price_val, symbol, usd_rate=usd_rate, show_usd=show_usd)
+            price_str = format_dual_price(price_val, symbol, usd_rate=usd_rate, lang=lang)
             is_completed = order["status"] == "completed" and order.get("fulfillment") != "waiting"
             is_waiting = order.get("fulfillment") == "waiting" or order["status"] in {"pending", "processing", "waiting"}
             if is_completed:
                 status_emoji = "✅"
-                status_icon = Icons.CHECK
             elif is_waiting:
                 status_emoji = "⏳"
-                status_icon = Icons.TIMER
             else:
                 status_emoji = "❌"
-                status_icon = Icons.CROSS
 
-            max_title_len = max(8, 54 - len(str(order['id'])) - len(price_str) - 8)
-            title_short = order['product_title'][:max_title_len].strip()
-            label = f"{status_emoji} #{order['id']} · {title_short} · {price_str}"
-            cb_data = f"vord_{order['id']}_{page}"
-            buttons.append([InlineKeyboardButton(text=label[:64], callback_data=cb_data, style="primary", icon_custom_emoji_id=status_icon)])
+            # User request: order IDs are not displayed at the front; just status emoji + title + price
+            max_title_len = max(10, 56 - len(price_str) - 6)
+            prod_title = order['product_title'].strip()
+            if len(prod_title) > max_title_len:
+                title_short = prod_title[: max_title_len - 1].rstrip() + "…"
+            else:
+                title_short = prod_title
+            label = f"{status_emoji} {title_short} · {price_str}"
+            cb_data = f"vord_{order['id']}_{page}_1" if from_acc else f"vord_{order['id']}_{page}"
+            buttons.append([
+                InlineKeyboardButton(
+                    text=label[:64],
+                    callback_data=cb_data,
+                )
+            ])
 
+        refresh_btn_text = t("btn_refresh", lang) or "Refresh"
         if total_pages > 1:
             if page == 1:
                 nav_row = [
-                    InlineKeyboardButton(text=t("btn_refresh", lang), callback_data=f"orders_page_{page}", style="success", icon_custom_emoji_id=Icons.REFRESH),
+                    InlineKeyboardButton(text=refresh_btn_text, callback_data=f"{page_prefix}{page}"),
                     InlineKeyboardButton(text=f"{page}/{total_pages}", callback_data="noop"),
-                    InlineKeyboardButton(text=t("btn_next", lang), callback_data=f"orders_page_{page + 1}", style="primary", icon_custom_emoji_id=Icons.NEXT),
+                    InlineKeyboardButton(text="Next" if lang != "bn" else "পরবর্তী", callback_data=f"{page_prefix}{page + 1}"),
                 ]
             elif page == total_pages:
                 nav_row = [
-                    InlineKeyboardButton(text=t("btn_prev", lang), callback_data=f"orders_page_{page - 1}", style="primary", icon_custom_emoji_id=Icons.BACK),
+                    InlineKeyboardButton(text="Prev" if lang != "bn" else "পূর্ববর্তী", callback_data=f"{page_prefix}{page - 1}"),
                     InlineKeyboardButton(text=f"{page}/{total_pages}", callback_data="noop"),
-                    InlineKeyboardButton(text=t("btn_refresh", lang), callback_data=f"orders_page_{page}", style="success", icon_custom_emoji_id=Icons.REFRESH),
+                    InlineKeyboardButton(text=refresh_btn_text, callback_data=f"{page_prefix}{page}"),
                 ]
             else:
                 nav_row = [
-                    InlineKeyboardButton(text=t("btn_prev", lang), callback_data=f"orders_page_{page - 1}", style="primary", icon_custom_emoji_id=Icons.BACK),
+                    InlineKeyboardButton(text="Prev" if lang != "bn" else "পূর্ববর্তী", callback_data=f"{page_prefix}{page - 1}"),
                     InlineKeyboardButton(text=f"{page}/{total_pages}", callback_data="noop"),
-                    InlineKeyboardButton(text=t("btn_next", lang), callback_data=f"orders_page_{page + 1}", style="primary", icon_custom_emoji_id=Icons.NEXT),
+                    InlineKeyboardButton(text="Next" if lang != "bn" else "পরবর্তী", callback_data=f"{page_prefix}{page + 1}"),
                 ]
             buttons.append(nav_row)
-        else:
             buttons.append([
-                InlineKeyboardButton(text=t("btn_refresh", lang), callback_data="orders_page_1", style="success", icon_custom_emoji_id=Icons.REFRESH),
+                InlineKeyboardButton(
+                    text="Back",
+                    callback_data=back_target,
+                )
+            ])
+        else:
+            # 1 Page only: Refresh and Back side-by-side
+            buttons.append([
+                InlineKeyboardButton(text=refresh_btn_text, callback_data=f"{page_prefix}1"),
+                InlineKeyboardButton(
+                    text="Back",
+                    callback_data=back_target,
+                ),
             ])
 
-        buttons.append([
-            InlineKeyboardButton(text=t("btn_browse_products", lang), callback_data="open_categories", style="success", icon_custom_emoji_id=Icons.PRODUCTS),
-        ])
-        buttons.append([
-            InlineKeyboardButton(text=t("btn_back", lang), callback_data="open_account", style="primary", icon_custom_emoji_id=Icons.BACK),
-            InlineKeyboardButton(text=t("btn_main_menu", lang), callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.HOME),
-        ])
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
     await respond(event, text, keyboard)
@@ -827,10 +1111,12 @@ async def view_order_detail(query: CallbackQuery, state: FSMContext, services: S
     lang = await services.users.get_language(query.from_user.id)
     raw = query.data
     page = 1
+    from_acc = False
     if raw.startswith("vord_"):
         parts = raw.removeprefix("vord_").split("_")
         order_id = int(parts[0]) if parts and parts[0].isdigit() else None
         page = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 1
+        from_acc = len(parts) > 2 and parts[2] == "1"
     else:
         order_id = callback_int(raw, "view_order_")
 
@@ -847,68 +1133,171 @@ async def view_order_detail(query: CallbackQuery, state: FSMContext, services: S
 
     symbol = await services.settings.get("currency_symbol")
     usd_rate = await services.settings.number("usd_rate")
-    show_usd = await services.settings.flag("show_usd_price")
 
     created = order["created_at"]
     date_str = created.strftime("%Y-%m-%d %H:%M") if isinstance(created, datetime) else str(created)[:16]
 
     if order["status"] == "completed" and order.get("fulfillment") != "waiting":
-        status_line = f"{ICON_CHECK} <b>{t('order_status', lang)}:</b> <code>{t('status_completed', lang)}</code>\n<i>{t('status_completed_msg', lang)}</i>"
+        status_line = "Status: Delivered ✅" if lang != "bn" else "স্ট্যাটাস: ডেলিভারিকৃত ✅"
     elif order.get("fulfillment") == "waiting":
-        status_line = f"{ICON_TIMER} <b>{t('order_status', lang)}:</b> <code>{t('status_waiting', lang)}</code>\n<i>{t('status_waiting_msg', lang)}</i>"
+        status_line = "Status: Preparing ⏳" if lang != "bn" else "স্ট্যাটাস: প্রস্তুত হচ্ছে ⏳"
     elif order["status"] in {"refunded", "cancelled"}:
-        status_line = f"{ICON_CROSS} <b>{t('order_status', lang)}:</b> <code>{t('status_refunded', lang)}</code>\n<i>{t('status_refunded_msg', lang)}</i>"
+        status_line = "Status: Refunded ❌" if lang != "bn" else "স্ট্যাটাস: রিফান্ডকৃত ❌"
     else:
-        status_line = f"{ICON_TIMER} <b>{t('order_status', lang)}:</b> <code>{order['status'].upper()}</code>"
+        status_line = f"Status: {order['status'].title()}" if lang != "bn" else f"স্ট্যাটাস: {order['status'].title()}"
 
-    text = (
-        f"{t('order_detail_title', lang, icon_orders=ICON_ORDERS, id=order['id'])}\n\n"
-        f"{status_line}\n\n"
-        f"{ICON_VIP} <b>{t('order_product', lang)}:</b> {escape(order['product_title'])}\n"
-        f"{ICON_MONEY} <b>{t('order_price_paid', lang)}:</b> <code>{price(symbol, order['price'], usd_rate=usd_rate, show_usd=show_usd)}</code>\n"
-        f"{ICON_TIMER} <b>{t('order_date', lang)}:</b> <code>{date_str}</code>"
-    )
+    price_str = price(symbol, order["price"], usd_rate=usd_rate, lang=lang)
+
+    if lang != "bn":
+        text = (
+            f"<b>Order:</b> <code>{format_order_id(order['id'])}</code>\n\n"
+            f"{status_line}\n"
+            f"Product: {escape(order['product_title'])}\n"
+            f"Price: <code>{price_str}</code>\n"
+            f"Date: <code>{date_str}</code>"
+        )
+    else:
+        text = (
+            f"<b>অর্ডার:</b> <code>{format_order_id(order['id'])}</code>\n\n"
+            f"{status_line}\n"
+            f"প্রোডাক্ট: {escape(order['product_title'])}\n"
+            f"মূল্য: <code>{price_str}</code>\n"
+            f"তারিখ: <code>{date_str}</code>"
+        )
 
     has_credentials = bool(order.get("delivered_item") and order.get("fulfillment") != "waiting")
     if has_credentials:
+        cred_header = "Delivered Credentials" if lang != "bn" else "ডেলিভারিকৃত ক্রেডেনশিয়াল"
         text += (
-            f"\n\n{ICON_KEY} <b>{t('order_credentials', lang)}:</b>\n"
+            f"\n\n<b>{cred_header}:</b>\n"
             f"<code>{escape(order['delivered_item'])}</code>"
         )
 
-    back_cb = f"orders_page_{page}" if page > 1 else "open_orders"
+    if from_acc:
+        back_cb = f"orders_acc_page_{page}" if page > 1 else "open_orders_acc"
+    else:
+        back_cb = f"orders_page_{page}" if page > 1 else "open_orders"
     detail_buttons = []
 
     if has_credentials:
         if len(order["delivered_item"]) <= INLINE_CREDENTIAL_LIMIT:
             detail_buttons.append([
                 InlineKeyboardButton(
-                    text=t("btn_copy_credentials", lang),
+                    text="Copy Credentials" if lang != "bn" else "ক্রেডেনশিয়াল কপি",
                     copy_text=CopyTextButton(text=order["delivered_item"]),
-                    style="success",
-                    icon_custom_emoji_id=Icons.KEY,
                 )
             ])
         else:
             await query.message.answer_document(BufferedInputFile(order["delivered_item"].encode(), filename=f"order-{order_id}.txt"))
 
+    claim_cb = f"claim_warranty_{order['id']}_{page}_1" if from_acc else f"claim_warranty_{order['id']}_{page}"
+    action_row = [
+        InlineKeyboardButton(
+            text="Report Issue" if lang != "bn" else "সমস্যা জানান",
+            callback_data=claim_cb,
+        )
+    ]
+    if order.get("product_id"):
+        from_acc_flag = 1 if from_acc else 0
+        action_row.append(
+            InlineKeyboardButton(
+                text="Buy Again" if lang != "bn" else "আবার কিনুন",
+                callback_data=f"prod_bo_{order['product_id']}_{order['id']}_{page}_{from_acc_flag}",
+            )
+        )
+    detail_buttons.append(action_row)
+
     detail_buttons.append([
         InlineKeyboardButton(
-            text=t("btn_back", lang),
+            text="Back",
             callback_data=back_cb,
-            style="primary",
-            icon_custom_emoji_id=Icons.BACK,
-        ),
-        InlineKeyboardButton(
-            text=t("btn_main_menu", lang),
-            callback_data="back_to_main",
-            style="primary",
-            icon_custom_emoji_id=Icons.HOME,
         ),
     ])
 
     with suppress(TelegramBadRequest):
         await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=detail_buttons))
+
+
+
+@router.callback_query(F.data.startswith("claim_warranty_"))
+async def handle_claim_warranty(query: CallbackQuery, state: FSMContext, services: Services):
+    """1-Tap Warranty & Support Flow with pre-filled message including Order ID."""
+    await state.clear()
+    raw = query.data.removeprefix("claim_warranty_")
+    parts = raw.split("_")
+    order_id = int(parts[0]) if parts and parts[0].isdigit() else None
+    page = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 1
+    from_acc = len(parts) > 2 and parts[2] == "1"
+
+    if not order_id:
+        with suppress(TelegramBadRequest):
+            await query.answer("Order not found.", show_alert=True)
+        return
+
+    order = await services.purchases.order_for_customer(query.from_user.id, order_id)
+    if not order:
+        with suppress(TelegramBadRequest):
+            await query.answer("Order not found.", show_alert=True)
+        return
+
+    lang = await services.users.get_language(query.from_user.id)
+    support_username = ((await services.settings.get("support_username")) or "").lstrip("@")
+    store_name = (await services.settings.get("store_name")) or "Premium Haven"
+
+    created = order["created_at"]
+    date_str = created.strftime("%Y-%m-%d %H:%M") if isinstance(created, datetime) else str(created)[:16]
+    prod_title = order.get("product_title", "Product")
+
+    if lang == "bn":
+        title = "<b>ওয়ারেন্টি ও সাপোর্ট রিপোর্ট</b>"
+        body = (
+            f"<b>অর্ডার আইডি:</b> <code>{format_order_id(order['id'])}</code>\n"
+            f"<b>প্রোডাক্ট:</b> <b>{escape(prod_title)}</b>\n"
+            f"<b>তারিখ:</b> <code>{date_str}</code>\n\n"
+            f"আপনার অর্ডার সম্পর্কিত যেকোনো সমস্যায় নিচের বাটনে চাপ দিয়ে সরাসরি আমাদের সাপোর্ট টিমে জানান।"
+        )
+        chat_btn_text = "সাপোর্টে কথা বলুন"
+        copy_id_text = "অর্ডার আইডি কপি"
+    else:
+        title = "<b>Warranty & Issue Report</b>"
+        body = (
+            f"<b>Order ID:</b> <code>{format_order_id(order['id'])}</code>\n"
+            f"<b>Product:</b> <b>{escape(prod_title)}</b>\n"
+            f"<b>Date:</b> <code>{date_str}</code>\n\n"
+            f"For replacements, technical issues, or queries, tap below to contact our support team."
+        )
+        chat_btn_text = "Chat with Support"
+        copy_id_text = "Copy Order ID"
+
+    prefill = f"Hello {store_name} Support, I need help with my Order {format_order_id(order['id'])} ({prod_title})."
+    kb_rows = []
+    if support_username:
+        kb_rows.append([
+            InlineKeyboardButton(
+                text=chat_btn_text,
+                url=f"https://t.me/{support_username}?text={quote(prefill)}",
+            )
+        ])
+    kb_rows.append([
+        InlineKeyboardButton(
+            text=copy_id_text,
+            copy_text=CopyTextButton(text=format_order_id(order["id"])),
+        )
+    ])
+    back_to_order_cb = f"vord_{order['id']}_{page}_1" if from_acc else f"vord_{order['id']}_{page}"
+    kb_rows.append([
+        InlineKeyboardButton(
+            text="Back",
+            callback_data=back_to_order_cb,
+        ),
+    ])
+
+    with suppress(TelegramBadRequest):
+        await query.answer()
+    if query.message:
+        with suppress(TelegramBadRequest):
+            await query.message.edit_text(f"{title}\n\n{body}", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb_rows))
+
 
 
 DEPOSITS_PAGE_SIZE = 5
@@ -924,6 +1313,17 @@ DEPOSIT_STATUS_BADGES = {
     "Balance History",
     "balance history",
     "📊 Balance History",
+    "📊 BALANCE HISTORY",
+    "BALANCE HISTORY",
+    "Deposit History",
+    "deposit history",
+    "📊 Deposit History",
+    "📊 DEPOSIT HISTORY",
+    "DEPOSIT HISTORY",
+    "ডিপোজিট হিস্ট্রি",
+    "📊 ডিপোজিট হিস্ট্রি",
+    "ব্যালেন্স হিস্ট্রি",
+    "📊 ব্যালেন্স হিস্ট্রি",
 }))
 @router.message(F.text.casefold() == "balance history")
 @router.message(F.text.casefold() == "deposit history")
@@ -941,7 +1341,7 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
 
     page = 1
     dep_id_ref: int | None = None
-    from_wallet = False
+    from_wallet = True
     if isinstance(event, CallbackQuery) and event.data:
         if event.data == "open_deposits_from_wallet":
             from_wallet = True
@@ -968,109 +1368,88 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
     deposits = await services.deposits.history(tg_user.id, limit=DEPOSITS_PAGE_SIZE, offset=offset)
     symbol = await services.settings.get("currency_symbol")
     usd_rate = await services.settings.number("usd_rate")
-    show_usd = await services.settings.flag("show_usd_price")
+    try:
+        show_usd = await services.settings.flag("show_usd_price")
+    except Exception:
+        show_usd = True
     back_cb = f"back_to_dep_req_{dep_id_ref}" if dep_id_ref else ("open_deposit" if from_wallet else "open_account")
 
     if not deposits:
-        text = (
-            f"{t('balance_history_title', lang, icon_stats=ICON_STATS)}\n\n"
-            f"{t('balance_history_empty', lang)}"
-        )
-        buttons = []
-        if not dep_id_ref:
-            buttons.append([
-                InlineKeyboardButton(text=t("btn_add_balance", lang), callback_data="open_deposit_from_history", style="success", icon_custom_emoji_id=Icons.DEPOSIT),
-            ])
-        nav_buttons = [
-            InlineKeyboardButton(text=t("btn_back", lang), callback_data=back_cb, style="primary", icon_custom_emoji_id=Icons.BACK),
+        title = t("balance_history_title", lang, icon_stats=ICON_STATS)
+        empty_msg = t("balance_history_empty", lang)
+        text = f"{title}\n\n{empty_msg}"
+        buttons = [
+            [
+                InlineKeyboardButton(text=t("btn_back", lang), callback_data=back_cb),
+            ],
         ]
-        if back_cb != "back_to_main":
-            nav_buttons.append(
-                InlineKeyboardButton(text=t("btn_main_menu", lang), callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.HOME)
-            )
-        buttons.append(nav_buttons)
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
     else:
-        if total_pages > 1:
-            header = t("balance_history_page", lang, icon_stats=ICON_STATS, page=page, total_pages=total_pages)
-        else:
-            header = t("balance_history_title", lang, icon_stats=ICON_STATS)
+        badge = f" ({total_count})" if total_count > 0 else ""
+        header = f"{t('balance_history_title', lang, icon_stats=ICON_STATS)}{badge}"
+
+        buttons = []
+        for deposit in deposits:
+            price_str = format_dual_price(deposit["amount"], symbol, usd_rate=usd_rate, show_usd=show_usd, lang=lang)
+            method = str(deposit["method_name"]).strip().replace("\n", " ")
+            deposit_id = deposit["id"]
+
+            if deposit["status"] == "approved":
+                status_icon = "✅"
+            elif deposit["status"] == "pending":
+                status_icon = "⏳"
+            else:
+                status_icon = "❌"
+
+            suffix = f" · {price_str} · {format_deposit_id(deposit_id)}"
+            method_limit = max(0, 64 - len(status_icon) - len(suffix) - 1)
+            label = f"{status_icon} {method[:method_limit]}{suffix}"
+            detail_ref = dep_id_ref or 0
+            buttons.append([
+                InlineKeyboardButton(
+                    text=label[:64],
+                    callback_data=f"vdep_{deposit_id}_{page}_{detail_ref}",
+                )
+            ])
+
+        text = header
 
         def page_cb(p: int) -> str:
             if dep_id_ref:
                 return f"dep_page_{p}_{dep_id_ref}"
-            return f"dep_page_{p}_w" if from_wallet else f"dep_page_{p}"
-
-        items_text = []
-        for deposit in deposits:
-            price_str = format_dual_price(deposit["amount"], symbol, usd_rate=usd_rate, show_usd=show_usd)
-            method = deposit["method_name"].strip()
-            trx_id = (deposit.get("transaction_id") or "").strip()
-            created = deposit["created_at"]
-            date_str = created.strftime("%d.%m.%y, %H:%M") if isinstance(created, datetime) else str(created)[:16]
-
-            if deposit["status"] == "approved":
-                status_emoji = "✅"
-                status_label = t("status_approved", lang)
-            elif deposit["status"] == "pending":
-                status_emoji = "⏳"
-                status_label = t("status_pending", lang)
-            else:
-                status_emoji = "❌"
-                status_label = t("status_rejected", lang)
-
-            lines = [
-                f"<b>{escape(method)}</b> (<code>#{deposit['id']}</code>)",
-                f"{status_emoji} <b>{t('order_status', lang)}:</b> {status_label} · <code>{price_str}</code>",
-            ]
-            if trx_id:
-                lines.append(f"{ICON_KEY} <b>{t('deposit_trxid', lang)}:</b> <code>{escape(trx_id)}</code>")
-            if deposit.get("admin_note"):
-                lines.append(f"{ICON_NOTE} <b>{t('deposit_admin_note', lang)}:</b> <i>{escape(deposit['admin_note'])}</i>")
-            lines.append(f"{ICON_TIMER} <b>{t('order_date', lang)}:</b> <code>{date_str}</code>")
-
-            items_text.append("\n".join(lines))
-
-        text = f"{header}\n\n" + "\n\n".join(items_text)
-        buttons = []
+            return f"dep_page_{p}_w"
 
         if total_pages > 1:
             if page == 1:
                 nav_row = [
-                    InlineKeyboardButton(text=t("btn_refresh", lang), callback_data=page_cb(page), style="success", icon_custom_emoji_id=Icons.REFRESH),
+                    InlineKeyboardButton(text=t("btn_refresh", lang), callback_data=page_cb(page)),
                     InlineKeyboardButton(text=f"{page}/{total_pages}", callback_data="noop"),
-                    InlineKeyboardButton(text=t("btn_next", lang), callback_data=page_cb(page + 1), style="primary", icon_custom_emoji_id=Icons.NEXT),
+                    InlineKeyboardButton(text=t("btn_next", lang), callback_data=page_cb(page + 1)),
                 ]
             elif page == total_pages:
                 nav_row = [
-                    InlineKeyboardButton(text=t("btn_prev", lang), callback_data=page_cb(page - 1), style="primary", icon_custom_emoji_id=Icons.BACK),
+                    InlineKeyboardButton(text=t("btn_prev", lang), callback_data=page_cb(page - 1)),
                     InlineKeyboardButton(text=f"{page}/{total_pages}", callback_data="noop"),
-                    InlineKeyboardButton(text=t("btn_refresh", lang), callback_data=page_cb(page), style="success", icon_custom_emoji_id=Icons.REFRESH),
+                    InlineKeyboardButton(text=t("btn_refresh", lang), callback_data=page_cb(page)),
                 ]
             else:
                 nav_row = [
-                    InlineKeyboardButton(text=t("btn_prev", lang), callback_data=page_cb(page - 1), style="primary", icon_custom_emoji_id=Icons.BACK),
+                    InlineKeyboardButton(text=t("btn_prev", lang), callback_data=page_cb(page - 1)),
                     InlineKeyboardButton(text=f"{page}/{total_pages}", callback_data="noop"),
-                    InlineKeyboardButton(text=t("btn_next", lang), callback_data=page_cb(page + 1), style="primary", icon_custom_emoji_id=Icons.NEXT),
+                    InlineKeyboardButton(text=t("btn_next", lang), callback_data=page_cb(page + 1)),
                 ]
             buttons.append(nav_row)
+
+        if total_pages > 1:
+            buttons.append([
+                InlineKeyboardButton(text=t("btn_back", lang), callback_data=back_cb)
+            ])
         else:
             buttons.append([
-                InlineKeyboardButton(text=t("btn_refresh", lang), callback_data=page_cb(1), style="success", icon_custom_emoji_id=Icons.REFRESH),
+                InlineKeyboardButton(text=t("btn_refresh", lang), callback_data=page_cb(1)),
+                InlineKeyboardButton(text=t("btn_back", lang), callback_data=back_cb),
             ])
 
-        if not dep_id_ref:
-            buttons.append([
-                InlineKeyboardButton(text=t("btn_add_balance", lang), callback_data="open_deposit_from_history", style="success", icon_custom_emoji_id=Icons.DEPOSIT),
-            ])
-        nav_buttons = [
-            InlineKeyboardButton(text=t("btn_back", lang), callback_data=back_cb, style="primary", icon_custom_emoji_id=Icons.BACK),
-        ]
-        if back_cb != "back_to_main":
-            nav_buttons.append(
-                InlineKeyboardButton(text=t("btn_main_menu", lang), callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.HOME)
-            )
-        buttons.append(nav_buttons)
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
     await respond(event, text, keyboard)
@@ -1104,77 +1483,145 @@ async def view_deposit_detail(query: CallbackQuery, state: FSMContext, services:
 
     symbol = await services.settings.get("currency_symbol")
     usd_rate = await services.settings.number("usd_rate")
-    show_usd = await services.settings.flag("show_usd_price")
 
-    amount_str = format_dual_price(deposit["amount"], symbol, usd_rate=usd_rate, show_usd=show_usd)
+    amount_str = format_dual_price(deposit["amount"], symbol, usd_rate=usd_rate, lang=lang)
     created = deposit["created_at"]
-    date_str = created.strftime("%Y-%m-%d %H:%M") if isinstance(created, datetime) else str(created)[:16]
+    date_str = created.strftime("%d %b %Y · %H:%M") if isinstance(created, datetime) else str(created)[:16]
 
     if deposit["status"] == "approved":
-        status_line = f"{ICON_CHECK} <b>{t('order_status', lang)}:</b> <code>{t('status_approved', lang)}</code>\n<i>{t('status_approved_msg', lang)}</i>"
+        status_line = f"<b>{t('status_approved', lang)}</b> ✅"
     elif deposit["status"] == "rejected":
-        status_line = f"{ICON_CROSS} <b>{t('order_status', lang)}:</b> <code>{t('status_rejected', lang)}</code>\n<i>{t('status_rejected_msg', lang)}</i>"
+        status_line = f"<b>{t('status_rejected', lang)}</b> ❌"
         if deposit.get("admin_note"):
-            status_line += f"\n{ICON_NOTE} <b>{t('deposit_admin_note', lang)}:</b> <i>{escape(deposit['admin_note'])}</i>"
+            status_line += f"\n<i>{escape(deposit['admin_note'])}</i>"
     else:
-        status_line = f"{ICON_TIMER} <b>{t('order_status', lang)}:</b> <code>{t('status_pending', lang)}</code>\n<i>{t('status_pending_msg', lang)}</i>"
+        status_line = f"<b>{t('status_pending', lang)}</b>"
 
     text = (
-        f"{t('deposit_detail_title', lang, icon_stats=ICON_STATS, id=deposit['id'])}\n\n"
+        f"{t('deposit_detail_title', lang, id=format_deposit_id(deposit['id']))}\n\n"
         f"{status_line}\n\n"
-        f"{ICON_BALANCE} <b>{t('deposit_amount', lang)}:</b> <code>{amount_str}</code>\n"
-        f"{ICON_ACCOUNT} <b>{t('deposit_method', lang)}:</b> {escape(deposit['method_name'])}\n"
-        f"{ICON_KEY} <b>{t('deposit_trxid', lang)}:</b> <code>{escape(deposit['transaction_id'])}</code>\n"
-        f"{ICON_TIMER} <b>{t('deposit_submitted_at', lang)}:</b> <code>{date_str}</code>"
+        f"<b>{t('deposit_amount', lang)}:</b> {amount_str}\n"
+        f"<b>{t('deposit_method', lang)}:</b> {escape(deposit['method_name'])}\n"
+        f"<b>{t('deposit_trxid', lang)}:</b> <code>{escape(deposit['transaction_id'])}</code>\n"
+        f"\n<b>{t('deposit_submitted_at', lang)}:</b> {date_str}"
     )
 
     if deposit.get("reviewed_at"):
         rev = deposit["reviewed_at"]
-        rev_str = rev.strftime("%Y-%m-%d %H:%M") if isinstance(rev, datetime) else str(rev)[:16]
-        rev_icon = ICON_CHECK if deposit["status"] == "approved" else ICON_CROSS
-        text += f"\n{rev_icon} <b>{t('deposit_reviewed_at', lang)}:</b> <code>{rev_str}</code>"
+        rev_str = rev.strftime("%d %b %Y · %H:%M") if isinstance(rev, datetime) else str(rev)[:16]
+        text += f"\n<b>{t('deposit_reviewed_at', lang)}:</b> {rev_str}"
 
-    back_to_history_cb = f"dep_page_{page}_{dep_id_ref}" if dep_id_ref else f"dep_page_{page}"
+    back_to_history_cb = f"dep_page_{page}_{dep_id_ref}" if dep_id_ref else f"dep_page_{page}_w"
 
-    detail_buttons = []
-    trx_id = (deposit.get("transaction_id") or "").strip()
-    if trx_id:
-        detail_buttons.append([
-            InlineKeyboardButton(
-                text=t("btn_copy_trxid", lang),
-                copy_text=CopyTextButton(text=trx_id),
-                style="primary",
-                icon_custom_emoji_id=Icons.KEY,
-            )
-        ])
-
-    if deposit["status"] == "rejected":
-        detail_buttons.append([
-            InlineKeyboardButton(
-                text=t("btn_add_balance", lang),
-                callback_data="open_deposit_from_history",
-                style="success",
-                icon_custom_emoji_id=Icons.DEPOSIT,
-            )
-        ])
-
-    detail_buttons.append([
+    detail_buttons = [[
         InlineKeyboardButton(
             text=t("btn_back", lang),
             callback_data=back_to_history_cb,
-            style="primary",
-            icon_custom_emoji_id=Icons.BACK,
         ),
-        InlineKeyboardButton(
-            text=t("btn_main_menu", lang),
-            callback_data="back_to_main",
-            style="primary",
-            icon_custom_emoji_id=Icons.HOME,
-        ),
-    ])
+    ]]
 
     with suppress(TelegramBadRequest):
         await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=detail_buttons))
 
 
+@router.message(Command("pricelist"))
+@router.message(Command("prices"))
+@router.message(F.text.in_({
+    "Price List",
+    "price list",
+    "📊 Price List",
+    "📊 PRICE LIST",
+    "PRICE LIST",
+    "📊 প্রাইস লিস্ট",
+    "প্রাইস লিস্ট",
+}))
+@router.message(F.text.casefold() == "price list")
+@router.message(F.text.casefold() == "pricelist")
+@router.callback_query(F.data == "open_price_list")
+async def show_price_list(event: Message | CallbackQuery, state: FSMContext | None, services: Services):
+    if state:
+        await state.clear()
+    tg_user = event.from_user
+    if not tg_user:
+        return
 
+    user = await services.users.get(tg_user.id)
+    lang = "en"
+    is_reseller = (user.get("rank") or "").strip().lower() == "reseller" if user else False
+
+    symbol = await services.settings.get("currency_symbol")
+    usd_rate = await services.settings.number("usd_rate")
+
+    categories = await services.catalog.categories()
+    products = await services.catalog.products(active_only=True, limit=500)
+
+    # Group products by category_id
+    cat_map: dict[int | None, str] = {c["id"]: c["name"] for c in categories}
+    cat_products: dict[str, list[dict[str, Any]]] = {}
+
+    for p in products:
+        cid = p.get("category_id")
+        cat_name = cat_map.get(cid, "Other Products" if lang == "en" else "অন্যান্য প্রোডাক্ট")
+        if cat_name not in cat_products:
+            cat_products[cat_name] = []
+        cat_products[cat_name].append(p)
+
+    title_text = "📊 <b>Live Price & Stock List</b>" if lang == "en" else "📊 <b>লাইভ প্রোডাক্ট প্রাইস লিস্ট</b>"
+
+    sections = []
+    for cat_name, prod_list in cat_products.items():
+        cat_lines = [f"📂 <b>{escape(cat_name)}</b>"]
+        for p in prod_list:
+            p_price = p["price"]
+            r_price = p.get("reseller_price")
+            is_manual = p.get("delivery_type") == "manual"
+            stock = p.get("stock", 0)
+
+            if is_reseller and r_price is not None and float(r_price) > 0:
+                price_str = format_dual_price(float(r_price), symbol, usd_rate=usd_rate, lang=lang)
+            else:
+                price_str = format_dual_price(p_price, symbol, usd_rate=usd_rate, lang=lang)
+
+            if is_manual:
+                stock_label = "Manual" if lang == "en" else "ম্যানুয়াল"
+            elif stock > 0:
+                stock_label = f"Stock: {stock}" if lang == "en" else f"স্টক: {stock}"
+            else:
+                stock_label = "Out of Stock" if lang == "en" else "স্টক শেষ"
+
+            prod_icon = (p.get("icon") or "").strip()
+            icon_prefix = f"{prod_icon} " if prod_icon else ""
+            cat_lines.append(f"  {icon_prefix}<b>{escape(p['title'])}</b>: <code>{price_str}</code> (<i>{stock_label}</i>)")
+        sections.append("\n".join(cat_lines))
+
+    if not sections:
+        body = "<i>No products currently available in the catalog.</i>" if lang == "en" else "<i>ক্যাটালগে বর্তমানে কোনো প্রোডাক্ট নেই।</i>"
+    else:
+        body = "\n\n".join(sections)
+
+    footer = "\n\n💡 <i>All prices are live and updated instantly.</i>" if lang == "en" else "\n\n💡 <i>সকল মূল্য লাইভ এবং তাৎক্ষণিকভাবে আপডেট করা হয়।</i>"
+    text = f"{title_text}\n\n{body}{footer}"
+
+    buttons = [
+        [
+            InlineKeyboardButton(
+                text=t("btn_browse_products", lang),
+                callback_data="open_categories",
+                icon_custom_emoji_id=Icons.PRODUCTS,
+            ),
+            InlineKeyboardButton(
+                text=t("btn_refresh", lang),
+                callback_data="open_price_list",
+                icon_custom_emoji_id=Icons.REFRESH,
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text=t("btn_back", lang),
+                callback_data="open_account",
+                icon_custom_emoji_id=Icons.BACK,
+            ),
+        ],
+    ]
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+    await respond(event, text, kb)

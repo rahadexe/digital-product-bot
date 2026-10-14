@@ -1,359 +1,1014 @@
 'use client';
 
-// Adding a way to pay starts with what kind it is, because a bKash number and a USDT address need
-// different answers. Picking the kind fills in everything that follows from it - the rate, who checks
-// the payment, the network - so the only questions left are the ones only the shop owner can answer.
+import React, { useEffect, useState } from 'react';
+import {
+  Plus,
+  Edit2,
+  Trash2,
+  Copy,
+  Zap,
+  Smartphone,
+  RefreshCw,
+  Eye,
+  EyeOff,
+  Check,
+  ChevronRight,
+  ArrowLeft,
+} from 'lucide-react';
+import { api, type DepositMethod, type PaymentsStatus } from '@/lib/api';
+import { Modal, Switch, errorText, useConfirm, type Say } from '@/components/ui';
+import { ZiniPayGateway } from './ZiniPayGateway';
+import { CustomSelect } from './CustomSelect';
 
-import { useCallback, useEffect, useState } from 'react';
-import { Smartphone, type LucideIcon } from 'lucide-react';
-import { api, type DepositMethod } from '@/lib/api';
-import { useMoney } from '@/lib/currency';
-import { FlagRow, Modal, errorText, useConfirm, type Say } from './ui';
-import { EmojiPicker } from './EmojiPicker';
-
-type KindId = 'bkash' | 'nagad' | 'rocket';
-
-type Kind = {
-  id: KindId;
-  title: string;
-  blurb: string;
-  icon: LucideIcon;
-  defaults: { name: string; rate: number; auto_verify: 'none'; network: string; instructions?: string; custom_emoji_id?: string };
-  account: { label: string; placeholder: string };
-};
-
-const KINDS: Kind[] = [
+const METHOD_PRESETS = [
   {
-    id: 'bkash',
-    title: 'bKash',
-    blurb: 'Personal, Agent or Merchant number.',
-    icon: Smartphone,
-    defaults: {
-      name: 'bKash',
-      rate: 1,
-      auto_verify: 'none',
-      network: '',
-      instructions: '',
-      custom_emoji_id: '6217678000977089090',
-    },
-    account: { label: 'bKash Number', placeholder: '01700000000' },
+    key: 'bkash',
+    label: 'bKash',
+    name: 'bKash',
+    type: 'personal',
+    badge: 'bK',
+    brandClass: 'bkash',
+    subtitle: 'Mobile Banking',
+    placeholder: '01XXXXXXXXX',
+    instructions: '',
+    min_deposit: 50,
+    sort_order: 1,
   },
   {
-    id: 'nagad',
-    title: 'Nagad',
-    blurb: 'Personal or Merchant number.',
-    icon: Smartphone,
-    defaults: {
-      name: 'Nagad',
-      rate: 1,
-      auto_verify: 'none',
-      network: '',
-      instructions: '',
-      custom_emoji_id: '6217625168584380551',
-    },
-    account: { label: 'Nagad Number', placeholder: '01800000000' },
+    key: 'nagad',
+    label: 'Nagad',
+    name: 'Nagad',
+    type: 'personal',
+    badge: 'NG',
+    brandClass: 'nagad',
+    subtitle: 'Mobile Banking',
+    placeholder: '01XXXXXXXXX',
+    instructions: '',
+    min_deposit: 50,
+    sort_order: 2,
   },
   {
-    id: 'rocket',
-    title: 'Rocket',
-    blurb: 'Personal or Merchant number.',
-    icon: Smartphone,
-    defaults: {
-      name: 'Rocket',
-      rate: 1,
-      auto_verify: 'none',
-      network: '',
-      instructions: '',
-      custom_emoji_id: '4911601033496494993',
-    },
-    account: { label: 'Rocket Number', placeholder: '01900000000' },
+    key: 'rocket',
+    label: 'Rocket',
+    name: 'Rocket',
+    type: 'personal',
+    badge: 'RK',
+    brandClass: 'rocket',
+    subtitle: 'Mobile Banking',
+    placeholder: '01XXXXXXXXX',
+    instructions: '',
+    min_deposit: 50,
+    sort_order: 3,
+  },
+  {
+    key: 'binance',
+    label: 'Binance',
+    name: 'Binance',
+    type: 'crypto',
+    badge: 'BN',
+    brandClass: 'binance',
+    subtitle: 'Crypto / USDT',
+    placeholder: '750176717',
+    instructions: '',
+    min_deposit: 1,
+    sort_order: 4,
   },
 ];
 
-function kindOf(method: DepositMethod): Kind {
-  const name = (method.name || '').toLowerCase();
-  if (name.includes('bkash') || name.includes('b-kash')) return KINDS[0];
-  if (name.includes('nagad')) return KINDS[1];
-  return KINDS[2];
-}
+const ACCOUNT_TYPE_OPTIONS = [
+  { value: 'personal', label: 'Personal (Send Money)' },
+  { value: 'agent', label: 'Agent (Cash Out)' },
+  { value: 'merchant', label: 'Merchant (Payment)' },
+];
 
-type Draft = { kind: Kind; method: DepositMethod | null };
+const VERIFICATION_MODE_OPTIONS = [
+  { value: 'none', label: 'Manual Review' },
+  { value: 'zinipay', label: 'ZiniPay' },
+];
 
-export function PaymentMethods({ say, symbol, zinipayActive }: { say: Say; symbol: string; zinipayActive?: boolean }) {
-  const [methods, setMethods] = useState<DepositMethod[] | null>(null);
-  const [choosing, setChoosing] = useState(false);
-  const [draft, setDraft] = useState<Draft | null>(null);
+export function PaymentMethods({
+  say,
+  symbol = '৳',
+  zinipayActive = false,
+  values,
+  setValues,
+  setSaved,
+  payStatus,
+  setPayStatus,
+  refreshGateways,
+}: {
+  say: Say;
+  symbol?: string;
+  zinipayActive?: boolean;
+  values?: Record<string, string>;
+  setValues?: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  setSaved?: React.Dispatch<React.SetStateAction<Record<string, string> | null>>;
+  payStatus?: PaymentsStatus | null;
+  setPayStatus?: (status: PaymentsStatus | null) => void;
+  refreshGateways?: () => Promise<void>;
+}) {
   const [confirm, confirmDialog] = useConfirm();
-  const money = useMoney();
+  const [methods, setMethods] = useState<DepositMethod[]>([]);
+  const [methodsLoading, setMethodsLoading] = useState(false);
+  const [editingMethod, setEditingMethod] = useState<DepositMethod | null>(null);
+  const [isAddingMethod, setIsAddingMethod] = useState(false);
+  const [isZinipayModalOpen, setIsZinipayModalOpen] = useState(false);
+  const [selectedProviderKey, setSelectedProviderKey] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<number | null>(null);
 
-  const load = useCallback(() => api.depositMethods().then(setMethods).catch((cause) => say(errorText(cause), 'bad')), [say]);
+  const [methodForm, setMethodForm] = useState<{
+    name: string;
+    account_info: string;
+    account_type: string;
+    min_deposit: number | string;
+    rate_to_currency: number | string;
+    sort_order: number | string;
+    auto_verify: 'none' | 'zinipay';
+    instructions: string;
+    is_active: boolean;
+    api_key: string;
+    api_secret: string;
+    custom_emoji_id: string;
+  }>({
+    name: '',
+    account_info: '',
+    account_type: 'personal',
+    min_deposit: '10',
+    rate_to_currency: '1.0',
+    sort_order: '1',
+    auto_verify: 'zinipay',
+    instructions: '',
+    is_active: true,
+    api_key: '',
+    api_secret: '',
+    custom_emoji_id: '',
+  });
+
+  const [showSecret, setShowSecret] = useState(false);
+  const [clearCredentials, setClearCredentials] = useState(false);
+
+  // Load payment methods
+  const fetchMethods = async () => {
+    setMethodsLoading(true);
+    try {
+      const res = await api.depositMethods();
+      const list = Array.isArray(res) ? res : ((res as any)?.methods ?? []);
+      setMethods(list);
+    } catch (err) {
+      say(errorText(err, 'Failed to load deposit methods'), 'bad');
+    } finally {
+      setMethodsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void fetchMethods();
+  }, []);
 
-  async function remove(method: DepositMethod) {
-    if (!(await confirm(`Delete ${method.name}?`, 'Past deposits made with it will stay in the history.', 'Delete method'))) return;
+  // Toggle Deposit Method
+  const handleToggleMethod = async (method: DepositMethod) => {
+    const isCurrentlyActive = Boolean(method.is_active);
+    const willActivate = !isCurrentlyActive;
+
+    const confirmed = await confirm(
+      willActivate ? 'Activate payment method?' : 'Deactivate payment method?',
+      willActivate
+        ? `Are you sure you want to activate "${method.name}"?`
+        : `Are you sure you want to deactivate "${method.name}"?`,
+      willActivate ? 'Activate' : 'Deactivate',
+      !willActivate
+    );
+    if (!confirmed) return;
+
     try {
-      await api.deleteDepositMethod(method.id);
-      say('Deleted.');
-      await load();
-    } catch (cause) {
-      say(errorText(cause), 'bad');
+      const res = await api.toggleDepositMethod(method.id);
+      const newActive = res.is_active === 1;
+      setMethods((prev) =>
+        prev.map((m) => (m.id === method.id ? { ...m, is_active: newActive ? 1 : 0 } : m))
+      );
+      say(`Method "${method.name}" ${newActive ? 'activated' : 'deactivated'}`, 'good');
+    } catch (err) {
+      say(errorText(err, 'Failed to toggle deposit method'), 'bad');
     }
-  }
+  };
 
-  const manualMethods = (methods ?? []).filter((m) => (m.auto_verify ?? 'none') === 'none');
+  // Delete Deposit Method
+  const handleDeleteMethod = async (id: number, name: string) => {
+    if (
+      !(await confirm(
+        'Delete payment method?',
+        `Are you sure you want to delete "${name}"? Past deposits will remain in history.`,
+        'Delete'
+      ))
+    )
+      return;
+    try {
+      await api.deleteDepositMethod(id);
+      setMethods((prev) => prev.filter((m) => m.id !== id));
+      say(`Method "${name}" deleted`, 'good');
+    } catch (err) {
+      say(errorText(err, 'Failed to delete deposit method'), 'bad');
+    }
+  };
+
+  const selectedPreset = METHOD_PRESETS.find((p) => p.key === selectedProviderKey);
+
+  const isBinanceMethod =
+    selectedProviderKey === 'binance' ||
+    methodForm.name.trim().toLowerCase().includes('binance') ||
+    methodForm.account_type === 'crypto';
+
+  // Save Method (Create or Update)
+  const handleSaveMethod = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const payload: any = {
+        name: isBinanceMethod ? (methodForm.name.trim() || 'Binance') : methodForm.name.trim(),
+        account_info: methodForm.account_info.trim(),
+        account_type: isBinanceMethod ? 'crypto' : methodForm.account_type,
+        min_deposit: parseFloat(String(methodForm.min_deposit)) || 1,
+        rate_to_currency: parseFloat(String(methodForm.rate_to_currency)) || 1.0,
+        sort_order: parseInt(String(methodForm.sort_order), 10) || 1,
+        instructions: methodForm.instructions.trim(),
+        is_active: methodForm.is_active ? 1 : 0,
+        custom_emoji_id: methodForm.custom_emoji_id?.trim() || undefined,
+      };
+
+      if (isBinanceMethod) {
+        if (Boolean(methodForm.api_key) !== Boolean(methodForm.api_secret)) {
+          say('Both Binance API Key and Secret are required.', 'bad');
+          return;
+        }
+        if (clearCredentials) {
+          payload.clear_api_credentials = true;
+        } else if (methodForm.api_key && methodForm.api_secret) {
+          payload.api_key = methodForm.api_key.trim();
+          payload.api_secret = methodForm.api_secret.trim();
+        }
+      } else {
+        payload.auto_verify = methodForm.auto_verify || 'none';
+      }
+
+      if (editingMethod) {
+        await api.updateDepositMethod(editingMethod.id, payload);
+        say('Payment method updated', 'good');
+        setEditingMethod(null);
+        setSelectedProviderKey(null);
+        setClearCredentials(false);
+        await fetchMethods();
+      } else {
+        await api.createDepositMethod(payload);
+        say('Payment method added', 'good');
+        setIsAddingMethod(false);
+        setSelectedProviderKey(null);
+        setClearCredentials(false);
+        await fetchMethods();
+      }
+    } catch (err) {
+      say(errorText(err, 'Failed to save payment method'), 'bad');
+    }
+  };
+
+  const openAddModal = () => {
+    setEditingMethod(null);
+    setSelectedProviderKey(null);
+    setClearCredentials(false);
+    setMethodForm({
+      name: '',
+      account_info: '',
+      account_type: 'personal',
+      min_deposit: '10',
+      rate_to_currency: '1.0',
+      sort_order: String(methods.length + 1),
+      auto_verify: zinipayActive ? 'zinipay' : 'none',
+      instructions: '',
+      is_active: true,
+      api_key: '',
+      api_secret: '',
+      custom_emoji_id: '',
+    });
+    setShowSecret(false);
+    setIsAddingMethod(true);
+  };
+
+  const openEditModal = (method: DepositMethod) => {
+    setEditingMethod(method);
+    setClearCredentials(false);
+    const n = method.name.toLowerCase();
+    const key = n.includes('bkash')
+      ? 'bkash'
+      : n.includes('nagad')
+      ? 'nagad'
+      : n.includes('rocket')
+      ? 'rocket'
+      : n.includes('binance') || method.account_type === 'crypto'
+      ? 'binance'
+      : null;
+    setSelectedProviderKey(key);
+    setMethodForm({
+      name: method.name,
+      account_info: method.account_info,
+      account_type:
+        key === 'binance' || method.account_type === 'crypto'
+          ? 'crypto'
+          : method.account_type || 'personal',
+      min_deposit: String(method.min_deposit ?? 10),
+      rate_to_currency: String(method.rate_to_currency ?? 1.0),
+      sort_order: String(method.sort_order ?? 1),
+      auto_verify: method.auto_verify === 'zinipay' ? 'zinipay' : 'none',
+      instructions: method.instructions || '',
+      is_active: Boolean(method.is_active),
+      api_key: '',
+      api_secret: '',
+      custom_emoji_id: method.custom_emoji_id || '',
+    });
+    setShowSecret(false);
+  };
+
+  const applyPreset = (preset: (typeof METHOD_PRESETS)[0]) => {
+    setSelectedProviderKey(preset.key);
+    setMethodForm((prev) => ({
+      ...prev,
+      name: preset.name,
+      account_type: preset.type,
+      min_deposit: String(preset.min_deposit),
+      sort_order: String(preset.sort_order || methods.length + 1),
+      instructions: preset.instructions,
+      custom_emoji_id: '',
+      auto_verify: preset.key !== 'binance' && zinipayActive ? 'zinipay' : 'none',
+      api_key: preset.key === 'binance' ? prev.api_key : '',
+      api_secret: preset.key === 'binance' ? prev.api_secret : '',
+    }));
+  };
+
+  const copyToClipboard = (id: number, text: string) => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedId(id);
+      say('Copied to clipboard', 'good');
+      setTimeout(() => {
+        setCopiedId((prev) => (prev === id ? null : prev));
+      }, 2000);
+    }
+  };
+
+  // Sort methods strictly by sort_order ASC, then id ASC
+  const sortedMethods = [...methods].sort(
+    (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.id - b.id
+  );
 
   return (
-    <>
-      {confirmDialog}
-      <section className="panel">
+    <div className="payment-methods-screen">
+      <section className="panel payment-accounts-panel">
         <header>
-          <div>
-            <h2>Local Payment Accounts</h2>
+          <div className="payment-section-copy">
+            <h2>
+              Payment accounts <span className="payment-account-count">{methods.length}</span>
+            </h2>
           </div>
-          <button type="button" className="btn small" onClick={() => setChoosing(true)}>
-            Add account
-          </button>
+          <div className="filters payment-account-actions">
+            {values && setValues && setSaved && refreshGateways && (
+              <button
+                type="button"
+                className={`btn ghost small gateway-config-btn${zinipayActive ? ' is-configured' : ''}`}
+                onClick={() => setIsZinipayModalOpen(true)}
+                title="Configure ZiniPay Gateway & Auto-Verification"
+              >
+                <Zap size={14} />
+                <span>ZiniPay Gateway</span>
+                <span className={`pill ${zinipayActive ? 'good' : 'muted'} gateway-status-pill`}>
+                  {zinipayActive ? 'Configured' : 'Not set'}
+                </span>
+              </button>
+            )}
+            <button type="button" className="btn small" onClick={openAddModal}>
+              <Plus size={14} /> Add Payment Method
+            </button>
+            <button
+              type="button"
+              className="btn ghost small"
+              onClick={fetchMethods}
+              disabled={methodsLoading}
+              aria-label="Refresh payment accounts"
+              title="Refresh payment accounts"
+            >
+              <RefreshCw size={14} className={methodsLoading ? 'refreshing' : ''} />
+            </button>
+          </div>
         </header>
-        {!methods ? <p className="note">Loading…</p> : null}
-        {methods && manualMethods.length === 0 ? (
-          <p className="note">No payment accounts added yet.</p>
-        ) : null}
-        <div className="rows">
-          {manualMethods.map((method) => (
-            <div key={method.id} className={`row${method.is_active ? '' : ' off'}`}>
-              <div className="text">
-                <strong>
-                  {method.name}
-                  {method.is_active ? '' : ' · off'}
-                </strong>
-                <small>
-                  from {money(method.min_deposit)} ·{' '}
-                  <span className={`pill ${method.account_type === 'agent' ? 'info' : method.account_type === 'merchant' ? 'warn' : 'good'}`} style={{ textTransform: 'capitalize' }}>
-                    {method.account_type || 'personal'} ({method.account_type === 'agent' ? 'Cash Out' : method.account_type === 'merchant' ? 'Payment' : 'Send Money'})
-                  </span>
-                </small>
-                <code className="key" title={method.account_info}>
-                  {method.account_info}
-                </code>
-              </div>
-              <div className="row-actions">
-                <button type="button" className="mini" onClick={() => setDraft({ kind: kindOf(method), method })}>
-                  Edit
-                </button>
-                <button type="button" className="mini danger" onClick={() => remove(method)}>
-                  Delete
-                </button>
-              </div>
+
+        <div className="payment-account-list-wrap">
+          {methodsLoading && methods.length === 0 ? (
+            <p className="payment-list-message" role="status" aria-live="polite">
+              Loading payment methods…
+            </p>
+          ) : methods.length === 0 ? (
+            <div className="payment-empty-state">
+              <span className="payment-empty-icon">
+                <Smartphone size={22} />
+              </span>
+              <strong>No payment accounts yet</strong>
+              <p>Add an account to accept deposits.</p>
+              <button type="button" className="btn small" onClick={openAddModal}>
+                <Plus size={14} /> Add first account
+              </button>
             </div>
-          ))}
+          ) : (
+            <div className="payment-method-list">
+              {sortedMethods.map((method) => {
+                const isActive = Boolean(method.is_active);
+                const nameLower = (method.name || '').toLowerCase();
+                const isBkash = nameLower.includes('bkash');
+                const isNagad = nameLower.includes('nagad');
+                const isRocket = nameLower.includes('rocket');
+                const isBinance = nameLower.includes('binance') || method.account_type === 'crypto';
+
+                let brandClass = '';
+                let brandBadge: React.ReactNode = <span>PM</span>;
+
+                if (isBkash) {
+                  brandClass = 'bkash';
+                  brandBadge = <span>bK</span>;
+                } else if (isNagad) {
+                  brandClass = 'nagad';
+                  brandBadge = <span>NG</span>;
+                } else if (isRocket) {
+                  brandClass = 'rocket';
+                  brandBadge = <span>RK</span>;
+                } else if (isBinance) {
+                  brandClass = 'binance';
+                  brandBadge = <Zap size={18} />;
+                }
+
+                const typeLabels: Record<string, string> = {
+                  personal: 'Personal (Send Money)',
+                  agent: 'Agent (Cash Out)',
+                  merchant: 'Merchant (Payment)',
+                  crypto: 'Crypto',
+                };
+
+                return (
+                  <div
+                    key={method.id}
+                    className={`payment-method-item${isActive ? ' is-active' : ' is-disabled'}`}
+                  >
+                    <div className="payment-method-info">
+                      <span className={`payment-method-icon ${brandClass}`}>{brandBadge}</span>
+                      <div className="payment-method-copy">
+                        <div className="payment-method-title">
+                          <strong>{method.name || (isBinance ? 'Binance' : 'Deposit')}</strong>
+                          {!isBinance && (
+                            <span
+                              className={`pill ${
+                                method.account_type === 'agent'
+                                  ? 'info'
+                                  : method.account_type === 'merchant'
+                                  ? 'warn'
+                                  : 'good'
+                              } payment-type-pill`}
+                            >
+                              {typeLabels[method.account_type || 'personal'] || 'Personal (Send Money)'}
+                            </span>
+                          )}
+
+                          <span
+                            className={`payment-availability${isActive ? ' available' : ' paused'}`}
+                          >
+                            {isActive ? 'Active' : 'Inactive'}
+                          </span>
+
+                          {/* Verification badge only when automated */}
+                          {isBinance ? (
+                            method.has_api_credentials ? (
+                              <span className="pill good payment-type-pill">
+                                API Connected
+                              </span>
+                            ) : null
+                          ) : method.auto_verify === 'zinipay' ? (
+                            <span className="pill good payment-type-pill">
+                              Auto (ZiniPay)
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="payment-method-details">
+                          <code>{method.account_info}</code>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(method.id, method.account_info)}
+                            className="payment-copy-button"
+                            aria-label="Copy account details"
+                            title="Copy"
+                          >
+                            {copiedId === method.id ? (
+                              <Check size={13} style={{ color: 'var(--positive)' }} />
+                            ) : (
+                              <Copy size={13} />
+                            )}
+                          </button>
+                          <span className="payment-minimum">
+                            Minimum deposit {isBinance ? `$${method.min_deposit}` : `${symbol}${method.min_deposit}`}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Action controls with ON/OFF switch */}
+                    <div className="payment-method-actions">
+                      <div className="payment-action-switch-wrap">
+                        <Switch
+                          on={isActive}
+                          onChange={() => handleToggleMethod(method)}
+                          label={`Toggle ${method.name}`}
+                        />
+                        <span
+                          className={`payment-switch-status ${
+                            isActive ? 'is-active' : 'is-paused'
+                          }`}
+                        >
+                          {isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+                      <div className="payment-method-btns">
+                        <button
+                          type="button"
+                          className="btn ghost small"
+                          onClick={() => openEditModal(method)}
+                          title={`Edit ${method.name}`}
+                        >
+                          <Edit2 size={13} /> Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="btn ghost small danger"
+                          onClick={() => handleDeleteMethod(method.id, method.name)}
+                          aria-label={`Delete ${method.name}`}
+                          title={`Delete ${method.name}`}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </section>
 
-      {choosing ? (
-        <Modal title="Add payment account" onClose={() => setChoosing(false)}>
-          <div className="kinds">
-            {KINDS.map((kind) => {
-              const Icon = kind.icon;
-              return (
-                <button
-                  type="button"
-                  key={kind.id}
-                  className="kind"
-                  onClick={() => {
-                    setChoosing(false);
-                    setDraft({ kind, method: null });
-                  }}
-                >
-                  <span className="icon">
-                    <Icon />
-                  </span>
-                  <span>
-                    <strong>{kind.title}</strong>
-                    <small>{kind.blurb}</small>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </Modal>
-      ) : null}
-
-      {draft ? (
-        <MethodForm
-          draft={draft}
-          symbol={symbol}
-          order={methods?.length ?? 0}
-          say={say}
-          onBack={
-            draft.method
-              ? undefined
-              : () => {
-                  setDraft(null);
-                  setChoosing(true);
-                }
+      {/* Add / Edit Payment Method Modal */}
+      {(isAddingMethod || editingMethod) && (
+        <Modal
+          title={
+            editingMethod
+              ? `Edit ${
+                  editingMethod.name ||
+                  (editingMethod.account_type === 'crypto' ? 'Binance' : 'Payment Method')
+                }`
+              : selectedPreset
+              ? `Add ${selectedPreset.label}`
+              : 'Add Payment Method'
           }
-          onClose={() => setDraft(null)}
-          onSaved={async () => {
-            setDraft(null);
-            await load();
+          wide
+          className="pm-method-modal"
+          onClose={() => {
+            setIsAddingMethod(false);
+            setEditingMethod(null);
+            setSelectedProviderKey(null);
+            setShowSecret(false);
           }}
-        />
-      ) : null}
-    </>
-  );
-}
-
-function MethodForm({
-  draft,
-  symbol,
-  order,
-  say,
-  onBack,
-  onClose,
-  onSaved,
-}: {
-  draft: Draft;
-  symbol: string;
-  order: number;
-  say: Say;
-  onBack?: () => void;
-  onClose: () => void;
-  onSaved: () => Promise<void>;
-}) {
-  const { kind, method } = draft;
-  const [form, setForm] = useState({
-    account_info: method?.account_info ?? '',
-    name: method?.name ?? kind.defaults.name,
-    min_deposit: method?.min_deposit ?? 50,
-    instructions: method?.instructions ?? kind.defaults.instructions ?? '',
-    active: method ? method.is_active === 1 : true,
-    custom_emoji_id: method?.custom_emoji_id ?? kind.defaults.custom_emoji_id ?? '',
-    account_type: ((method as any)?.account_type ?? 'personal') as 'personal' | 'agent' | 'merchant',
-  });
-  const [busy, setBusy] = useState(false);
-  const set = (patch: Partial<typeof form>) => setForm((current) => ({ ...current, ...patch }));
-
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    const payload = {
-      name: form.name.trim(),
-      account_info: form.account_info.trim(),
-      account_type: form.account_type,
-      instructions: form.instructions.trim(),
-      min_deposit: form.min_deposit,
-      rate_to_currency: 1,
-      sort_order: method?.sort_order ?? order,
-      is_active: form.active ? 1 : 0,
-      auto_verify: 'none' as const,
-      auto_verify_network: '',
-      custom_emoji_id: form.custom_emoji_id.trim() || null,
-    };
-    try {
-      if (method) await api.updateDepositMethod(method.id, payload);
-      else await api.createDepositMethod(payload);
-      say(method ? 'Saved.' : `${payload.name} added.`);
-      await onSaved();
-    } catch (cause) {
-      say(errorText(cause), 'bad');
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Modal
-      title={method ? `Edit ${method.name}` : `Add ${kind.title}`}
-      onClose={onClose}
-      onSubmit={submit}
-      footer={
-        <>
-          {onBack ? (
-            <button type="button" className="btn ghost" onClick={onBack}>
-              Back
-            </button>
-          ) : null}
-          <button type="submit" className="btn" disabled={busy}>
-            {method ? 'Save' : 'Add method'}
-          </button>
-        </>
-      }
-    >
-      <label className="field">
-        <span>{kind.account.label}</span>
-        <input type="text" required placeholder={kind.account.placeholder} value={form.account_info} onChange={(event) => set({ account_info: event.target.value })} />
-      </label>
-      <div className="field">
-        <span>Account Type & Action</span>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', marginTop: '4px' }}>
-          {[
-            { id: 'personal', title: 'Personal', action: 'Send Money', icon: '👤' },
-            { id: 'agent', title: 'Agent', action: 'Cash Out', icon: '🏪' },
-            { id: 'merchant', title: 'Merchant', action: 'Payment', icon: '💳' },
-          ].map((item) => {
-            const active = form.account_type === item.id;
-            return (
+          footer={
+            isAddingMethod && !selectedProviderKey ? (
               <button
                 type="button"
-                key={item.id}
-                onClick={() => set({ account_type: item.id as any })}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                  padding: '6px 8px',
-                  borderRadius: '6px',
-                  border: active ? '1.5px solid var(--accent, #0284c7)' : '1px solid var(--border)',
-                  background: active ? 'rgba(2, 132, 199, 0.08)' : 'var(--surface-2)',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  transition: 'all 0.15s ease',
-                  minHeight: '36px',
+                className="btn ghost"
+                onClick={() => {
+                  setIsAddingMethod(false);
+                  setSelectedProviderKey(null);
                 }}
               >
-                <span style={{ fontSize: '0.95rem', lineHeight: 1, flexShrink: 0 }}>{item.icon}</span>
-                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, lineHeight: 1.15 }}>
-                  <strong style={{ fontSize: '0.78rem', fontWeight: 600, color: active ? 'var(--accent, #0284c7)' : 'var(--text)', whiteSpace: 'nowrap' }}>
-                    {item.title}
-                  </strong>
-                  <span style={{ fontSize: '0.65rem', color: 'var(--muted)', whiteSpace: 'nowrap' }}>
-                    {item.action}
-                  </span>
-                </div>
+                Cancel
               </button>
-            );
-          })}
-        </div>
-      </div>
-      <label className="field">
-        <span>Name customers see in bot</span>
-        <input type="text" required placeholder={kind.defaults.name || 'Payment method name'} value={form.name} onChange={(event) => set({ name: event.target.value })} />
-      </label>
-      <div className="field">
-        <EmojiPicker
-          value={form.custom_emoji_id}
-          onChange={(id) => set({ custom_emoji_id: id })}
-        />
-      </div>
-      <label className="field">
-        <span>Smallest deposit ({symbol})</span>
-        <input type="number" step="any" min="1" required value={form.min_deposit} onChange={(event) => set({ min_deposit: parseFloat(event.target.value) || 1 })} />
-      </label>
-      <label className="field">
-        <span>Payment instructions</span>
-        <textarea
-          rows={3}
-          placeholder="Optional: Enter instructions for customers during payment (leave blank if none)"
-          value={form.instructions}
-          onChange={(event) => set({ instructions: event.target.value })}
-        />
-      </label>
-      <div>
-        <FlagRow label={form.active ? 'Active' : 'Inactive'} on={form.active} onChange={(on) => set({ active: on })} />
-      </div>
-    </Modal>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="btn ghost"
+                  onClick={() => {
+                    if (isAddingMethod) {
+                      setSelectedProviderKey(null);
+                    } else {
+                      setEditingMethod(null);
+                    }
+                    setShowSecret(false);
+                  }}
+                >
+                  {isAddingMethod ? 'Back' : 'Cancel'}
+                </button>
+                <button type="submit" form="pm-method-form" className="btn">
+                  {editingMethod ? 'Save Changes' : 'Create Method'}
+                </button>
+              </>
+            )
+          }
+        >
+          {isAddingMethod && !selectedProviderKey ? (
+            /* Step 1: 4 Provider Selection Cards */
+            <div className="pm-provider-selection">
+              <div className="pm-provider-selection-head">
+                <h3>Select Provider</h3>
+              </div>
+              <div className="pm-provider-cards-grid">
+                {METHOD_PRESETS.map((preset) => (
+                  <button
+                    key={preset.key}
+                    type="button"
+                    className={`pm-provider-select-card ${preset.key}`}
+                    onClick={() => applyPreset(preset)}
+                  >
+                    <div className={`pm-provider-select-badge ${preset.key}`}>
+                      <span>{preset.badge}</span>
+                    </div>
+                    <div className="pm-provider-select-info">
+                      <div className="pm-provider-select-title">
+                        <strong>{preset.label}</strong>
+                      </div>
+                      <span className="pm-provider-select-sub">{preset.subtitle}</span>
+                    </div>
+                    <ChevronRight size={18} className="pm-provider-select-arrow" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            /* Step 2: Form Configuration */
+            <>
+              {isAddingMethod && (
+                <div className="pm-step2-header">
+                  <button
+                    type="button"
+                    className="pm-back-btn"
+                    onClick={() => setSelectedProviderKey(null)}
+                  >
+                    <ArrowLeft size={14} /> Providers
+                  </button>
+                  <div className="pm-presets-grid">
+                    {METHOD_PRESETS.map((preset) => {
+                      const isSelected = selectedProviderKey === preset.key;
+                      return (
+                        <button
+                          key={preset.key}
+                          type="button"
+                          className={`pm-preset-card ${preset.key}${
+                            isSelected ? ' is-selected' : ''
+                          }`}
+                          onClick={() => applyPreset(preset)}
+                        >
+                          {preset.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <form id="pm-method-form" onSubmit={handleSaveMethod} className="pm-form">
+                {isBinanceMethod ? (
+                  <>
+                    <div className="pm-form-row">
+                      <label className="field">
+                        <span>Method name</span>
+                        <input
+                          type="text"
+                          placeholder="Binance"
+                          value={methodForm.name}
+                          onChange={(e) => setMethodForm({ ...methodForm, name: e.target.value })}
+                        />
+                      </label>
+                      <label className="field">
+                        <span>Display Order</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="1"
+                          value={methodForm.sort_order}
+                          onChange={(e) =>
+                            setMethodForm({
+                              ...methodForm,
+                              sort_order: e.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                    </div>
+
+                    <div className="pm-form-row is-binance">
+                      <label className="field">
+                        <span>Binance ID</span>
+                        <input
+                          type="text"
+                          className="pm-input-mono"
+                          placeholder="750176717"
+                          value={methodForm.account_info}
+                          onChange={(e) =>
+                            setMethodForm({ ...methodForm, account_info: e.target.value })
+                          }
+                          required
+                        />
+                      </label>
+                      <label className="field">
+                        <span>Minimum Deposit ($)</span>
+                        <div className="pm-input-currency">
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            placeholder="1.00"
+                            value={methodForm.min_deposit}
+                            onChange={(e) =>
+                              setMethodForm({
+                                ...methodForm,
+                                min_deposit: e.target.value,
+                              })
+                            }
+                            required
+                          />
+                          <span className="pm-currency-tag">$</span>
+                        </div>
+                      </label>
+                    </div>
+
+
+                    <div className="pm-form-row">
+                      <label className="field">
+                        <span>API Key</span>
+                        <input
+                          type="password"
+                          autoComplete="new-password"
+                          value={methodForm.api_key}
+                          placeholder={
+                            editingMethod?.has_api_credentials
+                              ? 'Configured (leave blank to keep)'
+                              : 'Optional, for auto check'
+                          }
+                          onChange={(e) => setMethodForm({ ...methodForm, api_key: e.target.value })}
+                        />
+                      </label>
+                      <label className="field">
+                        <span>API Secret</span>
+                        <div className="pm-password-input-wrap">
+                          <input
+                            type={showSecret ? 'text' : 'password'}
+                            autoComplete="new-password"
+                            value={methodForm.api_secret}
+                            placeholder={
+                              editingMethod?.has_api_credentials
+                                ? 'Configured (leave blank to keep)'
+                                : 'Optional'
+                            }
+                            onChange={(e) =>
+                              setMethodForm({ ...methodForm, api_secret: e.target.value })
+                            }
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowSecret(!showSecret)}
+                            className="pm-eye-button"
+                            aria-label={showSecret ? 'Hide secret' : 'Show secret'}
+                            title={showSecret ? 'Hide secret' : 'Show secret'}
+                          >
+                            {showSecret ? <EyeOff size={14} /> : <Eye size={14} />}
+                          </button>
+                        </div>
+                      </label>
+                    </div>
+
+                    {editingMethod?.has_api_credentials && (
+                      <div className="pm-credentials-status-bar" style={{ marginTop: '0.25rem' }}>
+                        {clearCredentials ? (
+                          <div
+                            style={{
+                              padding: '0.5rem 0.75rem',
+                              background: 'rgba(239, 68, 68, 0.08)',
+                              border: '1px solid rgba(239, 68, 68, 0.2)',
+                              borderRadius: '6px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              fontSize: '0.8125rem',
+                            }}
+                          >
+                            <span style={{ color: '#ef4444' }}>
+                              API disconnected. Will switch to manual on save.
+                            </span>
+                            <button
+                              type="button"
+                              className="btn ghost tiny"
+                              onClick={() => setClearCredentials(false)}
+                            >
+                              Undo
+                            </button>
+                          </div>
+                        ) : (
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              fontSize: '0.8125rem',
+                              padding: '0.25rem 0',
+                            }}
+                          >
+                            <span
+                              style={{
+                                color: 'var(--positive, #10b981)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                              }}
+                            >
+                              <Check size={13} /> API connected
+                            </span>
+                            <button
+                              type="button"
+                              className="btn ghost tiny danger"
+                              onClick={() => setClearCredentials(true)}
+                              style={{ padding: '2px 8px', fontSize: '0.75rem' }}
+                            >
+                              Disconnect
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="pm-form-row">
+                      <label className="field">
+                        <span>Method name</span>
+                        <input
+                          type="text"
+                          placeholder="e.g. bKash"
+                          value={methodForm.name}
+                          onChange={(e) => setMethodForm({ ...methodForm, name: e.target.value })}
+                          required
+                        />
+                      </label>
+
+                      <label className="field">
+                        <span>Account Type</span>
+                        <CustomSelect
+                          ariaLabel="Account Type"
+                          width="100%"
+                          minWidth={0}
+                          value={methodForm.account_type}
+                          onChange={(value) => setMethodForm({ ...methodForm, account_type: value })}
+                          options={[
+                            { value: 'personal', label: 'Personal (Send Money)' },
+                            { value: 'agent', label: 'Agent (Cash Out)' },
+                            { value: 'merchant', label: 'Merchant (Payment)' },
+                          ]}
+                        />
+                      </label>
+                    </div>
+
+                    <div className="pm-form-row">
+                      <label className="field">
+                        <span>Account Number</span>
+                        <input
+                          type="text"
+                          className="pm-input-mono"
+                          placeholder={selectedPreset?.placeholder || '01XXXXXXXXX'}
+                          value={methodForm.account_info}
+                          onChange={(e) =>
+                            setMethodForm({ ...methodForm, account_info: e.target.value })
+                          }
+                          required
+                        />
+                      </label>
+
+                      <label className="field">
+                        <span>Minimum Deposit (টাকা)</span>
+                        <input
+                          type="number"
+                          min="1"
+                          placeholder="50"
+                          value={methodForm.min_deposit}
+                          onChange={(e) =>
+                            setMethodForm({
+                              ...methodForm,
+                              min_deposit: e.target.value,
+                            })
+                          }
+                          required
+                        />
+                      </label>
+                    </div>
+
+                    <div className="pm-form-row">
+                      <label className="field">
+                        <span>Display Order</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="1"
+                          value={methodForm.sort_order}
+                          onChange={(e) =>
+                            setMethodForm({
+                              ...methodForm,
+                              sort_order: e.target.value,
+                            })
+                          }
+                        />
+                      </label>
+
+                      <label className="field">
+                        <span>Verification Mode</span>
+                        <CustomSelect
+                          ariaLabel="Verification Mode"
+                          width="100%"
+                          minWidth={0}
+                          value={methodForm.auto_verify}
+                          onChange={(value) => setMethodForm({ ...methodForm, auto_verify: value as 'none' | 'zinipay' })}
+                          options={[
+                            { value: 'none', label: 'Manual Review' },
+                            { value: 'zinipay', label: 'ZiniPay', disabled: !zinipayActive },
+                          ]}
+                        />
+                      </label>
+                    </div>
+                  </>
+                )}
+
+                <label className="field">
+                  <span>Instructions</span>
+                  <textarea
+                    rows={2}
+                    placeholder="Instructions shown to customers during deposit"
+                    value={methodForm.instructions}
+                    onChange={(e) => setMethodForm({ ...methodForm, instructions: e.target.value })}
+                    className="pm-textarea"
+                  />
+                </label>
+
+                {/* Clean Status Switch */}
+                <div className="pm-status-switch-card">
+                  <div className="pm-status-switch-info">
+                    <div className="pm-switch-title-row">
+                      <strong>Status</strong>
+                      <span
+                        className={`pm-status-text ${
+                          methodForm.is_active ? 'is-active' : 'is-inactive'
+                        }`}
+                      >
+                        {methodForm.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="pm-status-switch-ctrl">
+                    <Switch
+                      on={methodForm.is_active}
+                      onChange={(val) => setMethodForm({ ...methodForm, is_active: val })}
+                      label="Status"
+                    />
+                  </div>
+                </div>
+              </form>
+            </>
+          )}
+        </Modal>
+      )}
+
+      {/* ZiniPay Gateway Modal */}
+      {isZinipayModalOpen && values && setValues && setSaved && refreshGateways && (
+        <Modal
+          title="ZiniPay Gateway Settings"
+          className="zinipay-gateway-modal"
+          onClose={() => setIsZinipayModalOpen(false)}
+          footer={
+            <button
+              type="button"
+              className="btn"
+              onClick={() => setIsZinipayModalOpen(false)}
+            >
+              Done
+            </button>
+          }
+        >
+          <ZiniPayGateway
+            say={say}
+            values={values}
+            setValues={setValues}
+            setSaved={setSaved}
+            payStatus={payStatus ?? null}
+            setPayStatus={setPayStatus ?? (() => {})}
+            refreshGateways={refreshGateways}
+            symbol={symbol}
+            isModal
+          />
+        </Modal>
+      )}
+      {confirmDialog}
+    </div>
   );
 }

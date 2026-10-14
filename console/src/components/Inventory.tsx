@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertCircle, CheckCircle2, Clock, Layers, PackageCheck } from 'lucide-react';
 import { api, type InventoryItem, type InventorySummary, type Product } from '@/lib/api';
 import { EmptyRow, Modal, Pager, Switch, errorText, when, type Say } from './ui';
 import { CustomSelect } from './CustomSelect';
@@ -60,40 +59,6 @@ export function Inventory({ say }: { say: Say }) {
   return (
     <>
       {/* Inventory Metric Summary Cards */}
-      <div className="stat-cards-grid compact-metrics">
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <span className="stat-card-label">Available Stock</span>
-            <CheckCircle2 className="stat-card-icon" />
-          </div>
-          <div className="stat-card-value">{summary?.available_units ?? 0}</div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <span className="stat-card-label">Sold Units</span>
-            <PackageCheck className="stat-card-icon" />
-          </div>
-          <div className="stat-card-value">{summary?.sold_units ?? 0}</div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <span className="stat-card-label">Expired Units</span>
-            <AlertCircle className="stat-card-icon" />
-          </div>
-          <div className="stat-card-value">{summary?.expired_units ?? 0}</div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <span className="stat-card-label">Products in Stock</span>
-            <Layers className="stat-card-icon" />
-          </div>
-          <div className="stat-card-value">{summary?.in_stock_products ?? 0}</div>
-        </div>
-      </div>
-
       <section className="panel">
         <header>
           <div className="filters">
@@ -172,7 +137,7 @@ export function Inventory({ say }: { say: Say }) {
                           {item.uses} of {item.max_uses} customers
                         </small>
                       ) : item.order_id ? (
-                        <small>order #{item.order_id}</small>
+                        <small>order O{item.order_id}</small>
                       ) : null}
                     </td>
                     <td>
@@ -614,7 +579,6 @@ function ExpiryPicker({ value, onChange }: { value: string; onChange: (val: stri
             minHeight: '20px',
           }}
         >
-          <Clock size={13} style={{ flexShrink: 0, opacity: enabled && value ? 1 : 0.6 }} />
           <span>
             {enabled && value ? (
               <>

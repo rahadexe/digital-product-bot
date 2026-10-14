@@ -42,8 +42,9 @@ class BaseSupplier(ABC):
         pass
 
     @abstractmethod
-    async def sync_catalog(self) -> tuple[int, int]:
+    async def sync_catalog(self, filter_ids: list[int] | None = None, force_active: bool | None = None, target_category_id: int | None = None) -> tuple[int, int]:
         pass
+
 
     @abstractmethod
     async def check_low_balance(self, notifier: Any = None) -> bool:
@@ -60,16 +61,19 @@ class DigitalMartClient(BaseSupplier):
         self.config = config
         self.base_url = (config.upstream_reseller_url or "https://dmb.bmdigital.bd/api/v1/reseller").rstrip("/")
         self.api_key = config.upstream_reseller_key or ""
+        self._balance_cache: tuple[float, dict[str, Any]] | None = None
 
     async def _ensure_config(self) -> None:
         if self.settings:
             try:
                 db_url = await self.settings.get("upstream_reseller_url")
                 db_key = await self.settings.get("upstream_reseller_key")
+                next_key = db_key or self.config.upstream_reseller_key or ""
+                if next_key != self.api_key or (db_url and db_url.rstrip('/') != self.base_url):
+                    self._balance_cache = None
                 if db_url:
                     self.base_url = db_url.rstrip("/")
-                if db_key:
-                    self.api_key = db_key
+                self.api_key = next_key
             except Exception:
                 pass
 
@@ -84,7 +88,10 @@ class DigitalMartClient(BaseSupplier):
             "User-Agent": "SubsMarket-DigitalMart/1.0",
         }
 
-    async def get_balance(self) -> dict[str, Any] | None:
+    async def get_balance(self, force: bool = False) -> dict[str, Any] | None:
+        now = time.monotonic()
+        if not force and self._balance_cache and (now - self._balance_cache[0] < 30.0):
+            return self._balance_cache[1]
         await self._ensure_config()
         if not self.is_configured:
             return None
@@ -94,12 +101,14 @@ class DigitalMartClient(BaseSupplier):
                 if resp.status_code == 200:
                     data = resp.json()
                     user = data.get("user", {})
-                    return {
+                    res = {
                         "ok": True,
                         "balance": float(user.get("balance", 0.0)),
                         "currency": "BDT",
                         "raw": data,
                     }
+                    self._balance_cache = (now, res)
+                    return res
                 logger.warning("Digital Mart /me returned %d: %s", resp.status_code, resp.text)
         except Exception:
             logger.exception("Failed to connect to Digital Mart /me")
@@ -149,12 +158,18 @@ class DigitalMartClient(BaseSupplier):
                     }
                 error_msg = data.get("detail") or data.get("message") or f"Digital Mart error ({resp.status_code})"
                 is_low_balance = resp.status_code == 402 or "balance" in error_msg.lower()
-                return {"success": False, "detail": error_msg, "insufficient_balance": is_low_balance}
+                return {"success": False, "detail": error_msg, "insufficient_balance": is_low_balance,
+                        "outcome_unknown": resp.status_code >= 500 or resp.status_code == 408 or 200 <= resp.status_code < 300}
         except Exception as exc:
             logger.exception("Failed to purchase from Digital Mart")
-            return {"success": False, "detail": str(exc), "insufficient_balance": False}
+            return {"success": False, "detail": str(exc), "insufficient_balance": False, "outcome_unknown": True}
 
-    async def sync_catalog(self) -> tuple[int, int]:
+    async def sync_catalog(
+        self,
+        filter_ids: list[int] | None = None,
+        force_active: bool | None = None,
+        target_category_id: int | None = None,
+    ) -> tuple[int, int]:
         await self._ensure_config()
         if not self.is_configured:
             return 0, 0
@@ -162,29 +177,45 @@ class DigitalMartClient(BaseSupplier):
         if not products:
             return 0, 0
 
+        if filter_ids:
+            filter_set = {int(x) for x in filter_ids}
+            products = [p for p in products if int(p.get("id") or 0) in filter_set]
+            if not products:
+                return 0, 0
+
         cats_synced, prods_synced = 0, 0
         async with self.db.transaction() as conn:
             for p in products:
-                cat_name = (p.get("category_name") or "General").strip()
-                cat_row = await conn.fetchrow("SELECT id FROM categories WHERE LOWER(name) = LOWER($1)", cat_name)
-                if cat_row:
-                    cat_id = cat_row["id"]
-                else:
-                    cat_id = await conn.fetchval(
-                        "INSERT INTO categories (name, icon, sort_order) VALUES ($1, $2, 99) RETURNING id",
-                        cat_name, (p.get("icon") or "").strip()
-                    )
-                    cats_synced += 1
-
                 existing = await conn.fetchrow(
-                    "SELECT id, price FROM products WHERE supplier_code = 'digital_mart' AND upstream_product_id = $1",
+                    "SELECT id, price, is_active FROM products WHERE supplier_code = 'digital_mart' AND upstream_product_id = $1",
                     p["id"]
                 )
                 if not existing:
                     existing = await conn.fetchrow(
-                        "SELECT id, price FROM products WHERE upstream_product_id = $1 AND (supplier_code IS NULL OR supplier_code = 'digital_mart')",
+                        "SELECT id, price, is_active FROM products WHERE upstream_product_id = $1 AND (supplier_code IS NULL OR supplier_code = 'digital_mart')",
                         p["id"]
                     )
+
+                # Selective listing policy: On general catalog sync (filter_ids is None), only update already-imported products!
+                # Do NOT auto-import unlisted remote products into the shop.
+                if not existing and not filter_ids:
+                    continue
+
+                if target_category_id:
+                    cat_id = target_category_id
+                else:
+                    cat_name = (p.get("category_name") or "Others").strip()
+                    if cat_name.lower() in ("uncategorized", "uncat", "none"):
+                        cat_name = "Others"
+                    cat_row = await conn.fetchrow("SELECT id FROM categories WHERE LOWER(name) = LOWER($1)", cat_name)
+                    if cat_row:
+                        cat_id = cat_row["id"]
+                    else:
+                        cat_id = await conn.fetchval(
+                            "INSERT INTO categories (name, icon, sort_order) VALUES ($1, $2, 99) RETURNING id",
+                            cat_name, (p.get("icon") or "").strip()
+                        )
+                        cats_synced += 1
 
                 markup = 15.0
                 if self.settings:
@@ -206,31 +237,44 @@ class DigitalMartClient(BaseSupplier):
                     existing_price = float(existing.get("price") or 0.0)
                     min_selling_price = round(reseller_rate * (1 + markup / 100), 2) if reseller_rate > 0 else computed_price
                     final_price = existing_price if existing_price >= min_selling_price else min_selling_price
-                    await conn.execute(
-                        """
-                        UPDATE products
-                        SET reseller_price = $1, price = $2, supplier_code = 'digital_mart', upstream_product_id = $3
-                        WHERE id = $4
-                        """,
-                        reseller_rate, final_price, p["id"], existing["id"]
-                    )
+                    new_active = (1 if force_active else 0) if force_active is not None else existing.get("is_active", 0)
+                    if target_category_id:
+                        await conn.execute(
+                            """
+                            UPDATE products
+                            SET reseller_price = $1, price = $2, supplier_code = 'digital_mart', upstream_product_id = $3, is_active = $4, category_id = $5
+                            WHERE id = $6
+                            """,
+                            reseller_rate, final_price, p["id"], new_active, target_category_id, existing["id"]
+                        )
+                    else:
+                        await conn.execute(
+                            """
+                            UPDATE products
+                            SET reseller_price = $1, price = $2, supplier_code = 'digital_mart', upstream_product_id = $3, is_active = $4
+                            WHERE id = $5
+                            """,
+                            reseller_rate, final_price, p["id"], new_active, existing["id"]
+                        )
                 else:
                     title = p["title"].strip()
                     # If same title already exists locally, disambiguate to prevent confusion
                     same_title = await conn.fetchval("SELECT 1 FROM products WHERE LOWER(TRIM(title)) = LOWER(TRIM($1))", title)
                     final_title = f"{title} [DM]" if same_title else title
+                    active_val = 1 if force_active else 0
                     await conn.execute(
                         """
                         INSERT INTO products (category_id, title, description, price, reseller_price, icon, duration_label,
                                               supplier_code, upstream_product_id, is_active, upstream_devices, upstream_share_hours)
-                        VALUES ($1, $2, $3, $4, $5, $6, $7, 'digital_mart', $8, 0, 1, 24)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, 'digital_mart', $8, $9, 1, 24)
                         """,
                         cat_id, final_title, p.get("description") or "", computed_price, reseller_rate,
-                        (p.get("icon") or "").strip(), p.get("duration") or "", p["id"]
+                        (p.get("icon") or "").strip(), p.get("duration") or "", p["id"], active_val
                     )
                 prods_synced += 1
 
         return cats_synced, prods_synced
+
 
     async def check_low_balance(self, notifier: Any = None) -> bool:
         account = await self.get_balance()
@@ -267,16 +311,18 @@ class SafwanTigerClient(BaseSupplier):
         super().__init__(db, settings)
         self.base_url = "https://safwantigershopbot-production.up.railway.app/api"
         self.api_key = ""
+        self._balance_cache: tuple[float, dict[str, Any]] | None = None
 
     async def _ensure_config(self) -> None:
         if self.settings:
             try:
                 db_url = await self.settings.get("safwan_tiger_url")
                 db_key = await self.settings.get("safwan_tiger_key")
+                if (db_key or '') != self.api_key or (db_url and db_url.rstrip('/') != self.base_url):
+                    self._balance_cache = None
                 if db_url:
                     self.base_url = db_url.rstrip("/")
-                if db_key:
-                    self.api_key = db_key
+                self.api_key = db_key or ""
             except Exception:
                 pass
 
@@ -292,7 +338,10 @@ class SafwanTigerClient(BaseSupplier):
             "User-Agent": "SubsMarket-SafwanTiger/1.0",
         }
 
-    async def get_balance(self) -> dict[str, Any] | None:
+    async def get_balance(self, force: bool = False) -> dict[str, Any] | None:
+        now = time.monotonic()
+        if not force and self._balance_cache and (now - self._balance_cache[0] < 30.0):
+            return self._balance_cache[1]
         await self._ensure_config()
         if not self.is_configured:
             return None
@@ -301,12 +350,14 @@ class SafwanTigerClient(BaseSupplier):
                 resp = await client.get(f"{self.base_url}/balance", headers=self._headers())
                 if resp.status_code == 200:
                     data = resp.json()
-                    return {
+                    res = {
                         "ok": True,
                         "balance": float(data.get("balance", 0.0)),
                         "currency": "USDT",
                         "raw": data,
                     }
+                    self._balance_cache = (now, res)
+                    return res
                 logger.warning("Safwan Tiger /balance returned %d: %s", resp.status_code, resp.text)
         except Exception:
             logger.exception("Failed to connect to Safwan Tiger /balance")
@@ -375,18 +426,30 @@ class SafwanTigerClient(BaseSupplier):
                     "success": False,
                     "detail": error_msg,
                     "insufficient_balance": is_low_balance,
+                    "outcome_unknown": resp.status_code >= 500 or resp.status_code == 408 or 200 <= resp.status_code < 300,
                 }
         except Exception as exc:
             logger.exception("Failed to purchase from Safwan Tiger")
-            return {"success": False, "detail": str(exc), "insufficient_balance": False}
+            return {"success": False, "detail": str(exc), "insufficient_balance": False, "outcome_unknown": True}
 
-    async def sync_catalog(self) -> tuple[int, int]:
+    async def sync_catalog(
+        self,
+        filter_ids: list[int] | None = None,
+        force_active: bool | None = None,
+        target_category_id: int | None = None,
+    ) -> tuple[int, int]:
         await self._ensure_config()
         if not self.is_configured:
             return 0, 0
         products = await self.get_products()
         if not products:
             return 0, 0
+
+        if filter_ids:
+            filter_set = {int(x) for x in filter_ids}
+            products = [p for p in products if int(p.get("id") or 0) in filter_set]
+            if not products:
+                return 0, 0
 
         usd_rate = 125.0
         if self.settings:
@@ -404,15 +467,28 @@ class SafwanTigerClient(BaseSupplier):
 
         cats_synced, prods_synced = 0, 0
         async with self.db.transaction() as conn:
-            # Default or ensure general category
-            cat_row = await conn.fetchrow("SELECT id FROM categories WHERE LOWER(name) = 'ai tools' OR LOWER(name) = 'general' ORDER BY id LIMIT 1")
-            cat_id = cat_row["id"] if cat_row else await conn.fetchval(
-                "INSERT INTO categories (name, icon, sort_order) VALUES ('AI Tools', '🤖', 99) RETURNING id"
-            )
+            # Default or ensure general category if target_category_id is not specified
+            if target_category_id:
+                default_cat_id = target_category_id
+            else:
+                cat_row = await conn.fetchrow("SELECT id FROM categories WHERE LOWER(name) = 'ai tools' OR LOWER(name) = 'general' ORDER BY id LIMIT 1")
+                default_cat_id = cat_row["id"] if cat_row else await conn.fetchval(
+                    "INSERT INTO categories (name, icon, sort_order) VALUES ('AI Tools', '🤖', 99) RETURNING id"
+                )
 
             for p in products:
-                prod_name = (p.get("name") or p.get("title") or "Unnamed Product").strip()
                 supplier_prod_id = int(p["id"])
+                existing = await conn.fetchrow(
+                    "SELECT id, price, is_active FROM products WHERE supplier_code = 'safwan_tiger' AND upstream_product_id = $1",
+                    supplier_prod_id
+                )
+
+                # Selective listing policy: On general catalog sync (filter_ids is None), only update already-imported products!
+                if not existing and not filter_ids:
+                    continue
+
+                cat_id = target_category_id if target_category_id else default_cat_id
+                prod_name = (p.get("name") or p.get("title") or "Unnamed Product").strip()
                 usd_price = float(p.get("price") or 0.0)
                 # Convert USD to BDT
                 reseller_rate_bdt = round(usd_price * usd_rate, 2)
@@ -422,41 +498,49 @@ class SafwanTigerClient(BaseSupplier):
                 if p.get("warranty"):
                     desc = f"{desc}\n\nWarranty: {p['warranty']}".strip()
 
-                existing = await conn.fetchrow(
-                    "SELECT id, price FROM products WHERE supplier_code = 'safwan_tiger' AND upstream_product_id = $1",
-                    supplier_prod_id
-                )
-
                 if existing:
                     existing_price = float(existing.get("price") or 0.0)
                     min_selling_price = round(reseller_rate_bdt * (1 + markup / 100), 2)
                     final_price = existing_price if existing_price >= min_selling_price else min_selling_price
-                    await conn.execute(
-                        """
-                        UPDATE products
-                        SET reseller_price = $1, price = $2, supplier_code = 'safwan_tiger', upstream_product_id = $3
-                        WHERE id = $4
-                        """,
-                        reseller_rate_bdt, final_price, supplier_prod_id, existing["id"]
-                    )
+                    new_active = (1 if force_active else 0) if force_active is not None else existing.get("is_active", 0)
+                    if target_category_id:
+                        await conn.execute(
+                            """
+                            UPDATE products
+                            SET reseller_price = $1, price = $2, supplier_code = 'safwan_tiger', upstream_product_id = $3, is_active = $4, category_id = $5
+                            WHERE id = $6
+                            """,
+                            reseller_rate_bdt, final_price, supplier_prod_id, new_active, target_category_id, existing["id"]
+                        )
+                    else:
+                        await conn.execute(
+                            """
+                            UPDATE products
+                            SET reseller_price = $1, price = $2, supplier_code = 'safwan_tiger', upstream_product_id = $3, is_active = $4
+                            WHERE id = $5
+                            """,
+                            reseller_rate_bdt, final_price, supplier_prod_id, new_active, existing["id"]
+                        )
                 else:
                     # Deduplication: check if same title already exists in store
                     same_title = await conn.fetchval(
                         "SELECT 1 FROM products WHERE LOWER(TRIM(title)) = LOWER(TRIM($1))", prod_name
                     )
                     final_title = f"{prod_name} [Tiger]" if same_title else prod_name
+                    active_val = 1 if force_active else 0
 
                     await conn.execute(
                         """
                         INSERT INTO products (category_id, title, description, price, reseller_price, icon, duration_label,
                                               supplier_code, upstream_product_id, is_active, upstream_devices, upstream_share_hours)
-                        VALUES ($1, $2, $3, $4, $5, '', '1 Month', 'safwan_tiger', $6, 0, 1, 24)
+                        VALUES ($1, $2, $3, $4, $5, '', '1 Month', 'safwan_tiger', $6, $7, 1, 24)
                         """,
-                        cat_id, final_title, desc, computed_price_bdt, reseller_rate_bdt, supplier_prod_id
+                        cat_id, final_title, desc, computed_price_bdt, reseller_rate_bdt, supplier_prod_id, active_val
                     )
                 prods_synced += 1
 
         return cats_synced, prods_synced
+
 
     async def check_low_balance(self, notifier: Any = None) -> bool:
         account = await self.get_balance()
@@ -503,6 +587,10 @@ class SupplierManager:
 
     def list_all(self) -> list[BaseSupplier]:
         return list(self.suppliers.values())
+
+    async def load_config(self) -> None:
+        for supplier in self.suppliers.values():
+            await supplier._ensure_config()
 
     async def sync_all(self) -> dict[str, tuple[int, int]]:
         results = {}

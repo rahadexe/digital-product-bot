@@ -142,10 +142,10 @@ export function FlagRow({
 }
 
 export function Pager({ total, offset, size, onChange }: { total: number; offset: number; size: number; onChange: (offset: number) => void }) {
-  if (total <= size) return null;
+  if (total === 0) return null;
   return (
     <div className="pager">
-      <span>
+      <span role="status">
         {offset + 1}–{Math.min(offset + size, total)} of {total}
       </span>
       <span className="spacer" />
@@ -176,6 +176,7 @@ export function Modal({
   children,
   footer,
   wide = false,
+  className,
   onSubmit,
 }: {
   title: string;
@@ -183,18 +184,39 @@ export function Modal({
   children: React.ReactNode;
   footer?: React.ReactNode;
   wide?: boolean;
+  className?: string;
   onSubmit?: (event: React.FormEvent) => void;
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useEffect(() => {
-    const escape = (event: KeyboardEvent) => event.key === 'Escape' && onClose();
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const focusable = () => Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(
+      'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"]'
+    ) ?? []).filter((element) => element.getClientRects().length > 0);
+    focusable()[0]?.focus();
+    const escape = (event: KeyboardEvent) => {
+      const dialogs = document.querySelectorAll('[role="dialog"]');
+      if (!dialogRef.current?.contains(dialogs[dialogs.length - 1])) return;
+      if (event.key === 'Escape') { event.preventDefault(); closeRef.current(); }
+      if (event.key !== 'Tab') return;
+      const elements = focusable();
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+      if (!first) { event.preventDefault(); return; }
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
     window.addEventListener('keydown', escape);
     const priorOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       window.removeEventListener('keydown', escape);
       document.body.style.overflow = priorOverflow;
+      if (previousFocus?.isConnected) previousFocus.focus();
     };
-  }, [onClose]);
+  }, []);
 
   const content = (
     <>
@@ -209,14 +231,16 @@ export function Modal({
     </>
   );
 
+  const modalClass = `modal${wide ? ' wide' : ''}${className ? ` ${className}` : ''}`;
+
   return (
-    <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+    <div ref={dialogRef} className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       {onSubmit ? (
-        <form className={`modal${wide ? ' wide' : ''}`} role="dialog" aria-modal="true" aria-label={title} onSubmit={onSubmit}>
+        <form className={modalClass} role="dialog" aria-modal="true" aria-label={title} onSubmit={onSubmit}>
           {content}
         </form>
       ) : (
-        <div className={`modal${wide ? ' wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
+        <div className={modalClass} role="dialog" aria-modal="true" aria-label={title}>
           {content}
         </div>
       )}

@@ -1,56 +1,58 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, Sparkles, X } from 'lucide-react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Check, ChevronDown, X } from 'lucide-react';
 import { api } from '@/lib/api';
 
 export interface EmojiItem {
   name: string;
   id: string;
-  category?: string;
+  emoji?: string | null;
   is_system?: boolean;
 }
 
-// Verified Telegram VPN Custom Emojis (default built-in fallback)
+export type EmojiSelection = {
+  icon: string;
+  customEmojiId: string;
+};
+
+export function splitLeadingEmoji(text: string): { emoji: string; text: string } {
+  const trimmed = text.trimStart();
+  if (!trimmed) return { emoji: '', text };
+  const segments = Array.from(
+    new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(trimmed)
+  );
+  const candidate = segments[0]?.segment || '';
+  if (
+    !candidate ||
+    !/[\p{Extended_Pictographic}\p{Regional_Indicator}]/u.test(candidate)
+  ) {
+    return { emoji: '', text };
+  }
+  return { emoji: candidate, text: trimmed.slice(candidate.length).trimStart() };
+}
+
+// Verified Telegram custom emojis used when the library API is unavailable.
 export const PRESET_EMOJIS: EmojiItem[] = [
-  { name: 'NordVPN', id: '5796345694969140339', category: 'VPN', is_system: true },
-  { name: 'ExpressVPN', id: '5796153709931009517', category: 'VPN', is_system: true },
-  { name: 'Surfshark', id: '5796592771552777710', category: 'VPN', is_system: true },
-  { name: 'Proton VPN', id: '5794298344188678751', category: 'VPN', is_system: true },
-  { name: 'CyberGhost', id: '5796309230696797985', category: 'VPN', is_system: true },
-  { name: 'HMA VPN', id: '5796595022115639741', category: 'VPN', is_system: true },
-  { name: 'Bitdefender', id: '5793973558761756143', category: 'VPN', is_system: true },
-  { name: 'Windscribe', id: '5794045349140108622', category: 'VPN', is_system: true },
-  { name: 'PureVPN', id: '5794156713347126602', category: 'VPN', is_system: true },
-  { name: 'Turbo VPN', id: '5796633857209931262', category: 'VPN', is_system: true },
-  { name: 'PotatoVPN', id: '5796403831646458962', category: 'VPN', is_system: true },
-  { name: 'PandaVPN', id: '5796561774773801876', category: 'VPN', is_system: true },
-  { name: 'IPVanish', id: '5796381996032725483', category: 'VPN', is_system: true },
-  { name: 'X-VPN', id: '5794376731636798062', category: 'VPN', is_system: true },
-
-  // Payment Methods
-  { name: 'bKash', id: '6217678000977089090', category: 'Payment', is_system: true },
-  { name: 'Nagad', id: '6217625168584380551', category: 'Payment', is_system: true },
-  { name: 'Rocket', id: '4911601033496494993', category: 'Payment', is_system: true },
-  { name: 'Binance', id: '5348212415077064131', category: 'Payment', is_system: true },
-  { name: 'Bybit', id: '5348372939479751825', category: 'Payment', is_system: true },
-
-  // Services & Platforms
-  { name: 'ChatGPT', id: '5453962468478962129', category: 'Services', is_system: true },
-  { name: 'Gemini', id: '5262838511161076891', category: 'Services', is_system: true },
-  { name: 'YouTube', id: '5796637619601283518', category: 'Services', is_system: true },
-  { name: 'Spotify', id: '5796304385973686816', category: 'Services', is_system: true },
-  { name: 'TradingView', id: '5796502474160346077', category: 'Services', is_system: true },
-  { name: 'Netflix', id: '5796522630441867305', category: 'Services', is_system: true },
-  { name: 'ChatGPT (Icon)', id: '5796185041717433060', category: 'Services', is_system: true },
-  { name: 'Canva', id: '5796214303329620386', category: 'Services', is_system: true },
-  { name: 'Disney+', id: '5794147784110117479', category: 'Services', is_system: true },
-  { name: 'Crunchyroll', id: '5796297333637387376', category: 'Services', is_system: true },
-  { name: 'Telegram (Badge)', id: '6264777724741556322', category: 'Services', is_system: true },
-  { name: 'CapCut', id: '5244855659186383242', category: 'Services', is_system: true },
-  { name: 'YouTube (Alt)', id: '5334769042886533147', category: 'Services', is_system: true },
-  { name: 'Newspaper', id: '5336879280578138635', category: 'Services', is_system: true },
-  { name: 'Telegram (Plane)', id: '5269215244810491516', category: 'Services', is_system: true },
+  { name: 'NordVPN', id: '5796345694969140339', is_system: true },
+  { name: 'ExpressVPN', id: '5796153709931009517', is_system: true },
+  { name: 'Surfshark', id: '5796592771552777710', is_system: true },
+  { name: 'Proton VPN', id: '5794298344188678751', is_system: true },
+  { name: 'CyberGhost', id: '5796309230696797985', is_system: true },
+  { name: 'HMA VPN', id: '5796595022115639741', is_system: true },
+  { name: 'Bitdefender', id: '5793973558761756143', is_system: true },
+  { name: 'Windscribe', id: '5794045349140108622', is_system: true },
+  { name: 'PureVPN', id: '5794156713347126602', is_system: true },
+  { name: 'Turbo VPN', id: '5796633857209931262', is_system: true },
+  { name: 'PotatoVPN', id: '5796403831646458962', is_system: true },
+  { name: 'PandaVPN', id: '5796561774773801876', is_system: true },
+  { name: 'IPVanish', id: '5796381996032725483', is_system: true },
+  { name: 'X VPN', id: '5794376731636798062', is_system: true },
+  { name: 'bKash', id: '6217678000977089090', is_system: true },
+  { name: 'Nagad', id: '6217625168584380551', is_system: true },
+  { name: 'Rocket', id: '4911601033496494993', is_system: true },
+  { name: 'Binance', id: '5348212415077064131', is_system: true },
+  { name: 'Bybit', id: '5348372939479751825', is_system: true },
 ];
 
 export const VPN_EMOJIS = PRESET_EMOJIS;
@@ -72,7 +74,6 @@ async function fetchLibraryEmojis(): Promise<EmojiItem[]> {
       const list: EmojiItem[] = (res.all || []).map((item) => ({
         name: item.name,
         id: item.emoji_id,
-        category: item.category,
         is_system: item.is_system,
       }));
       cachedLibrary = list;
@@ -89,16 +90,26 @@ async function fetchLibraryEmojis(): Promise<EmojiItem[]> {
 
 interface EmojiPickerProps {
   value?: string;
-  onChange: (id: string) => void;
+  icon?: string;
+  onChange: (selection: EmojiSelection) => void;
 }
 
-export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
+export function EmojiPicker({
+  value = '',
+  icon = '',
+  onChange,
+}: EmojiPickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [selectionError, setSelectionError] = useState('');
+  const [activeIndex, setActiveIndex] = useState(-1);
   const [emojis, setEmojis] = useState<EmojiItem[]>(cachedLibrary || PRESET_EMOJIS);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const activeOptionRef = useRef<HTMLButtonElement>(null);
+  const inputId = useId();
+  const listId = useId();
 
   // Load from API on mount
   useEffect(() => {
@@ -121,32 +132,63 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
     return emojis.find((p) => p.id === trimmedValue);
   }, [emojis, trimmedValue]);
 
+  const trimmedIcon = icon.trim();
+
   // Display text in the input box:
   // When typing: show query.
   // When not typing: show emoji name, or custom ID, or empty.
   const displayValue = isTyping
     ? query
-    : matchedEmoji
-    ? matchedEmoji.name
-    : trimmedValue;
+    : trimmedIcon
+    ? trimmedIcon
+    : trimmedValue
+    ? matchedEmoji?.name ?? 'Custom emoji'
+    : '';
+
+  const graphemes = useMemo(() => {
+    const input = query.trim();
+    if (!input) return [];
+    return Array.from(
+      new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(input)
+    );
+  }, [query]);
+  const isBasicEmojiQuery =
+    graphemes.length === 1 &&
+    /[\p{Extended_Pictographic}\p{Regional_Indicator}]/u.test(query.trim());
+  const isCustomIdQuery = /^\d{1,64}$/.test(query.trim());
 
   // Filter emojis based on query
   const filteredEmojis = useMemo(() => {
     if (!isTyping || !query.trim()) return emojis;
     const q = query.trim().toLowerCase();
-    return emojis.filter(
-      (item) => item.name.toLowerCase().includes(q) || item.id.includes(q) || (item.category && item.category.toLowerCase().includes(q))
-    );
+    return emojis.filter((item) => item.name.toLowerCase().includes(q) || item.id.includes(q));
   }, [emojis, isTyping, query]);
 
-  // Is typed query a custom ID or something not matching presets
-  const isCustomQuery = useMemo(() => {
-    if (!isTyping || !query.trim()) return false;
+  const isPresetQuery = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return !emojis.some(
-      (item) => item.name.toLowerCase() === q || item.id === query.trim()
-    );
-  }, [emojis, isTyping, query]);
+    return emojis.some((item) => item.name.toLowerCase() === q || item.id === query.trim());
+  }, [emojis, query]);
+
+  const dropdownOptions = useMemo(() => {
+    const options: { id: string; label: string; value: string }[] = [];
+    if (isTyping && isBasicEmojiQuery && !isPresetQuery) {
+      options.push({ id: 'custom-emoji', label: `Use emoji ${query.trim()}`, value: query.trim() });
+    }
+    if (isTyping && isCustomIdQuery && !isPresetQuery) {
+      options.push({ id: 'custom-id', label: 'Use entered Telegram emoji ID', value: query.trim() });
+    }
+    options.push({ id: 'none', label: 'None', value: '' });
+    for (const item of filteredEmojis) {
+      options.push({ id: item.id, label: item.name, value: item.id });
+    }
+    return options;
+  }, [filteredEmojis, isBasicEmojiQuery, isCustomIdQuery, isPresetQuery, isTyping, query]);
+
+  useEffect(() => {
+    if (isOpen && activeIndex >= 0) {
+      activeOptionRef.current?.scrollIntoView({ block: 'nearest' });
+    }
+  }, [activeIndex, isOpen]);
 
   // Close on outside click
   useEffect(() => {
@@ -156,6 +198,7 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
         setIsOpen(false);
         setIsTyping(false);
         setQuery('');
+        setActiveIndex(-1);
       }
     };
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -163,6 +206,7 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
         setIsOpen(false);
         setIsTyping(false);
         setQuery('');
+        setActiveIndex(-1);
       }
     };
 
@@ -175,16 +219,47 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
   }, [isOpen]);
 
   const handleSelect = (selectedId: string) => {
-    onChange(selectedId);
+    const selection = selectedId.trim();
+    setSelectionError('');
+    if (!selection) {
+      onChange({ icon: '', customEmojiId: '' });
+    } else {
+      const preset = emojis.find(
+        (item) =>
+          item.id === selection ||
+          item.name.toLowerCase() === selection.toLowerCase()
+      );
+      if (preset) {
+        onChange({ icon: '', customEmojiId: preset.id });
+      } else if (/^\d{1,64}$/.test(selection)) {
+        onChange({ icon: '', customEmojiId: selection });
+      } else {
+        const candidateSegments = Array.from(
+          new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(selection)
+        );
+        if (
+          candidateSegments.length === 1 &&
+          /[\p{Extended_Pictographic}\p{Regional_Indicator}]/u.test(selection)
+        ) {
+          onChange({ icon: selection, customEmojiId: '' });
+        } else {
+          setSelectionError('Choose one emoji, a preset, or a numeric Telegram emoji ID.');
+          return;
+        }
+      }
+    }
     setIsOpen(false);
     setIsTyping(false);
     setQuery('');
+    setActiveIndex(-1);
   };
 
   const handleClear = () => {
-    onChange('');
+    onChange({ icon: '', customEmojiId: '' });
+    setSelectionError('');
     setQuery('');
     setIsTyping(false);
+    setActiveIndex(-1);
     inputRef.current?.focus();
   };
 
@@ -205,6 +280,58 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
     });
   };
 
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!isOpen) setIsOpen(true);
+      if (!dropdownOptions.length) return;
+      const step = e.key === 'ArrowDown' ? 1 : -1;
+      setActiveIndex((current) => {
+        if (current < 0) {
+          if (step > 0 && query.trim()) {
+            const firstMatch = dropdownOptions.findIndex((option) => option.id !== 'none');
+            if (firstMatch >= 0) return firstMatch;
+          }
+          return step > 0 ? 0 : dropdownOptions.length - 1;
+        }
+        return (current + step + dropdownOptions.length) % dropdownOptions.length;
+      });
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const activeOption = dropdownOptions[activeIndex];
+      if (activeOption) {
+        handleSelect(activeOption.value);
+      } else if (query.trim()) {
+        const exactMatch = emojis.find(
+          (item) =>
+            item.name.toLowerCase() === query.trim().toLowerCase() ||
+            item.id === query.trim()
+        );
+        if (exactMatch) {
+          handleSelect(exactMatch.id);
+        } else if (isBasicEmojiQuery || isCustomIdQuery || filteredEmojis.length === 0) {
+          handleSelect(query.trim());
+        } else {
+          handleSelect(filteredEmojis[0].id);
+        }
+      } else {
+        handleSelect('');
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsOpen(false);
+      setIsTyping(false);
+      setQuery('');
+      setActiveIndex(-1);
+    } else if (e.key === 'Tab' && isOpen) {
+      setIsOpen(false);
+      setIsTyping(false);
+      setQuery('');
+      setActiveIndex(-1);
+    }
+  };
+
   return (
     <div
       ref={containerRef}
@@ -217,51 +344,31 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
         userSelect: 'none',
       }}
     >
-      <span
-        style={{
-          fontSize: '12.5px',
-          fontWeight: 600,
-          color: 'var(--text-dim)',
-          marginBottom: '5px',
-          display: 'block',
-          userSelect: 'none',
-        }}
-      >
-        Custom Emoji <small style={{ color: 'var(--muted)', fontWeight: 'normal' }}>(Optional)</small>
-      </span>
+      <label className="emoji-picker-label" htmlFor={inputId}>
+        Icon <small style={{ color: 'var(--muted)', fontWeight: 'normal' }}>(Optional)</small>
+      </label>
 
-      {/* Styled Box matching CustomSelect */}
       <div
-        className="emoji-input-box"
+        className={`emoji-input-box${isOpen ? ' open' : ''}`}
         onClick={handleBoxClick}
-        style={{
-          width: '100%',
-          minHeight: '40px',
-          height: '40px',
-          padding: '0 10px 0 12px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '8px',
-          background: '#fbfcfb',
-          border: `1px solid ${isOpen ? 'var(--accent)' : 'var(--border)'}`,
-          borderRadius: 'var(--radius-sm)',
-          cursor: 'pointer',
-          outline: 'none',
-          boxShadow: isOpen
-            ? '0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent)'
-            : 'none',
-          transition: 'border-color 120ms ease, box-shadow 120ms ease',
-          boxSizing: 'border-box',
-          userSelect: 'none',
-        }}
       >
         <input
+          id={inputId}
           ref={inputRef}
           type="text"
           className="emoji-combobox-field"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={isOpen}
+          aria-haspopup="listbox"
+          aria-controls={isOpen ? listId : undefined}
+          aria-activedescendant={
+            isOpen && activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined
+          }
+          aria-invalid={selectionError ? true : undefined}
+          aria-describedby={selectionError ? `${inputId}-error` : undefined}
           value={displayValue}
-          placeholder="Select icon or enter custom ID..."
+          placeholder="Search or paste an emoji or ID..."
           onClick={(e) => {
             e.stopPropagation();
             if (!isOpen) {
@@ -274,233 +381,100 @@ export function EmojiPicker({ value = '', onChange }: EmojiPickerProps) {
             }
           }}
           onChange={(e) => {
+            const input = e.target.value;
             setIsTyping(true);
-            setQuery(e.target.value);
+            setQuery(input);
+            setSelectionError('');
+            setActiveIndex(-1);
+            const pasted = input.trim();
+            const segments = pasted
+              ? Array.from(
+                  new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(pasted)
+                )
+              : [];
+            const preset = emojis.find(
+              (item) =>
+                item.name.toLowerCase() === pasted.toLowerCase() ||
+                item.id === pasted
+            );
+            if (preset) {
+              onChange({ icon: '', customEmojiId: preset.id });
+            } else if (/^\d{1,64}$/.test(pasted)) {
+              onChange({ icon: '', customEmojiId: pasted });
+            } else if (
+              segments.length === 1 &&
+              /[\p{Extended_Pictographic}\p{Regional_Indicator}]/u.test(pasted)
+            ) {
+              onChange({ icon: pasted, customEmojiId: '' });
+            }
             if (!isOpen) setIsOpen(true);
           }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              if (query.trim()) {
-                const match = emojis.find(
-                  (p) => p.name.toLowerCase() === query.trim().toLowerCase()
-                );
-                handleSelect(match ? match.id : query.trim());
-              }
-            } else if (e.key === 'Escape') {
-              e.preventDefault();
-              setIsOpen(false);
-              setIsTyping(false);
-              setQuery('');
-            }
-          }}
-          style={{ cursor: 'text', userSelect: 'text' }}
+          onKeyDown={handleInputKeyDown}
         />
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, userSelect: 'none' }}>
+        <div className="emoji-picker-actions">
           {trimmedValue ? (
             <button
               type="button"
+              className="emoji-picker-clear"
               onClick={(e) => {
                 e.stopPropagation();
                 handleClear();
               }}
+              onMouseDown={(e) => e.preventDefault()}
+              aria-label="Clear icon selection"
               title="Clear"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--muted)',
-                cursor: 'pointer',
-                padding: '2px',
-                borderRadius: '4px',
-                background: 'none',
-                border: 'none',
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--danger)')}
-              onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--muted)')}
             >
-              <X size={14} />
+              <X size={14} aria-hidden="true" />
             </button>
           ) : null}
 
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--muted)',
-              pointerEvents: 'none',
-            }}
-          >
-            <ChevronDown
-              size={14}
-              style={{
-                transition: 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                transform: isOpen ? 'rotate(180deg)' : 'none',
-              }}
-            />
-          </div>
+          <ChevronDown
+            size={14}
+            className={`emoji-picker-chevron${isOpen ? ' open' : ''}`}
+            aria-hidden="true"
+          />
         </div>
       </div>
+      {selectionError ? (
+        <small id={`${inputId}-error`} className="emoji-picker-error" role="alert">
+          {selectionError}
+        </small>
+      ) : null}
 
-      {/* Floating Popover Menu matching CustomSelect */}
       {isOpen && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 'calc(100% + 5px)',
-            left: 0,
-            right: 0,
-            width: '100%',
-            maxHeight: '280px',
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: '10px',
-            boxShadow: '0 12px 36px -4px rgba(0, 0, 0, 0.16), 0 4px 12px -2px rgba(0, 0, 0, 0.06)',
-            padding: '5px',
-            zIndex: 1000,
-            display: 'flex',
-            flexDirection: 'column',
-            boxSizing: 'border-box',
-          }}
-        >
-          <div className="emoji-dropdown-scroll" style={{ maxHeight: '270px', overflowY: 'auto' }}>
-            {/* If user typed a custom ID / text not in list */}
-            {isCustomQuery && (
-              <div
-                onClick={() => handleSelect(query.trim())}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '10px',
-                  padding: '8px 12px',
-                  borderRadius: '6px',
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  color: 'var(--accent)',
-                  background: 'var(--accent-soft)',
-                  marginBottom: '4px',
-                  border: '1px dashed var(--accent)',
-                  boxSizing: 'border-box',
-                }}
-              >
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  Use custom ID: &ldquo;{query.trim()}&rdquo;
-                </span>
-                <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 'normal', flexShrink: 0 }}>
-                  ↵ Enter
-                </span>
-              </div>
-            )}
-
-            {/* None option */}
-            <div
-              onClick={() => handleSelect('')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '14px',
-                padding: '8px 12px',
-                borderRadius: '6px',
-                fontSize: '13px',
-                cursor: 'pointer',
-                fontWeight: !trimmedValue ? 600 : 400,
-                color: !trimmedValue ? 'var(--accent)' : 'var(--text)',
-                background: !trimmedValue ? 'var(--accent-soft)' : 'transparent',
-                transition: 'background-color 0.12s ease',
-                whiteSpace: 'nowrap',
-                boxSizing: 'border-box',
-                userSelect: 'none',
-              }}
-              onMouseEnter={(e) => {
-                if (trimmedValue) e.currentTarget.style.backgroundColor = 'var(--surface-2)';
-              }}
-              onMouseLeave={(e) => {
-                if (trimmedValue) e.currentTarget.style.backgroundColor = 'transparent';
-              }}
-            >
-              <span>None</span>
-              {!trimmedValue && (
-                <Check size={14} style={{ color: 'var(--accent)', strokeWidth: 2.5, flexShrink: 0 }} />
-              )}
-            </div>
-
-            {/* Emoji List */}
-            {filteredEmojis.map((opt) => {
-              const isSelected = trimmedValue === opt.id;
-              const isCustom = opt.category === 'Custom' || !opt.is_system;
-
+        <div className="emoji-dropdown">
+          <div id={listId} className="emoji-dropdown-scroll" role="listbox" aria-label="Available icons">
+            {dropdownOptions.map((option, index) => {
+              const isSelected =
+                option.id === 'none'
+                  ? !trimmedValue && !trimmedIcon
+                  : option.id === 'custom-emoji'
+                    ? trimmedIcon === option.value
+                    : trimmedValue === option.value;
+              const isActive = activeIndex === index;
               return (
-                <div
-                  key={`${opt.category || 'all'}-${opt.id}`}
-                  onClick={() => handleSelect(opt.id)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '10px',
-                    padding: '8px 12px',
-                    borderRadius: '6px',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    fontWeight: isSelected ? 600 : 400,
-                    color: isSelected ? 'var(--accent)' : 'var(--text)',
-                    background: isSelected ? 'var(--accent-soft)' : 'transparent',
-                    transition: 'background-color 0.12s ease',
-                    whiteSpace: 'nowrap',
-                    boxSizing: 'border-box',
-                    userSelect: 'none',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isSelected) e.currentTarget.style.backgroundColor = 'var(--surface-2)';
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
-                  }}
+                <button
+                  key={option.id}
+                  id={`${listId}-${index}`}
+                  type="button"
+                  role="option"
+                  aria-selected={isSelected}
+                  tabIndex={-1}
+                  className={`custom-select-option emoji-dropdown-option${isSelected ? ' selected' : ''}${isActive ? ' active' : ''}`}
+                  ref={isActive ? activeOptionRef : null}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onMouseMove={() => setActiveIndex(index)}
+                  onClick={() => handleSelect(option.value)}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, overflow: 'hidden' }}>
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {opt.name}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: '10px',
-                        padding: '1px 6px',
-                        borderRadius: '999px',
-                        fontWeight: 600,
-                        background: isCustom
-                          ? 'color-mix(in srgb, var(--accent) 15%, transparent)'
-                          : 'var(--surface-2)',
-                        color: isCustom ? 'var(--accent)' : 'var(--muted)',
-                        flexShrink: 0,
-                      }}
-                    >
-                      {opt.category || (isCustom ? 'Custom' : 'Preset')}
-                    </span>
-                  </div>
-                  {isSelected && (
-                    <Check size={14} style={{ color: 'var(--accent)', strokeWidth: 2.5, flexShrink: 0 }} />
-                  )}
-                </div>
+                  <span>{option.label}</span>
+                  {isSelected ? <Check size={14} aria-hidden="true" /> : null}
+                </button>
               );
             })}
-
-            {filteredEmojis.length === 0 && !isCustomQuery && (
-              <div
-                style={{
-                  padding: '10px 12px',
-                  fontSize: '12px',
-                  color: 'var(--muted)',
-                  textAlign: 'center',
-                }}
-              >
-                No matching emojis found
-              </div>
-            )}
+            {filteredEmojis.length === 0 && !isBasicEmojiQuery && !isCustomIdQuery ? (
+              <div className="emoji-dropdown-empty">No emojis found</div>
+            ) : null}
           </div>
         </div>
       )}

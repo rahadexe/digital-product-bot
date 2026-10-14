@@ -17,7 +17,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.types import CallbackQuery, Chat, Message, ReplyKeyboardMarkup, Update, User
 
 from app.bot.app import create_dispatcher
-from app.bot.handlers import admin, deposit, help_guide, profile, search, shop, start
+from app.bot.handlers import admin, deposit, help_guide, navigation, profile, reseller_apply, search, shop, start
 from app.bot.keyboards import ADMIN_PANEL_TEXT
 from app.bot.storage import PostgresStorage
 from app.core.config import Settings
@@ -44,13 +44,15 @@ class AdminKeyboard(unittest.IsolatedAsyncioTestCase):
         self.db = Database(DSN, schema=self.schema, max_size=8)
         await migrate(self.db)
         self.s = build_services(config, db=self.db, use_telegram=False)
-        for module in (admin, start, shop, deposit, profile, help_guide, search):
+        for module in (navigation, admin, start, shop, deposit, profile, reseller_apply, help_guide, search):
             module.router._parent_router = None
         self.dp = create_dispatcher(self.s, storage=PostgresStorage(self.db))
         self.bot = Bot(token='111111:AAtestAAtestAAtestAAtestAAtestAAtest',
                        default=DefaultBotProperties(parse_mode='HTML'))
         await self.s.users.sync_profile(OWNER, first_name='Owner')
+        await self.s.users.set_language(OWNER, "en")
         await self.s.users.sync_profile(CUSTOMER, first_name='Rafi')
+        await self.s.users.set_language(CUSTOMER, "en")
         await self.s.settings.update({'force_join_enabled': '0', 'admin_tg_ids': str(OWNER),
                                       'zinipay_enabled': '0', 'binance_enabled': '0'})
         await self.s.deposits.create_method('bKash', '01790038892', min_deposit=10)

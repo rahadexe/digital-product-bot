@@ -1,16 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Briefcase, CheckCircle2, Clock, XCircle, ExternalLink, Phone, Send } from 'lucide-react';
+import { ExternalLink, Phone, Send, RefreshCw } from 'lucide-react';
 import { api, type ResellerApplication, type ResellerApplicationsSummary } from '@/lib/api';
-import { EmptyRow, Modal, Pager, errorText, tone, when, type Say } from './ui';
+import { Modal, Pager, errorText, tone, when, type Say } from './ui';
 
 const PAGE = 50;
 
 type Tab = 'pending' | 'all' | 'approved' | 'rejected';
 
 const TABS: { key: Tab; label: string }[] = [
-  { key: 'pending', label: 'Waiting' },
+  { key: 'pending', label: 'Pending' },
   { key: 'all', label: 'All' },
   { key: 'approved', label: 'Approved' },
   { key: 'rejected', label: 'Rejected' },
@@ -56,71 +56,35 @@ export function ResellerApps({
 
   return (
     <>
-      {/* Metric Summary Cards */}
-      <div className="stat-cards-grid">
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <span className="stat-card-label">Pending Review</span>
-            <Clock className="stat-card-icon" />
+      <section className="panel queue-panel reseller-requests">
+        <header>
+          <div className="queue-tabs" aria-label="Reseller request filters">
+            {TABS.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                aria-pressed={tab === item.key}
+                className={tab === item.key ? 'active' : ''}
+                onClick={() => choose(item.key)}
+              >
+                {item.label}
+                <span className="count">{summary ? summary[item.key === 'all' ? 'total' : item.key] : '—'}</span>
+              </button>
+            ))}
           </div>
-          <div className="stat-card-value">{summary?.pending ?? 0}</div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <span className="stat-card-label">Approved Resellers</span>
-            <CheckCircle2 className="stat-card-icon" />
-          </div>
-          <div className="stat-card-value">{summary?.approved ?? 0}</div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <span className="stat-card-label">Rejected</span>
-            <XCircle className="stat-card-icon" />
-          </div>
-          <div className="stat-card-value">{summary?.rejected ?? 0}</div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <span className="stat-card-label">Total Applications</span>
-            <Briefcase className="stat-card-icon" />
-          </div>
-          <div className="stat-card-value">{summary?.total ?? 0}</div>
-        </div>
-      </div>
-
-      <div className="segmented" role="tablist" aria-label="Reseller applications filter">
-        {TABS.map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            role="tab"
-            aria-selected={tab === item.key}
-            className={tab === item.key ? 'active' : ''}
-            onClick={() => choose(item.key)}
-          >
-            {item.label}
-            {item.key === 'pending' && summary && summary.pending > 0 ? (
-              <span className="count" style={{ marginLeft: 6 }}>
-                {summary.pending}
-              </span>
-            ) : null}
+          <button type="button" className="mini ghost reseller-refresh" aria-label="Refresh requests" onClick={() => void load()}>
+            <RefreshCw size={15} aria-hidden="true" />
           </button>
-        ))}
-      </div>
-
-      <section className="panel">
+        </header>
         <div className="scroll">
-          <table className="mobile-records">
+          <table className="mobile-records reseller-table">
             <thead>
               <tr>
                 <th>Applicant</th>
                 <th>Contact</th>
                 <th>Channel / Store</th>
                 <th>Status</th>
-                <th className="right" aria-label="Actions" />
+                <th className="right" >Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -185,7 +149,7 @@ export function ResellerApps({
                     <td>
                       <span className={`pill ${tone(app.status)}`}>{app.status}</span>
                       {app.admin_notes ? (
-                        <small title={app.admin_notes} style={{ display: 'block', marginTop: 3 }}>
+                        <small title={app.admin_notes} className="reseller-note">
                           {app.admin_notes}
                         </small>
                       ) : null}
@@ -217,15 +181,16 @@ export function ResellerApps({
                 );
               })}
 
-              {rows && rows.length === 0 ? (
-                <EmptyRow columns={5}>
-                  {tab === 'pending' ? 'No pending reseller applications.' : 'No applications found.'}
-                </EmptyRow>
-              ) : null}
-              {!rows ? <EmptyRow columns={5}>Loading…</EmptyRow> : null}
             </tbody>
           </table>
         </div>
+        {!rows || rows.length === 0 ? (
+          <p className="reseller-empty" role="status">
+            {!rows ? 'Loading requests…' : tab === 'pending'
+              ? 'No pending requests. New reseller applications will appear here.'
+              : 'No requests in this view.'}
+          </p>
+        ) : null}
         <Pager total={total} offset={offset} size={PAGE} onChange={setOffset} />
       </section>
 
@@ -306,7 +271,7 @@ function ResellerReviewDialog({
 
         {approve ? (
           <p style={{ fontSize: '0.85em', color: 'var(--color-text-muted)' }}>
-            Approving this application will automatically upgrade the user&apos;s rank to <b>Reseller</b>, enabling wholesale prices and API key generation. A confirmation message will be sent to the applicant via Telegram.
+            Approving this application will automatically upgrade the user&apos;s rank to <b>Reseller</b>, enabling reseller prices. API access is available to all customers. A confirmation message will be sent to the applicant via Telegram.
           </p>
         ) : (
           <p style={{ fontSize: '0.85em', color: 'var(--color-text-muted)' }}>
@@ -334,7 +299,7 @@ function ResellerReviewDialog({
             className={approve ? 'primary' : 'danger'}
             disabled={busy}
           >
-            {busy ? 'Processing…' : approve ? 'Confirm & Upgrade to Reseller' : 'Confirm Rejection'}
+            {busy ? 'Processing…' : approve ? 'Approve reseller' : 'Reject request'}
           </button>
         </div>
       </form>

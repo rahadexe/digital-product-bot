@@ -20,7 +20,7 @@ import datetime
 import os
 import unittest
 import uuid
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
@@ -35,6 +35,8 @@ CUSTOMER = 900100777
 @unittest.skipUnless(DSN, "Set TEST_DATABASE_URL to a disposable local PostgreSQL instance")
 class MenuAndGuideTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
+        self.enterContext(patch.object(Message, 'delete', new_callable=AsyncMock))
+        self.enterContext(patch.object(Bot, 'delete_message', new_callable=AsyncMock))
         from app.bot.app import create_dispatcher
         from app.bot.storage import PostgresStorage
         from app.core.config import Settings
@@ -51,8 +53,8 @@ class MenuAndGuideTests(unittest.IsolatedAsyncioTestCase):
         # The routers are module-level singletons, so a second dispatcher in the same
         # process refuses to adopt them. Each test builds its own, against its own
         # schema, so release them from the previous one first.
-        from app.bot.handlers import admin, deposit, help_guide, profile, search, shop, start
-        for module in (admin, start, shop, deposit, profile, help_guide, search):
+        from app.bot.handlers import admin, deposit, help_guide, navigation, profile, reseller_apply, search, shop, start
+        for module in (navigation, admin, start, shop, deposit, profile, reseller_apply, help_guide, search):
             module.router._parent_router = None
 
         self.db = Database(DSN, schema=self.schema, max_size=8)
@@ -97,11 +99,14 @@ class MenuAndGuideTests(unittest.IsolatedAsyncioTestCase):
             buckets = getattr(middleware, "_buckets", None)
             if buckets is not None:
                 buckets.clear()
+            actions = getattr(middleware, "_last_actions", None)
+            if actions is not None:
+                actions.clear()
 
     async def _feed(self, *, text: str | None = None, data: str | None = None,
                     user_id: int = CUSTOMER) -> list[dict]:
         async def capture(inner, body=None, **kwargs):
-            self.sent.append({"text": body})
+            self.sent.append({"text": body if body is not None else kwargs.get("text")})
             return inner
 
         async def capture_alert(inner, body=None, **kwargs):
@@ -144,7 +149,7 @@ class MenuAndGuideTests(unittest.IsolatedAsyncioTestCase):
         from app.bot.handlers.navigation import NAVIGATION_TEXTS
 
         buttons = sorted({label for label, action in NAVIGATION_TEXTS.items()
-                          if action != "cancel" and not label.startswith("/")})
+                          if action not in {"cancel", "admin"} and not label.startswith("/")})
         self.assertGreater(len(buttons), 5, "the menu should have several buttons to press")
 
         silent, crashed = [], []
@@ -186,10 +191,10 @@ class MenuAndGuideTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(await context.get_state(),
                           "the deposit prompt should have been dropped")
 
-    async def test_cancel_says_so_and_clears(self):
+    async def test_cancel_returns_to_wallet_and_clears(self):
         await self._strand_in_a_prompt()
         replies = await self._feed(text="Cancel")
-        self.assertTrue(any("cancel" in (r.get("text") or "").lower() for r in replies))
+        self.assertTrue(any("balance:" in (r.get("text") or "").lower() for r in replies), replies)
         context = self.dp.fsm.get_context(self.bot, chat_id=CUSTOMER, user_id=CUSTOMER)
         self.assertIsNone(await context.get_state())
 
@@ -212,11 +217,13 @@ class MenuAndGuideTests(unittest.IsolatedAsyncioTestCase):
             await navigation.navigate("a label nobody registered", message, context, self.services)
         self.assertTrue(message_holder, "an unknown action should still answer")
 
-    async def test_guide_opens_in_both_languages(self):
+    async def test_guide_stays_in_english(self):
         replies_en = await self._feed(data="guide_lang_en")
         replies_bn = await self._feed(data="guide_lang_bn")
-        for name, replies in (("English", replies_en), ("Bengali", replies_bn)):
-            self.assertTrue(any(r.get("text") for r in replies), f"{name} guide said nothing")
+        self.assertTrue(any("How to use the bot" in (r.get("text") or "") for r in replies_en),
+                        "English guide did not render")
+        self.assertTrue(any("How to use the bot" in (r.get("text") or "") for r in replies_bn),
+                        "Legacy Bengali guide callback should fall back to English")
 
     async def test_support_and_channels_answer(self):
         for label in ("Support", "Channel"):

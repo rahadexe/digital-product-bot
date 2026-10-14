@@ -26,7 +26,7 @@ async def telegram_webhook(request: Request) -> JSONResponse:
 
     # 2. Header X-Telegram-Bot-Api-Secret-Token compared with secrets.compare_digest; missing/wrong -> 403.
     secret_header = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
-    if not secret_header or not secrets.compare_digest(secret_header, services.config.webhook_secret):
+    if not secret_header or not secrets.compare_digest(secret_header.encode('utf-8'), services.config.webhook_secret.encode('utf-8')):
         return JSONResponse(status_code=403, content={"detail": "Invalid secret token."})
 
     # 3. Body over 1 MB -> 413 (SecurityBoundary only limits /api paths).
@@ -56,7 +56,8 @@ async def telegram_webhook(request: Request) -> JSONResponse:
         return JSONResponse(status_code=400, content={"detail": "Invalid update payload."})
 
     event = update.message or update.callback_query or update.edited_message
-    sender = getattr(event, "from_user", None)
+    sender = (update.chat_member.new_chat_member.user if update.chat_member
+              else getattr(event, "from_user", None))
     customer_id = sender.id if sender else -update.update_id
     # Acknowledgement follows durable insertion; retries deduplicate by update ID.
     async with services.db.connect() as conn:

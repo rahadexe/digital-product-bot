@@ -14,11 +14,14 @@ import hashlib
 import hmac
 import logging
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlencode
 
 import asyncpg
 import httpx
+
+if TYPE_CHECKING:
+    from app.services.binance_credentials import BinanceCredentialsService
 
 from app.core.config import Settings
 from app.core.money import money
@@ -177,67 +180,96 @@ def _same_transaction(left: str, right: str) -> bool:
 
 
 class BinanceDepositService:
-    def __init__(self, db: Database, settings: SettingsService, deposits: DepositService, notifier: Notifier, config: Settings):
+    def __init__(
+        self,
+        db: Database,
+        settings: SettingsService,
+        deposits: DepositService,
+        notifier: Notifier,
+        config: Settings,
+        binance_credentials: BinanceCredentialsService | None = None,
+    ):
         self.db = db
         self.settings = settings
         self.deposits = deposits
         self.notifier = notifier
         self.config = config
+        self.binance_credentials = binance_credentials
         self.http = gateway_http()
 
     # --- configuration ---
     def client(self, api_key: str, api_secret: str) -> BinanceClient:
         return BinanceClient(api_key, api_secret, self.http)
 
-    async def _credentials(self) -> tuple[str, str]:
-        values = await self.settings.values()
+    async def get_credentials_for_method(self, method_id: int | None) -> tuple[str, str]:
+        if method_id is not None and self.binance_credentials:
+            creds = await self.binance_credentials.get(method_id)
+            if creds and creds.get("api_key") and creds.get("api_secret"):
+                return creds["api_key"].strip(), creds["api_secret"].strip()
+        # Fallback to legacy global settings if configured
         key = (await self.settings.get("binance_api_key")).strip() or self.config.binance_api_key.strip()
         secret = (await self.settings.get("binance_api_secret")).strip() or self.config.binance_api_secret.strip()
-        return (key, secret) if values["binance_enabled"] == "1" else ("", "")
+        if key and secret:
+            return key, secret
+        return "", ""
 
-    async def enabled(self) -> bool:
-        key, secret = await self._credentials()
+    async def _credentials(self, method_id: int | None = None) -> tuple[str, str]:
+        return await self.get_credentials_for_method(method_id)
+
+    async def enabled(self, method_id: int | None = None) -> bool:
+        key, secret = await self.get_credentials_for_method(method_id)
         return bool(key and secret)
 
     async def status(self) -> dict[str, Any]:
         values = await self.settings.values()
-        key, secret = await self._credentials()
-        async with self.db.connect() as conn:
-            methods = await conn.fetch(
-                "SELECT id, name, auto_verify, auto_verify_network, is_active FROM deposit_methods "
-                "WHERE auto_verify = ANY($1) ORDER BY sort_order, id",
-                list(PROVIDERS),
-            )
+        methods = await self.deposits.methods(active_only=False)
+        binance_methods = [
+            m for m in methods
+            if m.get("auto_verify") in PROVIDERS or m.get("account_type") == "crypto" or "binance" in m.get("name", "").lower()
+        ]
+        has_any_keys = any(bool(m.get("has_api_credentials")) for m in binance_methods)
+        if not has_any_keys:
+            legacy_key, legacy_secret = await self.get_credentials_for_method(None)
+            has_any_keys = bool(legacy_key and legacy_secret)
         return {
-            "enabled": values["binance_enabled"] == "1",
-            "has_credentials": bool(key and secret),
-            "coin": values["binance_coin"],
-            "ready": bool(key and secret and methods),
+            "enabled": any(m.get("is_active") == 1 for m in binance_methods),
+            "has_credentials": has_any_keys,
+            "coin": values.get("binance_coin", "USDT"),
+            "ready": bool(has_any_keys and binance_methods),
             "methods": [
                 {
                     "id": m["id"],
                     "name": m["name"],
-                    "kind": "Binance" if m["auto_verify"] == PAY_PROVIDER else "On-chain",
-                    "network": m["auto_verify_network"] or ("Binance ID" if m["auto_verify"] == PAY_PROVIDER else "any"),
+                    "kind": "Binance" if m.get("auto_verify") == PAY_PROVIDER else "On-chain",
+                    "network": m.get("auto_verify_network") or ("Binance ID" if m.get("auto_verify") == PAY_PROVIDER else "any"),
                     "is_active": m["is_active"],
+                    "has_api_credentials": bool(m.get("has_api_credentials")),
                 }
-                for m in methods
+                for m in binance_methods
             ],
         }
 
-    async def test_connection(self) -> dict[str, Any]:
-        values = await self.settings.values()
-        key = (await self.settings.get("binance_api_key")).strip() or self.config.binance_api_key.strip()
-        secret = (await self.settings.get("binance_api_secret")).strip() or self.config.binance_api_secret.strip()
+    async def test_connection(self, method_id: int | None = None) -> dict[str, Any]:
+        key, secret = await self.get_credentials_for_method(method_id)
+        if not key or not secret:
+            if method_id is None and self.binance_credentials:
+                methods = await self.deposits.methods(active_only=False)
+                for m in methods:
+                    if m.get("has_api_credentials"):
+                        key, secret = await self.get_credentials_for_method(m["id"])
+                        if key and secret:
+                            break
         if not key or not secret:
             return {"ok": False, "message": "Add the Binance API key and secret first."}
+        values = await self.settings.values()
+        coin = values.get("binance_coin", "USDT")
         try:
-            history = await self.client(key, secret).deposit_history(coin=values["binance_coin"], start_time=self._since())
+            history = await self.client(key, secret).deposit_history(coin=coin, start_time=self._since())
         except BinanceError as exc:
             return {"ok": False, "message": f"{exc} Use a key with 'Enable Reading' and whitelist this server's IP."}
         return {
             "ok": True,
-            "message": f"Binance accepted the key. {len(history)} {values['binance_coin']} deposit(s) in the last {LOOKBACK_DAYS} days.",
+            "message": f"Binance accepted the key. {len(history)} {coin} deposit(s) in the last {LOOKBACK_DAYS} days.",
         }
 
     @staticmethod
@@ -257,39 +289,43 @@ class BinanceDepositService:
 
     # --- checking deposits ---
     async def _pending(self, deposit_id: int | None = None) -> list[dict[str, Any]]:
+        if deposit_id is not None:
+            query = (
+                "SELECT d.*, m.auto_verify, m.auto_verify_network, m.min_deposit, m.account_info AS method_account "
+                "FROM deposits d "
+                "LEFT JOIN deposit_methods m ON m.id = d.method_id "
+                "WHERE d.status = 'pending' AND d.id = $1"
+            )
+            async with self.db.connect() as conn:
+                return [dict(row) for row in await conn.fetch(query, deposit_id)]
+
         query = (
             "SELECT d.*, m.auto_verify, m.auto_verify_network, m.min_deposit, m.account_info AS method_account FROM deposits d "
             "JOIN deposit_methods m ON m.id = d.method_id "
-            "WHERE d.status = 'pending' AND m.auto_verify = ANY($1) AND d.created_at > now() - $2 * interval '1 day'"
+            "WHERE d.status = 'pending' AND m.auto_verify = ANY($1) AND d.created_at > now() - $2 * interval '1 day' "
+            "ORDER BY d.next_check_at, d.id LIMIT 50"
         )
-        params: list[Any] = [list(PROVIDERS), LOOKBACK_DAYS]
-        if deposit_id is not None:
-            query += " AND d.id = $3"
-            params.append(deposit_id)
-        query += " ORDER BY d.next_check_at, d.id LIMIT 50"
         async with self.db.connect() as conn:
-            return [dict(row) for row in await conn.fetch(query, *params)]
+            return [dict(row) for row in await conn.fetch(query, list(PROVIDERS), LOOKBACK_DAYS)]
 
     async def check(self, deposit_id: int, notify_customer: bool = True) -> dict[str, Any]:
         """Check one pending deposit against Binance. Returns what happened, without raising."""
         pending = await self._pending(deposit_id)
         if not pending:
             return {"checked": False, "credited": False, "detail": "This deposit is not waiting for a Binance check."}
-        key, secret = await self._credentials()
+        deposit = pending[0]
+        key, secret = await self.get_credentials_for_method(deposit.get("method_id"))
         if not key or not secret:
-            return {"checked": False, "credited": False, "detail": "Binance checking is switched off."}
+            return {"checked": False, "credited": False, "detail": "Binance credentials are not configured for this method."}
         coin = (await self.settings.values())["binance_coin"]
         try:
-            return await self._match(pending[0], self.client(key, secret), coin, notify_customer=notify_customer)
+            return await self._match(deposit, self.client(key, secret), coin, notify_customer=notify_customer)
         except BinanceError as exc:
             logger.warning("Binance check for deposit #%s failed: %s", deposit_id, exc)
             return {"checked": False, "credited": False, "detail": str(exc)}
 
     async def recheck_pending(self) -> int:
         """Background pass over deposits still waiting, for payments that confirm after the customer left."""
-        key, secret = await self._credentials()
-        if not key or not secret:
-            return 0
         async with self.db.transaction() as conn:
             claimed = await conn.fetch(
                 "UPDATE deposits SET next_check_at=now()+interval '2 minutes' WHERE id IN ("
@@ -302,14 +338,17 @@ class BinanceDepositService:
         for row in claimed:
             pending.extend(await self._pending(row['id']))
         coin = (await self.settings.values())["binance_coin"]
-        client = self.client(key, secret)
         checked = 0
         for deposit in pending[:MAX_CHECKS_PER_RUN]:
+            key, secret = await self.get_credentials_for_method(deposit.get("method_id"))
+            if not key or not secret:
+                continue
+            client = self.client(key, secret)
             try:
                 await self._match(deposit, client, coin, notify_customer=True)
             except BinanceError as exc:
                 logger.warning("Binance check for deposit #%s failed: %s", deposit["id"], exc)
-                break
+                continue
             checked += 1
         return checked
 
@@ -317,9 +356,8 @@ class BinanceDepositService:
         """A customer says they have paid. What they sent decides the amount, so none is asked for."""
         async with self.db.connect() as conn:
             method = await conn.fetchrow(
-                "SELECT * FROM deposit_methods WHERE id = $1 AND is_active = 1 AND auto_verify = ANY($2)",
+                "SELECT * FROM deposit_methods WHERE id = $1 AND is_active = 1",
                 method_id,
-                list(PROVIDERS),
             )
         if not method:
             raise InvalidInputError("Payment method is no longer available.")
@@ -327,37 +365,41 @@ class BinanceDepositService:
         min_dep = float(method["min_deposit"])
         base_amount = money(expected_usdt * rate) if (expected_usdt and expected_usdt > 0) else money(min_dep * rate)
 
-        if method["auto_verify"] == PAY_PROVIDER and len(reference.strip()) >= MIN_PAYMENT_REFERENCE:
-            refused = await self._refuse_unusable_pay_reference(reference)
+        key, secret = await self.get_credentials_for_method(method_id)
+        has_keys = bool(key and secret)
+
+        if has_keys and method.get("auto_verify") == PAY_PROVIDER and len(reference.strip()) >= MIN_PAYMENT_REFERENCE:
+            refused = await self._refuse_unusable_pay_reference(reference, key=key, secret=secret)
             if refused:
                 return {"deposit_id": None, "checked": True, "credited": False, **refused}
 
         deposit_id = await self.deposits.create_request(tg_user_id, method_id, base_amount, reference,
                                                         quoted_rate=rate, notify_admin=False)
-        async with self.db.transaction() as conn:
-            await conn.execute(
-                "UPDATE deposits SET admin_note = $1 WHERE id = $2 AND status = 'pending'",
-                f"Waiting for Binance auto-verification (expected {expected_usdt:g} USDT)..." if expected_usdt else "Waiting for Binance auto-verification...",
-                deposit_id,
-            )
-        result = await self.check(deposit_id, notify_customer=False)
-        # Binance answers in a second or two, so the outcome is known by now. Alerting
-        # before the check meant an owner was asked to approve payments Binance had
-        # already confirmed; alerting after means one message, and it says what is wrong.
-        if not result.get("credited"):
-            await self.deposits.alert_admin_needs_review(deposit_id, str(result.get("detail") or ""))
-        return {"deposit_id": deposit_id, **result}
+        if has_keys:
+            async with self.db.transaction() as conn:
+                await conn.execute(
+                    "UPDATE deposits SET admin_note = $1 WHERE id = $2 AND status = 'pending'",
+                    f"Waiting for Binance auto-verification (expected {expected_usdt:g} USDT)..." if expected_usdt else "Waiting for Binance auto-verification...",
+                    deposit_id,
+                )
+            result = await self.check(deposit_id, notify_customer=False)
+            if not result.get("credited"):
+                await self.deposits.alert_admin_needs_review(deposit_id, str(result.get("detail") or ""))
+            return {"deposit_id": deposit_id, **result}
+        else:
+            async with self.db.transaction() as conn:
+                await conn.execute(
+                    "UPDATE deposits SET admin_note = $1 WHERE id = $2 AND status = 'pending'",
+                    f"Manual Binance review required (expected {expected_usdt:g} USDT)" if expected_usdt else "Manual Binance review required",
+                    deposit_id,
+                )
+            await self.deposits.alert_admin_needs_review(deposit_id, "Manual verification required.")
+            return {"deposit_id": deposit_id, "checked": False, "credited": False, "detail": "Manual review required"}
 
-    async def _refuse_unusable_pay_reference(self, reference: str) -> dict[str, Any] | None:
-        """Why this Binance Pay reference can never be credited, or None if it might be.
-
-        Checked before anything is filed. A made-up or mistyped order id, and one already
-        credited to somebody, used to become a pending request that told the customer to
-        wait for a credit that was never coming, and locked their deposits until an admin
-        rejected it. A reference Binance cannot be asked about is not refused here: that
-        goes the old way, to a person.
-        """
-        key, secret = await self._credentials()
+    async def _refuse_unusable_pay_reference(self, reference: str, key: str = "", secret: str = "") -> dict[str, Any] | None:
+        """Why this Binance Pay reference can never be credited, or None if it might be."""
+        if not key or not secret:
+            key, secret = await self._credentials()
         if not key or not secret:
             return None
         coin = (await self.settings.values())["binance_coin"]

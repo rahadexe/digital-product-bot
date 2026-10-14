@@ -25,6 +25,17 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
+Install Node.js 22 LTS and build the admin console before starting the Python service:
+
+```bash
+npm --prefix console ci
+npm --prefix console run build
+test -f console/out/index.html
+```
+
+The Python server serves `console/out`; deploying source without this build can serve an old UI or no console.
+The Dockerfile performs this build automatically. Keep the lockfile with the release.
+
 *(Note: On Linux, `uvicorn[standard]` automatically uses `uvloop` and `httptools` for sub-millisecond C-level event loop performance.)*
 
 ---
@@ -78,7 +89,7 @@ Create `/etc/nginx/sites-available/customer-bot`:
 server {
     server_name yourdomain.com;
 
-    client_max_body_size 10M;
+    client_max_body_size 2M;
 
     location / {
         proxy_pass http://127.0.0.1:8000;
@@ -155,7 +166,44 @@ sudo journalctl -u customer-bot -f
 
 ---
 
-## 5. Verification
+## 5. Coolify Deployment (1-Click Docker Webhook Setup)
+
+If you are using **Coolify**:
+
+1. **Create New Resource:**
+   - In Coolify, choose **Add Resource** → **Git Repository**.
+   - Select your repository and branch.
+   - Build Pack: Select **Dockerfile** (or **Docker Compose**).
+2. **Ports & Domain Configuration:**
+   - **Domains**: Enter your public domain with HTTPS (e.g., `https://customer.bmdigital.bd`). Coolify handles automatic SSL with Let's Encrypt / Traefik.
+   - **Exposed Port**: `8000`.
+3. **Environment Variables:**
+   - Copy the variables from [`.env.coolify`](.env.coolify) into Coolify's Environment Variables tab:
+     ```env
+     APP_ENV=production
+     HOST=0.0.0.0
+     PORT=8000
+     AUTO_MIGRATE=true
+     USE_POLLING=false
+     TRUSTED_PROXY_IPS=127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+     DATABASE_URL=postgresql://...
+     BOT_TOKEN=your_telegram_bot_token
+     ADMIN_TG_ID=your_telegram_numeric_id
+     ADMIN_PASSWORD=your_strong_admin_password
+     SECRET_KEY=generate_random_secret_at_least_32_chars
+     WEBHOOK_BASE_URL=https://your-domain.com
+     WEBHOOK_SECRET=your_random_secret_token_32_chars
+     ALLOWED_HOSTS=your-domain.com
+     ALLOWED_ORIGINS=https://your-domain.com
+     ```
+4. **Deploy:**
+   - Click **Deploy**. Coolify builds the Next.js static console and Python container, runs database migrations automatically, and registers the Telegram Webhook!
+
+---
+
+## 6. Verification
+
+Before enabling sales, complete the release gates in [the production audit](docs/PRODUCTION_READINESS_2026-10-14.md): rotate the exposed supplier credential, verify proxy/firewall settings, restore a backup into an isolated environment and run a controlled live payment/reconciliation smoke test. Apply migration 0046 before starting the new code. The supplier journal uses up to two additional database connections per process. Build and test the exact revision being deployed.
 
 Check the health status endpoint:
 

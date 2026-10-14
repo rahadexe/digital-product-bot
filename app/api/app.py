@@ -70,18 +70,10 @@ def create_app(services: Services) -> FastAPI:
 
     @app.get('/app/', include_in_schema=False)
     async def legacy_payment_return(payment: str = ''):
+        # Existing invoices can still carry the old return URL after deployment.
         from urllib.parse import urlencode
         return RedirectResponse('/api/payments/return?' + urlencode({'reference': payment}), status_code=302)
 
-    # Without the slash, /panel would fall through to the catch-all mount below and show the console's 404 page.
-    @app.get("/panel", include_in_schema=False)
-    async def panel_without_slash():
-        return RedirectResponse("/panel/", status_code=308)
-
     if CONSOLE_OUT_DIR.is_dir():
-        @app.get('/panel/{path:path}', include_in_schema=False)
-        async def legacy_console(path: str):
-            from urllib.parse import quote
-            return RedirectResponse('/' + quote(path.lstrip('/'), safe='/'), status_code=308)
         app.mount("/", ConsoleFiles(directory=CONSOLE_OUT_DIR, html=True), name="console")
     return app

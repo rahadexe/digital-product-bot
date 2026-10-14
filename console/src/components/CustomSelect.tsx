@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, Plus, Search, X } from 'lucide-react';
 
 export interface SelectOption {
@@ -8,6 +8,7 @@ export interface SelectOption {
   label: string;
   badge?: string | number;
   icon?: React.ReactNode;
+  disabled?: boolean;
 }
 
 export interface CustomSelectProps {
@@ -29,6 +30,7 @@ export interface CustomSelectProps {
   clearable?: boolean;
   onClear?: () => void;
   emptyValue?: string;
+  ariaLabel?: string;
 }
 
 export function CustomSelect({
@@ -48,6 +50,7 @@ export function CustomSelect({
   clearable = false,
   onClear,
   emptyValue,
+  ariaLabel,
 }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -56,6 +59,7 @@ export function CustomSelect({
   const [isCreating, setIsCreating] = useState(false);
   const [customVal, setCustomVal] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
+  const listId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const customInputRef = useRef<HTMLInputElement>(null);
 
@@ -119,6 +123,7 @@ export function CustomSelect({
   }, [isCreating]);
 
   const handleSelect = (val: string) => {
+    if (options.find((option) => String(option.value) === val)?.disabled) return;
     onChange(val);
     setIsOpen(false);
     setActiveIndex(-1);
@@ -170,27 +175,34 @@ export function CustomSelect({
       e.preventDefault();
       if (!isOpen) {
         setIsOpen(true);
-        setActiveIndex(0);
+        setActiveIndex(filteredOptions.findIndex(option => !option.disabled));
         return;
       }
       const count = filteredOptions.length;
       if (!count) return;
       const step = e.key === 'ArrowDown' ? 1 : -1;
-      setActiveIndex((current) => (current + step + count) % count);
+      setActiveIndex((current) => {
+        for (let offset = 1; offset <= count; offset++) {
+          const index = (current + step * offset + count * 2) % count;
+          if (!filteredOptions[index].disabled) return index;
+        }
+        return -1;
+      });
     } else if (e.key === 'Enter') {
       e.preventDefault();
       if (!isOpen) {
         setIsOpen(true);
-        setActiveIndex(0);
+        setActiveIndex(filteredOptions.findIndex(option => !option.disabled));
         return;
       }
-      const chosen = filteredOptions[activeIndex] ?? filteredOptions[0];
+      const chosen = filteredOptions[activeIndex] ?? filteredOptions.find(option => !option.disabled);
       if (chosen) handleSelect(String(chosen.value));
     } else if (e.key === ' ' && !searchable) {
       e.preventDefault();
-      isOpen ? close() : (setIsOpen(true), setActiveIndex(0));
+      isOpen ? close() : (setIsOpen(true), setActiveIndex(filteredOptions.findIndex(option => !option.disabled)));
     } else if (e.key === 'Escape') {
       e.preventDefault();
+      if (isOpen) e.stopPropagation();
       close();
     } else if (e.key === 'Tab' && isOpen) {
       close();
@@ -217,9 +229,12 @@ export function CustomSelect({
     >
       <div
         className={`custom-select-trigger${isOpen ? ' open' : ''}`}
-        role="combobox"
-        aria-expanded={isOpen}
-        aria-haspopup="listbox"
+        role={searchable ? undefined : 'combobox'}
+        aria-label={searchable ? undefined : (ariaLabel || placeholder)}
+        aria-expanded={searchable ? undefined : isOpen}
+        aria-haspopup={searchable ? undefined : 'listbox'}
+        aria-controls={!searchable && isOpen ? listId : undefined}
+        aria-activedescendant={!searchable && isOpen && activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
         tabIndex={searchable ? -1 : 0}
         onClick={handleBoxClick}
         onKeyDown={searchable ? undefined : handleKeys}
@@ -237,6 +252,12 @@ export function CustomSelect({
             <input
               ref={inputRef}
               type="text"
+              role="combobox"
+              aria-label={ariaLabel || placeholder}
+              aria-expanded={isOpen}
+              aria-controls={isOpen ? listId : undefined}
+              aria-autocomplete="list"
+              aria-activedescendant={isOpen && activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
               value={displayValue}
               placeholder={placeholder}
               onClick={(e) => {
@@ -252,6 +273,7 @@ export function CustomSelect({
               onChange={(e) => {
                 setIsTyping(true);
                 setQuery(e.target.value);
+                setActiveIndex(-1);
                 if (!isOpen) setIsOpen(true);
               }}
               onKeyDown={handleInputKeyDown}
@@ -318,7 +340,7 @@ export function CustomSelect({
 
       {isOpen && (
         <div className="custom-select-dropdown">
-          <div className="custom-select-scroll" role="listbox">
+          <div id={listId} className="custom-select-scroll" role="listbox" aria-label={ariaLabel || placeholder}>
             {filteredOptions.length === 0 ? (
               <div style={{ padding: '10px 12px', fontSize: '12px', color: 'var(--muted)', textAlign: 'center' }}>
                 No options found
@@ -330,8 +352,10 @@ export function CustomSelect({
                 return (
                   <div
                     key={String(opt.value)}
+                    id={`${listId}-${index}`}
                     role="option"
                     aria-selected={isSelected}
+                    aria-disabled={opt.disabled || undefined}
                     className={`custom-select-option${isSelected ? ' selected' : ''}${index === activeIndex ? ' active' : ''}`}
                     onMouseMove={() => setActiveIndex(index)}
                     onClick={() => handleSelect(String(opt.value))}
@@ -399,7 +423,7 @@ export function CustomSelect({
               }}
             >
               <Plus size={13} style={{ strokeWidth: 2.5 }} />
-              <span>Custom duration...</span>
+              <span>Add validity...</span>
             </div>
           )}
 

@@ -26,6 +26,13 @@ LISTING_SQL = (
 logger = logging.getLogger("app.services.catalog")
 
 
+def _validate_icon_pair(icon: str | None, custom_emoji_id: str | None) -> None:
+    if icon and custom_emoji_id:
+        raise InvalidInputError("Choose either a standard emoji or a Telegram custom emoji, not both.")
+    if custom_emoji_id and not custom_emoji_id.isdigit():
+        raise InvalidInputError("Telegram custom emoji ID must contain only digits.")
+
+
 PRODUCT_FIELDS = (
     "category_id",
     "title",
@@ -34,7 +41,9 @@ PRODUCT_FIELDS = (
     "reseller_price",
     "icon",
     "duration_label",
+    "warranty_label",
     "sort_order",
+    "is_pinned",
     "is_active",
     "delivery_type",
     "custom_emoji_id",
@@ -42,12 +51,14 @@ PRODUCT_FIELDS = (
     "upstream_share_hours",
     "upstream_product_id",
     "supplier_code",
+    "requires_customer_input",
+    "customer_input_prompt",
 )
 
 
 class CatalogService:
-    CACHE_SECONDS = 30.0
-    PRODUCTS_CACHE_SECONDS = 10.0
+    CACHE_SECONDS = 60.0
+    PRODUCTS_CACHE_SECONDS = 60.0
 
     def __init__(self, db: Database):
         self.db = db
@@ -59,15 +70,28 @@ class CatalogService:
         if category_id is not None and not await conn.fetchval("SELECT 1 FROM categories WHERE id = $1", category_id):
             raise InvalidInputError("The selected category does not exist.")
 
-    async def categories(self, active_only: bool = True) -> list[dict[str, Any]]:
+    async def categories(
+        self,
+        active_only: bool = True,
+        *,
+        with_products: bool = False,
+    ) -> list[dict[str, Any]]:
         now = time.monotonic()
         cached = self._active_categories
-        if active_only and cached and now - cached[0] < self.CACHE_SECONDS:
+        if active_only and not with_products and cached and now - cached[0] < self.CACHE_SECONDS:
             return [dict(row) for row in cached[1]]
-        query = "SELECT * FROM categories" + (" WHERE is_active = 1" if active_only else "") + " ORDER BY sort_order, id"
+        filters = []
+        if active_only:
+            filters.append("is_active = 1")
+        if with_products:
+            filters.append(
+                "EXISTS (SELECT 1 FROM products p WHERE p.category_id = categories.id AND p.is_active = 1)"
+            )
+        where = f" WHERE {' AND '.join(filters)}" if filters else ""
+        query = f"SELECT * FROM categories{where} ORDER BY sort_order, id"
         async with self.db.connect() as conn:
             rows = [dict(row) for row in await conn.fetch(query)]
-        if active_only:
+        if active_only and not with_products:
             self._active_categories = (now, rows)
         return [dict(row) for row in rows]
 
@@ -75,12 +99,22 @@ class CatalogService:
         cats = await self.categories(active_only=False)
         return next((c for c in cats if c["id"] == category_id), None)
 
-    async def pinned_categories(self, active_only: bool = True) -> list[dict[str, Any]]:
-        cats = await self.categories(active_only=active_only)
+    async def pinned_categories(
+        self,
+        active_only: bool = True,
+        *,
+        with_products: bool = False,
+    ) -> list[dict[str, Any]]:
+        cats = await self.categories(active_only=active_only, with_products=with_products)
         return [c for c in cats if c.get("is_pinned")]
 
-    async def unpinned_categories(self, active_only: bool = True) -> list[dict[str, Any]]:
-        cats = await self.categories(active_only=active_only)
+    async def unpinned_categories(
+        self,
+        active_only: bool = True,
+        *,
+        with_products: bool = False,
+    ) -> list[dict[str, Any]]:
+        cats = await self.categories(active_only=active_only, with_products=with_products)
         return [c for c in cats if not c.get("is_pinned")]
 
     async def create_category(
@@ -93,6 +127,7 @@ class CatalogService:
         custom_emoji_id: str | None = None,
         has_validity_filter: int = 0,
     ) -> int:
+        _validate_icon_pair(icon, custom_emoji_id)
         async with self.db.transaction() as conn:
             category_id = await conn.fetchval(
                 """
@@ -124,6 +159,11 @@ class CatalogService:
         custom_emoji_id: str | None = None,
         has_validity_filter: int | None = None,
     ) -> bool:
+        if icon is not None and custom_emoji_id is None:
+            custom_emoji_id = ""
+        elif custom_emoji_id is not None and icon is None:
+            icon = ""
+        _validate_icon_pair(icon, custom_emoji_id)
         async with self.db.transaction() as conn:
             status = await conn.execute(
                 """
@@ -209,8 +249,8 @@ class CatalogService:
             return [dict(row) for row in cached[1]]
 
         where, params = "", []
-        if category_id in ("uncategorized", "uncat") or uncategorized:
-            where += " AND (p.category_id IS NULL OR p.category_id = 0 OR p.category_id NOT IN (SELECT id FROM categories))"
+        if category_id in ("uncategorized", "uncat", "others") or uncategorized:
+            where += " AND (p.category_id IS NULL OR p.category_id = 0 OR p.category_id NOT IN (SELECT id FROM categories) OR p.category_id IN (SELECT id FROM categories WHERE LOWER(name) IN ('others', 'uncategorized')))"
         elif category_id is not None:
             params.append(int(category_id))
             where += f" AND p.category_id = ${len(params)}"
@@ -222,7 +262,7 @@ class CatalogService:
         if duration_label:
             params.append(duration_label.strip())
             where += f" AND (LOWER(TRIM(p.duration_label)) = LOWER(TRIM(${len(params)})) OR p.duration_label ILIKE '%' || ${len(params)} || '%')"
-        order = "(delivery_type = 'manual' OR stock > 0) DESC, sort_order, id" if in_stock_first else "sort_order, id"
+        order = "is_pinned DESC, (delivery_type = 'manual' OR stock > 0) DESC, sort_order, id" if in_stock_first else "is_pinned DESC, sort_order, id"
         query = (
             f"SELECT * FROM ({LISTING_SQL} WHERE 1=1{where}) AS listing "
             f"ORDER BY {order} LIMIT ${len(params) + 1} OFFSET ${len(params) + 2}"
@@ -320,13 +360,18 @@ class CatalogService:
         reseller_price: float | None = None,
         icon: str = "",
         duration_label: str = "",
+        warranty_label: str = "",
         sort_order: int = 0,
+        is_pinned: int = 0,
         is_active: int = 1,
         delivery_type: str = "stock",
         custom_emoji_id: str | None = None,
         upstream_devices: int = 1,
         upstream_share_hours: int = 24,
+        requires_customer_input: bool = False,
+        customer_input_prompt: str = "",
     ) -> int:
+        _validate_icon_pair(icon, custom_emoji_id)
         price = money(price, positive=True)
         reseller_price = money(reseller_price, positive=True) if (reseller_price is not None and float(reseller_price) > 0) else None
         if delivery_type not in ("stock", "manual"):
@@ -335,8 +380,8 @@ class CatalogService:
             await self._require_category(conn, category_id)
             product_id = await conn.fetchval(
                 """
-                INSERT INTO products (category_id, title, description, price, reseller_price, icon, duration_label, sort_order, is_active, delivery_type, custom_emoji_id, upstream_devices, upstream_share_hours)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id
+                INSERT INTO products (category_id, title, description, price, reseller_price, icon, duration_label, warranty_label, sort_order, is_pinned, is_active, delivery_type, custom_emoji_id, upstream_devices, upstream_share_hours, requires_customer_input, customer_input_prompt)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id
                 """,
                 category_id,
                 title,
@@ -345,12 +390,16 @@ class CatalogService:
                 reseller_price,
                 icon,
                 duration_label,
+                warranty_label,
                 sort_order,
+                is_pinned,
                 is_active,
                 delivery_type,
                 custom_emoji_id,
                 upstream_devices,
                 upstream_share_hours,
+                bool(requires_customer_input),
+                customer_input_prompt or "",
             )
             details = f"Product #{product_id}: {title} at {price:.2f}"
             if reseller_price is not None:
@@ -363,6 +412,11 @@ class CatalogService:
     async def update_product(self, product_id: int, **fields: Any) -> float | None:
         """Apply the given fields. Returns the previous price, or None when the product does not exist."""
         updates = {key: value for key, value in fields.items() if key in PRODUCT_FIELDS}
+        if "icon" in updates and "custom_emoji_id" not in updates:
+            updates["custom_emoji_id"] = ""
+        elif "custom_emoji_id" in updates and "icon" not in updates:
+            updates["icon"] = ""
+        _validate_icon_pair(updates.get("icon"), updates.get("custom_emoji_id"))
         if "price" in updates:
             updates["price"] = money(updates["price"], positive=True)
         if "reseller_price" in updates:
@@ -406,3 +460,35 @@ class CatalogService:
             if affected(await conn.execute("DELETE FROM products WHERE id = $1", product_id)):
                 await record(conn, "product_deleted", f"Product #{product_id}")
         self._products_cache.clear()
+
+    async def bulk_update_status(self, product_ids: list[int], is_active: int) -> int:
+        """Batch update active/hidden status for multiple products."""
+        if not product_ids:
+            return 0
+        async with self.db.transaction() as conn:
+            status = await conn.execute(
+                "UPDATE products SET is_active = $1 WHERE id = ANY($2::bigint[])",
+                is_active,
+                product_ids,
+            )
+            count = affected(status)
+            await record(conn, "products_bulk_updated", f"{count} products set is_active={is_active}")
+        self._products_cache.clear()
+        return count
+
+    async def bulk_delete_products(self, product_ids: list[int]) -> int:
+        """Batch delete multiple products safely preserving order history."""
+        if not product_ids:
+            return 0
+        async with self.db.transaction() as conn:
+            await conn.execute("UPDATE orders SET product_id = NULL WHERE product_id = ANY($1::bigint[])", product_ids)
+            await conn.execute(
+                "UPDATE inventory_items SET product_id = NULL WHERE product_id = ANY($1::bigint[]) AND uses > 0",
+                product_ids,
+            )
+            await conn.execute("DELETE FROM inventory_items WHERE product_id = ANY($1::bigint[])", product_ids)
+            status = await conn.execute("DELETE FROM products WHERE id = ANY($1::bigint[])", product_ids)
+            count = affected(status)
+            await record(conn, "products_bulk_deleted", f"{count} products deleted")
+        self._products_cache.clear()
+        return count

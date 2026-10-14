@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from collections import OrderedDict
 from contextlib import suppress
@@ -26,9 +27,9 @@ class Throttle(BaseMiddleware):
     the bot flood Telegram with replies either. Buckets live in memory, which suits the single bot process.
     """
 
-    RATE = 2.0
-    BURST = 8
-    NOTICE_SECONDS = 10.0
+    RATE = 5.0
+    BURST = 30
+    NOTICE_SECONDS = 5.0
     TRACKED_USERS = 20000
 
     def __init__(self) -> None:
@@ -77,9 +78,9 @@ class Throttle(BaseMiddleware):
 class Debounce(BaseMiddleware):
     """Drops rapid duplicate clicks from the same user on the same button/action within COOLDOWN seconds."""
 
-    COOLDOWN = 1.0  # seconds
+    COOLDOWN = 0.3  # seconds (300ms: drops accidental multi-clicks while keeping rapid menu taps snappy)
 
-    def __init__(self, cooldown: float = 1.0) -> None:
+    def __init__(self, cooldown: float = 0.3) -> None:
         self.cooldown = cooldown
         self._last_actions: OrderedDict[tuple[int, str], float] = OrderedDict()
         self._locks: dict[int, asyncio.Lock] = {}
@@ -136,6 +137,9 @@ class Debounce(BaseMiddleware):
 class StoreAccess(BaseMiddleware):
     """Private chats only; banned customers are stopped; force-join applies to everything except /start."""
 
+    def __init__(self) -> None:
+        self._gate_prompts: OrderedDict[int, float] = OrderedDict()
+
     async def __call__(self, handler, event, data):
         services: Services = data["services"]
         user = event.from_user
@@ -153,33 +157,45 @@ class StoreAccess(BaseMiddleware):
         if user.id in admin_ids:
             return await handler(event, data)
 
-        opens_store = (isinstance(event, Message) and event.text and event.text.split()[0].split("@")[0] in OPEN_COMMANDS) or (
-            isinstance(event, CallbackQuery) and event.data == "gate_verify"
-        )
-        # Both checks run on every update, so they run concurrently. /start presents the gate itself.
-        if opens_store:
-            record = await services.users.get(user.id)
-            passed, missing = True, []
-        else:
-            record, (passed, missing) = await asyncio.gather(services.users.get(user.id), services.gate.check(user.id))
-
-        if record and record["is_banned"]:
+        # Ban state is authoritative even while channel membership is cached.
+        record = await services.users.get(user.id)
+        if record and record.get("is_banned"):
             if isinstance(event, CallbackQuery):
                 await event.answer("Your account is suspended.", show_alert=True)
             else:
                 await event.answer("Your account is suspended.")
             return None
+
+        opens_store = (isinstance(event, Message) and event.text and event.text.split()[0].split("@")[0] in OPEN_COMMANDS) or (
+            isinstance(event, CallbackQuery) and event.data == "gate_verify"
+        )
+
+        force_join_active = await services.settings.flag("force_join_enabled")
+        if opens_store or not force_join_active:
+            passed, missing = True, []
+        else:
+            passed, missing = await services.gate.check(user.id)
+
         if not passed:
+            unjoined = [c for c in missing if not c.get("verification_unavailable")]
+            errored = [c for c in missing if c.get("verification_unavailable")]
+            if errored:
+                services.notifier.in_background(services.gate.notify_admin_channel_issue(errored, user))
+
             if isinstance(event, CallbackQuery):
-                alert_msg = "Please join our channel first!" if len(missing) == 1 else "Please join the channels first!"
-                await event.answer(
-                    "Verification is temporarily unavailable. Please retry shortly."
-                    if any(c.get("verification_unavailable") for c in missing)
-                    else f"⚠️ {alert_msg}",
-                    show_alert=True,
-                )
+                alert_msg = ("Verification is temporarily unavailable. Please try again shortly." if not unjoined
+                             else "Please join our channel first!" if len(unjoined) == 1 else "Please join the channels first!")
+                await event.answer(f"⚠️ {alert_msg}", show_alert=True)
+            now = time.monotonic()
+            previous = self._gate_prompts.get(user.id)
+            if previous is not None and now - previous < 2.0:
+                return None
+            self._gate_prompts[user.id] = now
+            self._gate_prompts.move_to_end(user.id)
+            while len(self._gate_prompts) > 10000:
+                self._gate_prompts.popitem(last=False)
             services = data.get("services")
-            store_name = await services.settings.get("store_name") if services else "Digital Mart"
+            store_name = await services.settings.get("store_name") if services else "Premium Haven"
             await message.answer(
                 gate_text(missing, store_name),
                 reply_markup=get_gate_keyboard(missing),
@@ -198,3 +214,54 @@ class AuditActor(BaseMiddleware):
             return await handler(event, data)
         finally:
             actor.reset(context)
+
+
+class FastCallback(BaseMiddleware):
+    """Instantly acknowledges inline navigation clicks so Telegram removes the button spinner in <50ms."""
+
+    NAV_PREFIXES = (
+        "open_", "mcat_", "cat_", "back_", "catpage_",
+        "orders_page_", "orders_acc_page_", "catval_", "close_menu", "shop_all", "search_again",
+        "prod_", "adm_", "lang_", "val_", "pay_", "cancel_", "sub_", "reseller_",
+        "vord_", "vdep_", "dep_page_", "notif_",
+        "sprod_", "sback_", "qty_set_", "qty_custom_", "qpad_", "faq_",
+        "binance_help_order_id", "dep_method_", "dep_instant", "shop_uncat"
+    )
+
+    @staticmethod
+    async def _safe_answer(cq: CallbackQuery):
+        try:
+            await cq.answer()
+        except Exception:
+            pass
+
+    async def __call__(self, handler, event, data):
+        if isinstance(event, CallbackQuery):
+            data_str = event.data or ""
+            if any(data_str.startswith(p) for p in self.NAV_PREFIXES):
+                asyncio.create_task(self._safe_answer(event))
+        return await handler(event, data)
+
+logger = logging.getLogger("app.bot.perf")
+
+
+class PerformanceLogger(BaseMiddleware):
+    """Tracks latency of each update from arrival to complete dispatch."""
+
+    async def __call__(self, handler, event, data):
+        t0 = time.perf_counter()
+        name = ""
+        if isinstance(event, Message):
+            name = f"Msg type={event.content_type}"
+        elif isinstance(event, CallbackQuery):
+            name = f"Cb {event.data!r}"
+        try:
+            res = await handler(event, data)
+            dur = (time.perf_counter() - t0) * 1000
+            logger.info("[PERF] %s finished in %.1f ms", name, dur)
+            return res
+        except Exception as e:
+            dur = (time.perf_counter() - t0) * 1000
+            logger.error("[PERF FAIL] %s failed after %.1f ms: %s", name, dur, e)
+            raise
+

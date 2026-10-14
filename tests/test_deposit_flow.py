@@ -15,7 +15,7 @@ import os
 import re
 import unittest
 import uuid
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 from urllib.parse import urlsplit
 
 import httpx
@@ -25,7 +25,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import CallbackQuery, Chat, Message, Update, User
 
 from app.bot.app import create_dispatcher
-from app.bot.handlers import admin, deposit, help_guide, profile, search, shop, start
+from app.bot.handlers import admin, deposit, help_guide, navigation, profile, reseller_apply, search, shop, start
 from app.bot.storage import PostgresStorage
 from app.core.config import Settings
 from app.db import Database
@@ -50,6 +50,8 @@ def plain(value):
 @unittest.skipUnless(DSN, 'Set TEST_DATABASE_URL to a disposable local PostgreSQL instance')
 class DepositConversation(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
+        self.enterContext(patch.object(Message, 'delete', new_callable=AsyncMock))
+        self.enterContext(patch.object(Bot, 'delete_message', new_callable=AsyncMock))
         if urlsplit(DSN).hostname not in ('127.0.0.1', 'localhost', '::1'):
             raise unittest.SkipTest('This suite only runs against a local database.')
         self.schema = 'depflow_' + uuid.uuid4().hex[:12]
@@ -61,15 +63,17 @@ class DepositConversation(unittest.IsolatedAsyncioTestCase):
         self.s = build_services(config, db=self.db, use_telegram=False)
         # Routers are module-level singletons: a second dispatcher in the same process
         # refuses to adopt one that is still attached to the first.
-        for module in (admin, start, shop, deposit, profile, help_guide, search):
+        for module in (navigation, admin, start, shop, deposit, profile, reseller_apply, help_guide, search):
             module.router._parent_router = None
         self.dp = create_dispatcher(self.s, storage=PostgresStorage(self.db))
         self.bot = Bot(token='111111:AAtestAAtestAAtestAAtestAAtestAAtest',
                        default=DefaultBotProperties(parse_mode='HTML'))
         await self.s.users.sync_profile(CUSTOMER, first_name='Rafi')
+        await self.s.users.set_language(CUSTOMER, "en")
         await self.s.settings.update({'force_join_enabled': '0', 'zinipay_enabled': '1',
-                                      'zinipay_api_key': 'test-key', 'binance_enabled': '0'})
-        self.method = await self.s.deposits.create_method('bKash', '01790038892', min_deposit=10)
+                                      'zinipay_api_key': 'test-key', 'binance_enabled': '0',
+                                      'usd_rate': '125'})
+        self.method = await self.s.deposits.create_method('bKash', '01790038892', min_deposit=10, auto_verify='zinipay')
         self.screen, self.written, self.posted = {}, [], []
 
     async def asyncTearDown(self):
@@ -114,6 +118,8 @@ class DepositConversation(unittest.IsolatedAsyncioTestCase):
         for mw in list(self.dp.message.outer_middleware) + list(self.dp.callback_query.outer_middleware):
             if getattr(mw, '_buckets', None) is not None:
                 mw._buckets.clear()
+            if getattr(mw, '_last_actions', None) is not None:
+                mw._last_actions.clear()
         now = datetime.datetime.now(datetime.timezone.utc)
         user = User(id=CUSTOMER, is_bot=False, first_name='Rafi')
         message = Message(message_id=1, date=now, chat=Chat(id=CUSTOMER, type='private'),
@@ -126,7 +132,8 @@ class DepositConversation(unittest.IsolatedAsyncioTestCase):
             await self.dp.feed_update(self.bot, update)
 
     def last(self):
-        return plain(self.written[-1]) if self.written else ''
+        cards = [text for text in self.written if plain(text).strip() != '🏠']
+        return plain(cards[-1]) if cards else ''
 
     def gateway(self, body_status):
         body, status = body_status
@@ -135,7 +142,6 @@ class DepositConversation(unittest.IsolatedAsyncioTestCase):
     async def submit(self, amount, trx, body_status, retries=(0.01,)):
         await self.tap(text='Add Balance')
         await self.tap(data=f'dep_method_{self.method}')
-        await self.tap(data='dep_confirm_paid')
         await self.tap(text=str(amount))
         self.written.clear()
         self.posted.clear()
@@ -153,7 +159,8 @@ class DepositConversation(unittest.IsolatedAsyncioTestCase):
 
     async def test_a_receipt_still_in_transit_leaves_one_card_on_screen(self):
         await self.submit(250, 'BK00000001', MISSING, retries=(0.01, 0.01, 0.01))
-        self.assertEqual(len(self.posted), 1, f'one card, not one per retry: {len(self.posted)}')
+        cards = [text for text in self.posted if plain(text).strip() != '🏠']
+        self.assertEqual(len(cards), 1, f'one card, not one per retry: {len(cards)}')
         self.assertNotIn('1/3', self.last(), 'the customer did nothing wrong')
         self.assertIsNotNone(await self.s.deposits.pending_for(CUSTOMER), 'the payment is on record')
         self.assertFalse(await self.s.deposits.verification_failures(CUSTOMER),
@@ -179,6 +186,7 @@ class DepositConversation(unittest.IsolatedAsyncioTestCase):
             self.written.clear()
             await self.tap(text='BKGOOD0001')
 
+        # The wallet stores BDT; display conversion must not reduce the credited amount.
         self.assertEqual(await self.balance(), 120.0, self.last())
 
     async def test_the_fix_button_only_works_on_your_own_waiting_deposit(self):
@@ -189,23 +197,24 @@ class DepositConversation(unittest.IsolatedAsyncioTestCase):
 
     async def test_the_verifying_card_names_the_method(self):
         await self.submit(100, 'BKCARD0001', receipt(100, 'BKCARD0001'))
-        self.assertIn('মেথড: bKash', plain(self.written[0]))
+        self.assertIn('Method: bKash', plain(self.written[0]))
 
     async def test_a_nagad_transaction_on_a_bkash_deposit_is_just_a_wrong_trxid(self):
         """Refused, and the customer is told only that the TrxID is wrong: no talk of wallets."""
         await self.submit(100, 'NGWRONG001', receipt(100, 'NGWRONG001', provider='Nagad'))
-        self.assertIn('TrxID ভুল', self.last())
+        self.assertIn('Invalid TrxID', self.last())
         self.assertNotIn('Nagad', self.last())
         self.assertEqual(await self.balance(), 0.0)
 
     async def test_a_transaction_id_already_on_record_is_refused_without_waiting(self):
         await self.s.users.sync_profile(CUSTOMER + 5, first_name='Other')
+        await self.s.users.set_language(CUSTOMER + 5, "en")
         earlier = await self.s.deposits.create_request(CUSTOMER + 5, self.method, 300, 'BKSEEN0001')
         await self.s.deposits.reject(earlier, 'Payment not received')
-        started = asyncio.get_running_loop().time()
-        await self.submit(300, 'BKSEEN0001', MISSING, retries=(5.0, 5.0, 5.0))
-        self.assertLess(asyncio.get_running_loop().time() - started, 4.0, 'it waited for a receipt anyway')
-        self.assertIn('ব্যবহার', self.last())
+        with patch.object(self.s.zinipay, 'verify', new_callable=AsyncMock) as verify:
+            await self.submit(300, 'BKSEEN0001', MISSING, retries=(5.0, 5.0, 5.0))
+        verify.assert_not_awaited()
+        self.assertIn('already been used', self.last())
 
     async def test_the_third_failed_attempt_goes_to_review_instead_of_crashing(self):
         """The hand-off to an admin passed create_request arguments it does not take."""
@@ -215,7 +224,7 @@ class DepositConversation(unittest.IsolatedAsyncioTestCase):
             await self.submit(100, f'BKTHIRD00{n}', mismatch, retries=())
         pending = await self.s.deposits.pending_for(CUSTOMER)
         self.assertIsNotNone(pending, self.last())
-        self.assertIn('অ্যাডমিন', self.last())
+        self.assertIn('Pending', self.last())
 
 
 if __name__ == '__main__':

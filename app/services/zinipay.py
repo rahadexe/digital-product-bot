@@ -283,6 +283,7 @@ class ZiniPayVerificationService:
         amount: float,
         transaction_id: str,
         *,
+        pay_amount: float | None = None,
         quoted_rate: float = 1.0,
         on_sync_wait: Callable[[float, float], Awaitable[None]] | None = None,
     ) -> dict[str, Any]:
@@ -293,6 +294,12 @@ class ZiniPayVerificationService:
         them on a silent spinner.
         """
         clean_tx = str(transaction_id).strip()
+        if pay_amount is not None:
+            bdt_amount = pay_amount
+            credit_amount = amount
+        else:
+            bdt_amount = amount
+            credit_amount = round(amount / quoted_rate, 2) if quoted_rate > 1.0 else amount
 
         # 1. Pre-check: has this TrxID already been credited?
         existing = await self.deposits.find_by_transaction(clean_tx)
@@ -313,7 +320,7 @@ class ZiniPayVerificationService:
         if not has_key:
             # Fallback: create regular pending deposit request for manual admin review
             dep_id = await self.deposits.create_request(
-                tg_user_id, method_id, amount, clean_tx, quoted_rate=quoted_rate, admin_note="ZiniPay API key is not configured"
+                tg_user_id, method_id, credit_amount, clean_tx, pay_amount=bdt_amount, quoted_rate=quoted_rate, admin_note="ZiniPay API key is not configured"
             )
             return {
                 "auto_verified": False,
@@ -323,7 +330,7 @@ class ZiniPayVerificationService:
             }
 
         # 3. Step 1: Verify via ZiniPay
-        verify_res = await self.verify(amount, clean_tx)
+        verify_res = await self.verify(bdt_amount, clean_tx)
         logger.info("ZiniPay verification outcome: ok=%s", verify_res.get("ok"))
         waited = 0.0
         for delay in SMS_SYNC_RETRY_DELAYS:
@@ -335,7 +342,7 @@ class ZiniPayVerificationService:
                     await on_sync_wait(waited + delay, SMS_SYNC_WINDOW_SECONDS)
             await asyncio.sleep(delay)
             waited += delay
-            verify_res = await self.verify(amount, clean_tx)
+            verify_res = await self.verify(bdt_amount, clean_tx)
             logger.info("ZiniPay verification retry after %.0fs: ok=%s", waited, verify_res.get("ok"))
         if not verify_res.get("ok"):
             reason = verify_res.get("reason")
@@ -355,7 +362,7 @@ class ZiniPayVerificationService:
                 }
             elif reason == "not_found":
                 dep_id = await self.deposits.create_request(
-                    tg_user_id, method_id, amount, clean_tx, quoted_rate=quoted_rate,
+                    tg_user_id, method_id, credit_amount, clean_tx, pay_amount=bdt_amount, quoted_rate=quoted_rate,
                     admin_note=AWAITING_SMS_NOTE, notify_admin=False,
                 )
                 await self._mark_awaiting(dep_id)
@@ -374,7 +381,7 @@ class ZiniPayVerificationService:
                 # System error / not enabled / insufficient credits -> graceful fallback to manual review
                 note = f"ZiniPay: {msg}" if msg else "Verification unavailable"
                 dep_id = await self.deposits.create_request(
-                    tg_user_id, method_id, amount, clean_tx, quoted_rate=quoted_rate, admin_note=note
+                    tg_user_id, method_id, credit_amount, clean_tx, pay_amount=bdt_amount, quoted_rate=quoted_rate, admin_note=note
                 )
                 return {
                     "auto_verified": False,
@@ -388,7 +395,7 @@ class ZiniPayVerificationService:
         if mismatch == "unknown":
             note = f"ZiniPay found the payment but did not say which wallet it came from; the customer chose {method_name}."
             dep_id = await self.deposits.create_request(
-                tg_user_id, method_id, amount, clean_tx, quoted_rate=quoted_rate, admin_note=note)
+                tg_user_id, method_id, credit_amount, clean_tx, pay_amount=bdt_amount, quoted_rate=quoted_rate, admin_note=note)
             return {"auto_verified": False, "fallback_manual": True, "deposit_id": dep_id,
                     "detail": "Your payment is saved for review. Please do not pay again."}
         if mismatch:
@@ -406,7 +413,7 @@ class ZiniPayVerificationService:
         if verify_id is None:
             raise InvalidInputError("The gateway returned an incomplete verification. Please try again.")
         dep_id = await self.deposits.create_request(
-            tg_user_id, method_id, amount, clean_tx, quoted_rate=quoted_rate,
+            tg_user_id, method_id, credit_amount, clean_tx, pay_amount=bdt_amount, quoted_rate=quoted_rate,
             verification_id=str(verify_id), admin_note="Automatic verification in progress.",
             notify_admin=False,
         )
@@ -414,7 +421,7 @@ class ZiniPayVerificationService:
             await conn.execute(
                 "UPDATE payment_verification_attempts SET status='confirming',updated_at=now() WHERE deposit_id=$1", dep_id
             )
-        confirm_res = await self.confirm(amount, clean_tx, verify_id)
+        confirm_res = await self.confirm(bdt_amount, clean_tx, verify_id)
         provider = confirm_res.get("provider") or verify_res.get("provider") or "bKash/Nagad"
         sender = confirm_res.get("sender_number") or verify_res.get("sender") or ""
         note = f"Auto-verified via ZiniPay ({provider})"
@@ -440,7 +447,7 @@ class ZiniPayVerificationService:
             await self.deposits.alert_admin_needs_review(dep_id, app_msg)
             return {"auto_verified": False, "fallback_manual": True, "deposit_id": dep_id,
                     "detail": "Payment confirmation is saved. " + app_msg}
-        return {"auto_verified": True, "credited": True, "deposit_id": dep_id, "amount": amount,
+        return {"auto_verified": True, "credited": True, "deposit_id": dep_id, "amount": credit_amount, "pay_amount": bdt_amount,
                 "provider": provider, "sender": sender, "transaction_id": clean_tx,
                 "detail": "Payment confirmed and wallet credited."}
 

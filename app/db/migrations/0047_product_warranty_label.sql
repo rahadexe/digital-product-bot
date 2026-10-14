@@ -1,0 +1,2 @@
+ALTER TABLE products
+    ADD COLUMN IF NOT EXISTS warranty_label TEXT NOT NULL DEFAULT '';

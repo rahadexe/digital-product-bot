@@ -1,0 +1,11 @@
+{
+  "updates": 200,
+  "customers": 20,
+  "workers": 4,
+  "seconds": 0.277,
+  "updates_per_second": 720.8,
+  "peak_concurrent_dispatch": 3,
+  "duplicates": 0,
+  "per_customer_order_preserved": true,
+  "scope": "Local synthetic inbox only; excludes real handlers, Telegram, providers and webhook HTTP ingress"
+}

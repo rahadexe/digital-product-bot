@@ -1,6 +1,5 @@
 'use client';
 
-import { Bell, Lock, Megaphone, ShieldAlert, Users } from 'lucide-react';
 import { api } from '@/lib/api';
 import { errorText, FlagRow, type Say } from './ui';
 
@@ -10,11 +9,26 @@ interface AdminNotificationsProps {
   setValues: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   setSaved: React.Dispatch<React.SetStateAction<Record<string, string> | null>>;
   flip: (key: string, on: boolean, label?: string) => Promise<void>;
+  confirm?: (title: string, message: string, confirmLabel?: string, isDanger?: boolean) => Promise<boolean>;
 }
 
-export function AdminNotifications({ say, values, setValues, setSaved, flip }: AdminNotificationsProps) {
+export function AdminNotifications({ say, values, setValues, setSaved, flip, confirm }: AdminNotificationsProps) {
   const isOn = (key: string, def = '1') => (values[key] ?? def) === '1';
   const channel = values.announcement_channel?.trim();
+
+  async function confirmAndFlip(key: string, next: boolean, label: string) {
+    if (confirm) {
+      const action = next ? 'Enable' : 'Disable';
+      const ok = await confirm(
+        `${action} ${label}?`,
+        next ? `You will now receive alerts for ${label}.` : `Alerts for ${label} will be turned off.`,
+        action,
+        !next
+      );
+      if (!ok) return;
+    }
+    await flip(key, next, label);
+  }
 
   return (
     <>
@@ -22,11 +36,10 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
       <div className="panel-subhead" style={{ borderTop: 0 }}>
         <div>
           <h3>
-            <Megaphone size={15} style={{ color: '#0ea5e9', flexShrink: 0 }} />
             <span>Public channel announcements</span>
           </h3>
           <p>
-            Automated marketing posts dispatched to your Telegram announcement channels ({channel ? <code style={{ wordBreak: 'break-all' }}>{channel}</code> : 'configured in Channels tab'}).
+            Automatic posts to ({channel ? <code style={{ wordBreak: 'break-all' }}>{channel}</code> : 'configured in Channels tab'}).
           </p>
         </div>
       </div>
@@ -34,16 +47,16 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
       <div className="rows">
         <FlagRow
           label="Auto-post on Restock"
-          hint="Automatically posts an announcement with a 1-click Buy button to your channels whenever stock is added"
+          hint="Post to your channels when stock is added."
           on={isOn('auto_restock_alerts', '1')}
-          onChange={(next) => void flip('auto_restock_alerts', next, 'Auto-post on Restock')}
+          onChange={(next) => void confirmAndFlip('auto_restock_alerts', next, 'Auto-post on Restock')}
         />
 
         <FlagRow
           label="Auto-post on Price Drop"
-          hint="Automatically posts discount announcements to your channels when a product price is reduced"
+          hint="Post to your channels when a price drops."
           on={isOn('auto_price_drop_alerts', '1')}
-          onChange={(next) => void flip('auto_price_drop_alerts', next, 'Auto-post on Price Drop')}
+          onChange={(next) => void confirmAndFlip('auto_price_drop_alerts', next, 'Auto-post on Price Drop')}
         />
       </div>
 
@@ -51,7 +64,6 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
       <div className="panel-subhead notif-section-head">
         <div>
           <h3>
-            <Bell size={15} style={{ color: 'var(--accent)', flexShrink: 0 }} />
             <span>Admin alert preferences</span>
           </h3>
           <p>
@@ -68,30 +80,30 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
 
         <FlagRow
           label="Instant Stock Purchases"
-          hint="Alert when an order is automatically delivered from inventory stock"
+          hint="Notify admins after automatic delivery."
           on={isOn('notify_admin_orders', '0')}
-          onChange={(next) => void flip('notify_admin_orders', next, 'Instant Stock Purchases')}
+          onChange={(next) => void confirmAndFlip('notify_admin_orders', next, 'Instant Stock Purchases')}
         />
 
         <FlagRow
           label="Automatic Gateway Deposits"
-          hint="Alert when an automated deposit is verified and credited via Binance Pay or ZiniPay"
+          hint="Notify admins after a gateway deposit is credited."
           on={isOn('notify_admin_payments', '0')}
-          onChange={(next) => void flip('notify_admin_payments', next, 'Automatic Gateway Deposits')}
+          onChange={(next) => void confirmAndFlip('notify_admin_payments', next, 'Automatic Gateway Deposits')}
         />
 
         <FlagRow
           label="Stock Restock Alerts"
-          hint="Alert when new items or accounts are added to inventory stock"
+          hint="Notify admins when stock is added."
           on={isOn('notify_admin_restock', '1')}
-          onChange={(next) => void flip('notify_admin_restock', next, 'Stock Restock Alerts')}
+          onChange={(next) => void confirmAndFlip('notify_admin_restock', next, 'Stock Restock Alerts')}
         />
 
         <FlagRow
           label="Low Stock &amp; Out of Stock Alerts"
           hint={`Immediate Telegram alert when stock falls to ${values.low_stock_threshold || '3'} items or fewer, or becomes completely sold out`}
           on={isOn('notify_admin_low_stock', '1')}
-          onChange={(next) => void flip('notify_admin_low_stock', next, 'Low Stock & Out of Stock Alerts')}
+          onChange={(next) => void confirmAndFlip('notify_admin_low_stock', next, 'Low Stock Alerts')}
         />
         {isOn('notify_admin_low_stock', '1') && (
           <div style={{ padding: '8px 16px 14px', background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
@@ -141,30 +153,25 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
 
         <FlagRow
           label="Price Change Alerts (Drop &amp; Up)"
-          hint="Alert when catalog prices are modified"
+          hint="Notify admins when a price changes."
           on={isOn('notify_admin_price_change', '1')}
-          onChange={(next) => void flip('notify_admin_price_change', next, 'Price Change Alerts')}
+          onChange={(next) => void confirmAndFlip('notify_admin_price_change', next, 'Price Change Alerts')}
         />
 
         <FlagRow
           label="New customers"
-          hint="Alert when a new Telegram user starts the bot and creates an account"
+          hint="Notify admins when a customer joins."
           on={isOn('notify_admin_new_user', '0')}
-          onChange={(next) => void flip('notify_admin_new_user', next, 'New Customers Alert')}
+          onChange={(next) => void confirmAndFlip('notify_admin_new_user', next, 'New Customers Alert')}
         />
 
-        {/* REQUIRED / ALWAYS ON SYSTEM ALERTS */}
-        <div className="notif-divider required" style={{ marginTop: '10px' }}>
-          <span>Required System &amp; Security Alerts</span>
-        </div>
-
+        <details className="notification-details">
+          <summary>System &amp; security alerts <span>Always configured</span></summary>
         <div className="mandatory-row">
           <div className="mandatory-info">
             <div className="mandatory-title-row">
               <strong>Manual Delivery Orders</strong>
-              <span className="mandatory-badge warn" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                <Lock size={10} /> REQUIRED · ALWAYS ON
-              </span>
+              <span className="mandatory-badge warn">Always on</span>
             </div>
             <p className="mandatory-desc">
               Immediate alert when a customer orders a manual-delivery product requiring admin fulfillment.
@@ -176,9 +183,7 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
           <div className="mandatory-info">
             <div className="mandatory-title-row">
               <strong>Manual Deposit Requests</strong>
-              <span className="mandatory-badge warn" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                <Lock size={10} /> REQUIRED · ALWAYS ON
-              </span>
+              <span className="mandatory-badge warn">Always on</span>
             </div>
             <p className="mandatory-desc">
               Immediate alert with Approve &amp; Reject buttons when a customer submits a manual bKash / Nagad / Rocket transaction receipt for admin verification.
@@ -190,9 +195,7 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
           <div className="mandatory-info">
             <div className="mandatory-title-row">
               <strong>Payment &amp; gateway errors</strong>
-              <span className="mandatory-badge danger" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                <Lock size={10} /> REQUIRED · CRITICAL
-              </span>
+              <span className="mandatory-badge danger">Always on</span>
             </div>
             <p className="mandatory-desc">
               Critical alerts when payment verification gateways (Binance Pay, ZiniPay) fail or timeout.
@@ -204,9 +207,7 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
           <div className="mandatory-info">
             <div className="mandatory-title-row">
               <strong>Security: Group Invites Auto-Blocked</strong>
-              <span className="mandatory-badge neutral" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                <ShieldAlert size={10} /> ALWAYS OFF · AUTO-LEAVE
-              </span>
+              <span className="mandatory-badge neutral">Auto-leave</span>
             </div>
             <p className="mandatory-desc">
               When added to a Telegram group, the bot silently leaves immediately to prevent data leakage without sending spam alerts to admin inboxes.
@@ -218,26 +219,24 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
           <div className="mandatory-info">
             <div className="mandatory-title-row">
               <strong>Security: Unauthorized Channels Auto-Blocked</strong>
-              <span className="mandatory-badge neutral" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                <ShieldAlert size={10} /> ALWAYS OFF · AUTO-LEAVE
-              </span>
+              <span className="mandatory-badge neutral">Auto-leave</span>
             </div>
             <p className="mandatory-desc">
               When added to an unconfigured channel, the bot silently leaves immediately to protect broadcasting without sending spam alerts to admin inboxes.
             </p>
           </div>
         </div>
+        </details>
       </div>
 
       {/* ── 3. Customer Notifications ──────────────────────────── */}
       <div className="panel-subhead notif-section-head">
         <div>
           <h3>
-            <Users size={15} style={{ color: 'var(--positive)', flexShrink: 0 }} />
             <span>Customer notifications</span>
           </h3>
           <p>
-            Direct Telegram messages sent to customers for orders, wallet updates, and referral bonuses.
+            Order, wallet and referral messages.
           </p>
         </div>
       </div>
@@ -250,23 +249,18 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
 
         <FlagRow
           label="Referral Bonus Alerts"
-          hint="Notify referrer when an invited friend joins and a referral bonus is credited"
+          hint="Notify the referrer when a reward is credited."
           on={isOn('notify_user_referral', '1')}
           onChange={(next) => void flip('notify_user_referral', next, 'Referral Bonus Alerts')}
         />
 
-        {/* ALWAYS ON (MANDATORY) BELOW - NO BUTTON */}
-        <div className="notif-divider required" style={{ marginTop: '10px' }}>
-          <span>Required Customer Deliveries &amp; Receipts</span>
-        </div>
-
+        <details className="notification-details">
+          <summary>Customer receipts <span>Always on</span></summary>
         <div className="mandatory-row">
           <div className="mandatory-info">
             <div className="mandatory-title-row">
               <strong>Order Delivery &amp; Credentials</strong>
-              <span className="mandatory-badge warn" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                <Lock size={10} /> REQUIRED · ALWAYS ON
-              </span>
+              <span className="mandatory-badge warn">Always on</span>
             </div>
             <p className="mandatory-desc">
               Sends product credentials, license keys, or accounts immediately upon order completion.
@@ -278,9 +272,7 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
           <div className="mandatory-info">
             <div className="mandatory-title-row">
               <strong>Manual Order Acknowledgment</strong>
-              <span className="mandatory-badge warn" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                <Lock size={10} /> REQUIRED · ALWAYS ON
-              </span>
+              <span className="mandatory-badge warn">Always on</span>
             </div>
             <p className="mandatory-desc">
               Sends an immediate confirmation that payment was received and manual order is in queue.
@@ -292,9 +284,7 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
           <div className="mandatory-info">
             <div className="mandatory-title-row">
               <strong>Deposit Approved &amp; Balance Credited</strong>
-              <span className="mandatory-badge warn" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                <Lock size={10} /> REQUIRED · ALWAYS ON
-              </span>
+              <span className="mandatory-badge warn">Always on</span>
             </div>
             <p className="mandatory-desc">
               Sends wallet credit confirmation and updated balance when a deposit succeeds.
@@ -306,9 +296,7 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
           <div className="mandatory-info">
             <div className="mandatory-title-row">
               <strong>Deposit Rejected Notification</strong>
-              <span className="mandatory-badge warn" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                <Lock size={10} /> REQUIRED · ALWAYS ON
-              </span>
+              <span className="mandatory-badge warn">Always on</span>
             </div>
             <p className="mandatory-desc">
               Sends an explanation notice if an invalid TrxID or unverified deposit is rejected.
@@ -320,9 +308,7 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
           <div className="mandatory-info">
             <div className="mandatory-title-row">
               <strong>Manual Balance Adjustments</strong>
-              <span className="mandatory-badge warn" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                <Lock size={10} /> REQUIRED · ALWAYS ON
-              </span>
+              <span className="mandatory-badge warn">Always on</span>
             </div>
             <p className="mandatory-desc">
               Receipt sent to customer when admin adjusts their balance directly from the Customers tab.
@@ -334,15 +320,14 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip }: A
           <div className="mandatory-info">
             <div className="mandatory-title-row">
               <strong>Order Refund Notification</strong>
-              <span className="mandatory-badge warn" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                <Lock size={10} /> REQUIRED · ALWAYS ON
-              </span>
+              <span className="mandatory-badge warn">Always on</span>
             </div>
             <p className="mandatory-desc">
               Instant notification and wallet refund receipt sent to customer when an order is refunded.
             </p>
           </div>
         </div>
+        </details>
       </div>
     </>
   );

@@ -58,7 +58,6 @@ export interface EmojiLibraryItem {
   name: string;
   emoji_id: string;
   is_system: boolean;
-  category?: string;
   created_at?: string;
 }
 
@@ -78,7 +77,9 @@ export interface Product {
   reseller_price?: number | null;
   icon: string;
   duration_label: string;
+  warranty_label: string;
   sort_order: number;
+  is_pinned?: number;
   is_active: number;
   delivery_type?: 'stock' | 'manual';
   custom_emoji_id?: string;
@@ -88,6 +89,8 @@ export interface Product {
   supplier_code?: string | null;
   upstream_devices?: number;
   upstream_share_hours?: number;
+  requires_customer_input?: number | boolean;
+  customer_input_prompt?: string;
 }
 
 export interface InventoryItem {
@@ -131,6 +134,7 @@ export interface Order {
   supplier_code?: string | null;
   supplier_order_id?: string | null;
   supplier_error?: string | null;
+  customer_input?: string | null;
 }
 
 export interface OrderDetail {
@@ -267,12 +271,16 @@ export interface DepositMethod {
   rate_to_currency: number;
   is_active: number;
   sort_order: number;
-  /** Who confirms a payment made with this method: nobody, the shop's Binance deposits, or Binance Pay. */
-  auto_verify?: 'none' | 'binance' | 'binance_pay';
+  /** Who confirms a payment made with this method: nobody, the shop's Binance deposits, Binance Pay, or ZiniPay. */
+  auto_verify?: 'none' | 'binance' | 'binance_pay' | 'zinipay';
   /** The only network accepted when set, e.g. TRX for TRC20 or BSC for BEP20. */
   auto_verify_network?: string;
   custom_emoji_id?: string | null;
-  account_type?: 'personal' | 'agent' | 'merchant';
+  account_type?: 'personal' | 'agent' | 'merchant' | 'crypto';
+  has_api_credentials?: boolean;
+  api_key?: string;
+  api_secret?: string;
+  clear_api_credentials?: boolean;
 }
 
 export interface User {
@@ -372,6 +380,35 @@ export interface SupplierSyncResult {
   products_synced: number;
   message: string;
 }
+
+export interface RemoteSupplierProduct {
+  id: number;
+  title: string;
+  category_name: string;
+  duration: string;
+  reseller_price: number;
+  regular_price: number;
+  currency: string;
+  currency_symbol: string;
+  icon: string;
+  description: string;
+  warranty: string;
+  in_store: boolean;
+  local_id: number | null;
+  local_is_active: boolean;
+  local_price: number | null;
+}
+
+export interface RemoteSupplierCatalogResponse {
+  supplier: string;
+  supplier_name: string;
+  currency: string;
+  total: number;
+  filtered_total: number;
+  categories: string[];
+  products: RemoteSupplierProduct[];
+}
+
 
 const API_BASE =
   typeof window !== 'undefined' && ['3000', '3001'].includes(window.location.port)
@@ -528,8 +565,16 @@ export const api = {
     }),
   deleteProduct: (id: number) =>
     request<{ success: boolean }>(`/api/admin/products/${id}`, { method: 'DELETE' }),
+  pinProduct: (id: number) =>
+    request<{ success: boolean; is_pinned: number }>(`/api/admin/products/${id}/pin`, { method: 'POST' }),
   announceProduct: (id: number) =>
     request<{ success: boolean }>(`/api/admin/products/${id}/announce`, { method: 'POST' }),
+  bulkProducts: (action: 'activate' | 'hide' | 'delete', product_ids: number[]) =>
+    request<{ success: boolean; count: number; message: string }>('/api/admin/products/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ action, product_ids }),
+    }),
+
 
   // Inventory
   inventory: (productId?: number, status?: string, offset = 0) => {
@@ -577,9 +622,9 @@ export const api = {
     }),
 
   // Deposits
-  deposits: (status?: string, limit = 50, offset = 0) =>
+  deposits: (status?: string, limit = 50, offset = 0, search?: string) =>
     request<{ deposits: Deposit[]; total: number; summary?: DepositSummary }>(
-      `/api/admin/deposits?${status ? `status=${status}&` : ''}limit=${limit}&offset=${offset}`
+      `/api/admin/deposits?${status ? `status=${status}&` : ''}${search ? `search=${encodeURIComponent(search)}&` : ''}limit=${limit}&offset=${offset}`
     ),
   approveDeposit: (id: number, adminNote = '') =>
     request<{ success: boolean; message: string }>(`/api/admin/deposits/${id}/approve`, {
@@ -601,6 +646,10 @@ export const api = {
     request<{ success: boolean }>(`/api/admin/deposit-methods/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
+    }),
+  toggleDepositMethod: (id: number) =>
+    request<{ success: boolean; is_active: number }>(`/api/admin/deposit-methods/${id}/toggle`, {
+      method: 'POST',
     }),
   deleteDepositMethod: (id: number) =>
     request<{ success: boolean }>(`/api/admin/deposit-methods/${id}`, { method: 'DELETE' }),
@@ -767,6 +816,19 @@ export const api = {
     request<{ success: boolean; message: string; order?: any }>(`/api/admin/orders/${id}/retry-supplier`, {
       method: 'POST',
     }),
+  supplierRemoteProducts: (supplier: string = 'digital_mart', search: string = '') =>
+    request<RemoteSupplierCatalogResponse>(
+      `/api/admin/suppliers/remote-products?supplier=${encodeURIComponent(supplier)}&search=${encodeURIComponent(search)}`
+    ),
+  supplierImportProducts: (data: { supplier_code: string; product_ids: number[]; activate: boolean; target_category_id?: number | null }) =>
+    request<{ success: boolean; products_synced: number; categories_synced: number; message: string }>(
+      '/api/admin/suppliers/import-products',
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    ),
+
 
   // Reseller Applications
   resellerApplications: (status?: string, offset: number = 0, limit: number = 50) => {

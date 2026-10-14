@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import suppress
 import html
 import logging
 import re
@@ -132,10 +133,9 @@ def cancel_keyboard() -> InlineKeyboardMarkup:
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="Cancel Application",
+                    text="❌ Cancel Application",
                     callback_data="reseller_cancel_apply",
                     style="danger",
-                    icon_custom_emoji_id=Icons.CLOSE,
                 )
             ]
         ]
@@ -152,7 +152,7 @@ async def start_reseller_apply(query: CallbackQuery, state: FSMContext, services
     await state.set_state(ResellerApplyStates.waiting_name)
 
     text = (
-        f"{ICON_RESELLER} <b>Become a Reseller — Application (Step 1/4)</b>\n\n"
+        f"{ICON_RESELLER} <b>Become a Reseller (Step 1/4)</b>\n\n"
         f"Please enter your <b>Full Name</b>:\n\n"
         f"<i>(Type your real name below and send)</i>"
     )
@@ -170,8 +170,8 @@ async def cancel_reseller_apply(query: CallbackQuery, state: FSMContext, service
     with suppress(TelegramBadRequest):
         await query.answer("Application cancelled.")
     # Show main reseller info menu
-    from app.bot.handlers.profile import show_reseller_info
-    await show_reseller_info(query, state, services)
+    from app.bot.handlers.profile import show_reseller_hub
+    await show_reseller_hub(query, state, services)
 
 
 @router.callback_query(F.data == "reseller_cancel_pending")
@@ -188,8 +188,8 @@ async def cancel_pending_application(query: CallbackQuery, state: FSMContext, se
     else:
         with suppress(TelegramBadRequest):
             await query.answer("No pending application found.")
-    from app.bot.handlers.profile import show_reseller_info
-    await show_reseller_info(query, state, services)
+    from app.bot.handlers.profile import show_reseller_hub
+    await show_reseller_hub(query, state, services)
 
 
 @router.message(ResellerApplyStates.waiting_name)
@@ -214,15 +214,13 @@ async def process_name_step(message: Message, state: FSMContext):
             InlineKeyboardButton(
                 text=f"Use Current Username ({user_username})",
                 callback_data=f"reseller_use_current_tg",
-                style="primary",
             )
         ])
     quick_btn.append([
         InlineKeyboardButton(
-            text="Cancel Application",
+            text="❌ Cancel Application",
             callback_data="reseller_cancel_apply",
             style="danger",
-            icon_custom_emoji_id=Icons.CLOSE,
         )
     ])
 
@@ -332,24 +330,20 @@ async def process_channel_step(message: Message, state: FSMContext):
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="Submit Application",
+                    text="✅ Submit Application",
                     callback_data="reseller_submit_confirm",
                     style="success",
-                    icon_custom_emoji_id=Icons.CHECK,
                 )
             ],
             [
                 InlineKeyboardButton(
-                    text="Edit Info",
+                    text="✏️ Edit Info",
                     callback_data="reseller_start_apply",
-                    style="primary",
-                    icon_custom_emoji_id=Icons.REFRESH,
                 ),
                 InlineKeyboardButton(
-                    text="Cancel",
+                    text="❌ Cancel",
                     callback_data="reseller_cancel_apply",
                     style="danger",
-                    icon_custom_emoji_id=Icons.CLOSE,
                 ),
             ],
         ]
@@ -411,10 +405,8 @@ async def process_submit_confirmation(query: CallbackQuery, state: FSMContext, s
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="Back",
+                    text="🔙 Back",
                     callback_data="back_to_main",
-                    style="primary",
-                    icon_custom_emoji_id=Icons.BACK,
                 )
             ]
         ]
@@ -437,24 +429,20 @@ async def process_submit_confirmation(query: CallbackQuery, state: FSMContext, s
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="Approve",
+                    text="✅ Approve",
                     callback_data=f"adm_appr_res_{app_id}",
                     style="success",
-                    icon_custom_emoji_id=Icons.CHECK,
                 ),
                 InlineKeyboardButton(
-                    text="Reject",
+                    text="❌ Reject",
                     callback_data=f"adm_rej_res_{app_id}",
                     style="danger",
-                    icon_custom_emoji_id=Icons.CROSS,
                 ),
             ],
             [
                 InlineKeyboardButton(
                     text="Admin Panel",
                     callback_data="adm_dashboard",
-                    style="primary",
-                    icon_custom_emoji_id=Icons.CROWN,
                 )
             ],
         ]

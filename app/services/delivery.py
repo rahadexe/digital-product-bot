@@ -15,14 +15,7 @@ from typing import Any
 import asyncpg
 
 from app.bot.formatting import format_dual_price
-from app.bot.icons import (
-    ICON_CHECK,
-    ICON_KEY,
-    ICON_MONEY,
-    ICON_ORDERS,
-    ICON_TIMER,
-    ICON_VIP,
-)
+from app.core.identifiers import format_order_id
 from app.db import Database
 from app.services.audit import record
 from app.services.errors import NotFoundError
@@ -34,10 +27,11 @@ def waiting_notice(order: dict[str, Any], lang: str = "en") -> str:
     order_id = order.get('order_id', order.get('id'))
     title = escape(str(order.get('product_title', 'Purchase')))
     return (
-        f"{ICON_TIMER} <b>Order #{order_id}: {title}</b>\n\n"
-        f"{ICON_CHECK} <b>Payment Received!</b>\n\n"
-        f"Your order is being prepared and will be delivered directly here when it is ready. Contact support if you need an update."
+        f"<b>Preparing delivery · {format_order_id(order_id)}</b>\n"
+        f"{title}\n\n"
+        "Payment received. Delivery details will arrive here when ready."
     )
+
 
 
 def receipt(order: dict[str, Any], lang: str = "en") -> str:
@@ -47,16 +41,24 @@ def receipt(order: dict[str, Any], lang: str = "en") -> str:
     symbol = order.get('currency_symbol', '৳')
     usd_rate = order.get('usd_rate')
     show_usd = order.get('show_usd')
-    price_str = format_dual_price(price_val, symbol=symbol, usd_rate=usd_rate, show_usd=show_usd)
+    price_str = format_dual_price(price_val, symbol=symbol, usd_rate=usd_rate, show_usd=show_usd, lang=lang)
 
     raw_content = str(order.get('delivered_item', '')).strip()
-    lines = [
-        f"{ICON_ORDERS} <b>Order #{order_id}</b>\n",
-        f"{ICON_VIP} <b>Product:</b> {title}",
-        f"{ICON_MONEY} <b>Price:</b> <code>{price_str}</code>",
-        f"{ICON_CHECK} <b>Status:</b> <code>Completed</code>\n",
-        f"{ICON_KEY} <b>Delivery Information:</b>",
-    ]
+    if lang == "bn":
+        lines = [
+            f"✅ <b>অর্ডার সফল · {format_order_id(order_id)}</b>\n",
+            f"<b>প্রোডাক্ট:</b> {title}",
+            f"<b>মূল্য:</b> <code>{price_str}</code>",
+            "<b>স্ট্যাটাস:</b> ডেলিভার্ড\n",
+            "<b>আপনার একাউন্ট তথ্য:</b>",
+        ]
+    else:
+        lines = [
+            f"<b>Delivered · {format_order_id(order_id)}</b>",
+            title,
+            f"Paid: <code>{price_str}</code>\n",
+            "<b>Delivery details</b>",
+        ]
 
     cred_items = [escape(it.strip()) for it in raw_content.splitlines() if it.strip()]
     if cred_items:

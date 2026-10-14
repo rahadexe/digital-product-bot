@@ -103,6 +103,13 @@ class Settings(BaseSettings):
         if not self.allowed_origins and public.hostname:
             self.allowed_origins = f"https://{public.netloc}"
         if self.app_env == "production":
+            if '*' in self.split(self.trusted_proxy_ips):
+                raise ValueError("Production must trust specific proxy addresses, never '*'.")
+            if not self.split(self.allowed_hosts) or '*' in self.split(self.allowed_hosts):
+                raise ValueError("Production requires explicit ALLOWED_HOSTS or WEBHOOK_BASE_URL.")
+            if any('*' in origin or urlsplit(origin).scheme != 'https' or not urlsplit(origin).hostname
+                   for origin in self.split(self.allowed_origins)):
+                raise ValueError("Production ALLOWED_ORIGINS must contain explicit HTTPS origins.")
             if 'secret_key' not in self.model_fields_set:
                 raise ValueError("Production requires an explicit persistent SECRET_KEY.")
             if weak_secret or len(self.admin_password) < 12:

@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 import logging
-import time
+import hashlib
+import uuid
 from collections import Counter
 from decimal import Decimal
 from html import escape
@@ -27,6 +28,7 @@ from app.bot.icons import (
     Icons,
 )
 from app.core.config import get_settings
+from app.core.identifiers import format_order_id
 from app.core.money import money
 from app.db import Database
 from app.services.admin_jobs import enqueue as enqueue_admin_job
@@ -36,6 +38,7 @@ from app.services.errors import InvalidInputError, NotFoundError
 from app.services.inventory import InventoryService
 from app.services.notifications import Notifier
 from app.services.settings import SettingsService
+from app.services.supplier_attempts import SupplierAttempts
 
 logger = logging.getLogger("app.services.purchases")
 
@@ -52,6 +55,7 @@ def _receipt_fields(row: Any, balance: float) -> dict[str, Any]:
         "delivered_item": row["delivered_item"],
         "fulfillment": row["fulfillment"],
         "remaining_balance": balance,
+        "customer_input": row.get("customer_input", "") if hasattr(row, "get") else (row["customer_input"] if "customer_input" in row else ""),
         "created_at": row.get("created_at") if hasattr(row, "get") else (row["created_at"] if "created_at" in row else None),
     }
 
@@ -72,12 +76,23 @@ class PurchaseService:
         self.notifier = notifier
         self.upstream_reseller = upstream_reseller
         self.suppliers = suppliers
+        self.supplier_attempts = SupplierAttempts(db)
         # Stock warnings fire on the way down, once per sale. Without a quiet period
         # a product falling from three to nothing sends four separate messages, and
         # a catalogue of thirty buries the owner. Set by build_services.
         self.rate_limits = None
 
-    async def purchase(self, tg_user_id: int, product_id: int, quantity: int = 1, request_id: str | None = None, *, require_reseller: bool = False, reseller_key_id: int | None = None) -> PurchaseResult:
+    async def purchase(
+        self,
+        tg_user_id: int,
+        product_id: int,
+        quantity: int = 1,
+        request_id: str | None = None,
+        *,
+        require_reseller: bool = False,
+        reseller_key_id: int | None = None,
+        customer_input: str = "",
+    ) -> PurchaseResult:
         """
         Charge the wallet, take stock seats (or fulfil through manual delivery), record the order,
         and queue the customer's message, all in one transaction.
@@ -85,6 +100,7 @@ class PurchaseService:
         """
         if not 1 <= quantity <= 1000:
             return False, "Choose a quantity from 1 to 1000.", None
+        request_id = request_id or uuid.uuid4().hex
         # Paused applies to every way in (bot, Mini App), so it is checked here rather than in each of them.
         paused = await self.settings.paused_message()
         if paused:
@@ -92,7 +108,7 @@ class PurchaseService:
         waiting_reason = ""
         symbol = await self.settings.get("currency_symbol")
         usd_rate = await self.settings.number('usd_rate')
-        show_usd = await self.settings.flag('show_usd_price')
+        show_usd = True
         is_manual = False
         async with self.db.connect() as db:
             await db.execute("BEGIN")
@@ -108,7 +124,7 @@ class PurchaseService:
                 if require_reseller and (user['rank'] or '').strip().lower() != 'reseller':
                     await db.execute('ROLLBACK')
                     return False, 'Reseller access is no longer active.', None
-                if require_reseller and not await db.fetchval(
+                if (require_reseller or reseller_key_id is not None) and not await db.fetchval(
                     'SELECT id FROM reseller_api_keys WHERE id=$1 AND user_id=$2 AND tg_user_id=$3 AND is_active=1 FOR SHARE',
                     reseller_key_id,user['id'],tg_user_id,
                 ):
@@ -159,6 +175,8 @@ class PurchaseService:
                     if not supplier and self.upstream_reseller and self.upstream_reseller.is_configured:
                         supplier = self.upstream_reseller
 
+                if supplier and hasattr(supplier, '_ensure_config'):
+                    await supplier._ensure_config()
                 if upstream_prod_id and supplier and supplier.is_configured:
                     upstream_devices = int(product.get("upstream_devices") or 1)
                     upstream_share_hours = int(product.get("upstream_share_hours") or 24)
@@ -183,20 +201,28 @@ class PurchaseService:
                             return False, "⚠️ The wholesale price for this product has recently updated. Please re-open the product to purchase at the current price.", None
 
                         # Instant fulfillment via upstream supplier API
-                        custom_id = f"ord_{tg_user_id}_{product_id}_{int(time.time())}"
-                        upstream_resp = await supplier.purchase(
+                        custom_id = 'ord_' + hashlib.sha256(f'{tg_user_id}:{request_id}'.encode()).hexdigest()[:32]
+                        upstream_resp = await self.supplier_attempts.purchase(
+                            supplier, supplier_code=supplier_code,
+                            tg_user_id=tg_user_id, local_product_id=product_id, customer_request_id=request_id,
                             product_id=int(upstream_prod_id),
                             quantity=supplier_order_qty,
                             custom_id=custom_id,
                         )
 
                         fallback_enabled = await self.settings.flag("supplier_fallback_to_waiting")
+                        if upstream_resp.get('request_conflict'):
+                            await db.execute('ROLLBACK')
+                            return False, upstream_resp['detail'], None
                         if not upstream_resp.get("success"):
                             err_msg = upstream_resp.get("detail") or "Failed to purchase from supplier"
                             is_low_balance = upstream_resp.get("insufficient_balance", False)
+                            outcome_unknown = upstream_resp.get("outcome_unknown", False)
+                            if outcome_unknown:
+                                err_msg = f"[RECONCILE] Supplier outcome unknown; check the supplier before retrying. {err_msg}"
 
                             # Graceful fallback: do NOT fail customer order if supplier is low on balance or temporarily down
-                            if fallback_enabled or is_low_balance:
+                            if fallback_enabled or is_low_balance or outcome_unknown:
                                 delivered_content = ""
                                 source = "supplier_pending"
                                 fulfillment = "waiting"
@@ -281,8 +307,8 @@ class PurchaseService:
                     """
                     INSERT INTO orders (user_id, tg_user_id, product_id, product_title, price, delivered_item,
                                         status, request_id, delivery_status, fulfillment, source, inventory_item_id,
-                                        fulfilled_at, quantity, unit_price, supplier_code, supplier_order_id, supplier_error)
-                    VALUES ($1, $2, $3, $4, $5, $6, 'completed', $7, 'pending', $8, $9, $10, CASE WHEN $8 = 'delivered' THEN now() ELSE NULL END, $11, $12, $13, $14, $15)
+                                        fulfilled_at, quantity, unit_price, supplier_code, supplier_order_id, supplier_error, customer_input)
+                    VALUES ($1, $2, $3, $4, $5, $6, 'completed', $7, 'pending', $8, $9, $10, CASE WHEN $8 = 'delivered' THEN now() ELSE NULL END, $11, $12, $13, $14, $15, $16)
                     RETURNING *
                     """,
                     user["id"],
@@ -300,6 +326,7 @@ class PurchaseService:
                     supplier_code if (upstream_prod_id and supplier) else None,
                     supplier_order_id,
                     supplier_error,
+                    customer_input or "",
                 )
                 order_id = order_row["id"]
                 for sid in stock_item_ids:
@@ -342,7 +369,6 @@ class PurchaseService:
     async def _notify_admin(self, user: Any, order: dict[str, Any], waiting_reason: str = "") -> None:
         symbol = escape(await self.settings.get("currency_symbol"))
         usd_rate = await self.settings.number("usd_rate")
-        show_usd = await self.settings.flag("show_usd_price")
         customer = f"@{escape(user['username'])}" if user.get("username") else "No username"
         order_id = order.get("order_id", order.get("id"))
 
@@ -367,7 +393,6 @@ class PurchaseService:
                         text="⚡ Retry Supplier Delivery",
                         callback_data=f"adm_ord_sup_retry_{order_id}",
                         style="primary",
-                        icon_custom_emoji_id=Icons.REFRESH,
                     )
                 ])
             rows.append([
@@ -375,21 +400,18 @@ class PurchaseService:
                     text="📦 Deliver Manually",
                     callback_data=f"adm_ord_deliver_{order_id}",
                     style="success",
-                    icon_custom_emoji_id=Icons.ORDERS,
                 ),
                 InlineKeyboardButton(
                     text="🔄 Refund",
                     callback_data=f"adm_ord_ref_ask_{order_id}",
                     style="danger",
-                    icon_custom_emoji_id=Icons.SPENT,
                 ),
             ])
             if console:
                 rows.append([
                     InlineKeyboardButton(
-                        text="Open in Console",
+                        text="🌐 Open in Console",
                         url=f"{console}/#orders/{order_id}",
-                        icon_custom_emoji_id=Icons.NOTE,
                     )
                 ])
             keyboard = InlineKeyboardMarkup(inline_keyboard=rows)
@@ -420,13 +442,18 @@ class PurchaseService:
             except Exception:
                 pass
 
+        cust_input_line = ""
+        if order.get("customer_input"):
+            cust_input_line = f"\n📝 <b>Customer Info:</b> <code>{escape(str(order['customer_input']))}</code>"
+
         msg_text = (
             f"{heading}\n\n"
-            f"{ICON_ORDERS} <b>Order:</b> <code>#{order_id}</code>\n"
+            f"{ICON_ORDERS} <b>Order:</b> <code>{format_order_id(order_id)}</code>\n"
             f"{ICON_ACCOUNT} <b>Customer:</b> {customer}\n"
             f"{ICON_ID} <b>Customer ID:</b> <code>{user['tg_user_id']}</code>\n"
             f"{ICON_VIP} <b>Product:</b> {escape(order['product_title'])}\n"
-            f"{ICON_MONEY} <b>Price:</b> <code>{price(symbol, order['price'], usd_rate=usd_rate, show_usd=show_usd)}</code>\n"
+            f"{ICON_MONEY} <b>Price:</b> <code>{price(symbol, order['price'], usd_rate=usd_rate)}</code>"
+            f"{cust_input_line}\n"
             f"{delivery}{stock_warning}"
         )
         await self.notifier.send_admin(
@@ -445,16 +472,14 @@ class PurchaseService:
                 # The alert is the moment stock is on the owner's mind, so the fix
                 # belongs on it rather than behind a browser and a login.
                 rows = [[InlineKeyboardButton(
-                    text="Add stock here",
+                    text="➕ Add stock here",
                     callback_data=f"adm_stock_{prod_id}",
                     style="success",
-                    icon_custom_emoji_id=Icons.PLUS,
                 )]]
                 if console:
                     rows.append([InlineKeyboardButton(
-                        text="Open in console",
+                        text="🌐 Open in console",
                         url=f"{console}/#inventory",
-                        icon_custom_emoji_id=Icons.PRODUCTS,
                     )])
                 low_stock_kb = InlineKeyboardMarkup(inline_keyboard=rows)
                 alert_text = (
@@ -472,16 +497,14 @@ class PurchaseService:
                 # The alert is the moment stock is on the owner's mind, so the fix
                 # belongs on it rather than behind a browser and a login.
                 rows = [[InlineKeyboardButton(
-                    text="Add stock here",
+                    text="➕ Add stock here",
                     callback_data=f"adm_stock_{prod_id}",
                     style="success",
-                    icon_custom_emoji_id=Icons.PLUS,
                 )]]
                 if console:
                     rows.append([InlineKeyboardButton(
-                        text="Open in console",
+                        text="🌐 Open in console",
                         url=f"{console}/#inventory",
-                        icon_custom_emoji_id=Icons.PRODUCTS,
                     )])
                 low_stock_kb = InlineKeyboardMarkup(inline_keyboard=rows)
                 alert_text = (
@@ -540,7 +563,7 @@ class PurchaseService:
             manual_order = _receipt_fields(row, 0)
             manual_order["currency_symbol"] = symbol
             manual_order["usd_rate"] = await self.settings.number("usd_rate")
-            manual_order["show_usd"] = await self.settings.flag("show_usd_price")
+            manual_order["show_usd"] = True
             await self.delivery.enqueue_order(order["tg_user_id"], manual_order, conn=conn)
             await record(conn, "order_delivered_manually", f"Order #{order_id} delivered by the admin")
         return dict(row)
@@ -549,7 +572,7 @@ class PurchaseService:
         """Retry ordering an upstream product from the supplier when balance or error is resolved."""
         symbol = await self.settings.get("currency_symbol")
         usd_rate = await self.settings.number("usd_rate")
-        show_usd = await self.settings.flag("show_usd_price")
+        show_usd = True
 
         async with self.db.transaction() as conn:
             order = await conn.fetchrow("SELECT * FROM orders WHERE id = $1 FOR UPDATE", order_id)
@@ -557,6 +580,10 @@ class PurchaseService:
                 return False, "Order not found.", None
             if order["status"] != "completed" or order["fulfillment"] != "waiting":
                 return False, f"Order is not in waiting state (status: {order['status']}, fulfillment: {order['fulfillment']}).", None
+            if order.get('supplier_order_id'):
+                return False, "Supplier already accepted this order. Reconcile its delivery before retrying.", None
+            if str(order.get('supplier_error') or '').startswith('[RECONCILE]'):
+                return False, "Supplier outcome is unknown. Reconcile this order with the supplier before retrying.", None
 
             product = await conn.fetchrow("SELECT * FROM products WHERE id = $1", order["product_id"])
             if not product:
@@ -568,6 +595,8 @@ class PurchaseService:
 
             supplier_code = order.get("supplier_code") or product.get("supplier_code") or "digital_mart"
             supplier = self.suppliers.get(supplier_code) if self.suppliers else self.upstream_reseller
+            if supplier and hasattr(supplier, '_ensure_config'):
+                await supplier._ensure_config()
             if not supplier or not supplier.is_configured:
                 return False, f"Supplier '{supplier_code}' is not configured.", None
 
@@ -576,8 +605,11 @@ class PurchaseService:
             quantity = int(order.get("quantity") or 1)
             supplier_order_qty = 1 if upstream_devices > 1 else quantity
 
-            custom_id = f"ord_retry_{order['tg_user_id']}_{order['id']}_{int(time.time())}"
-            upstream_resp = await supplier.purchase(
+            request_key = order.get('request_id') or f"legacy-order-{order['id']}"
+            custom_id = 'ord_' + hashlib.sha256(f"{order['tg_user_id']}:{request_key}".encode()).hexdigest()[:32]
+            upstream_resp = await self.supplier_attempts.purchase(
+                supplier, supplier_code=supplier_code, retry_refused=True,
+                tg_user_id=order['tg_user_id'], local_product_id=order['product_id'], customer_request_id=request_key,
                 product_id=int(upstream_prod_id),
                 quantity=supplier_order_qty,
                 custom_id=custom_id,
@@ -585,6 +617,8 @@ class PurchaseService:
 
             if not upstream_resp.get("success"):
                 err_msg = upstream_resp.get("detail") or "Supplier error"
+                if upstream_resp.get("outcome_unknown"):
+                    err_msg = f"[RECONCILE] Supplier outcome unknown; check the supplier before retrying. {err_msg}"
                 await conn.execute("UPDATE orders SET supplier_error = $1 WHERE id = $2", str(err_msg), order_id)
                 return False, f"Supplier error: {err_msg}", None
 
@@ -717,7 +751,7 @@ class PurchaseService:
         symbol = escape(await self.settings.get("currency_symbol"))
         refund_customer_msg = (
             f"{ICON_CHECK} <b>Order Refunded</b>\n\n"
-            f"{ICON_ORDERS} <b>Order ID:</b> <code>#{order_id}</code>\n"
+            f"{ICON_ORDERS} <b>Order ID:</b> <code>{format_order_id(order_id)}</code>\n"
             f"{ICON_VIP} <b>Product:</b> {escape(order['product_title'])}\n"
             f"{ICON_MONEY} <b>Refunded to Wallet:</b> <code>+{order['price']:.2f} {symbol}</code>\n\n"
             f"<i>Amount has been refunded to your wallet balance.</i>"
@@ -766,7 +800,8 @@ class PurchaseService:
             summary_params.append(f"%{search}%")
             summary_where += (
                 f" AND (CAST(o.id AS TEXT) LIKE ${len(summary_params)} OR o.product_title ILIKE ${len(summary_params)} "
-                f"OR CAST(o.tg_user_id AS TEXT) LIKE ${len(summary_params)} OR u.username ILIKE ${len(summary_params)})"
+                f"OR CAST(o.tg_user_id AS TEXT) LIKE ${len(summary_params)} OR u.username ILIKE ${len(summary_params)} "
+                f"OR o.customer_input ILIKE ${len(summary_params)})"
             )
         if tg_user_id:
             summary_params.append(tg_user_id)
@@ -824,4 +859,3 @@ class PurchaseService:
     async def waiting_count(self) -> int:
         async with self.db.connect() as conn:
             return await conn.fetchval("SELECT COUNT(*) FROM orders WHERE status = 'completed' AND fulfillment = 'waiting'")
-

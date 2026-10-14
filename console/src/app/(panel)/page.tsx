@@ -1,28 +1,8 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Eye,
-  EyeOff,
-  CircleAlert,
-  CircleCheck,
-  LayoutDashboard,
-  LogOut,
-  Megaphone,
-  Menu,
-  Package,
-  Settings as SettingsIcon,
-  ShoppingBag,
-  Boxes,
-  Users as UsersIcon,
-  Wallet,
   X,
-  FolderTree,
-  Clock,
-  Sparkles,
-  Globe,
-  Briefcase,
-  type LucideIcon,
 } from 'lucide-react';
 import { api, setCsrf } from '@/lib/api';
 import { Broadcast } from '@/components/Broadcast';
@@ -58,21 +38,21 @@ type Key =
   | 'settings';
 
 /** Ordered by daily importance: the most-used screens stay at the top, setup stays at the bottom. */
-const ITEMS: { key: Key; label: string; icon: LucideIcon; group?: string }[] = [
-  { key: 'overview', label: 'Dashboard', icon: LayoutDashboard, group: 'Workspace' },
-  { key: 'orders', label: 'Orders', icon: ShoppingBag },
-  { key: 'deposits', label: 'Deposits', icon: Wallet },
-  { key: 'users', label: 'Customers', icon: UsersIcon },
-  { key: 'products', label: 'Products', icon: Package, group: 'Catalog' },
-  { key: 'suppliers', label: 'Suppliers', icon: Globe },
-  { key: 'inventory', label: 'Stock', icon: Boxes },
-  { key: 'categories', label: 'Categories', icon: FolderTree },
-  { key: 'validities', label: 'Durations', icon: Clock },
-  { key: 'emojis', label: 'Emojis', icon: Sparkles },
-  { key: 'broadcast', label: 'Broadcast', icon: Megaphone, group: 'Manage' },
-  { key: 'reseller-apps', label: 'Reseller Apps', icon: Briefcase },
-  { key: 'activity', label: 'Activity', icon: Clock },
-  { key: 'settings', label: 'Settings', icon: SettingsIcon },
+const ITEMS: { key: Key; label: string }[] = [
+  { key: 'overview', label: 'Dashboard' },
+  { key: 'orders', label: 'Orders' },
+  { key: 'deposits', label: 'Deposits' },
+  { key: 'users', label: 'Customers' },
+  { key: 'products', label: 'Products' },
+  { key: 'suppliers', label: 'Suppliers' },
+  { key: 'inventory', label: 'Stock' },
+  { key: 'categories', label: 'Categories' },
+  { key: 'validities', label: 'Validity' },
+  { key: 'emojis', label: 'Emojis' },
+  { key: 'broadcast', label: 'Broadcast' },
+  { key: 'reseller-apps', label: 'Reseller requests' },
+  { key: 'activity', label: 'Activity' },
+  { key: 'settings', label: 'Settings' },
 ];
 
 const isKey = (value: string): value is Key => ITEMS.some((item) => item.key === value);
@@ -99,6 +79,7 @@ export default function ConsolePage() {
   const [toast, setToast] = useState<{ message: string; kind: 'good' | 'bad' } | null>(null);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const mobileMenuButton = useRef<HTMLButtonElement | null>(null);
   const timer = useRef<number | undefined>(undefined);
 
   const say = useCallback((message: string, kind: 'good' | 'bad' = 'good') => {
@@ -186,16 +167,23 @@ export default function ConsolePage() {
 
   // Lock background body scroll when mobile drawer is open
   useEffect(() => {
-    if (mobileMenuOpen) {
-      const prevOverflow = document.body.style.overflow;
-      const prevTouchAction = document.body.style.touchAction;
-      document.body.style.overflow = 'hidden';
-      document.body.style.touchAction = 'none';
-      return () => {
-        document.body.style.overflow = prevOverflow;
-        document.body.style.touchAction = prevTouchAction;
-      };
-    }
+    if (!mobileMenuOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    const prevTouchAction = document.body.style.touchAction;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        mobileMenuButton.current?.focus();
+        setMobileMenuOpen(false);
+      }
+    };
+    document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.body.style.touchAction = prevTouchAction;
+      document.removeEventListener('keydown', closeOnEscape);
+    };
   }, [mobileMenuOpen]);
 
   // The two numbers worth keeping current while the console is open: deposits to review and paid orders not sent.
@@ -213,21 +201,30 @@ export default function ConsolePage() {
   if (!ready) return (
     <div className="gate">
       <div className="console-start" role="status" aria-live="polite">
-        {storeName ? <Brand name={storeName} /> : null}
-        <div className="console-start-progress" aria-hidden="true" />
-        <strong>Opening your workspace</strong>
-        <span>Connecting securely…</span>
+        {storeName ? (
+          <span className="console-start-store">
+            <BrandWordmark name={storeName} />
+          </span>
+        ) : null}
+        <strong>{storeName ? `Getting ${storeName} ready` : 'Getting your store ready'}</strong>
+        <span>Checking your session and store data</span>
+        <div className="console-start-progress" aria-hidden="true"><span /></div>
       </div>
     </div>
   );
   if (sessionError) return <div className="gate"><div className="console-start" role="alert"><strong>Could not connect</strong><p>Your session could not be checked. Please retry.</p><button className="btn" onClick={() => void check()}>Retry connection</button></div></div>;
   if (!signedIn) return <SignIn onDone={check} storeName={storeName} />;
 
+  const closeMobileMenu = () => {
+    mobileMenuButton.current?.focus();
+    setMobileMenuOpen(false);
+  };
+
   /** A screen, optionally with its tab: "orders/waiting". */
   const open = (address: string) => {
     const [key, tab = ''] = address.split('/');
     if (!isKey(key)) return;
-    setMobileMenuOpen(false);
+    if (mobileMenuOpen) closeMobileMenu();
     if (window.location.hash.slice(1) !== address) {
       window.location.hash = address;
     }
@@ -244,12 +241,20 @@ export default function ConsolePage() {
       {/* Top Mobile Bar */}
       <header className="mobile-header">
         <button
+          ref={mobileMenuButton}
           type="button"
           className="hamburger-btn"
-          onClick={() => setMobileMenuOpen(true)}
-          aria-label="Open menu"
+          onClick={() => setMobileMenuOpen((open) => !open)}
+          aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+          aria-expanded={mobileMenuOpen}
+          aria-controls="mobile-navigation"
         >
-          <Menu size={20} />
+          <span className={`menu-toggle-icon menu-bars${mobileMenuOpen ? '' : ' visible'}`} aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </span>
+          <X className={`menu-toggle-icon menu-toggle-close${mobileMenuOpen ? ' visible' : ''}`} size={24} aria-hidden="true" />
         </button>
         {storeName ? (
           <button
@@ -258,7 +263,7 @@ export default function ConsolePage() {
             className="mobile-brand-title"
             style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
           >
-            <span>{storeName}</span>
+            <BrandWordmark name={storeName} />
           </button>
         ) : null}
       </header>
@@ -266,10 +271,10 @@ export default function ConsolePage() {
       {/* Off-canvas Mobile Drawer */}
       <div
         className={`drawer-backdrop${mobileMenuOpen ? ' open' : ''}`}
-        onClick={() => setMobileMenuOpen(false)}
+        onClick={closeMobileMenu}
         aria-hidden={!mobileMenuOpen}
       >
-        <aside className="drawer-panel" onClick={(e) => e.stopPropagation()}>
+        <aside id="mobile-navigation" className="drawer-panel" aria-label="Mobile navigation" onClick={(e) => e.stopPropagation()}>
           <div className="drawer-header">
             {storeName ? (
               <button
@@ -284,7 +289,7 @@ export default function ConsolePage() {
             <button
               type="button"
               className="drawer-close"
-              onClick={() => setMobileMenuOpen(false)}
+              onClick={closeMobileMenu}
               aria-label="Close navigation"
             >
               <X size={20} />
@@ -292,23 +297,18 @@ export default function ConsolePage() {
           </div>
 
           <div className="drawer-nav">
-            {ITEMS.map(({ key, label: name, icon: Icon, group }) => (
-              <Fragment key={key}>
-              {group ? <h2 className="nav-section">{group}</h2> : null}
+            {ITEMS.map(({ key, label: name }) => (
               <button
                 key={key}
                 type="button"
                 className={screen.key === key ? 'active' : ''}
                 onClick={() => open(key)}
               >
-                <Icon size={18} />
                 <span>{name}</span>
                 {key === 'deposits' && pending > 0 ? <span className="count">{pending}</span> : null}
                 {key === 'orders' && waitingOrders > 0 ? <span className="count">{waitingOrders}</span> : null}
                 {key === 'reseller-apps' && pendingResellerApps > 0 ? <span className="count">{pendingResellerApps}</span> : null}
-
               </button>
-              </Fragment>
             ))}
           </div>
 
@@ -325,7 +325,6 @@ export default function ConsolePage() {
                 }
               }}
             >
-              <LogOut size={16} />
               <span>Sign out</span>
             </button>
           </div>
@@ -344,9 +343,7 @@ export default function ConsolePage() {
           </button>
         ) : null}
         <div className="rail-items">
-          {ITEMS.map(({ key, label: name, icon: Icon, group }) => (
-            <Fragment key={key}>
-            {group ? <h2 className="nav-section">{group}</h2> : null}
+          {ITEMS.map(({ key, label: name }) => (
             <button
               key={key}
               type="button"
@@ -354,14 +351,11 @@ export default function ConsolePage() {
               aria-current={screen.key === key ? 'page' : undefined}
               onClick={() => open(key)}
             >
-              <Icon aria-hidden="true" />
               <span>{name}</span>
               {key === 'deposits' && pending > 0 ? <span className="count">{pending}</span> : null}
               {key === 'orders' && waitingOrders > 0 ? <span className="count">{waitingOrders}</span> : null}
               {key === 'reseller-apps' && pendingResellerApps > 0 ? <span className="count">{pendingResellerApps}</span> : null}
-
             </button>
-            </Fragment>
           ))}
         </div>
         <div className="spacer" />
@@ -378,14 +372,13 @@ export default function ConsolePage() {
               }
             }}
           >
-            <LogOut aria-hidden="true" />
             <span>Sign out</span>
           </button>
         </div>
       </nav>
 
       <main className="main" id="main-content" tabIndex={-1}>
-        <div className="main-inner">
+        <div className="main-inner" data-screen={screen.key}>
           {screen.key !== 'overview' && !(screen.key === 'users' && screen.tab) ? (
             <header className="page-head">
               <h1>{label}</h1>
@@ -438,7 +431,6 @@ export default function ConsolePage() {
 
       {toast ? (
         <div className={`toast ${toast.kind}`} role="status" aria-live="polite">
-          {toast.kind === 'good' ? <CircleCheck aria-hidden="true" /> : <CircleAlert aria-hidden="true" />}
           {toast.message}
         </div>
       ) : null}
@@ -450,8 +442,19 @@ function Brand({ name }: { name?: string }) {
   if (!name) return null;
   return (
     <div className="brand">
-      <b>{name}</b>
+      <BrandWordmark name={name} />
     </div>
+  );
+}
+
+function BrandWordmark({ name }: { name: string }) {
+  const [initial, ...rest] = Array.from(name.trim());
+  if (!initial) return null;
+  return (
+    <span className="brand-wordmark">
+      <span className="brand-wordmark-initial">{initial}</span>
+      <span>{rest.join('')}</span>
+    </span>
   );
 }
 
@@ -481,12 +484,16 @@ function SignIn({ onDone, storeName }: { onDone: () => void; storeName?: string 
         }}
       >
         {storeName ? <Brand name={storeName} /> : null}
+        <div className="signin-heading">
+          <h1>Welcome back</h1>
+          <p>Sign in to manage your store.</p>
+        </div>
         <label className="field">
           <span>Password</span>
           <span className="password-input">
             <input type={showPassword ? 'text' : 'password'} autoComplete="current-password" autoFocus required aria-describedby="signin-feedback" aria-invalid={Boolean(error)} value={password} onChange={(event) => setPassword(event.target.value)} />
             <button className="password-toggle" type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} onClick={() => setShowPassword((shown) => !shown)}>
-              {showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+              {showPassword ? 'Hide' : 'Show'}
             </button>
           </span>
         </label>

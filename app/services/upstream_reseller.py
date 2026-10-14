@@ -28,8 +28,7 @@ class UpstreamResellerService:
                 db_key = await self.settings.get("upstream_reseller_key")
                 if db_url:
                     self.base_url = db_url.rstrip("/")
-                if db_key:
-                    self.api_key = db_key
+                self.api_key = db_key or self.config.upstream_reseller_key or ""
             except Exception:
                 pass
 
@@ -95,10 +94,11 @@ class UpstreamResellerService:
                 if resp.status_code in (200, 201) and data.get("success"):
                     return data
                 error_msg = data.get("detail") or data.get("message") or f"Upstream error ({resp.status_code})"
-                return {"success": False, "detail": error_msg}
+                return {"success": False, "detail": error_msg,
+                        "outcome_unknown": resp.status_code >= 500 or resp.status_code == 408 or 200 <= resp.status_code < 300}
         except Exception as exc:
             logger.exception("Failed to purchase from upstream reseller")
-            return {"success": False, "detail": str(exc)}
+            return {"success": False, "detail": str(exc), "outcome_unknown": True}
 
     async def sync_catalog(self) -> tuple[int, int]:
         """Sync products and categories from upstream reseller to local database.
@@ -113,7 +113,9 @@ class UpstreamResellerService:
 
         async with self.db.transaction() as conn:
             for p in products:
-                cat_name = (p.get("category_name") or "General").strip()
+                cat_name = (p.get("category_name") or "Others").strip()
+                if cat_name.lower() in ("uncategorized", "uncat", "none"):
+                    cat_name = "Others"
                 cat_row = await conn.fetchrow("SELECT id FROM categories WHERE LOWER(name) = LOWER($1)", cat_name)
                 if cat_row:
                     cat_id = cat_row["id"]

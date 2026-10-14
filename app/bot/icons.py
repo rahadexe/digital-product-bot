@@ -1,152 +1,116 @@
-"""Telegram Custom Emoji icons extracted from user-provided packs.
-
-Packs:
-- http_dxauniverse_by_fStikBot  (bKash, Nagad, Rocket, Binance, Bybit, Globe, Star, Shield, Note, Rocket)
-- Raika_Games
-- emoji1912
-- NewsEmoji
-- G8yg_by_fStikBot
-"""
+"""Built-in standard emoji constants and rendering helpers for optional catalog icons."""
 
 from __future__ import annotations
 
-from typing import Any
+from html import escape
 
 
 class Icons:
-    # Navigation & Core Buttons
-    PRODUCTS = "6084664543152183861"       # 🛍️ (Raika_Games)
-    SHOP = PRODUCTS
-    HOME = PRODUCTS
-    CART = "6102911544205515696"           # 🛒 (Raika_Games)
-    DEPOSIT = "6233367447789899509"        # 💰 Add Balance (tongyong_renmin)
-    BALANCE = "6102735781258861018"        # 💰 (Raika_Games)
-    MONEY = "6206155797722830770"          # 💵 (Earning_ON_World_by_TgEmojis_bot)
-    SPENT = "6251349286152316652"          # 💸 (Raika_Games)
-    COIN = "6251368935627692476"           # 🪙 (Raika_Games)
-    ORDERS = "6084747049473940188"         # 🎁 (Raika_Games)
-    REFER = ORDERS                          # 🎁 Refer & Earn (Raika_Games)
-    LINK = "5379742233853451967"           # 🔗 Link (MeshChainEmoji)
-    ACCOUNT = "5208604387156448480"        # 👤 My Profile (EmergeTeamAnimated)
-    USER = "5190872550250405805"           # 👤 Customer Name (EmergeTeamAnimated Teal)
-    USER_ID = "5278510335723066039"        # 🆔 (G8yg_by_fStikBot)
-    VIP = "6084472820107057290"            # 💎 (Raika_Games)
-    CROWN = "6102443543094105763"          # 👑 (Raika_Games)
-    LIGHTNING = "6084566793991494246"      # ⚡ (Raika_Games)
-    FIRE = "6084435123179100660"           # 🔥 (Raika_Games)
-    SPARKLES = "5325547803936572038"       # ✨ (NewsEmoji)
-    STAR = "5337102391244263212"           # 🌟 (http_dxauniverse_by_fStikBot)
-    CHANNEL = "6082236434930998087"        # 📢 (Raika_Games)
-    SUPPORT = "5438511323631609540"        # 🎧 Support (SAIDOVSEMOJIS)
-    CALL = "5438511323631609540"           # 🎧 Support (SAIDOVSEMOJIS)
-    CHECK = "6084595583157278741"          # ✅ (Raika_Games)
-    CROSS = "6082643408852099504"          # ❌ (Raika_Games)
-    WARNING = "6084842505122094054"        # ⚠️ (Raika_Games)
-    TIMER = "5386367538735104399"          # ⌛ (NewsEmoji)
-    ROCKET = "5352597830089347330"         # 🚀 (http_dxauniverse_by_fStikBot)
-    SHIELD = "5190447043545438788"         # 🛡️ (http_dxauniverse_by_fStikBot)
-    LOCK = "6084535127197620168"           # 🔒 (Raika_Games)
-    KEY = "6105118564690172709"            # 🔐 (Raika_Games)
-    STATS = "5231200819986047254"          # 📊 (NewsEmoji)
-    NOTE = "5192739271886282680"           # 📝 (http_dxauniverse_by_fStikBot)
-    GLOBE = "5334590977837403844"          # 🌐 (http_dxauniverse_by_fStikBot)
-    ROBOT = "6084700423308975252"          # 🤖 (Raika_Games)
-    COMPUTER = "6251457360414382759"       # 💻 (Raika_Games)
-    MAIL = "5253742260054409879"           # ✉️ (NewsEmoji)
-    RESELLER = "5312361253610475399"       # 🛒 Apply as a Reseller (FinanceEmoji)
-    REFRESH = "6082234751303817560"        # 🔄 (Raika_Games 3D circular arrows)
-    BACK = "6206505206197261313"           # 🔙 (Earning_ON_World_by_TgEmojis_bot)
-    NEXT = "6206325217002788818"           # ➡️ (Earning_ON_World_by_TgEmojis_bot)
-    CLOSE = "6206110936789423908"          # ❌ (Earning_ON_World_by_TgEmojis_bot)
-    PLUS = "6206375377925839184"           # ➕ (Earning_ON_World_by_TgEmojis_bot)
-    MINUS = "6206302088603900186"          # ➖ (Earning_ON_World_by_TgEmojis_bot)
-    CLEAR = "6206108815075579644"          # 🗑 (Earning_ON_World_by_TgEmojis_bot)
-    QUESTION = "6206306186002698906"       # ❓ (Earning_ON_World_by_TgEmojis_bot)
-    CONFIRM = "6206185428702206246"        # ✅ (Earning_ON_World_by_TgEmojis_bot)
-    BINANCE = "5348212415077064131"        # 🟡 Binance (http_dxauniverse_by_fStikBot)
-    BYBIT = "5348372939479751825"          # ⚫ Bybit (http_dxauniverse_by_fStikBot)
-    BKASH = "5348469219761626211"          # 🌸 bKash (http_dxauniverse_by_fStikBot)
-    NAGAD = "5352985330628730418"          # 🔴 Nagad (http_dxauniverse_by_fStikBot)
-    ROCKET_METHOD = "5346042941196507141"  # 🟣 Rocket (http_dxauniverse_by_fStikBot)
+    """Named slots for built-in controls; catalog icons are configured per category/product."""
+    PRODUCTS = None
+    SHOP = None
+    HOME = None
+    CART = None
+    DEPOSIT = None
+    BALANCE = None
+    MONEY = None
+    SPENT = None
+    COIN = None
+    ORDERS = None
+    REFER = None
+    LINK = None
+    ACCOUNT = None
+    USER = None
+    USER_ID = None
+    VIP = None
+    CROWN = None
+    LIGHTNING = None
+    FIRE = None
+    SPARKLES = None
+    STAR = None
+    CHANNEL = None
+    SUPPORT = None
+    CALL = None
+    CHECK = None
+    CROSS = None
+    WARNING = None
+    TIMER = None
+    ROCKET = None
+    SHIELD = None
+    LOCK = None
+    KEY = None
+    STATS = None
+    NOTE = None
+    GLOBE = None
+    ROBOT = None
+    COMPUTER = None
+    MAIL = None
+    RESELLER = None
+    REFRESH = None
+    BACK = None
+    NEXT = None
+    CLOSE = None
+    PLUS = None
+    MINUS = None
+    CLEAR = None
+    QUESTION = None
+    CONFIRM = None
+    BINANCE = None
+    BYBIT = None
+    BKASH = None
+    NAGAD = None
+    ROCKET_METHOD = None
 
 
-def tg_icon(emoji_id: str, fallback: str) -> str:
-    """Render a custom emoji in HTML with fallback."""
-    return f'<tg-emoji emoji-id="{emoji_id}">{fallback}</tg-emoji>'
+def tg_icon(emoji_id: str | None, icon: str) -> str:
+    """Render an explicitly selected basic icon without synthesizing a custom-emoji fallback."""
+    if emoji_id and str(emoji_id).strip().isdigit():
+        return ""
+    return escape(icon) if icon else ""
 
 
-ICON_SHOP = tg_icon(Icons.PRODUCTS, "🛍️")
-ICON_CART = tg_icon(Icons.CART, "🛒")
-ICON_DEPOSIT = tg_icon(Icons.DEPOSIT, "💳")
-ICON_REFER = tg_icon(Icons.REFER, "🎁")
-ICON_LINK = tg_icon(Icons.LINK, "🔗")
-ICON_BALANCE = tg_icon(Icons.BALANCE, "💰")
-ICON_MONEY = tg_icon(Icons.MONEY, "💵")
-ICON_SPENT = tg_icon(Icons.SPENT, "💸")
-ICON_COIN = tg_icon(Icons.COIN, "🪙")
-ICON_ORDERS = tg_icon(Icons.ORDERS, "🎁")
-ICON_ACCOUNT = tg_icon(Icons.ACCOUNT, "👤")
-ICON_USER = tg_icon(Icons.USER, "👤")
-ICON_ID = tg_icon(Icons.USER_ID, "🆔")
-ICON_VIP = tg_icon(Icons.VIP, "💎")
-ICON_CROWN = tg_icon(Icons.CROWN, "👑")
-ICON_LIGHTNING = tg_icon(Icons.LIGHTNING, "⚡")
-ICON_FIRE = tg_icon(Icons.FIRE, "🔥")
-ICON_SPARKLES = tg_icon(Icons.SPARKLES, "✨")
-ICON_STAR = tg_icon(Icons.STAR, "🌟")
-ICON_CHANNEL = tg_icon(Icons.CHANNEL, "📢")
-ICON_SUPPORT = tg_icon(Icons.SUPPORT, "🎧")
-ICON_CALL = tg_icon(Icons.CALL, "🎧")
-ICON_CHECK = tg_icon(Icons.CHECK, "✅")
-ICON_CROSS = tg_icon(Icons.CROSS, "❌")
-ICON_WARNING = tg_icon(Icons.WARNING, "⚠️")
-ICON_TIMER = tg_icon(Icons.TIMER, "⌛")
-ICON_ROCKET = tg_icon(Icons.ROCKET, "🚀")
-ICON_SHIELD = tg_icon(Icons.SHIELD, "🛡️")
-ICON_LOCK = tg_icon(Icons.LOCK, "🔒")
-ICON_KEY = tg_icon(Icons.KEY, "🔐")
-ICON_STATS = tg_icon(Icons.STATS, "📊")
-ICON_NOTE = tg_icon(Icons.NOTE, "📝")
-ICON_GLOBE = tg_icon(Icons.GLOBE, "🌐")
-ICON_ROBOT = tg_icon(Icons.ROBOT, "🤖")
-ICON_COMPUTER = tg_icon(Icons.COMPUTER, "💻")
-ICON_MAIL = tg_icon(Icons.MAIL, "✉️")
-ICON_RESELLER = tg_icon(Icons.RESELLER, "💼")
-ICON_PLUS = tg_icon(Icons.PLUS, "➕")
-ICON_MINUS = tg_icon(Icons.MINUS, "➖")
-ICON_BACK = tg_icon(Icons.BACK, "🔙")
-ICON_NEXT = tg_icon(Icons.NEXT, "➡️")
-ICON_CLOSE = tg_icon(Icons.CLOSE, "❌")
-ICON_BINANCE = tg_icon(Icons.BINANCE, "🟡")
-ICON_BYBIT = tg_icon(Icons.BYBIT, "⚫")
-ICON_BKASH = tg_icon(Icons.BKASH, "🌸")
-ICON_NAGAD = tg_icon(Icons.NAGAD, "🔴")
-ICON_ROCKET_PURPLE = tg_icon(Icons.ROCKET_METHOD, "🟣")
-
-ICON_CONFIRM = tg_icon(Icons.CONFIRM, "✅")
-ICON_QUESTION = tg_icon(Icons.QUESTION, "❓")
-
-
-def get_method_icon(method: dict[str, Any]) -> str:
-    """Render the custom emoji HTML tag for a deposit method matching its keyboard icon."""
-    custom_emoji_id = method.get("custom_emoji_id")
-    name = (method.get("name") or "").lower()
-    auto_verify = method.get("auto_verify")
-
-    # BD payment methods always use premium icons (ignore DB custom_emoji_id)
-    if "bkash" in name:
-        return ICON_BKASH
-    if "nagad" in name:
-        return ICON_NAGAD
-    if "rocket" in name and auto_verify != "binance_pay":
-        return ICON_ROCKET_PURPLE
-
-    # For other methods, respect custom_emoji_id from DB if set
-    if custom_emoji_id and str(custom_emoji_id).strip().isdigit():
-        emoji_id = str(custom_emoji_id).strip()
-        fallback = "🟡" if "binance" in name or auto_verify == "binance_pay" else "💳"
-        return tg_icon(emoji_id, fallback)
-
-    if auto_verify == "binance_pay" or "binance" in name:
-        return ICON_BINANCE
-    return ICON_DEPOSIT
+ICON_SHOP = "🛍️"
+ICON_CART = "🛒"
+ICON_DEPOSIT = "💳"
+ICON_REFER = "🎁"
+ICON_LINK = "🔗"
+ICON_BALANCE = "💰"
+ICON_MONEY = "💵"
+ICON_SPENT = "💸"
+ICON_COIN = "🪙"
+ICON_ORDERS = "📦"
+ICON_ACCOUNT = "👤"
+ICON_USER = "👤"
+ICON_ID = "🆔"
+ICON_VIP = "💎"
+ICON_CROWN = "👑"
+ICON_LIGHTNING = "⚡"
+ICON_FIRE = "🔥"
+ICON_SPARKLES = "✨"
+ICON_STAR = "🌟"
+ICON_CHANNEL = "📢"
+ICON_SUPPORT = "🎧"
+ICON_CALL = "📞"
+ICON_CHECK = "✅"
+ICON_CROSS = "❌"
+ICON_WARNING = "⚠️"
+ICON_TIMER = "⌛"
+ICON_ROCKET = "🚀"
+ICON_SHIELD = "🛡️"
+ICON_LOCK = "🔒"
+ICON_KEY = "🔑"
+ICON_STATS = "📊"
+ICON_NOTE = "📝"
+ICON_GLOBE = "🌐"
+ICON_ROBOT = "🤖"
+ICON_COMPUTER = "💻"
+ICON_MAIL = "✉️"
+ICON_RESELLER = "💼"
+ICON_PLUS = "➕"
+ICON_MINUS = "➖"
+ICON_BACK = "🔙"
+ICON_NEXT = "➡️"
+ICON_CLOSE = "❌"
+ICON_SEARCH = "🔍"
+ICON_CONFIRM = "✅"
+ICON_QUESTION = "❓"

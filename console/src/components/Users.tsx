@@ -4,23 +4,16 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Ban,
-  Briefcase,
   Check,
   ChevronDown,
   ChevronRight,
   Copy,
-  CreditCard,
   ExternalLink,
-  Key,
-  PackageCheck,
+  Eye,
   Power,
   RefreshCw,
   Send,
-  ShoppingBag,
-  User as UserIcon,
   UserCheck,
-  Users as UsersIcon,
-  Wallet,
 } from 'lucide-react';
 import { api, type Order, type ResellerKeyInfo, type ResellerStats, type User, type UserSummary } from '@/lib/api';
 import { useMoney } from '@/lib/currency';
@@ -43,12 +36,14 @@ export function Users({
   initialUserId?: number | null;
   onNavigate?: (userId: number | null) => void;
 }) {
+  const [confirm, confirmDialog] = useConfirm();
   const [users, setUsers] = useState<User[] | null>(null);
   const [total, setTotal] = useState(0);
   const [summary, setSummary] = useState<UserSummary | null>(null);
   const [filter, setFilter] = useState<UserFilter>('all');
   const [offset, setOffset] = useState(0);
   const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(initialUserId);
   const [activeUser, setActiveUser] = useState<User | null>(null);
   const query = useDebounced(search);
@@ -59,6 +54,7 @@ export function Users({
   }, [initialUserId]);
 
   const load = useCallback(async () => {
+    setLoading(true);
     try {
       const filterParam = filter === 'all' ? undefined : filter;
       const result = await api.users(query, PAGE, offset, filterParam);
@@ -69,12 +65,38 @@ export function Users({
     } catch (cause) {
       say(errorText(cause), 'bad');
       return null;
+    } finally {
+      setLoading(false);
     }
   }, [query, offset, filter, say]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  const handleToggleBan = async (user: User) => {
+    if (
+      !user.is_banned &&
+      !(await confirm(
+        `Ban ${nameOf(user)}?`,
+        'They will lose access to the bot and web features until unbanned.',
+        'Ban user'
+      ))
+    ) {
+      return;
+    }
+    try {
+      const res = await api.toggleBan(user.tg_user_id);
+      say(res.is_banned ? 'User banned' : 'User unbanned', 'good');
+      setUsers((prev) =>
+        prev
+          ? prev.map((u) => (u.tg_user_id === user.tg_user_id ? { ...u, is_banned: res.is_banned ? 1 : 0 } : u))
+          : prev
+      );
+    } catch (err) {
+      say(errorText(err, 'Could not toggle ban'), 'bad');
+    }
+  };
 
   const openProfile = (user: User) => {
     setActiveUser(user);
@@ -107,217 +129,166 @@ export function Users({
   return (
     <>
       {/* 4 Customer Metric Summary Cards */}
-      <div className="stat-cards-grid">
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <span className="stat-card-label">Total Customers</span>
-            <UsersIcon className="stat-card-icon" />
-          </div>
-          <div className="stat-card-value">{summary ? summary.total_users : total}</div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <span className="stat-card-label">Total Wallet Balance</span>
-            <Wallet className="stat-card-icon" />
-          </div>
-          <div className="stat-card-value">{money(summary?.total_balance ?? 0)}</div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <span className="stat-card-label">Active Wallets</span>
-            <CreditCard className="stat-card-icon" />
-          </div>
-          <div className="stat-card-value">{summary?.with_balance_count ?? 0}</div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <span className="stat-card-label">Banned Customers</span>
-            <Ban className="stat-card-icon" />
-          </div>
-          <div className="stat-card-value">{summary?.banned_count ?? 0}</div>
-        </div>
-      </div>
-
-      {/* Filter Tabs */}
-      <div className="segmented" role="tablist">
-        <button
-          type="button"
-          className={filter === 'all' ? 'active' : ''}
-          onClick={() => {
-            setFilter('all');
-            setOffset(0);
-          }}
-        >
-          All Customers
-        </button>
-        <button
-          type="button"
-          className={filter === 'reseller' ? 'active' : ''}
-          onClick={() => {
-            setFilter('reseller');
-            setOffset(0);
-          }}
-        >
-          Resellers (API)
-          {summary?.reseller_count ? <span className="count">{summary.reseller_count}</span> : null}
-        </button>
-        <button
-          type="button"
-          className={filter === 'has_balance' ? 'active' : ''}
-          onClick={() => {
-            setFilter('has_balance');
-            setOffset(0);
-          }}
-        >
-          With Balance
-          {summary?.with_balance_count ? <span className="count">{summary.with_balance_count}</span> : null}
-        </button>
-        <button
-          type="button"
-          className={filter === 'banned' ? 'active' : ''}
-          onClick={() => {
-            setFilter('banned');
-            setOffset(0);
-          }}
-        >
-          Banned
-          {summary?.banned_count ? <span className="count">{summary.banned_count}</span> : null}
-        </button>
-      </div>
-
-      <section className="panel">
+      <section className="panel queue-panel">
         <header>
-          <h2>{total} customers</h2>
+          <div className="queue-tabs" aria-label="Customer filter">
+            <button
+              type="button"
+              className={filter === 'all' ? 'active' : ''}
+              onClick={() => {
+                setFilter('all');
+                setOffset(0);
+              }}
+            >
+              All Customers
+            </button>
+            {summary?.reseller_count ? (
+              <button
+                type="button"
+                className={filter === 'reseller' ? 'active' : ''}
+                onClick={() => {
+                  setFilter('reseller');
+                  setOffset(0);
+                }}
+              >
+                Resellers <span className="count">{summary.reseller_count}</span>
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className={filter === 'has_balance' ? 'active' : ''}
+              onClick={() => {
+                setFilter('has_balance');
+                setOffset(0);
+              }}
+            >
+              With Balance
+              {summary?.with_balance_count ? <span className="count">{summary.with_balance_count}</span> : null}
+            </button>
+            <button
+              type="button"
+              className={filter === 'banned' ? 'active' : ''}
+              onClick={() => {
+                setFilter('banned');
+                setOffset(0);
+              }}
+            >
+              Banned
+              {summary?.banned_count ? <span className="count">{summary.banned_count}</span> : null}
+            </button>
+          </div>
+
           <div className="filters">
             <input
               type="search"
-              placeholder="Search name, @username or ID"
+              aria-label="Search users"
+              placeholder="Search name, @username or ID…"
               value={search}
               onChange={(event) => {
                 setSearch(event.target.value);
                 setOffset(0);
               }}
             />
+            <button
+              type="button"
+              className="btn ghost small"
+              onClick={() => void load()}
+              disabled={loading}
+              aria-label="Refresh users"
+            >
+              <RefreshCw size={14} className={loading ? 'refreshing' : ''} />
+            </button>
           </div>
         </header>
-        <div className="scroll">
-          <table className="cust-table-responsive">
+
+        <div className="scroll" tabIndex={0} role="region" aria-label="Users table">
+          <table className="record-directory users-directory">
             <thead>
               <tr>
                 <th>Customer</th>
-                <th>Balance</th>
-                <th>Spent</th>
-                <th>Status / Rank</th>
-                <th className="right" aria-label="Actions" />
+                <th>User ID</th>
+                <th>Wallet Balance</th>
+                <th>Status</th>
+                <th>Joined</th>
+                <th className="right" aria-label="Actions">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {(users ?? []).map((user) => {
-                const initials =
-                  nameOf(user)
-                    .replace(/[^a-zA-Z0-9]/g, '')
-                    .slice(0, 2)
-                    .toUpperCase() || 'U';
-                return (
-                  <tr
-                    key={user.id}
-                    onClick={() => openProfile(user)}
-                    className="cust-table-row"
-                    title="Click to view customer profile"
-                  >
-                    <td className="name" data-label="Customer">
-                      <div className="cust-table-user-cell">
-                        <div className="cust-table-avatar">{initials}</div>
-                        <div className="cust-table-user-meta">
-                          <span className="cust-table-name">{nameOf(user)}</span>
-                          <small>
-                            {user.username ? `@${user.username} · ` : ''}
-                            {user.tg_user_id} · joined {when(user.created_at)}
-                          </small>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="money" data-label="Balance">
-                      <span className="cust-money-badge">{money(user.balance)}</span>
-                    </td>
-                    <td className="money" data-label="Spent">
-                      {money(user.total_spent)}
-                    </td>
-                    <td data-label="Status / Rank">
-                      <div className="cust-status-stack">
-                        {user.is_banned ? (
-                          <span className="pill bad">banned</span>
-                        ) : user.rank === 'Reseller' ? (
-                          <>
-                            <span className="pill info" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                              <Briefcase size={11} /> Reseller
-                            </span>
-                            {user.api_key_prefix ? (
-                              user.api_key_active ? (
-                                <span
-                                  className="pill good"
-                                  title={`API Key Active. Last used: ${user.api_key_last_used_at ? when(user.api_key_last_used_at) : 'Never'}`}
-                                  style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
-                                >
-                                  <Key size={10} /> Active {user.api_key_last_used_at ? `· ${when(user.api_key_last_used_at)}` : ''}
-                                </span>
-                              ) : (
-                                <span
-                                  className="pill bad"
-                                  title="API Key is disabled"
-                                  style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
-                                >
-                                  <Key size={10} /> Disabled
-                                </span>
-                              )
-                            ) : null}
-                          </>
-                        ) : user.api_key_prefix ? (
-                          <>
-                            <span className="pill good">Normal</span>
-                            <span
-                              className={`pill ${user.api_key_active ? 'good' : 'bad'}`}
-                              style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
-                              title={`API Key ${user.api_key_active ? 'Active' : 'Disabled'}. Last used: ${user.api_key_last_used_at ? when(user.api_key_last_used_at) : 'Never'}`}
-                            >
-                              <Key size={10} /> API {user.api_key_active ? 'Active' : 'Disabled'}
-                            </span>
-                          </>
-                        ) : (
-                          <span className="pill good">Normal</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="right" data-label="Action">
-                      <div className="row-actions">
+              {(users ?? []).map((user) => (
+                  <tr key={user.id}>
+                    <td data-label="Customer">
+                      <div className="overview-customer">
                         <button
                           type="button"
-                          className="mini cust-view-btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openProfile(user);
-                          }}
+                          className="record-link"
+                          onClick={() => openProfile(user)}
+                          title={`View ${nameOf(user)}`}
                         >
-                          <span>Open</span>
-                          <ChevronRight size={13} />
+                          {nameOf(user)}
+                        </button>
+                      </div>
+                    </td>
+                    <td data-label="User ID">
+                      <code style={{ fontSize: '12px' }}>{user.tg_user_id}</code>
+                    </td>
+                    <td data-label="Wallet Balance">
+                      <strong className="money">{money(user.balance)}</strong>
+                    </td>
+                    <td data-label="Status">
+                      {user.is_banned ? (
+                        <span className="pill bad">Banned</span>
+                      ) : user.rank === 'Reseller' ? (
+                        <span className="pill info">Reseller</span>
+                      ) : (
+                        <span className="pill good">Active</span>
+                      )}
+                    </td>
+                    <td className="overview-delivery" data-label="Joined">
+                      {when(user.created_at)}
+                    </td>
+                    <td className="right" data-label="Actions">
+                      <div className="row-actions" style={{ justifyContent: 'flex-end' }}>
+                        <button
+                          type="button"
+                          className="btn ghost small"
+                          onClick={() => openProfile(user)}
+                          title="View profile"
+                        >
+                          <Eye size={13} /> View profile
+                        </button>
+                        <button
+                          type="button"
+                          className={`btn ghost small ${user.is_banned ? '' : 'danger'}`}
+                          onClick={() => void handleToggleBan(user)}
+                          style={{ color: user.is_banned ? 'var(--positive)' : 'var(--danger)' }}
+                          title={user.is_banned ? 'Unban user' : 'Ban user'}
+                        >
+                          <Ban size={13} /> {user.is_banned ? 'Unban' : 'Ban'}
                         </button>
                       </div>
                     </td>
                   </tr>
-                );
-              })}
+              ))}
               {users && users.length === 0 ? (
-                <EmptyRow columns={5}>{query ? 'Nothing matches.' : 'No customers yet.'}</EmptyRow>
+                <tr>
+                  <td colSpan={6} style={{ textAlign: 'center', padding: '36px', color: 'var(--muted)' }}>
+                    {loading ? 'Searching users…' : 'No customers match the criteria.'}
+                  </td>
+                </tr>
               ) : null}
-              {!users ? <EmptyRow columns={5}>Loading…</EmptyRow> : null}
+              {!users ? (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: 'center', padding: '36px', color: 'var(--muted)' }}>
+                    Loading customers…
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>
         <Pager total={total} offset={offset} size={PAGE} onChange={setOffset} />
       </section>
+      {confirmDialog}
     </>
   );
 }
@@ -592,12 +563,6 @@ function CustomerProfilePage({
     );
   }
 
-  const initials =
-    nameOf(user)
-      .replace(/[^a-zA-Z0-9]/g, '')
-      .slice(0, 2)
-      .toUpperCase() || 'U';
-
   return (
     <div className="cust-profile-page">
       {confirmDialog}
@@ -619,7 +584,6 @@ function CustomerProfilePage({
       {/* 2. Hero Profile Banner Card */}
       <div className="cust-profile-hero">
         <div className="cust-hero-main">
-          <div className="cust-avatar-large">{initials}</div>
           <div className="cust-hero-details">
             <div className="cust-hero-title-row">
               <h2 className="cust-hero-title">{nameOf(user)}</h2>
@@ -627,9 +591,7 @@ function CustomerProfilePage({
                 {user.is_banned ? 'Banned' : 'Active'}
               </span>
               {user.rank === 'Reseller' ? (
-                <span className="pill cust-reseller-pill">
-                  <Briefcase size={12} /> Reseller
-                </span>
+                <span className="pill cust-reseller-pill">Reseller</span>
               ) : null}
             </div>
 
@@ -711,12 +673,6 @@ function CustomerProfilePage({
         <div className="cust-metric-card">
           <div className="cust-metric-top">
             <span className="cust-metric-label">Available Balance</span>
-            <div
-              className="cust-metric-icon-wrap"
-              style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#059669' }}
-            >
-              <Wallet size={16} />
-            </div>
           </div>
           <div className="cust-metric-val green">{money(user.balance)}</div>
         </div>
@@ -724,12 +680,6 @@ function CustomerProfilePage({
         <div className="cust-metric-card">
           <div className="cust-metric-top">
             <span className="cust-metric-label">Total Spent</span>
-            <div
-              className="cust-metric-icon-wrap"
-              style={{ background: 'rgba(2, 132, 199, 0.12)', color: '#0284c7' }}
-            >
-              <ShoppingBag size={16} />
-            </div>
           </div>
           <div className="cust-metric-val">{money(user.total_spent)}</div>
         </div>
@@ -737,12 +687,6 @@ function CustomerProfilePage({
         <div className="cust-metric-card">
           <div className="cust-metric-top">
             <span className="cust-metric-label">Total Orders</span>
-            <div
-              className="cust-metric-icon-wrap"
-              style={{ background: 'rgba(139, 92, 246, 0.12)', color: '#8b5cf6' }}
-            >
-              <PackageCheck size={16} />
-            </div>
           </div>
           <div className="cust-metric-val">{orderTotal}</div>
         </div>
@@ -750,16 +694,6 @@ function CustomerProfilePage({
         <div className={`cust-metric-card cust-tier-card ${currentRank === 'Reseller' ? 'reseller-card' : ''}`}>
           <div className="cust-metric-top">
             <span className="cust-metric-label">Account Tier</span>
-            <div
-              className="cust-metric-icon-wrap"
-              style={
-                currentRank === 'Reseller'
-                  ? { background: 'rgba(2, 132, 199, 0.16)', color: '#0284c7' }
-                  : { background: 'rgba(217, 119, 6, 0.12)', color: '#d97706' }
-              }
-            >
-              {currentRank === 'Reseller' ? <Briefcase size={16} /> : <UserCheck size={16} />}
-            </div>
           </div>
           <div className="cust-tier-select-wrap">
             <TierDropdown
@@ -775,22 +709,15 @@ function CustomerProfilePage({
       {(currentRank === 'Reseller' || Boolean(resellerKey)) && (
         <div className="panel cust-reseller-panel">
           <header className="cust-panel-head">
-            <div className="cust-reseller-head-left">
-              <div className="cust-reseller-badge-icon">
-                <Key size={18} />
-              </div>
+            <div>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                   <h3 style={{ margin: 0 }}>Reseller API & Usage</h3>
                   {resellerKey ? (
                     resellerKey.is_active ? (
-                      <span className="pill good" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                        <span className="cust-status-dot green" /> API Active
-                      </span>
+                      <span className="pill good">API Active</span>
                     ) : (
-                      <span className="pill bad" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                        <span className="cust-status-dot red" /> API Disabled
-                      </span>
+                      <span className="pill bad">API Disabled</span>
                     )
                   ) : (
                     <span className="pill" style={{ opacity: 0.7 }}>No Key Generated</span>
@@ -845,7 +772,7 @@ function CustomerProfilePage({
             {newlyGeneratedKey && (
               <div className="cust-new-key-alert">
                 <div className="cust-new-key-header">
-                  <strong>⚠️ Newly Generated API Key (Copy Now)</strong>
+                  <strong>Newly Generated API Key (Copy Now)</strong>
                   <p>This full key will not be shown again. Share this securely with the reseller.</p>
                 </div>
                 <div className="cust-new-key-row">
@@ -1005,7 +932,6 @@ function CustomerProfilePage({
               <div className="cust-state-box">Loading order history…</div>
             ) : orders.length === 0 ? (
               <div className="cust-state-box empty">
-                <PackageCheck size={32} className="cust-empty-icon" />
                 <p>No orders placed by this customer yet.</p>
               </div>
             ) : (
@@ -1021,7 +947,7 @@ function CustomerProfilePage({
                         <div className="cust-order-meta">
                           <strong className="cust-order-product">{order.product_title}</strong>
                           <span className="cust-order-sub">
-                            Order #{order.id} · {when(order.created_at)}
+                            Order O{order.id} · {when(order.created_at)}
                           </span>
                         </div>
                       </div>
@@ -1085,11 +1011,6 @@ function TierDropdown({
         aria-expanded={open}
       >
         <div className="tier-trigger-left">
-          {isReseller ? (
-            <Briefcase size={15} className="tier-icon-reseller" />
-          ) : (
-            <UserIcon size={15} className="tier-icon-normal" />
-          )}
           <span className="tier-trigger-label">
             {isReseller ? 'Reseller' : 'Normal'}
           </span>
@@ -1108,13 +1029,9 @@ function TierDropdown({
             }}
           >
             <div className="tier-item-info">
-              <div className="tier-item-row">
-                <UserIcon size={14} />
-                <strong>Normal</strong>
-              </div>
+              <div className="tier-item-row"><strong>Normal</strong></div>
               <small>Standard customer pricing</small>
             </div>
-            {!isReseller ? <Check size={14} className="tier-check" /> : null}
           </button>
 
           <button
@@ -1126,13 +1043,9 @@ function TierDropdown({
             }}
           >
             <div className="tier-item-info">
-              <div className="tier-item-row">
-                <Briefcase size={14} />
-                <strong>Reseller</strong>
-              </div>
+              <div className="tier-item-row"><strong>Reseller</strong></div>
               <small>Discounted reseller prices in Bot</small>
             </div>
-            {isReseller ? <Check size={14} className="tier-check" /> : null}
           </button>
         </div>
       ) : null}

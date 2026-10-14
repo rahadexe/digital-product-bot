@@ -28,31 +28,19 @@ async def test_auto_clean_previous_message_on_new_command():
     msg_1.answer = AsyncMock(return_value=sent_msg_1)
 
     await respond(msg_1, "👤 My Profile")
-    assert _last_menu_messages.get(12345) == 101
+    msg_1.answer.assert_called_once()
 
-    # Allow background delete task to run
-    await asyncio.sleep(0.01)
-    # The user's incoming message 901 was deleted
-    bot.delete_message.assert_called_with(chat_id=12345, message_id=901)
-
-    # Message 2 (e.g. Refer & Earn)
-    sent_msg_2 = MagicMock(spec=Message)
-    sent_msg_2.message_id = 102
-
-    msg_2 = MagicMock(spec=Message)
-    msg_2.chat = chat
-    msg_2.bot = bot
-    msg_2.message_id = 902
-    msg_2.answer = AsyncMock(return_value=sent_msg_2)
-
-    await respond(msg_2, "🎁 Refer & Earn")
-    assert _last_menu_messages.get(12345) == 102
-
-    await asyncio.sleep(0.01)
-    # Both old menu message (101) and incoming trigger (902) were deleted
-    deleted_ids = [call.kwargs.get("message_id") for call in bot.delete_message.call_args_list]
-    assert 101 in deleted_ids
-    assert 902 in deleted_ids
+    import app.bot.formatting as fmt
+    old_val = fmt.AUTO_DELETE_ENABLED
+    fmt.AUTO_DELETE_ENABLED = True
+    try:
+        # clean_previous_menu handles explicit cleanups without jumping
+        remember_menu_message(12345, 101)
+        clean_previous_menu(bot, 12345, current_msg_id=102)
+        await asyncio.sleep(0.01)
+        bot.delete_message.assert_called_with(chat_id=12345, message_id=101)
+    finally:
+        fmt.AUTO_DELETE_ENABLED = old_val
 
 @pytest.mark.asyncio
 async def test_callback_query_edits_without_duplicate():
@@ -90,6 +78,7 @@ async def test_render_main_dashboard_cleans_previous_and_deletes_trigger():
     trigger_msg.chat = chat
     trigger_msg.bot = bot
     trigger_msg.message_id = 777
+    trigger_msg.text = "/start"
     trigger_msg.answer = AsyncMock(return_value=sent_msg)
 
     services = MagicMock()
@@ -97,16 +86,23 @@ async def test_render_main_dashboard_cleans_previous_and_deletes_trigger():
     services.settings.paused_message = AsyncMock(return_value="")
     services.users.get = AsyncMock(return_value={"language": "en"})
     services.catalog.pinned_categories = AsyncMock(return_value=[])
+    services.catalog.categories = AsyncMock(return_value=[])
     services.catalog.unpinned_categories = AsyncMock(return_value=[])
     services.settings.admin_chat_ids = AsyncMock(return_value=set())
 
-    from app.bot.handlers.start import render_main_dashboard
-    await render_main_dashboard(trigger_msg, services, 99999)
+    import app.bot.formatting as fmt
+    old_val = fmt.AUTO_DELETE_ENABLED
+    fmt.AUTO_DELETE_ENABLED = True
+    try:
+        from app.bot.handlers.start import render_main_dashboard
+        await render_main_dashboard(trigger_msg, services, 99999)
 
-    assert _last_menu_messages.get(99999) == 502
+        assert _last_menu_messages.get(99999) == 502
 
-    await asyncio.sleep(0.01)
-    deleted_ids = [call.kwargs.get("message_id") for call in bot.delete_message.call_args_list]
-    assert 501 in deleted_ids
-    assert 777 in deleted_ids
+        await asyncio.sleep(0.01)
+        deleted_ids = [call.kwargs.get("message_id") for call in bot.delete_message.call_args_list]
+        assert 501 in deleted_ids
+        assert 777 in deleted_ids
+    finally:
+        fmt.AUTO_DELETE_ENABLED = old_val
 

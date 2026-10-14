@@ -1,0 +1,657 @@
+--- a/app/services/gate.py
++++ b/app/services/gate.py
+@@ -8,6 +8,8 @@
+ from collections import OrderedDict
+ from typing import Any
+ 
++from aiogram.exceptions import TelegramRetryAfter
++
+ from app.db import Database, affected
+ from app.services.audit import record
+ from app.services.notifications import Notifier
+@@ -20,6 +22,8 @@
+ # A customer who leaves a channel keeps access for at most this long.
+ MEMBERSHIP_CACHE_SECONDS = 300.0
+ MEMBERSHIP_CACHE_SIZE = 10000
++FAILED_CHECK_CACHE_SECONDS = 2.0
++MEMBERSHIP_TIMEOUT_SECONDS = 4.0
+ 
+ 
+ class GateService:
+@@ -32,10 +36,17 @@
+         self._active: tuple[float, list[dict[str, Any]]] | None = None
+         self._verified: OrderedDict[int, float] = OrderedDict()
+         self._last_channel_alert: dict[str, float] = {}
++        self._missing: OrderedDict[int, tuple[float, list[dict[str, Any]]]] = OrderedDict()
++        self._checks: dict[int, asyncio.Task] = {}
++        self._membership_slots = asyncio.Semaphore(32)
++        self._unavailable: OrderedDict[str, tuple[float, str]] = OrderedDict()
+ 
+     def _invalidate(self) -> None:
+         self._active = None
+         self._verified.clear()
++        self._missing.clear()
++        self._checks.clear()
++        self._unavailable.clear()
+ 
+     def forget(self, tg_user_id: int) -> None:
+         """Drop a confirmed membership, so the next update is checked against Telegram again.
+@@ -45,6 +56,8 @@
+         which someone can join, get in, leave, and keep browsing.
+         """
+         self._verified.pop(tg_user_id, None)
++        self._missing.pop(tg_user_id, None)
++        self._checks.pop(tg_user_id, None)
+ 
+     async def guards(self, chat_id: int, username: str | None) -> bool:
+         """Whether this chat is one of the channels customers must join."""
+@@ -66,6 +79,8 @@
+         async with self.db.connect() as conn:
+             rows = [dict(row) for row in await conn.fetch(query)]
+         if active_only:
++            if self._active is not None and self._active[1] != rows:
++                self._invalidate()
+             self._active = (now, rows)
+         return [dict(row) for row in rows]
+ 
+@@ -117,36 +132,71 @@
+         if verified_at is not None and now - verified_at < MEMBERSHIP_CACHE_SECONDS:
+             return True, []
+ 
+-        missing = []
++        cached = self._missing.get(tg_user_id)
++        if cached and now - cached[0] < FAILED_CHECK_CACHE_SECONDS:
++            return False, [dict(ch) for ch in cached[1]]
++
++        task = self._checks.get(tg_user_id)
++        if task is None:
++            task = asyncio.create_task(self._check_channels(tg_user_id, channels))
++            self._checks[tg_user_id] = task
++            task.add_done_callback(lambda finished: self._finish_check(tg_user_id, finished))
++        # A cancelled HTTP/update waiter must not cancel the shared verification.
++        missing = await asyncio.shield(task)
++        return not missing, [dict(ch) for ch in missing]
++
++    def _finish_check(self, tg_user_id: int, task: asyncio.Task) -> None:
++        if task.cancelled():
++            if self._checks.get(tg_user_id) is task:
++                self._checks.pop(tg_user_id, None)
++            return
++        error = task.exception()
++        if self._checks.get(tg_user_id) is task:
++            self._checks.pop(tg_user_id, None)
++            if error is not None:
++                return
++            missing = task.result()
++            if missing:
++                self._verified.pop(tg_user_id, None)
++                self._missing[tg_user_id] = (time.monotonic(), missing)
++                self._missing.move_to_end(tg_user_id)
++                while len(self._missing) > MEMBERSHIP_CACHE_SIZE:
++                    self._missing.popitem(last=False)
++            else:
++                self.grant_access(tg_user_id)
++
++    async def _check_channels(self, tg_user_id: int, channels: list[dict[str, Any]]) -> list[dict[str, Any]]:
+         async def _check_one(channel: dict[str, Any]) -> bool:
+             target = channel.get("chat_id") or channel.get("channel_username")
++            cooldown = self._unavailable.get(str(target))
++            if cooldown and time.monotonic() < cooldown[0]:
++                channel['verification_unavailable'] = True
++                channel['error_reason'] = cooldown[1]
++                return False
+             try:
+-                if not target or not await self.notifier.is_member(target, tg_user_id):
+-                    return False
+-                return True
++                async with asyncio.timeout(MEMBERSHIP_TIMEOUT_SECONDS):
++                    async with self._membership_slots:
++                        return bool(target) and await self.notifier.is_member(target, tg_user_id)
+             except Exception as exc:
+                 channel["verification_unavailable"] = True
+                 channel["error_reason"] = f"{type(exc).__name__}: {exc}"
++                delay = max(5.0, float(exc.retry_after)) if isinstance(exc, TelegramRetryAfter) else 5.0
++                self._unavailable[str(target)] = (time.monotonic() + delay, channel['error_reason'])
++                self._unavailable.move_to_end(str(target))
++                while len(self._unavailable) > MEMBERSHIP_CACHE_SIZE:
++                    self._unavailable.popitem(last=False)
+                 logger.warning("Gate verification unavailable for %s: %s", target, type(exc).__name__)
+                 return False
+ 
+         results = await asyncio.gather(*(_check_one(ch) for ch in channels))
+         # strict: a result missing for any channel must fail loudly rather than silently
+         # letting a customer through a channel that was never checked.
+-        missing = [ch for ch, ok in zip(channels, results, strict=True) if not ok]
+-
+-        if missing:
+-            self._verified.pop(tg_user_id, None)
+-        else:
+-            self._verified[tg_user_id] = now
+-            self._verified.move_to_end(tg_user_id)
+-            while len(self._verified) > MEMBERSHIP_CACHE_SIZE:
+-                self._verified.popitem(last=False)
+-        return not missing, missing
++        return [ch for ch, ok in zip(channels, results, strict=True) if not ok]
+ 
+     def grant_access(self, tg_user_id: int) -> None:
+-        """Mark customer as verified (used for grace fallback when channel verification errors)."""
+-        now = time.monotonic()
++        """Cache a successfully verified membership."""
++        now = time.monotonic()
++        self._missing.pop(tg_user_id, None)
+         self._verified[tg_user_id] = now
+         self._verified.move_to_end(tg_user_id)
+         while len(self._verified) > MEMBERSHIP_CACHE_SIZE:
+@@ -185,7 +235,7 @@
+             reason = ch.get("error_reason") or "Bot might not be an admin in this channel"
+             lines.append(f"• <b>{escape(str(title))}</b> (<code>{escape(str(target))}</code>)\n  <i>Error: {escape(str(reason))}</i>")
+ 
+-        lines.append("\n🔓 <b>Action taken:</b> Users are being granted access to prevent service lockout.")
++        lines.append("\n🔒 <b>Action taken:</b> Unverified users are asked to retry; membership access remains locked.")
+         lines.append("👉 <i>Please ensure the bot is added as an administrator with invite/member permissions in the channel.</i>")
+         if user_info:
+             lines.append(user_info)
+--- a/app/bot/storage.py
++++ b/app/bot/storage.py
+@@ -14,13 +14,10 @@
+     def __init__(self, db: Database):
+         self.db = db
+         self.keys = DefaultKeyBuilder(with_bot_id=True, with_business_connection_id=True, with_destiny=True)
+-        self._state_cache: dict[str, str | None] = {}
+-        self._data_cache: dict[str, dict[str, Any]] = {}
+ 
+     async def set_state(self, key: StorageKey, state=None) -> None:
+         value = state.state if isinstance(state, State) else state
+         k = self.keys.build(key)
+-        self._state_cache[k] = value
+         async with self.db.connect() as conn:
+             await conn.execute(
+                 "INSERT INTO bot_conversations(key,state) VALUES($1,$2) ON CONFLICT(key) "
+@@ -29,17 +26,13 @@
+ 
+     async def get_state(self, key: StorageKey) -> str | None:
+         k = self.keys.build(key)
+-        if k in self._state_cache:
+-            return self._state_cache[k]
+         async with self.db.connect() as conn:
+             val = await conn.fetchval("SELECT state FROM bot_conversations WHERE key=$1", k)
+-        self._state_cache[k] = val
+         return val
+ 
+     async def set_data(self, key: StorageKey, data: Mapping[str, Any]) -> None:
+         k = self.keys.build(key)
+         d = dict(data)
+-        self._data_cache[k] = d
+         async with self.db.connect() as conn:
+             await conn.execute(
+                 "INSERT INTO bot_conversations(key,data) VALUES($1,$2::jsonb) ON CONFLICT(key) "
+@@ -48,12 +41,9 @@
+ 
+     async def get_data(self, key: StorageKey) -> dict[str, Any]:
+         k = self.keys.build(key)
+-        if k in self._data_cache:
+-            return dict(self._data_cache[k])
+         async with self.db.connect() as conn:
+             raw = await conn.fetchval("SELECT data FROM bot_conversations WHERE key=$1", k)
+         val = json.loads(raw) if raw else {}
+-        self._data_cache[k] = val
+         return dict(val)
+ 
+     async def update_data(self, key: StorageKey, data: Mapping[str, Any]) -> dict[str, Any]:
+@@ -65,7 +55,6 @@
+                 k, json.dumps(dict(data)),
+             )
+         val = json.loads(raw) if raw else {}
+-        self._data_cache[k] = val
+         return dict(val)
+ 
+     async def close(self) -> None:
+--- a/app/bot/middlewares.py
++++ b/app/bot/middlewares.py
+@@ -138,8 +138,7 @@
+     """Private chats only; banned customers are stopped; force-join applies to everything except /start."""
+ 
+     def __init__(self) -> None:
+-        self._verified_cache: OrderedDict[int, tuple[float, bool, bool]] = OrderedDict()
+-        self.CACHE_TTL = 60.0
++        self._gate_prompts: OrderedDict[int, float] = OrderedDict()
+ 
+     async def __call__(self, handler, event, data):
+         services: Services = data["services"]
+@@ -158,21 +157,14 @@
+         if user.id in admin_ids:
+             return await handler(event, data)
+ 
+-        now = time.monotonic()
+         # Ban state is authoritative even while channel membership is cached.
+         record = await services.users.get(user.id)
+-        cached = self._verified_cache.get(user.id)
+-        if cached and (now - cached[0] < self.CACHE_TTL):
+-            _, _, passed = cached
+-            is_banned = bool(record and record.get("is_banned"))
+-            if is_banned:
+-                if isinstance(event, CallbackQuery):
+-                    await event.answer("Your account is suspended.", show_alert=True)
+-                else:
+-                    await event.answer("Your account is suspended.")
+-                return None
+-            if passed:
+-                return await handler(event, data)
++        if record and record.get("is_banned"):
++            if isinstance(event, CallbackQuery):
++                await event.answer("Your account is suspended.", show_alert=True)
++            else:
++                await event.answer("Your account is suspended.")
++            return None
+ 
+         opens_store = (isinstance(event, Message) and event.text and event.text.split()[0].split("@")[0] in OPEN_COMMANDS) or (
+             isinstance(event, CallbackQuery) and event.data == "gate_verify"
+@@ -184,31 +176,24 @@
+         else:
+             passed, missing = await services.gate.check(user.id)
+ 
+-        is_banned = bool(record and record.get("is_banned"))
+-        self._verified_cache[user.id] = (now, is_banned, passed)
+-        self._verified_cache.move_to_end(user.id)
+-        while len(self._verified_cache) > 10000:
+-            self._verified_cache.popitem(last=False)
+-
+-        if is_banned:
+-            if isinstance(event, CallbackQuery):
+-                await event.answer("Your account is suspended.", show_alert=True)
+-            else:
+-                await event.answer("Your account is suspended.")
+-            return None
+         if not passed:
+             unjoined = [c for c in missing if not c.get("verification_unavailable")]
+             errored = [c for c in missing if c.get("verification_unavailable")]
+-            if not unjoined and errored:
+-                # All failures are due to bot/channel permissions or network errors
+-                services.gate.grant_access(user.id)
+-                self._verified_cache[user.id] = (now, is_banned, True)
+-                asyncio.create_task(services.gate.notify_admin_channel_issue(errored, user))
+-                return await handler(event, data)
++            if errored:
++                services.notifier.in_background(services.gate.notify_admin_channel_issue(errored, user))
+ 
+             if isinstance(event, CallbackQuery):
+-                alert_msg = "Please join our channel first!" if len(unjoined or missing) == 1 else "Please join the channels first!"
++                alert_msg = ("Verification is temporarily unavailable. Please try again shortly." if not unjoined
++                             else "Please join our channel first!" if len(unjoined) == 1 else "Please join the channels first!")
+                 await event.answer(f"⚠️ {alert_msg}", show_alert=True)
++            now = time.monotonic()
++            previous = self._gate_prompts.get(user.id)
++            if previous is not None and now - previous < 2.0:
++                return None
++            self._gate_prompts[user.id] = now
++            self._gate_prompts.move_to_end(user.id)
++            while len(self._gate_prompts) > 10000:
++                self._gate_prompts.popitem(last=False)
+             services = data.get("services")
+             store_name = await services.settings.get("store_name") if services else "Premium Haven"
+             await message.answer(
+@@ -267,7 +252,7 @@
+         t0 = time.perf_counter()
+         name = ""
+         if isinstance(event, Message):
+-            name = f"Msg {event.text!r}"
++            name = f"Msg type={event.content_type}"
+         elif isinstance(event, CallbackQuery):
+             name = f"Cb {event.data!r}"
+         try:
+--- a/app/bot/handlers/start.py
++++ b/app/bot/handlers/start.py
+@@ -146,8 +146,11 @@
+         else:
+             links.append(f"{ICON_CHANNEL} <b>{title}</b>")
+     titles = "\n".join(links)
++    notice = ("Verification is temporarily unavailable. Please try again shortly.\n\n"
++              if any(ch.get("verification_unavailable") for ch in missing) else "")
+     return (
+         f"{ICON_LOCK} <b>Membership Required</b>\n\n"
++        f"{notice}"
+         f"Please join {channel_word} to continue:\n\n"
+         f"{titles}\n\n"
+         f"👇 <i>Join and click <b>I've Joined</b> to unlock!</i>"
+@@ -200,6 +203,9 @@
+     bot = getattr(message, "bot", None)
+ 
+     if not passed:
++        errored = [ch for ch in missing if ch.get("verification_unavailable")]
++        if errored:
++            services.notifier.in_background(services.gate.notify_admin_channel_issue(errored, tg_user))
+         store_name = await services.settings.get("store_name")
+         if chat_id and bot:
+             clean_previous_menu(bot, chat_id)
+@@ -256,6 +262,8 @@
+     if not passed:
+         unjoined = [c for c in missing if not c.get("verification_unavailable")]
+         errored = [c for c in missing if c.get("verification_unavailable")]
++        if errored:
++            services.notifier.in_background(services.gate.notify_admin_channel_issue(errored, tg_user))
+ 
+         if unjoined:
+             with suppress(TelegramBadRequest):
+@@ -264,9 +272,9 @@
+             return
+ 
+         if errored:
+-            # Grant access so user is not stuck due to channel/bot permission error
+-            services.gate.grant_access(tg_user.id)
+-            asyncio.create_task(services.gate.notify_admin_channel_issue(errored, tg_user))
++            with suppress(TelegramBadRequest):
++                await query.answer("Verification is temporarily unavailable. Please try again shortly.", show_alert=True)
++            return
+ 
+     # User verified channel join: award referral bonus to referrer
+     await services.users.process_referral_reward(tg_user.id)
+@@ -288,7 +296,7 @@
+     for real. Without that admin right no report arrives and the cache is the only bound.
+     """
+     status = event.new_chat_member.status
+-    if status not in ("left", "kicked"):
++    if status not in ("left", "kicked", "member", "administrator", "creator", "restricted"):
+         return
+     user_id = event.new_chat_member.user.id
+     if not await services.gate.guards(event.chat.id, event.chat.username):
+--- a/app/api/telegram.py
++++ b/app/api/telegram.py
+@@ -56,7 +56,8 @@
+         return JSONResponse(status_code=400, content={"detail": "Invalid update payload."})
+ 
+     event = update.message or update.callback_query or update.edited_message
+-    sender = getattr(event, "from_user", None)
++    sender = (update.chat_member.new_chat_member.user if update.chat_member
++              else getattr(event, "from_user", None))
+     customer_id = sender.id if sender else -update.update_id
+     # Acknowledgement follows durable insertion; retries deduplicate by update ID.
+     async with services.db.connect() as conn:
+--- a/app/runtime.py
++++ b/app/runtime.py
+@@ -138,6 +138,7 @@
+                     allowed_updates=dispatcher.resolve_used_update_types(),
+                     handle_signals=False,
+                     close_bot_session=False,
++                    tasks_concurrency_limit=max(4, config.db_pool_size),
+                 )
+                 break
+             except asyncio.CancelledError:
+@@ -165,11 +166,10 @@
+     if bot is None or dispatcher is None:
+         return
+ 
+-    await services.notifier.configure_bot(config.webapp_url)
+-
+     backoff = 3
+     while True:
+         try:
++            await services.notifier.configure_bot(config.webapp_url)
+             await bot.set_webhook(
+                 url=config.webhook_url,
+                 secret_token=config.webhook_secret,
+--- a/tests/test_production_regressions.py
++++ b/tests/test_production_regressions.py
+@@ -24,7 +24,6 @@
+ @pytest.mark.asyncio
+ async def test_channel_cache_does_not_allow_a_newly_banned_user():
+     middleware = StoreAccess()
+-    middleware._verified_cache[123] = (time.monotonic(), False, True)
+     services = SimpleNamespace(
+         users=SimpleNamespace(get=AsyncMock(return_value={'is_banned': 1})),
+         settings=SimpleNamespace(admin_chat_ids=AsyncMock(return_value=[])),
+--- a/tests/test_reliability.py
++++ b/tests/test_reliability.py
+@@ -241,6 +241,35 @@
+         # A lower queued ID cannot steal an actively processed user's lease.
+         reclaimed = await worker.claim()
+         self.assertEqual(reclaimed['update_id'], 10)
++
++    async def test_conversation_reads_follow_another_replica(self):
++        one, two = PostgresStorage(self.db), PostgresStorage(self.db)
++        key = StorageKey(bot_id=1, chat_id=100, user_id=100)
++        self.assertIsNone(await one.get_state(key))
++        self.assertEqual(await one.get_data(key), {})
++        await two.set_state(key, 'waiting')
++        await two.set_data(key, {'product': 77})
++        self.assertEqual(await one.get_state(key), 'waiting')
++        self.assertEqual(await one.get_data(key), {'product': 77})
++        await one.set_state(key, None)
++        await one.set_data(key, {})
++        self.assertIsNone(await two.get_state(key))
++        self.assertEqual(await two.get_data(key), {})
++
++    async def test_membership_webhook_queues_by_affected_customer(self):
++        self.s.notifier.bot = SimpleNamespace(session=SimpleNamespace(close=AsyncMock()))
++        self.s.runtime.dispatcher = SimpleNamespace(feed_update=AsyncMock())
++        user = {'id': 100, 'is_bot': False, 'first_name': 'Customer'}
++        payload = {'update_id': 2000, 'chat_member': {
++            'chat': {'id': -100123, 'type': 'channel', 'title': 'Required'},
++            'from': {'id': 900, 'is_bot': False, 'first_name': 'Admin'}, 'date': 1700000000,
++            'old_chat_member': {'status': 'member', 'user': user},
++            'new_chat_member': {'status': 'left', 'user': user},
++        }}
++        headers = {'X-Telegram-Bot-Api-Secret-Token': self.config.webhook_secret}
++        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=create_app(self.s)), base_url='http://localhost') as client:
++            self.assertEqual((await client.post('/telegram/webhook', json=payload, headers=headers)).status_code, 200)
++        self.assertEqual(await self.scalar('SELECT customer_id FROM telegram_inbox'), 100)
+ 
+     async def test_login_limit_atomic_under_concurrency(self):
+         allowed = await asyncio.gather(*(self.s.admin_access.login_allowed('test-ip') for _ in range(12)))
+@@ -429,7 +458,9 @@
+             page = await client.get('/api/payments/return?reference=unknown')
+             self.assertEqual(page.status_code, 200)
+             self.assertIn('Return to bot', page.text)
+-            self.assertEqual((await client.get('/app/?payment=example')).status_code, 302)
++            legacy = await client.get('/app/?payment=example%26cancelled%3D1')
++            self.assertEqual(legacy.status_code, 302)
++            self.assertEqual(legacy.headers['location'], '/api/payments/return?reference=example%26cancelled%3D1')
+         self.assertNotIn('supplier', self.s.__dataclass_fields__)
+ 
+     async def test_shared_rate_budget_atomic_and_expires(self):
+--- /dev/null
++++ b/tests/test_webhook_readiness.py
+@@ -0,0 +1,189 @@
++import asyncio
++from datetime import datetime, timezone
++from types import SimpleNamespace
++from unittest.mock import AsyncMock, Mock, patch
++
++import pytest
++from aiogram.types import CallbackQuery, Chat, Message, User
++from aiogram.exceptions import TelegramRetryAfter
++from aiogram.methods import GetChatMember
++
++from app.bot.handlers.start import handle_gate_verify
++from app.bot.middlewares import StoreAccess
++from app.services.gate import GateService
++from app.runtime import run_webhook
++
++
++def gate_service(member=True):
++    notifier = SimpleNamespace(is_member=AsyncMock(return_value=member))
++    gate = GateService(None, SimpleNamespace(flag=AsyncMock(return_value=True)), notifier)
++    gate.channels = AsyncMock(return_value=[{'chat_id': '-100123', 'title': 'Required'}])
++    return gate
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize('member', [True, False])
++async def test_concurrent_checks_and_repeated_taps_share_one_request(member):
++    gate = gate_service(member)
++    results = await asyncio.gather(*(gate.check(123) for _ in range(50)))
++    assert all(result[0] is member for result in results)
++    for _ in range(20):
++        assert (await gate.check(123))[0] is member
++    gate.notifier.is_member.assert_awaited_once()
++    assert not gate._checks
++
++
++@pytest.mark.asyncio
++async def test_join_or_leave_invalidates_both_caches():
++    gate = gate_service(False)
++    assert not (await gate.check(123))[0]
++    gate.notifier.is_member.return_value = True
++    gate.forget(123)
++    assert (await gate.check(123))[0]
++    gate.notifier.is_member.return_value = False
++    gate.forget(123)
++    assert not (await gate.check(123))[0]
++    assert gate.notifier.is_member.await_count == 3
++
++
++@pytest.mark.asyncio
++async def test_invalidated_inflight_result_cannot_restore_cached_access():
++    gate = gate_service()
++    started, finish = asyncio.Event(), asyncio.Event()
++    async def member(*args):
++        started.set()
++        await finish.wait()
++        return True
++    gate.notifier.is_member.side_effect = member
++    check = asyncio.create_task(gate.check(123))
++    await started.wait()
++    gate.forget(123)
++    finish.set()
++    await check
++    assert 123 not in gate._verified
++
++
++@pytest.mark.asyncio
++async def test_cancelling_waiter_does_not_leave_inflight_entry():
++    gate = gate_service()
++    started, finish = asyncio.Event(), asyncio.Event()
++    async def member(*args):
++        started.set()
++        await finish.wait()
++        return True
++    gate.notifier.is_member.side_effect = member
++    check = asyncio.create_task(gate.check(123))
++    await started.wait()
++    task = gate._checks[123]
++    check.cancel()
++    with pytest.raises(asyncio.CancelledError):
++        await check
++    finish.set()
++    await task
++    await asyncio.sleep(0)
++    assert not gate._checks
++
++
++@pytest.mark.asyncio
++async def test_slow_telegram_check_is_bounded_and_not_verified():
++    gate = gate_service()
++    gate.notifier.is_member.side_effect = lambda *args: None
++    async def slow(*args):
++        await asyncio.sleep(60)
++    gate.notifier.is_member.side_effect = slow
++    with patch('app.services.gate.MEMBERSHIP_TIMEOUT_SECONDS', 0.02):
++        passed, missing = await asyncio.wait_for(gate.check(123), timeout=1)
++    assert not passed and missing[0]['verification_unavailable']
++    assert 123 not in gate._verified
++
++
++@pytest.mark.asyncio
++async def test_rate_limit_cools_down_channel_for_other_customers():
++    gate = gate_service()
++    gate.notifier.is_member.side_effect = TelegramRetryAfter(
++        method=GetChatMember(chat_id=-100123, user_id=123), message='Retry later', retry_after=30)
++    assert not (await gate.check(123))[0]
++    assert not (await gate.check(456))[0]
++    gate.notifier.is_member.assert_awaited_once()
++    assert not gate._verified
++
++
++def event(text='Account'):
++    return Message(message_id=1, date=datetime.now(timezone.utc),
++                   chat=Chat(id=123, type='private'),
++                   from_user=User(id=123, is_bot=False, first_name='Test'), text=text)
++
++
++def services_for_access(missing=None):
++    # Close scheduled notification coroutines without contacting Telegram.
++    return SimpleNamespace(
++        settings=SimpleNamespace(admin_chat_ids=AsyncMock(return_value=[]),
++                                 flag=AsyncMock(return_value=True), get=AsyncMock(return_value='Store')),
++        users=SimpleNamespace(get=AsyncMock(return_value={'is_banned': 0}), process_referral_reward=AsyncMock()),
++        notifier=SimpleNamespace(in_background=Mock(side_effect=lambda coro: coro.close())),
++        gate=SimpleNamespace(check=AsyncMock(return_value=(False, missing or [{'title': 'Required'}])),
++                             grant_access=Mock(), notify_admin_channel_issue=AsyncMock()),
++    )
++
++
++@pytest.mark.asyncio
++@pytest.mark.parametrize('opening', ['/start', '/menu', 'gate_verify'])
++async def test_opening_gate_never_caches_an_unverified_pass(opening):
++    middleware, services, handler = StoreAccess(), services_for_access(), AsyncMock()
++    first = event(opening)
++    if opening == 'gate_verify':
++        first = CallbackQuery(id='q', from_user=first.from_user, chat_instance='test', message=first, data=opening)
++    await middleware(handler, first, {'services': services})
++    handler.reset_mock()
++    with patch.object(Message, 'answer', new_callable=AsyncMock):
++        await middleware(handler, event(), {'services': services})
++    handler.assert_not_awaited()
++    services.gate.check.assert_awaited_once()
++
++
++@pytest.mark.asyncio
++async def test_verification_error_never_unlocks_or_awards_referral():
++    missing = [{'title': 'Required', 'verification_unavailable': True}]
++    services = services_for_access(missing)
++    message = event()
++    query = CallbackQuery(id='q', from_user=message.from_user, chat_instance='test', message=message, data='gate_verify')
++    with patch.object(CallbackQuery, 'answer', new_callable=AsyncMock) as answer:
++        await handle_gate_verify(query, SimpleNamespace(clear=AsyncMock()), services)
++        assert answer.await_args.kwargs['show_alert']
++    services.gate.grant_access.assert_not_called()
++    services.users.process_referral_reward.assert_not_awaited()
++    handler = AsyncMock()
++    with patch.object(Message, 'answer', new_callable=AsyncMock):
++        await StoreAccess()(handler, message, {'services': services})
++    handler.assert_not_awaited()
++
++
++@pytest.mark.asyncio
++async def test_repeated_blocked_actions_do_not_flood_join_prompts():
++    middleware, services, handler = StoreAccess(), services_for_access(), AsyncMock()
++    with patch.object(Message, 'answer', new_callable=AsyncMock) as answer:
++        for _ in range(20):
++            await middleware(handler, event(), {'services': services})
++        answer.assert_awaited_once()
++    handler.assert_not_awaited()
++
++
++@pytest.mark.asyncio
++async def test_webhook_retries_transient_bot_configuration_failure():
++    bot = SimpleNamespace(set_webhook=AsyncMock())
++    storage = SimpleNamespace(close=AsyncMock())
++    dispatcher = SimpleNamespace(resolve_used_update_types=lambda: ['message', 'callback_query', 'chat_member'], storage=storage)
++    services = SimpleNamespace(
++        notifier=SimpleNamespace(bot=bot, configure_bot=AsyncMock(side_effect=[OSError('temporary'), None])),
++        runtime=SimpleNamespace(dispatcher=dispatcher, update_tasks=set(), bot='starting'),
++        config=SimpleNamespace(webapp_url='', webhook_url='https://example.test/telegram/webhook', webhook_secret='s' * 40),
++    )
++    with patch('app.runtime.asyncio.sleep', AsyncMock(side_effect=[None, asyncio.CancelledError])):
++        with pytest.raises(asyncio.CancelledError):
++            await run_webhook(services)
++    assert services.notifier.configure_bot.await_count == 2
++    bot.set_webhook.assert_awaited_once()
++    assert bot.set_webhook.await_args.kwargs['drop_pending_updates'] is False
++    assert 'chat_member' in bot.set_webhook.await_args.kwargs['allowed_updates']
++    storage.close.assert_awaited_once()
++
+--- a/app/api/app.py
++++ b/app/api/app.py
+@@ -68,6 +68,12 @@
+     app.include_router(payments.router)
+     app.include_router(reseller.router)
+ 
++    @app.get('/app/', include_in_schema=False)
++    async def legacy_payment_return(payment: str = ''):
++        # Existing invoices can still carry the old return URL after deployment.
++        from urllib.parse import urlencode
++        return RedirectResponse('/api/payments/return?' + urlencode({'reference': payment}), status_code=302)
++
+     if CONSOLE_OUT_DIR.is_dir():
+         app.mount("/", ConsoleFiles(directory=CONSOLE_OUT_DIR, html=True), name="console")
+     return app

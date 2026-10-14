@@ -22,8 +22,6 @@ from app.bot.icons import (
     ICON_STATS,
     ICON_TIMER,
     ICON_VIP,
-    Icons,
-    tg_icon,
 )
 from app.services.catalog import CatalogService
 from app.services.notifications import Notifier
@@ -39,24 +37,19 @@ class AnnouncementService:
         self.notifier = notifier
 
     def _product_icon(self, product: dict[str, Any]) -> str:
-        custom_emoji_id = product.get("custom_emoji_id")
-        raw_icon = product.get("icon") or "⚡"
-        if custom_emoji_id and str(custom_emoji_id).strip().isdigit():
-            return tg_icon(str(custom_emoji_id).strip(), raw_icon)
+        raw_icon = product.get("icon") or ""
         return escape(raw_icon)
 
     async def _buy_button(self, product: dict[str, Any], label: str) -> InlineKeyboardMarkup:
         link = f"https://t.me/{await self.notifier.bot_username()}?start=prod_{product['id']}"
-        custom_emoji_id = product.get("custom_emoji_id")
         btn_kwargs: dict[str, Any] = {
             "text": label[:64],
             "url": link,
             "style": "primary",
         }
-        if custom_emoji_id and str(custom_emoji_id).strip().isdigit():
-            btn_kwargs["icon_custom_emoji_id"] = str(custom_emoji_id).strip()
-        else:
-            btn_kwargs["icon_custom_emoji_id"] = Icons.CART
+        custom_emoji_id = str(product.get("custom_emoji_id") or "").strip()
+        if custom_emoji_id.isdigit():
+            btn_kwargs["icon_custom_emoji_id"] = custom_emoji_id
         return InlineKeyboardMarkup(
             inline_keyboard=[[InlineKeyboardButton(**btn_kwargs)]]
         )
@@ -79,13 +72,14 @@ class AnnouncementService:
         values = await self.settings.values()
         symbol = escape(values["currency_symbol"])
         icon, title = self._product_icon(product), escape(product["title"])
+        icon_prefix = f"{icon} " if icon else ""
         duration = (product.get("duration_label") or "").strip()
         duration_line = f"{ICON_TIMER} <b>Validity:</b> {escape(duration)}\n" if duration and duration.lower() not in {"instant", "none", "n/a", ""} else ""
         button = await self._buy_button(product, f"Buy {product['title']}")
 
         admin_delivered = await self.notifier.send_admin(
             f"{ICON_ORDERS} <b>Restocked</b>\n\n"
-            f"{icon} <b>{title}</b>\n"
+            f"{icon_prefix}<b>{title}</b>\n"
             f"{duration_line}"
             f"{ICON_PLUS} <code>+{added_count}</code> · now <code>{product['stock']}</code> in stock\n"
             f"{ICON_MONEY} <code>{format_dual_price(product['price'], symbol)}</code>",
@@ -102,7 +96,7 @@ class AnnouncementService:
             deliv = await self.notifier.send(
                 ch,
                 f"{ICON_ORDERS} <b>Fresh Restock Alert!</b>\n\n"
-                f"{ICON_VIP} <b>Product:</b> {icon} <b>{title}</b>\n"
+                f"{ICON_VIP} <b>Product:</b> {icon_prefix}<b>{title}</b>\n"
                 f"{duration_line}"
                 f"{ICON_SPARKLES} <b>Fresh Stock:</b> <code>{added_count} units</code>\n"
                 f"{ICON_SHOP} <b>Available:</b> <code>{product['stock']} accounts</code>\n"
@@ -124,6 +118,7 @@ class AnnouncementService:
         values = await self.settings.values()
         symbol = escape(values["currency_symbol"])
         icon = self._product_icon(product)
+        icon_prefix = f"{icon} " if icon else ""
         title = escape(product["title"])
         diff = abs(new_price - old_price)
         pct = round((diff / old_price) * 100) if old_price > 0 else 0
@@ -149,7 +144,7 @@ class AnnouncementService:
 
         msg_body = (
             f"{heading}\n\n"
-            f"{ICON_VIP} <b>Product:</b> {icon} <b>{title}</b>\n"
+            f"{ICON_VIP} <b>Product:</b> {icon_prefix}<b>{title}</b>\n"
             f"{duration_line}"
             f"{diff_line}"
             f"{price_line}"
@@ -190,6 +185,7 @@ class AnnouncementService:
             return False
         symbol = escape(values["currency_symbol"])
         icon = self._product_icon(product)
+        icon_prefix = f"{icon} " if icon else ""
         title = escape(product["title"])
         desc = f"\n{ICON_NOTE} {escape(product.get('description'))}\n" if product.get("description") else ""
         duration = (product.get("duration_label") or "").strip()
@@ -200,7 +196,7 @@ class AnnouncementService:
         button = await self._buy_button(product, f"Order {product['title']}")
         text = (
             f"{ICON_FIRE} <b>Featured Product</b>\n\n"
-            f"{ICON_VIP} <b>Product:</b> {icon} <b>{title}</b>\n"
+            f"{ICON_VIP} <b>Product:</b> {icon_prefix}<b>{title}</b>\n"
             f"{duration_line}"
             f"{desc}"
             f"{ICON_SHOP} <b>Available Stock:</b> <code>{product['stock']} units</code>\n"

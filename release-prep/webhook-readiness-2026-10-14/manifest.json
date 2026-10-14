@@ -1,0 +1,52 @@
+[
+  {
+    "path": "app/services/gate.py",
+    "before_sha256": "5d26de32fbdb10a35f7b1052867aa1ca06cdd62a846632aa2a6ed9a7eef9ec82",
+    "staged_sha256": "d882891bae635142cbf63a8b6dc418f31ccdd11072cdc21b36469fe18091d569"
+  },
+  {
+    "path": "app/bot/storage.py",
+    "before_sha256": "b55c6f7eee75742a0c5aa44b4fbfddc69f63d9f4bb684c6df790bee72da37643",
+    "staged_sha256": "bfbfa2d3cd61c1e28905a94aa87135518980fbeab4618612c5e789bbbd614373"
+  },
+  {
+    "path": "app/bot/middlewares.py",
+    "before_sha256": "d28f2b5df0732c5fe02d3d0345fc8734a6c0f37039f4475894f7c384a2e9fe01",
+    "staged_sha256": "ba968fc47244f1fe0adcbb1f5a4851c791777b4e2b82ab4d3265a34f8ecd47c0"
+  },
+  {
+    "path": "app/bot/handlers/start.py",
+    "before_sha256": "a60239dc301c4d188c985028926203573d9e1039cf8e06939e6d5351db2f964c",
+    "staged_sha256": "64a26107a7f17ee31a5318df77353465ad9370fcca52f11cf45880243c0dc722"
+  },
+  {
+    "path": "app/api/telegram.py",
+    "before_sha256": "9ef4bfebc67ee62aea6ce6ea45ea6ec487f014530259d504a506919353a61d52",
+    "staged_sha256": "33a733479af97db6811fabdda5f53ae4ef899e2732db50aa76a532410ceeca04"
+  },
+  {
+    "path": "app/runtime.py",
+    "before_sha256": "687d87084961cc5398ebc6cb73446a5cb9433603e005dda832942e5ced2b1299",
+    "staged_sha256": "087d516dce24f6563bac72a255c7f31dafa9363797f6a12b8ee474b0d4150707"
+  },
+  {
+    "path": "tests/test_production_regressions.py",
+    "before_sha256": "d1f8ee93d93eeddc40500ee4218a542b0786b50f7e5420a3e3b87a44e3cf2893",
+    "staged_sha256": "ea6fb58f470108ec0f9d0376f6c9d4138da3743079b6a1e476bd397154d8bd15"
+  },
+  {
+    "path": "tests/test_reliability.py",
+    "before_sha256": "03d004553231d10472adf0e8fe69529443fdcf3d8c63ff86b3ad9028e13b543c",
+    "staged_sha256": "3cea15f3fde29b9b7cdc1793e98783723183016ab68f769677ba923a33a9c3c0"
+  },
+  {
+    "path": "tests/test_webhook_readiness.py",
+    "before_sha256": null,
+    "staged_sha256": "b5e8e174d528f4272275a76aad68d4a82fbdebda9a25092d00b81964ae320d50"
+  },
+  {
+    "path": "app/api/app.py",
+    "before_sha256": "57910e6524276942a3e1e7c0a71e02318ac9f149687d0e7d8d211e802b0f5149",
+    "staged_sha256": "a1b997811edfeec549dbd285272b04aca729d9f0764e7cc6fcd8745910641e9f"
+  }
+]

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Bold, Bot, Check, Code, Copy, Eye, EyeOff, Italic, Link2, RefreshCw, RotateCcw, Send, Trash2, Users } from 'lucide-react';
+import { Bold, Check, Code, Copy, Eye, EyeOff, Italic, Link2, RefreshCw, RotateCcw, Send, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { errorText, Modal, useConfirm, when, type Say } from './ui';
 
@@ -208,7 +208,6 @@ export function Broadcast({ say }: { say: Say }) {
         <div className="stat-card">
           <div className="stat-card-top">
             <span className="stat-card-label">Active Recipients</span>
-            <Users className="stat-card-icon" />
           </div>
           <div className="stat-card-value">
             {recipientCount !== null ? recipientCount : '—'}
@@ -218,7 +217,6 @@ export function Broadcast({ say }: { say: Say }) {
         <div className="stat-card">
           <div className="stat-card-top">
             <span className="stat-card-label">Bot Command</span>
-            <Bot className="stat-card-icon" />
           </div>
           <div className="stat-card-value" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <button
@@ -462,7 +460,6 @@ export function Broadcast({ say }: { say: Say }) {
                   }}
                 >
                   <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                    <Bot size={13} style={{ color: 'var(--accent)' }} />
                     Preview
                   </span>
                   <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Telegram</span>

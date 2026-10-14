@@ -45,9 +45,12 @@ class Database:
     async def _init_connection(self, conn: asyncpg.Connection) -> None:
         # Money stays exact in PostgreSQL; application code works with rounded floats.
         await conn.set_type_codec("numeric", encoder=str, decoder=float, schema="pg_catalog", format="text")
+        target_schema = self.schema or "public"
+        await conn.execute(f'SET search_path TO "{target_schema}"')
 
     async def _use_schema(self, conn: asyncpg.Connection) -> None:
-        await conn.execute(f'SET search_path TO "{self.schema}"')
+        target_schema = self.schema or "public"
+        await conn.execute(f'SET search_path TO "{target_schema}"')
 
     async def _keep_session(self, conn: asyncpg.Connection) -> None:
         return None
@@ -63,12 +66,12 @@ class Database:
                         # A few connections stay open: opening one to a remote database (TLS and setup)
                         # takes far longer than a query, and asyncpg would otherwise close idle ones
                         # after five minutes, making the first taps after a quiet spell slow.
-                        min_size=min(1, self.max_size),
+                        min_size=min(4, self.max_size),
                         max_size=self.max_size,
-                        max_inactive_connection_lifetime=300.0,
+                        max_inactive_connection_lifetime=600.0,
                         statement_cache_size=self.statement_cache_size,
                         init=self._init_connection,
-                        setup=self._use_schema if self.schema else None,
+                        setup=self._use_schema,
                         reset=self._keep_session,
                         timeout=10,
                         command_timeout=30,

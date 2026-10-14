@@ -11,7 +11,7 @@ from aiogram.fsm.storage.memory import MemoryStorage, SimpleEventIsolation
 from aiogram.types import ErrorEvent
 
 from app.bot.handlers import admin, deposit, help_guide, navigation, profile, reseller_apply, search, shop, start
-from app.bot.middlewares import Debounce, StoreAccess, Throttle
+from app.bot.middlewares import AuditActor, Debounce, FastCallback, PerformanceLogger, StoreAccess, Throttle
 from app.services import Services
 
 logger = logging.getLogger("app.bot")
@@ -32,11 +32,15 @@ def create_dispatcher(services: Services, storage: BaseStorage | None = None) ->
     storage = storage or MemoryStorage()
     isolation = storage.create_isolation() if hasattr(storage, 'create_isolation') else SimpleEventIsolation()
     dispatcher = Dispatcher(storage=storage, events_isolation=isolation, services=services)
-    # Debounce runs first to drop rapid duplicate taps on the exact same button or action
-    debounce = Debounce(cooldown=1.0)
-    from app.bot.middlewares import AuditActor
+    # Track update handling speed accurately
+    dispatcher.message.outer_middleware(PerformanceLogger())
+    dispatcher.callback_query.outer_middleware(PerformanceLogger())
+    # Instant answer for navigation buttons so Telegram spinner stops in <50ms
+    dispatcher.callback_query.outer_middleware(FastCallback())
     dispatcher.message.outer_middleware(AuditActor())
     dispatcher.callback_query.outer_middleware(AuditActor())
+    # Debounce drops rapid duplicate taps on the exact same button or action
+    debounce = Debounce(cooldown=0.3)
     dispatcher.message.outer_middleware(debounce)
     dispatcher.callback_query.outer_middleware(debounce)
     # Throttling drops flood before access checks read the database

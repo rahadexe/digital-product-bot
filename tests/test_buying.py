@@ -13,7 +13,7 @@ import os
 import re
 import unittest
 import uuid
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 from urllib.parse import urlsplit
 
 from aiogram import Bot
@@ -22,7 +22,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import CallbackQuery, Chat, Message, Update, User
 
 from app.bot.app import create_dispatcher
-from app.bot.handlers import admin, deposit, help_guide, profile, search, shop, start
+from app.bot.handlers import admin, deposit, help_guide, navigation, profile, reseller_apply, search, shop, start
 from app.bot.storage import PostgresStorage
 from app.core.config import Settings
 from app.db import Database
@@ -40,6 +40,8 @@ def plain(value):
 @unittest.skipUnless(DSN, 'Set TEST_DATABASE_URL to a disposable local PostgreSQL instance')
 class Buying(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
+        self.enterContext(patch.object(Message, 'delete', new_callable=AsyncMock))
+        self.enterContext(patch.object(Bot, 'delete_message', new_callable=AsyncMock))
         if urlsplit(DSN).hostname not in ('127.0.0.1', 'localhost', '::1'):
             raise unittest.SkipTest('This suite only runs against a local database.')
         self.schema = 'buying_' + uuid.uuid4().hex[:12]
@@ -48,7 +50,7 @@ class Buying(unittest.IsolatedAsyncioTestCase):
         self.db = Database(DSN, schema=self.schema, max_size=8)
         await migrate(self.db)
         self.s = build_services(config, db=self.db, use_telegram=False)
-        for module in (admin, start, shop, deposit, profile, help_guide, search):
+        for module in (navigation, admin, start, shop, deposit, profile, reseller_apply, help_guide, search):
             module.router._parent_router = None
         self.dp = create_dispatcher(self.s, storage=PostgresStorage(self.db))
         self.bot = Bot(token='111111:AAtestAAtestAAtestAAtestAAtestAAtest',
@@ -56,6 +58,7 @@ class Buying(unittest.IsolatedAsyncioTestCase):
         await self.s.settings.update({'force_join_enabled': '0', 'zinipay_enabled': '0', 'binance_enabled': '0'})
         for uid in (BUYER, RESELLER):
             await self.s.users.sync_profile(uid, first_name='Rafi')
+            await self.s.users.set_language(uid, "en")
             await self.s.users.adjust_balance(uid, 10_000, 'seed')
         async with self.db.connect() as conn:
             await conn.execute("UPDATE users SET rank='reseller' WHERE tg_user_id=$1", RESELLER)
@@ -102,6 +105,8 @@ class Buying(unittest.IsolatedAsyncioTestCase):
         for mw in list(self.dp.message.outer_middleware) + list(self.dp.callback_query.outer_middleware):
             if getattr(mw, '_buckets', None) is not None:
                 mw._buckets.clear()
+            if getattr(mw, '_last_actions', None) is not None:
+                mw._last_actions.clear()
             if getattr(mw, '_last_actions', None) is not None:
                 mw._last_actions.clear()
         now = datetime.datetime.now(datetime.timezone.utc)
@@ -182,13 +187,13 @@ class Buying(unittest.IsolatedAsyncioTestCase):
                                                      delivery_type='manual')
         spent = await self.buy(BUYER, manual)
         self.assertEqual(spent, 63.0)
-        self.assertIn('Order Placed', self.said())
+        self.assertIn('Order placed', self.said())
         for repeated in ('Payment successful', 'being prepared', 'delivered shortly'):
             self.assertNotIn(repeated, self.said(), self.said())
 
         async with self.db.connect() as conn:
             queued = await conn.fetch('SELECT text FROM outbox WHERE tg_user_id=$1', BUYER)
-        waiting = [q for q in queued if 'Payment Received' in q['text']]
+        waiting = [q for q in queued if 'Preparing delivery' in q['text']]
         self.assertEqual(len(waiting), 1, 'exactly one queued confirmation')
 
     async def test_an_instant_order_still_points_at_its_details(self):

@@ -6,7 +6,7 @@ import { FlagRow, Modal, errorText, useConfirm, type Say } from './ui';
 
 type Draft = { id: number | null; title: string; channel_username: string; invite_link: string; chat_id: string; is_active: boolean };
 
-export function GateChannels({ say }: { say: Say }) {
+export function GateChannels({ say, isGateEnabled }: { say: Say; isGateEnabled?: boolean }) {
   const [channels, setChannels] = useState<GateChannel[] | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [confirm, confirmDialog] = useConfirm();
@@ -33,7 +33,7 @@ export function GateChannels({ say }: { say: Say }) {
       {confirmDialog}
       <div className="panel-subhead">
         <div>
-          <h3>Channels a customer must join</h3>
+          <h3>Required Channels</h3>
         </div>
         <div className="actions">
           <button type="button" className="btn small" onClick={() => setDraft({ id: null, title: '', channel_username: '', invite_link: '', chat_id: '', is_active: true })}>
@@ -41,7 +41,13 @@ export function GateChannels({ say }: { say: Say }) {
           </button>
         </div>
       </div>
-      {channels && channels.length === 0 ? <p className="note" style={{ padding: '12px 18px', margin: 0 }}>No channels required. Anyone can use the bot.</p> : null}
+      {channels && channels.length === 0 ? (
+        <p className="note" style={{ padding: '12px 18px', margin: 0, color: isGateEnabled ? 'var(--warning, #b45309)' : undefined }}>
+          {isGateEnabled
+            ? 'Gate is active, but no channels are added. Users will bypass the gate until a channel is added.'
+            : 'No channels required.'}
+        </p>
+      ) : null}
       <div className="rows">
         {(channels ?? []).map((channel) => (
           <div key={channel.id} className={`row${channel.is_active ? '' : ' off'}`}>

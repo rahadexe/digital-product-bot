@@ -216,7 +216,8 @@ class ReliabilityTests(unittest.IsolatedAsyncioTestCase):
         await self.s.purchases.purchase(100, self.product, request_id='long')
         bot = SimpleNamespace(send_message=AsyncMock(), send_document=AsyncMock())
         await DeliveryWorker(self.s.delivery, bot).step()
-        self.assertIsNone(bot.send_message.call_args.kwargs['reply_markup'])
+        markup = bot.send_message.call_args.kwargs['reply_markup']
+        self.assertTrue(all(button.copy_text is None for row in markup.inline_keyboard for button in row))
         self.assertEqual(await self.scalar('SELECT delivery_status FROM orders'), 'sent')
 
     async def test_durable_fsm_and_atomic_updates(self):
@@ -240,6 +241,35 @@ class ReliabilityTests(unittest.IsolatedAsyncioTestCase):
         # A lower queued ID cannot steal an actively processed user's lease.
         reclaimed = await worker.claim()
         self.assertEqual(reclaimed['update_id'], 10)
+
+    async def test_conversation_reads_follow_another_replica(self):
+        one, two = PostgresStorage(self.db), PostgresStorage(self.db)
+        key = StorageKey(bot_id=1, chat_id=100, user_id=100)
+        self.assertIsNone(await one.get_state(key))
+        self.assertEqual(await one.get_data(key), {})
+        await two.set_state(key, 'waiting')
+        await two.set_data(key, {'product': 77})
+        self.assertEqual(await one.get_state(key), 'waiting')
+        self.assertEqual(await one.get_data(key), {'product': 77})
+        await one.set_state(key, None)
+        await one.set_data(key, {})
+        self.assertIsNone(await two.get_state(key))
+        self.assertEqual(await two.get_data(key), {})
+
+    async def test_membership_webhook_queues_by_affected_customer(self):
+        self.s.notifier.bot = SimpleNamespace(session=SimpleNamespace(close=AsyncMock()))
+        self.s.runtime.dispatcher = SimpleNamespace(feed_update=AsyncMock())
+        user = {'id': 100, 'is_bot': False, 'first_name': 'Customer'}
+        payload = {'update_id': 2000, 'chat_member': {
+            'chat': {'id': -100123, 'type': 'channel', 'title': 'Required'},
+            'from': {'id': 900, 'is_bot': False, 'first_name': 'Admin'}, 'date': 1700000000,
+            'old_chat_member': {'status': 'member', 'user': user},
+            'new_chat_member': {'status': 'left', 'user': user},
+        }}
+        headers = {'X-Telegram-Bot-Api-Secret-Token': self.config.webhook_secret}
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=create_app(self.s)), base_url='http://localhost') as client:
+            self.assertEqual((await client.post('/telegram/webhook', json=payload, headers=headers)).status_code, 200)
+        self.assertEqual(await self.scalar('SELECT customer_id FROM telegram_inbox'), 100)
 
     async def test_login_limit_atomic_under_concurrency(self):
         allowed = await asyncio.gather(*(self.s.admin_access.login_allowed('test-ip') for _ in range(12)))
@@ -283,7 +313,7 @@ class ReliabilityTests(unittest.IsolatedAsyncioTestCase):
                 "INSERT INTO deposits(user_id,tg_user_id,method_id,method_name,amount,transaction_id) "
                 "VALUES($1,$2,$3,'Binance',125,$4)", user['id'],200+i,method['id'],f'FAIR{i:06}',
             )
-        self.s.binance._credentials = AsyncMock(return_value=('dummy','dummy'))
+        self.s.binance.get_credentials_for_method = AsyncMock(return_value=('dummy','dummy'))
         self.s.binance._match = AsyncMock(return_value={'credited': False})
         self.assertEqual(await self.s.binance.recheck_pending(), 20)
         self.assertEqual(await self.s.binance.recheck_pending(), 1)
@@ -343,7 +373,7 @@ class ReliabilityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(stats['total_spent'], 20)
         self.assertIsNone(await self.s.reseller.get_reseller_order(200, first.json()['order_id']))
         await self.execute("UPDATE users SET rank='Member' WHERE tg_user_id=100")
-        self.assertIsNone(await self.s.reseller.authenticate_key(key))
+        self.assertIsNotNone(await self.s.reseller.authenticate_key(key))
         result = await self.s.purchases.purchase(100, self.product, request_id='late-request', require_reseller=True)
         self.assertFalse(result[0])
 
@@ -428,7 +458,9 @@ class ReliabilityTests(unittest.IsolatedAsyncioTestCase):
             page = await client.get('/api/payments/return?reference=unknown')
             self.assertEqual(page.status_code, 200)
             self.assertIn('Return to bot', page.text)
-            self.assertEqual((await client.get('/app/?payment=example')).status_code, 302)
+            legacy = await client.get('/app/?payment=example%26cancelled%3D1')
+            self.assertEqual(legacy.status_code, 302)
+            self.assertEqual(legacy.headers['location'], '/api/payments/return?reference=example%26cancelled%3D1')
         self.assertNotIn('supplier', self.s.__dataclass_fields__)
 
     async def test_shared_rate_budget_atomic_and_expires(self):

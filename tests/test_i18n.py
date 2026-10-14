@@ -1,41 +1,82 @@
+from string import Formatter
+
 import pytest
-from app.core.i18n import SUPPORTED_LANGUAGES, t, DEFAULT_LANGUAGE
-from app.bot.keyboards import get_main_inline_keyboard, get_persistent_reply_keyboard, get_account_keyboard, get_language_selection_keyboard
-from app.bot.handlers.navigation import NAVIGATION_TEXTS, COMMAND_ACTIONS
+
+from app.bot.handlers.help_guide import GUIDE_TEXTS, get_guide_keyboard
+from app.bot.handlers.navigation import COMMAND_ACTIONS, NAVIGATION_TEXTS
+from app.bot.keyboards import (
+    get_account_keyboard,
+    get_language_selection_keyboard,
+    get_main_inline_keyboard,
+    get_persistent_reply_keyboard,
+)
+from app.core.i18n import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, TRANSLATIONS, t
 
 def test_supported_languages():
     assert "en" in SUPPORTED_LANGUAGES
     assert "bn" in SUPPORTED_LANGUAGES
-    assert "hi" in SUPPORTED_LANGUAGES
-    assert "ur" in SUPPORTED_LANGUAGES
+    assert len(SUPPORTED_LANGUAGES) == 2
 
 def test_i18n_translation_and_fallback():
     # English
-    assert t("btn_add_balance", "en") == "💳 Add Balance"
+    assert t("btn_add_balance", "en") == "💳 Deposit"
     # Bengali
-    assert t("btn_add_balance", "bn") == "💳 অ্যাড ব্যালেন্স"
-    # Hindi
-    assert t("btn_add_balance", "hi") == "💳 बैलेंस जोड़ें"
-    # Urdu
-    assert t("btn_add_balance", "ur") == "💳 بیلنس شامل کریں"
+    assert t("btn_add_balance", "bn") == "💳 ডিপোজিট"
     
     # Missing key fallback
     assert t("non_existent_key_xyz", "bn") == "non_existent_key_xyz"
     # Missing language fallback to English
-    assert t("btn_add_balance", "fr") == "💳 Add Balance"
+    assert t("btn_add_balance", "fr") == "💳 Deposit"
 
 def test_i18n_interpolation():
     assert "500 BDT" in t("btn_pay", "en", amount="500 BDT")
     assert "500 BDT" in t("btn_pay", "bn", amount="500 BDT")
 
+def test_translations_preserve_placeholders_across_languages():
+    for key, english in TRANSLATIONS["en"].items():
+        bengali = TRANSLATIONS["bn"].get(key)
+        assert bengali is not None, f"Missing Bengali translation: {key}"
+        english_fields = {
+            field for _, field, _, _ in Formatter().parse(english) if field is not None
+        }
+        bengali_fields = {
+            field for _, field, _, _ in Formatter().parse(bengali) if field is not None
+        }
+        assert bengali_fields == english_fields, f"Placeholder mismatch: {key}"
+
+def test_guide_copy_and_support_action_match_each_language():
+    for lang, phrase in (("en", "How to use the bot"), ("bn", "বট ব্যবহার")):
+        assert phrase in GUIDE_TEXTS[lang]
+        button = get_guide_keyboard(lang).inline_keyboard[0][0]
+        assert button.text.endswith(t("btn_support", lang).split(" ", 1)[-1])
+        assert button.callback_data == "open_support"
+
+def test_language_specific_currency_formatting():
+    from app.bot.formatting import format_dual_price, price
+    # Bengali should show Tk (৳), never dual price
+    assert format_dual_price(44.0, "৳", usd_rate=125.0, show_usd=True, lang="bn") == "44 ৳"
+    assert price("৳", 44.0, usd_rate=125.0, show_usd=True, lang="bn") == "44 ৳"
+    assert "≈" not in format_dual_price(44.0, "৳", usd_rate=125.0, show_usd=True, lang="bn")
+
+    # English should show $ cleanly, converted using usd_rate
+    assert format_dual_price(125.0, "৳", usd_rate=125.0, show_usd=True, lang="en") == "$1"
+    assert price("৳", 125.0, usd_rate=125.0, show_usd=True, lang="en") == "$1"
+    assert "≈" not in format_dual_price(125.0, "৳", usd_rate=125.0, show_usd=True, lang="en")
+
 def test_keyboards_all_languages():
-    for lang in ["en", "bn", "hi", "ur"]:
+    for lang in ["en", "bn"]:
         main_kb = get_main_inline_keyboard(lang=lang, is_admin=False)
-        assert len(main_kb.inline_keyboard) >= 3
+        assert len(main_kb.inline_keyboard) >= 2
         admin_kb = get_main_inline_keyboard(lang=lang, is_admin=True)
-        assert len(admin_kb.inline_keyboard) >= 4
+        assert len(admin_kb.inline_keyboard) >= 3
         kb = get_persistent_reply_keyboard(is_reseller=False, is_admin=False, lang=lang)
-        assert len(kb.keyboard) > 0
+        assert len(kb.keyboard) >= 2
+        assert kb.is_persistent is False
+        assert kb.resize_keyboard is True
+        kb_admin = get_persistent_reply_keyboard(is_reseller=False, is_admin=True, lang=lang)
+        assert len(kb_admin.keyboard) >= 3
+        kb_cats = get_persistent_reply_keyboard(pinned_categories=[{"name": "VPN", "icon": "🛡️"}], lang=lang)
+        assert len(kb_cats.keyboard) == 2
         account_kb = get_account_keyboard(lang=lang, is_admin=False)
         assert len(account_kb.inline_keyboard) > 0
         assert len(t("select_language_title", lang)) > 0
@@ -44,28 +85,29 @@ def test_keyboards_all_languages():
 def test_language_selection_keyboard():
     kb = get_language_selection_keyboard(current_lang="en")
     codes = [btn.callback_data for row in kb.inline_keyboard for btn in row if btn.callback_data.startswith("set_lang_")]
-    assert set(codes) == {"set_lang_en", "set_lang_bn", "set_lang_hi", "set_lang_ur"}
+    assert codes == ["set_lang_en"]
 
 def test_navigation_texts_include_all_languages():
     # Check English
     assert NAVIGATION_TEXTS["💳 Add Balance"] == "deposit"
     assert NAVIGATION_TEXTS["💳 Wallet"] == "deposit"
+    assert NAVIGATION_TEXTS["🛍️ Shop"] == "other_products"
+    assert NAVIGATION_TEXTS["Shop"] == "other_products"
+    assert NAVIGATION_TEXTS["📦 Orders"] == "orders"
+    assert NAVIGATION_TEXTS["🎧 Support"] == "support"
     # Check Bengali
     assert NAVIGATION_TEXTS["💳 অ্যাড ব্যালেন্স"] == "deposit"
     assert NAVIGATION_TEXTS["💳 ওয়ালেট"] == "deposit"
-    # Check Hindi
-    assert NAVIGATION_TEXTS["💳 बैलेंस जोड़ें"] == "deposit"
-    assert NAVIGATION_TEXTS["💳 वॉलेट"] == "deposit"
-    # Check Urdu
-    assert NAVIGATION_TEXTS["💳 بیلنس شامل کریں"] == "deposit"
-    assert NAVIGATION_TEXTS["💳 والٹ"] == "deposit"
+    assert NAVIGATION_TEXTS["🛍️ শপ"] == "shop"
+    assert NAVIGATION_TEXTS["📦 আমার অর্ডার"] == "orders"
+    assert NAVIGATION_TEXTS["🎧 সাপোর্ট"] == "support"
 
     # Check commands
     assert COMMAND_ACTIONS["/language"] == "language"
     assert COMMAND_ACTIONS["/lang"] == "language"
 
 def test_history_translations():
-    for lang in ["en", "bn", "hi", "ur"]:
+    for lang in ["en", "bn"]:
         assert len(t("order_history_title", lang, icon_orders="📦")) > 0
         assert len(t("balance_history_title", lang, icon_stats="📊")) > 0
         assert len(t("order_history_empty", lang)) > 0
@@ -89,19 +131,19 @@ def test_categories_keyboard_no_duplicate_uncat():
     sample_categories = [
         {"id": 1, "name": "Streaming", "icon": "🎬"},
         {"id": 2, "name": "VPN", "icon": "🛡️"},
-        {"id": 3, "name": "Uncategorized", "icon": "⚡"},
+        {"id": 3, "name": "Others", "icon": "⚡"},
     ]
-    for lang in ["en", "bn", "hi", "ur"]:
+    for lang in ["en", "bn"]:
         kb = get_categories_keyboard(sample_categories, show_all_option=True, lang=lang)
         callbacks = [btn.callback_data for row in kb.inline_keyboard for btn in row]
         # shop_uncat should not exist anymore
         assert "shop_uncat" not in callbacks
         assert "shop_all" in callbacks
-        assert "back_to_main" in callbacks
+        assert "back_to_main" not in callbacks
         assert "close_menu" not in callbacks
 
 def test_profile_translations():
-    for lang in ["en", "bn", "hi", "ur"]:
+    for lang in ["en", "bn"]:
         assert len(t("profile_username", lang)) > 0
         assert len(t("profile_account_type", lang)) > 0
         assert len(t("profile_current_balance", lang)) > 0
@@ -118,13 +160,11 @@ def test_screen_and_button_consistency():
     assert Icons.REFER == Icons.ORDERS
     assert "🎁" in ICON_REFER
 
-    for lang in ["en", "bn", "hi", "ur"]:
+    for lang in ["en", "bn"]:
         # Refer & Earn title has no "Program" and contains icon_refer
         ref_title = t("referral_title", lang, icon_refer=ICON_REFER)
         assert "Program" not in ref_title
         assert "প্রোগ্রাম" not in ref_title
-        assert "प्रोग्राम" not in ref_title
-        assert "پروگرام" not in ref_title
 
         # Support title matches support button
         sup_title = t("support_title", lang, icon_support=ICON_SUPPORT)
@@ -149,7 +189,3 @@ def test_screen_and_button_consistency():
         assert len(t("referral_stats_header", lang, icon_stats="📊")) > 0
         assert len(t("btn_share_referral", lang)) > 0
         assert len(t("btn_copy_link", lang)) > 0
-
-
-
-

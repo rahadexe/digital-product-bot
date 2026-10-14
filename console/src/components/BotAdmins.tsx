@@ -6,7 +6,7 @@
 // lives with the store rather than under notifications.
 
 import { useState } from 'react';
-import { CheckCircle, Plus, Send, ShieldAlert, Trash2, UserCheck } from 'lucide-react';
+import { Plus, Send, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { errorText, type Say } from './ui';
 
@@ -106,10 +106,8 @@ export function BotAdmins({ say, values, setValues, setSaved }: BotAdminsProps) 
       <div className="panel-subhead">
         <div>
           <h3>
-            <UserCheck size={15} style={{ color: 'var(--positive)', flexShrink: 0 }} />
             <span>Administrators</span>
           </h3>
-          <small>Telegram accounts that run the bot and receive its alerts.</small>
         </div>
         <div className="actions">
           <button
@@ -129,7 +127,6 @@ export function BotAdmins({ say, values, setValues, setSaved }: BotAdminsProps) 
         {testResult && (
           <div className={`admin-test-result ${testResult.success ? 'success' : 'error'}`}>
             <div className="admin-test-result-header">
-              {testResult.success ? <CheckCircle size={16} /> : <ShieldAlert size={16} />}
               <span>
                 {testResult.success
                   ? `Delivered to ${testResult.delivered_count} of ${testResult.total_admins} admin Telegram accounts!`
@@ -159,7 +156,6 @@ export function BotAdmins({ say, values, setValues, setSaved }: BotAdminsProps) 
             <div className="admin-chips-wrap">
               {adminIds.map((id, index) => (
                 <div key={id} className="admin-chip">
-                  <UserCheck size={16} style={{ color: index === 0 ? 'var(--positive)' : 'var(--muted)', flexShrink: 0 }} />
                   <span className="admin-chip-id">{id}</span>
                   <span className={`admin-chip-badge ${index === 0 ? 'primary' : 'coadmin'}`}>
                     {index === 0 ? 'Primary' : 'Co-Admin'}

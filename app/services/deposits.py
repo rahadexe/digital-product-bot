@@ -7,6 +7,7 @@ request stores the exchange rate and payable amount the customer was shown.
 from __future__ import annotations
 
 import re
+import time
 from collections.abc import Callable
 from html import escape
 from typing import Any
@@ -28,6 +29,7 @@ from app.bot.icons import (
     Icons,
 )
 from app.core.config import get_settings
+from app.core.identifiers import format_deposit_id
 from app.core.money import money
 from app.db import Database, affected
 from app.services.admin_jobs import enqueue as enqueue_admin_job
@@ -64,10 +66,16 @@ class PendingDepositError(InvalidInputError):
 
 
 class DepositService:
+    CACHE_SECONDS = 60.0
+
     def __init__(self, db: Database, settings: SettingsService, notifier: Notifier):
         self.db = db
         self.settings = settings
         self.notifier = notifier
+        self._methods_cache: tuple[float, list[dict[str, Any]]] | None = None
+
+    def invalidate_methods_cache(self) -> None:
+        self._methods_cache = None
 
     async def verification_failures(self, tg_user_id: int, *, record_failure: bool = False) -> list[float]:
         async with self.db.connect() as conn:
@@ -91,9 +99,29 @@ class DepositService:
 
     # --- Payment methods ---
     async def methods(self, active_only: bool = True) -> list[dict[str, Any]]:
-        query = "SELECT * FROM deposit_methods" + (" WHERE is_active = 1" if active_only else "") + " ORDER BY sort_order, id"
+        now = time.monotonic()
+        if active_only and self._methods_cache and now - self._methods_cache[0] < self.CACHE_SECONDS:
+            return [dict(row) for row in self._methods_cache[1]]
+        query = (
+            "SELECT dm.*, EXISTS (SELECT 1 FROM binance_method_credentials bc WHERE bc.method_id = dm.id) AS has_api_credentials "
+            "FROM deposit_methods dm"
+            + (" WHERE dm.is_active = 1" if active_only else "")
+            + " ORDER BY dm.sort_order, dm.id"
+        )
         async with self.db.connect() as conn:
-            return [dict(row) for row in await conn.fetch(query)]
+            rows = [dict(row) for row in await conn.fetch(query)]
+        if active_only:
+            self._methods_cache = (now, rows)
+        return [dict(row) for row in rows]
+
+    async def get_method(self, method_id: int) -> dict[str, Any] | None:
+        query = (
+            "SELECT dm.*, EXISTS (SELECT 1 FROM binance_method_credentials bc WHERE bc.method_id = dm.id) AS has_api_credentials "
+            "FROM deposit_methods dm WHERE dm.id = $1"
+        )
+        async with self.db.connect() as conn:
+            row = await conn.fetchrow(query, method_id)
+        return dict(row) if row else None
 
     async def create_method(
         self,
@@ -129,6 +157,7 @@ class DepositService:
                 account_type,
             )
             await record(conn, "deposit_method_created", f"Method #{method_id}: {name}")
+        self.invalidate_methods_cache()
         return method_id
 
     async def update_method(self, method_id: int, **fields: Any) -> bool:
@@ -143,6 +172,8 @@ class DepositService:
             if affected(status):
                 # Payment destinations are what attackers change; keep a trail of every edit.
                 await record(conn, "deposit_method_updated", f"Method #{method_id}: {', '.join(sorted(updates))}")
+        if affected(status):
+            self.invalidate_methods_cache()
         return bool(affected(status))
 
     async def get_or_create_binance_method(self) -> dict[str, Any]:
@@ -163,8 +194,7 @@ class DepositService:
                     """
                     UPDATE deposit_methods
                     SET name = 'Binance', account_info = $1, instructions = $2, min_deposit = $3, rate_to_currency = $4,
-                        is_active = $5, auto_verify = 'binance_pay', auto_verify_network = 'Binance ID',
-                        custom_emoji_id = COALESCE(custom_emoji_id, '5348212415077064131')
+                        is_active = $5, auto_verify = 'binance_pay', auto_verify_network = 'Binance ID'
                     WHERE id = $6
                     """,
                     pay_id,
@@ -203,14 +233,13 @@ class DepositService:
             row = await conn.fetchrow("SELECT name, auto_verify FROM deposit_methods WHERE id = $1 FOR UPDATE", method_id)
             if row is None:
                 return False
-            if row["auto_verify"] == "binance_pay":
-                raise InvalidInputError("System gateway methods cannot be deleted.")
             if await conn.fetchval("SELECT 1 FROM deposits WHERE method_id=$1 AND status='pending' LIMIT 1", method_id):
                 raise InvalidInputError("Review pending deposits before deleting this payment method.")
             # Every deposit already carries the method's name, so dropping the link loses nothing shown.
             await conn.execute("UPDATE deposits SET method_id = NULL WHERE method_id = $1", method_id)
             await conn.execute("DELETE FROM deposit_methods WHERE id = $1", method_id)
             await record(conn, "deposit_method_deleted", f"Method #{method_id}: {row['name']}")
+        self.invalidate_methods_cache()
         return True
 
     async def archive_method(self, method_id: int) -> None:
@@ -261,6 +290,7 @@ class DepositService:
         amount: float,
         transaction_id: str,
         *,
+        pay_amount: float | None = None,
         quoted_rate: float | None = None,
         admin_note: str = "",
         verification_id: str | None = None,
@@ -282,9 +312,38 @@ class DepositService:
                 method = await conn.fetchrow("SELECT * FROM deposit_methods WHERE id = $1 AND is_active = 1", method_id)
                 if not method:
                     raise InvalidInputError("Payment method is no longer available.")
-                quote = await self._quote(method, amount, values)
-                if quoted_rate is not None and abs(quote["rate"] - quoted_rate) > 1e-9:
-                    raise InvalidInputError("The payment rate changed. Please start the deposit again.")
+                if pay_amount is not None:
+                    actual_pay_amount = money(pay_amount, positive=True)
+                    actual_amount = amount
+                    rate = float(quoted_rate if quoted_rate is not None else (method["rate_to_currency"] or 1.0))
+                    min_dep = float(method["min_deposit"] or 0.0)
+                    is_pay = method.get("auto_verify") == "binance_pay" or "binance" in (method.get("name") or "").lower()
+                    if actual_pay_amount < min_dep:
+                        curr_sym = "$" if is_pay else values.get("currency_symbol", "৳")
+                        raise InvalidInputError(f"The minimum deposit for this method is {curr_sym}{min_dep:g}.")
+                    limit = float(values.get("max_deposit_limit") or 0.0)
+                    if limit and actual_pay_amount > limit:
+                        curr_sym = "$" if is_pay else values.get("currency_symbol", "৳")
+                        raise InvalidInputError(f"The maximum single deposit is {curr_sym}{limit:g}. Contact support for larger payments.")
+                    quote = {
+                        "method_id": method["id"],
+                        "method_name": method["name"],
+                        "account_info": method["account_info"],
+                        "account_type": method.get("account_type") or "personal",
+                        "instructions": method["instructions"] or "",
+                        "amount": actual_amount,
+                        "rate": rate,
+                        "pay_amount": actual_pay_amount,
+                        "paid_currency": values.get("binance_coin", "USDT") if is_pay else "BDT",
+                    }
+                else:
+                    quote = await self._quote(method, amount, values)
+                    if quoted_rate is not None and abs(quote["rate"] - quoted_rate) > 1e-9:
+                        raise InvalidInputError("The payment rate changed. Please start the deposit again.")
+                    actual_amount = amount
+                    actual_pay_amount = quote["pay_amount"]
+                    rate = quote["rate"]
+
                 deposit_id = await conn.fetchval(
                     """
                     INSERT INTO deposits (user_id, tg_user_id, method_id, method_name, amount, transaction_id,
@@ -295,7 +354,7 @@ class DepositService:
                     tg_user_id,
                     method_id,
                     method["name"],
-                    amount,
+                    actual_amount,
                     clean_tx,
                     quote["rate"],
                     quote["pay_amount"],
@@ -363,30 +422,27 @@ class DepositService:
         console = get_settings().console_url
         rows = [[
             InlineKeyboardButton(
-                text="Approve",
+                text="✅ Approve",
                 callback_data=f"adm_dep_ask_approve_{deposit_id}",
                 style="success",
-                icon_custom_emoji_id=Icons.CONFIRM,
             ),
             InlineKeyboardButton(
-                text="Reject",
+                text="❌ Reject",
                 callback_data=f"adm_dep_ask_reject_{deposit_id}",
                 style="danger",
-                icon_custom_emoji_id=Icons.CROSS,
             ),
         ]]
         if console:
             rows.append([
                 InlineKeyboardButton(
-                    text="Open in Console",
+                    text="🌐 Open in Console",
                     url=f"{console}/#deposits",
-                    icon_custom_emoji_id=Icons.DEPOSIT,
                 )
             ])
         keyboard = InlineKeyboardMarkup(inline_keyboard=rows)
 
         await self.notifier.send_admin(
-            f"{ICON_DEPOSIT} <b>New Deposit Request #{deposit_id}</b>\n\n"
+            f"{ICON_DEPOSIT} <b>New Deposit Request {format_deposit_id(deposit_id)}</b>\n\n"
             f"{ICON_ACCOUNT} <b>Customer:</b> {customer}\n"
             f"{ICON_ID} <b>Customer ID:</b> <code>{tg_user_id}</code>\n"
             f"{ICON_DEPOSIT} <b>Method:</b> {escape(quote['method_name'])}\n"
@@ -448,13 +504,34 @@ class DepositService:
             )
             return dict(row) if row else None
 
-    async def list(self, status: str | None = None, limit: int = 50, offset: int = 0) -> tuple[list[dict[str, Any]], int, dict[str, Any]]:
-        where, params = "", []
+    async def list(self, status: str | None = None, limit: int = 50, offset: int = 0, search: str | None = None) -> tuple[list[dict[str, Any]], int, dict[str, Any]]:
+        where_clauses: list[str] = []
+        params: list[Any] = []
         if status:
             params.append(status)
-            where = " AND d.status = $1"
+            where_clauses.append(f"d.status = ${len(params)}")
+        if search and search.strip():
+            raw = search.strip()
+            clean = raw.lstrip("#").lstrip("D").lstrip("d")
+            params.append(f"%{raw}%")
+            idx = len(params)
+            if clean.isdigit():
+                params.append(int(clean))
+                num_idx = len(params)
+                where_clauses.append(f"(d.transaction_id ILIKE ${idx} OR u.username ILIKE ${idx} OR u.first_name ILIKE ${idx} OR d.id = ${num_idx} OR d.tg_user_id = ${num_idx})")
+            else:
+                where_clauses.append(f"(d.transaction_id ILIKE ${idx} OR u.username ILIKE ${idx} OR u.first_name ILIKE ${idx} OR d.method_name ILIKE ${idx})")
+
+        where = f" AND {' AND '.join(where_clauses)}" if where_clauses else ""
         async with self.db.connect() as conn:
-            total = await conn.fetchval(f"SELECT COUNT(*) FROM deposits d WHERE 1=1{where}", *params)
+            total = await conn.fetchval(
+                f"""
+                SELECT COUNT(*) FROM deposits d
+                LEFT JOIN users u ON u.id = d.user_id
+                WHERE 1=1{where}
+                """,
+                *params,
+            ) or 0
             rows = await conn.fetch(
                 f"""
                 SELECT d.*, u.username, u.first_name, COALESCE(m.auto_verify, 'none') AS auto_verify
@@ -602,11 +679,11 @@ class DepositService:
         if support_user:
             clean_sup = support_user.lstrip("@")
             support_kb = InlineKeyboardMarkup(inline_keyboard=[[
-                InlineKeyboardButton(text="Contact Support", url=f"https://t.me/{clean_sup}", icon_custom_emoji_id=Icons.SUPPORT)
+                InlineKeyboardButton(text="🎧 Contact Support", url=f"https://t.me/{clean_sup}")
             ]])
         else:
             support_kb = InlineKeyboardMarkup(inline_keyboard=[[
-                InlineKeyboardButton(text="Contact Support", callback_data="open_support", icon_custom_emoji_id=Icons.SUPPORT)
+                InlineKeyboardButton(text="🎧 Contact Support", callback_data="open_support")
             ]])
 
         self.notifier.in_background(

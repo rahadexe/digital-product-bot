@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("app.services.notifications")
 
-FALLBACK_USERNAME = "subsmarket247bot"
+FALLBACK_USERNAME = "PremiumHaven24Bot"
 
 # Telegram shows this menu to everyone, so only customer commands belong here.
 # The admin ones are listed by /admin and work whether or not they are listed.
@@ -84,7 +84,10 @@ class Notifier:
 
     async def drain(self, timeout: float = 5.0) -> None:
         if self._pending:
-            await asyncio.wait(set(self._pending), timeout=timeout)
+            _, pending = await asyncio.wait(set(self._pending), timeout=timeout)
+            for task in pending:
+                task.cancel()
+            await asyncio.gather(*pending, return_exceptions=True)
 
     async def send(self, chat_id: int | str, text: str, keyboard: InlineKeyboardMarkup | None = None,
                    *, clears_after: int = 0) -> bool:
