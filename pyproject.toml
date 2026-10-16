@@ -11,6 +11,11 @@ readme = "README.md"
 # Install with: pip install -e ".[dev]"   Check with: ruff check app tests scripts
 dev = ["ruff==0.16.8"]
 
+[tool.pytest.ini_options]
+# The pytest console script does not add the repository root to sys.path.
+# Keep CI and `python -m pytest` consistent when importing the app package.
+pythonpath = ["."]
+
 [tool.ruff]
 line-length = 130
 target-version = "py312"

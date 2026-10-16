@@ -187,7 +187,7 @@ class Buying(unittest.IsolatedAsyncioTestCase):
                                                      delivery_type='manual')
         spent = await self.buy(BUYER, manual)
         self.assertEqual(spent, 63.0)
-        self.assertIn('Order placed', self.said())
+        self.assertIn('Order Processing', self.said())
         for repeated in ('Payment successful', 'being prepared', 'delivered shortly'):
             self.assertNotIn(repeated, self.said(), self.said())
 

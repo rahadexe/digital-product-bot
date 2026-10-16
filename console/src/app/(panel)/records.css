@@ -483,8 +483,46 @@ html:has(.console-root) { scrollbar-gutter: stable; }
   .console-root .main-inner[data-screen='products'] .product-toolbar .filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
   .console-root .main-inner[data-screen='products'] .product-toolbar .filters > div { width: 100% !important; grid-column: auto; }
   .console-root .main-inner[data-screen='products'] .product-toolbar .filters > div:first-child { grid-column: 1 / -1; }
-  .console-root .main-inner[data-screen='products'] .panel .scroll table { min-width: 940px; }
-  .console-root .main-inner[data-screen='products'] .panel .scroll td small { white-space: nowrap; }
+  /* Product records must fit a phone; keep the desktop table only above this breakpoint. */
+  .console-root .main-inner[data-screen='products'] .panel .scroll table.products-list {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    table-layout: auto;
+  }
+  .console-root .main-inner[data-screen='products'] .panel .scroll table.products-list thead { display: none; }
+  .console-root .main-inner[data-screen='products'] .panel .scroll table.products-list tbody { display: block; }
+  .console-root .main-inner[data-screen='products'] .panel .scroll table.products-list tbody tr:not(.empty-row) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas: 'select status' 'product product' 'price stock' 'actions actions';
+    gap: 12px;
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .console-root .main-inner[data-screen='products'] .panel .scroll table.products-list tbody td {
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+    height: auto;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .console-root .main-inner[data-screen='products'] .panel .scroll table.products-list tbody td:first-child {
+    position: static;
+    grid-area: select;
+    justify-self: start;
+  }
+  .console-root .main-inner[data-screen='products'] .products-list input[type='checkbox'] { width: 22px; height: 22px; }
+  .console-root .main-inner[data-screen='products'] .panel .scroll table.products-list tbody td:nth-child(3) { text-align: left; }
+  .console-root .main-inner[data-screen='products'] .panel .scroll table.products-list td small { white-space: normal; }
+  .console-root .main-inner[data-screen='products'] .products-list .row-actions { flex-wrap: wrap; }
+  .console-root .main-inner[data-screen='products'] .products-list .row-actions > button { flex: 1 1 75px; min-height: 44px; }
+  .console-root .main-inner[data-screen='products'] .panel .scroll table.products-list tr.empty-row,
+  .console-root .main-inner[data-screen='products'] .panel .scroll table.products-list td.empty { display: block; width: 100%; }
   .console-root .main-inner[data-screen='suppliers'] .supplier-directory > header { flex-direction: row; flex-wrap: nowrap; text-align: left; }
   .console-root .main-inner[data-screen='suppliers'] .supplier-directory > header .btn { width: auto !important; flex: 0 0 auto; }
 }
