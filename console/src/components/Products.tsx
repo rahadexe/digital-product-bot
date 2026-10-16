@@ -933,6 +933,7 @@ function ProductForm({
 }) {
   const [form, setForm] = useState(draft);
   const [busy, setBusy] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [validityPresets, setValidityPresets] = useState<string[]>([]);
 
   useEffect(() => {
@@ -948,12 +949,14 @@ function ProductForm({
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    if (busy) return;
+    setSaveError('');
     setBusy(true);
     const enteredTitle = form.title.trim();
     const leading = splitLeadingEmoji(enteredTitle);
     const customEmojiId = form.custom_emoji_id.trim();
     const payload = {
-      category_id: form.category_id ?? undefined,
+      category_id: form.category_id ?? null,
       title: leading.emoji && leading.text ? leading.text : enteredTitle,
       description: (form.description || '').trim(),
       price: form.price,
@@ -979,7 +982,7 @@ function ProductForm({
       say(form.id ? 'Saved.' : 'Product added.');
       await onSaved();
     } catch (cause) {
-      say(errorText(cause), 'bad');
+      setSaveError(errorText(cause));
       setBusy(false);
     }
   }
@@ -995,11 +998,12 @@ function ProductForm({
             Cancel
           </button>
           <button type="submit" className="btn" disabled={busy}>
-            {form.id ? 'Save' : 'Add product'}
+            {busy ? 'Saving…' : form.id ? 'Save' : 'Add product'}
           </button>
         </>
       }
     >
+      {saveError ? <p className="dialog-error bad-text" role="alert">{saveError}</p> : null}
       {form.upstream_product_id ? (
         <>
           <div
@@ -1100,6 +1104,7 @@ function ProductForm({
         <input
           type="text"
           required
+          maxLength={200}
           placeholder="e.g. NordVPN"
           value={form.title}
           onChange={(event) => set({ title: event.target.value })}
@@ -1148,7 +1153,7 @@ function ProductForm({
       <div className="form-columns">
         <label className="field" style={{ margin: 0 }}>
           <span>Regular Price</span>
-          <input type="number" step="any" min="0" required value={form.price} onChange={(event) => set({ price: parseFloat(event.target.value) || 0 })} />
+          <input type="number" step="any" min="0.0001" max="1000000000" required value={form.price} onChange={(event) => set({ price: parseFloat(event.target.value) || 0 })} />
         </label>
         <label className="field" style={{ margin: 0 }}>
           <span>Reseller Price <small style={{ color: 'var(--muted)', fontWeight: 'normal' }}>(Optional)</small></span>
@@ -1156,6 +1161,7 @@ function ProductForm({
             type="number"
             step="any"
             min="0"
+            max="1000000000"
             placeholder="0.00"
             value={form.reseller_price ?? ''}
             onChange={(event) => set({ reseller_price: event.target.value === '' ? null : (parseFloat(event.target.value) || 0) })}

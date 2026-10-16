@@ -69,7 +69,7 @@ export interface EmojiLibraryResponse {
 
 export interface Product {
   id: number;
-  category_id?: number;
+  category_id?: number | null;
   category_name?: string;
   title: string;
   description: string;

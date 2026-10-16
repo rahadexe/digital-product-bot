@@ -370,6 +370,8 @@ class CatalogService:
         upstream_share_hours: int = 24,
         requires_customer_input: bool = False,
         customer_input_prompt: str = "",
+        upstream_product_id: int | None = None,
+        supplier_code: str | None = None,
     ) -> int:
         _validate_icon_pair(icon, custom_emoji_id)
         price = money(price, positive=True)
@@ -380,8 +382,8 @@ class CatalogService:
             await self._require_category(conn, category_id)
             product_id = await conn.fetchval(
                 """
-                INSERT INTO products (category_id, title, description, price, reseller_price, icon, duration_label, warranty_label, sort_order, is_pinned, is_active, delivery_type, custom_emoji_id, upstream_devices, upstream_share_hours, requires_customer_input, customer_input_prompt)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id
+                INSERT INTO products (category_id, title, description, price, reseller_price, icon, duration_label, warranty_label, sort_order, is_pinned, is_active, delivery_type, custom_emoji_id, upstream_devices, upstream_share_hours, requires_customer_input, customer_input_prompt, upstream_product_id, supplier_code)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING id
                 """,
                 category_id,
                 title,
@@ -400,6 +402,8 @@ class CatalogService:
                 upstream_share_hours,
                 bool(requires_customer_input),
                 customer_input_prompt or "",
+                upstream_product_id,
+                supplier_code,
             )
             details = f"Product #{product_id}: {title} at {price:.2f}"
             if reseller_price is not None:
@@ -412,6 +416,8 @@ class CatalogService:
     async def update_product(self, product_id: int, **fields: Any) -> float | None:
         """Apply the given fields. Returns the previous price, or None when the product does not exist."""
         updates = {key: value for key, value in fields.items() if key in PRODUCT_FIELDS}
+        if "requires_customer_input" in updates:
+            updates["requires_customer_input"] = bool(updates["requires_customer_input"])
         if "icon" in updates and "custom_emoji_id" not in updates:
             updates["custom_emoji_id"] = ""
         elif "custom_emoji_id" in updates and "icon" not in updates:

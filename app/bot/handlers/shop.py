@@ -308,7 +308,7 @@ async def handle_buy_now_by_text(message: Message, state: FSMContext, services: 
         await state.set_state(ShopQuantityStates.waiting_for_customer_input)
         await state.update_data(product_id=product_id, quantity=1, token=token)
         cancel_kb = InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text=cancel_btn, callback_data=f"prod_view_{product_id}")
+            InlineKeyboardButton(text=cancel_btn, callback_data=f"prod_{product_id}")
         ]])
         await message.answer(instr, reply_markup=cancel_kb)
         return
@@ -1277,7 +1277,7 @@ async def execute_quantity_purchase(query: CallbackQuery, state: FSMContext, ser
             shown_cents=shown_cents,
         )
         cancel_kb = InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text=cancel_btn, callback_data=f"prod_view_{product_id}")
+            InlineKeyboardButton(text=cancel_btn, callback_data=f"prod_{product_id}")
         ]])
         with suppress(TelegramBadRequest):
             await query.answer()
@@ -1358,7 +1358,7 @@ async def execute_legacy_purchase(query: CallbackQuery, state: FSMContext, servi
             token=parts[2],
         )
         cancel_kb = InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text=cancel_btn, callback_data=f"prod_view_{prod_id}")
+            InlineKeyboardButton(text=cancel_btn, callback_data=f"prod_{prod_id}")
         ]])
         with suppress(TelegramBadRequest):
             await query.answer()
