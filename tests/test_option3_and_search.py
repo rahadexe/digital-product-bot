@@ -7,7 +7,7 @@ from app.bot.keyboards import get_main_inline_keyboard, get_account_keyboard
 from app.bot.handlers.search import _prompt_keyboard, _closing_row, search_entry, search_products, SearchStates
 
 
-def test_main_inline_keyboard_compact_four_action_layout():
+def test_main_inline_keyboard_compact_six_action_layout():
     cats = [
         {"id": 1, "name": "Facebook", "icon": "📱"},
         {"id": 2, "name": "VPN", "icon": "🛡️"},
@@ -17,21 +17,19 @@ def test_main_inline_keyboard_compact_four_action_layout():
 
     kb = get_main_inline_keyboard(pinned_categories=cats, is_admin=False, lang="en")
     rows = kb.inline_keyboard
-    assert len(rows) == 2
+    assert len(rows) == 3
 
-    assert [button.callback_data for button in rows[0]] == ["open_categories", "open_deposit"]
-    assert [button.callback_data for button in rows[1]] == ["open_support", "open_account"]
+    assert [button.callback_data for button in rows[0]] == ["open_categories", "open_wallet"]
+    assert [button.callback_data for button in rows[1]] == ["open_orders", "open_referral"]
+    assert [button.callback_data for button in rows[2]] == ["open_account", "open_help"]
     assert [button.text for row in rows for button in row] == [
-        "Shop",
-        "Wallet",
-        "Support",
-        "Account",
+        "🛍 Products", "💰 Wallet", "📦 Orders", "🎁 Refer", "👤 Account", "💬 Help",
     ]
 
     # Admin check
     kb_admin = get_main_inline_keyboard(pinned_categories=cats, is_admin=True, lang="en")
-    assert len(kb_admin.inline_keyboard) == 3
-    assert kb_admin.inline_keyboard[2][0].callback_data == "adm_dashboard"
+    assert len(kb_admin.inline_keyboard) == 4
+    assert kb_admin.inline_keyboard[3][0].callback_data == "adm_dashboard"
 
 
 def test_account_keyboard_has_language_and_referral_actions():

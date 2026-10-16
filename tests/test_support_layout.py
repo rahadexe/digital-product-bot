@@ -19,12 +19,12 @@ EMOJI_ICONS = "⚡💳📦🎁🛍️👤⏱️💡🧑‍💻💬📢🎬🔙"
         (
             "en",
             [
-                ["How to buy products?"],
-                ["How to add balance?"],
-                ["How does delivery work?"],
-                ["How to earn from referral?"],
-                ["Technical support"],
-                ["Update Channel"],
+                ["Buying"],
+                ["Payments"],
+                ["Delivery"],
+                ["Referrals"],
+                ["Support"],
+                ["Updates"],
             ],
         ),
         (
@@ -62,8 +62,8 @@ def test_help_keyboard_omits_unconfigured_support_and_channels():
         lang="en",
     )
     labels = [button.text for row in keyboard.inline_keyboard for button in row]
-    assert "Technical support" not in labels
-    assert "Update Channel" not in labels
+    assert "Support" not in labels
+    assert "Updates" not in labels
     assert len(labels) == 4
 
 
@@ -126,7 +126,7 @@ async def test_technical_support_detail_has_plain_text_and_action():
 @pytest.mark.parametrize(
     ("lang", "expected_text"),
     [
-        ("en", "<b>Most common topics:</b>"),
+        ("en", "Choose a topic."),
         ("bn", "<b>সাধারণ প্রশ্নসমূহ:</b>"),
     ],
 )

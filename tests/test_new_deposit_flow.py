@@ -44,14 +44,14 @@ async def test_wallet_shows_balance_and_inline_payment_actions():
     text = message.answer.call_args.args[0]
     keyboard = message.answer.call_args.kwargs["reply_markup"]
     assert text.startswith("<b>Balance:</b>")
-    assert "Choose a deposit method:" in text
+    assert "Choose a payment method." in text
     assert "💰" not in text
     assert "45" in text
     assert "User:" not in text
     assert "Manual:" not in text
     assert isinstance(keyboard, InlineKeyboardMarkup)
     labels = [button.text for row in keyboard.inline_keyboard for button in row]
-    assert labels == ["bKash", "Binance", "📊 Deposit History"]
+    assert labels == ["bKash", "Binance", "History"]
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     assert callbacks == ["dep_method_1", "dep_method_2", "open_deposits"]
 
@@ -85,7 +85,7 @@ async def test_wallet_with_pending_deposit_keeps_history_and_hides_new_payment_m
     assert "💰" not in text
     assert "Deposit D20 is being verified" in text
     assert [button.text for row in keyboard.inline_keyboard for button in row] == [
-        "📊 Deposit History",
+        "History",
     ]
     assert keyboard.inline_keyboard[0][0].callback_data == "open_deposits"
 
@@ -142,23 +142,24 @@ async def test_render_method_details_flow():
     current_state = await state.get_state()
     assert current_state == DepositStates.method_selected.state
 
-    # The method details show quick amount chips and the back action.
+    # The method opens payment instructions directly, without amount chips.
     assert message.answer.call_count == 1
     call = message.answer.call_args_list[0]
     text = call[0][0]
-    assert "bKash Personal (Send Money)" in text
+    assert "bKash · Send Money" in text
     assert "01700000000" in text
-    assert "Minimum: <b>50 ৳</b>" in text
-    assert "Exchange Rate: <b>125 tk/dollar</b>" in text
-    assert "Select or enter amount:" in text
+    assert "Minimum: <b>৳50</b>" in text
+    assert "Rate: ৳125 = $1" in text
+    assert "tap Payment Done" in text
+    assert "Send Money to this personal number" in text
 
     kb = call[1]["reply_markup"]
     assert isinstance(kb, InlineKeyboardMarkup)
     assert [button.text for row in kb.inline_keyboard for button in row] == [
-        "৳100", "৳200", "৳500", "৳1000", "৳2000", "Back",
+        "Copy Number", "Payment Done", "Back",
     ]
     assert [button.callback_data for row in kb.inline_keyboard for button in row] == [
-        "dep_amt_100", "dep_amt_200", "dep_amt_500", "dep_amt_1000", "dep_amt_2000", "dep_methods",
+        None, "dep_paid_1", "dep_methods",
     ]
 
 
@@ -194,7 +195,7 @@ async def test_method_details_binance_hides_rate_and_empty_instructions():
     text = message.answer.call_args.args[0]
     assert "Instructions:" not in text
     assert "Exchange Rate:" not in text
-    assert "Minimum: <b>1.00 $</b>" in text
+    assert "Minimum: <b>$1</b>" in text
 
 
 @pytest.mark.asyncio
@@ -484,11 +485,11 @@ async def test_exchange_rate_and_dollar_conversion_flow():
     # Screen 1: Method details
     await render_method_details(message, state, services, method)
     screen1_text = message.answer.call_args_list[0][0][0]
-    assert "bKash Personal (Send Money)" in screen1_text
+    assert "bKash · Send Money" in screen1_text
     assert "Number: <code>01700000000</code>" in screen1_text
-    assert "Minimum: <b>50 ৳</b>" in screen1_text
-    assert "Exchange Rate: <b>234 tk/dollar</b>" in screen1_text
-    assert "Select or enter amount:" in screen1_text
+    assert "Minimum: <b>৳50</b>" in screen1_text
+    assert "Rate: ৳234 = $1" in screen1_text
+    assert "tap Payment Done" in screen1_text
 
     # Screen 2: User enters 500
     message.text = "500"

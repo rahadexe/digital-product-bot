@@ -22,7 +22,7 @@ import httpx
 from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.types import CallbackQuery, Chat, Message, Update, User
+from aiogram.types import CallbackQuery, Chat, ForceReply, Message, Update, User
 
 from app.bot.app import create_dispatcher
 from app.bot.handlers import admin, deposit, help_guide, navigation, profile, reseller_apply, search, shop, start
@@ -75,6 +75,7 @@ class DepositConversation(unittest.IsolatedAsyncioTestCase):
                                       'usd_rate': '125'})
         self.method = await self.s.deposits.create_method('bKash', '01790038892', min_deposit=10, auto_verify='zinipay')
         self.screen, self.written, self.posted = {}, [], []
+        self.markups = []
 
     async def asyncTearDown(self):
         await self.bot.session.close()
@@ -90,6 +91,7 @@ class DepositConversation(unittest.IsolatedAsyncioTestCase):
         screen, written, posted = self.screen, self.written, self.posted
 
         async def answer(message, text=None, **kw):
+            self.markups.append(kw.get("reply_markup"))
             mid = 7000 + len(posted)
             posted.append(text)
             screen[mid] = text
@@ -156,6 +158,53 @@ class DepositConversation(unittest.IsolatedAsyncioTestCase):
         return float(user['balance']) if user else 0.0
 
     # -- the tests -------------------------------------------------------------
+
+    async def _compact_payment(self, trx):
+        await self.tap(text='💰 Wallet')
+        await self.tap(data=f'dep_method_{self.method}')
+        await self.tap(data=f'dep_paid_{self.method}')
+        self.assertEqual(self.last(), 'Enter your bKash Transaction ID.')
+        self.assertIsInstance(self.markups[-1], ForceReply)
+        await self.tap(text=trx)
+        self.assertEqual(self.last(), 'Enter the amount you sent in BDT.')
+        self.assertIsNone(await self.s.deposits.pending_for(CUSTOMER))
+        self.assertEqual(await self.balance(), 0.0, 'a reference alone never credits a wallet')
+
+    async def test_compact_payment_flow_credits_once_without_repeating_the_reference(self):
+        await self._compact_payment('BKCOMPACT1')
+        await self.s.zinipay.http.aclose()
+        # All Telegram traffic stays local to this test, including card edits.
+        with patch.object(Bot, 'edit_message_text', side_effect=TelegramBadRequest(method=None, message='test fallback')):
+            async with self.gateway(receipt(100, 'BKCOMPACT1')) as client:
+                self.s.zinipay.http = client
+                await self.tap(text='100')
+        self.assertEqual(await self.balance(), 100.0, self.last())
+        stored = await self.s.deposits.find_by_transaction('BKCOMPACT1')
+        self.assertEqual(stored['status'], 'approved')
+        await self.tap(data=f'dep_paid_{self.method}')
+        self.assertEqual(await self.balance(), 100.0, 'an old Payment Done button must not credit again')
+        self.assertIn('no longer active', self.last())
+
+    async def test_compact_payment_still_rejects_a_receipt_from_the_wrong_wallet(self):
+        await self._compact_payment('NGCOMPACT1')
+        await self.s.zinipay.http.aclose()
+        with patch.object(Bot, 'edit_message_text', side_effect=TelegramBadRequest(method=None, message='test fallback')):
+            async with self.gateway(receipt(100, 'NGCOMPACT1', provider='Nagad')) as client:
+                self.s.zinipay.http = client
+                await self.tap(text='100')
+        self.assertEqual(await self.balance(), 0.0)
+        self.assertIn('Invalid TrxID', self.last())
+
+    async def test_compact_manual_payment_is_saved_for_review_not_credited(self):
+        await self._compact_payment('BKMANUAL1')
+        with patch.object(self.s.zinipay, 'is_enabled', new_callable=AsyncMock, return_value=False), \
+             patch.object(Bot, 'edit_message_text', side_effect=TelegramBadRequest(method=None, message='test fallback')):
+            await self.tap(text='100')
+        stored = await self.s.deposits.find_by_transaction('BKMANUAL1')
+        self.assertEqual(stored['status'], 'pending')
+        self.assertEqual(float(stored['amount']), 100.0)
+        self.assertEqual(stored['tg_user_id'], CUSTOMER)
+        self.assertEqual(await self.balance(), 0.0)
 
     async def test_a_receipt_still_in_transit_leaves_one_card_on_screen(self):
         await self.submit(250, 'BK00000001', MISSING, retries=(0.01, 0.01, 0.01))

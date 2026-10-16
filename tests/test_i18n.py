@@ -76,7 +76,7 @@ def test_keyboards_all_languages():
         kb_admin = get_persistent_reply_keyboard(is_reseller=False, is_admin=True, lang=lang)
         assert len(kb_admin.keyboard) >= 3
         kb_cats = get_persistent_reply_keyboard(pinned_categories=[{"name": "VPN", "icon": "🛡️"}], lang=lang)
-        assert len(kb_cats.keyboard) == 2
+        assert len(kb_cats.keyboard) == 3
         account_kb = get_account_keyboard(lang=lang, is_admin=False)
         assert len(account_kb.inline_keyboard) > 0
         assert len(t("select_language_title", lang)) > 0
