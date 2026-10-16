@@ -208,8 +208,8 @@ class GateService:
         channels_to_alert = []
         for ch in errored:
             target = str(ch.get("chat_id") or ch.get("channel_username") or ch.get("title") or "")
-            last_alert = self._last_channel_alert.get(target, 0.0)
-            if now - last_alert >= 900.0:  # 15 minutes throttle per channel
+            last_alert = self._last_channel_alert.get(target)
+            if last_alert is None or now - last_alert >= 900.0:  # 15 minutes throttle after the first alert
                 self._last_channel_alert[target] = now
                 channels_to_alert.append(ch)
 
