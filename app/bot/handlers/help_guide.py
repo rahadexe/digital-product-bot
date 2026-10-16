@@ -35,9 +35,9 @@ FAQ_ITEMS: dict[str, dict[str, Any]] = {
         "answer": {
             "en": (
                 "<b>How to buy</b>\n\n"
-                "1. Open Store or select a category from the bottom menu.\n"
+                "1. Open Products and choose a category.\n"
                 "2. Choose a product, select validity if shown, and set the quantity.\n"
-                "3. Review the total price and select Buy Now to pay from your wallet balance.\n"
+                "3. Check the total, then select Buy to pay from your wallet balance.\n"
                 "4. If your balance is low, add funds anytime from Wallet."
             ),
             "bn": (
@@ -53,11 +53,11 @@ FAQ_ITEMS: dict[str, dict[str, Any]] = {
         "answer": {
             "en": (
                 "<b>How to add balance</b>\n\n"
-                "1. Open Wallet from the bottom navigation dock.\n"
-                "2. Choose your preferred payment method (bKash, Nagad, Rocket, Binance, etc.).\n"
-                "3. Send the payment to the displayed account and tap I've Paid.\n"
-                "4. Submit the requested payment reference (TrxID or Binance Order ID) and amount.\n"
-                "5. The balance is added after verification. Check Deposit History for status."
+                "1. Open Wallet and choose a payment method.\n"
+                "2. Pay the displayed account, then tap Payment Done.\n"
+                "3. Reply with your TrxID or Binance Order ID, then the amount sent.\n"
+                "Hosted checkout has its own payment steps.\n\n"
+                "Balance is added after verification. Open History for status."
             ),
             "bn": (
                 "<b>কীভাবে ব্যালেন্স যোগ করবেন</b>\n\n"
@@ -89,7 +89,7 @@ FAQ_ITEMS: dict[str, dict[str, Any]] = {
         "answer": {
             "en": (
                 "<b>How referrals work</b>\n\n"
-                "1. Open Account on the bottom menu to view and copy your referral link.\n"
+                "1. Open Refer to copy your referral link.\n"
                 "2. Share the link with friends.\n"
                 "3. Your friend must open the link, start the bot, and pass any required channel check.\n"
                 "4. If referral rewards are enabled, the configured reward is added to your wallet once for that friend.\n"
@@ -128,7 +128,7 @@ async def show_help_faq_hub(event: Message | CallbackQuery, state: FSMContext, s
     handle = (settings_map.get("support_username") or "").lstrip("@")
     channels = await services.update_channels.channels(active_only=True)
 
-    text = "<b>Most common topics:</b>" if lang != "bn" else "<b>সাধারণ প্রশ্নসমূহ:</b>"
+    text = "Choose a topic." if lang != "bn" else "<b>সাধারণ প্রশ্নসমূহ:</b>"
     kb = get_help_faq_keyboard(support_handle=handle, channels=channels, lang=lang)
 
     if isinstance(event, CallbackQuery):

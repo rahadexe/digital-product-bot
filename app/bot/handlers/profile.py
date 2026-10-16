@@ -159,7 +159,6 @@ async def show_user_profile(event: Message | CallbackQuery, state: FSMContext, s
     lang = await services.users.get_language(tg_user.id)
     rank_val = (user.get("rank") or "Standard").strip()
     is_reseller = rank_val.lower() in {"reseller", "reseller partner"}
-    account_type_label = t("rank_reseller", lang) if is_reseller else t("rank_standard", lang)
 
     symbol = await services.settings.get("currency_symbol")
     usd_rate = await services.settings.number("usd_rate")
@@ -171,23 +170,6 @@ async def show_user_profile(event: Message | CallbackQuery, state: FSMContext, s
     total_spent_val = stats_data.get("total_spent", 0.0)
     spent_display = price(symbol, float(total_spent_val), usd_rate=usd_rate, lang=lang)
 
-    tg_username = getattr(tg_user, "username", None)
-    username_line = (
-        f"<b>Username:</b> @{escape(tg_username)}\n"
-        if tg_username
-        else ""
-    )
-
-    async with services.db.connect() as conn:
-        row = await conn.fetchrow(
-            "SELECT COUNT(*) AS total_invited FROM referral_rewards WHERE referrer_tg_id = $1",
-            tg_user.id,
-        )
-        total_invited = row["total_invited"] if row else 0
-
-    bot_user = await services.notifier.bot_username()
-    ref_link = f"https://t.me/{bot_user}?start={tg_user.id}" if bot_user else ""
-
     status_name = "Reseller" if is_reseller else "Member"
     if lang != "bn":
         text = (
@@ -196,10 +178,7 @@ async def show_user_profile(event: Message | CallbackQuery, state: FSMContext, s
             f"<b>Status:</b> {status_name}\n\n"
             f"<b>Balance:</b> <code>{balance_display}</code>\n"
             f"<b>Orders:</b> {order_count}\n"
-            f"<b>Spent:</b> <code>{spent_display}</code>\n"
-            f"<b>Referrals:</b> {total_invited}\n\n"
-            f"<b>Referral Link:</b>\n"
-            f"<code>{ref_link}</code>"
+            f"<b>Spent:</b> <code>{spent_display}</code>"
         )
     else:
         status_bn = "রিসেলার" if is_reseller else "মেম্বার"
@@ -209,15 +188,13 @@ async def show_user_profile(event: Message | CallbackQuery, state: FSMContext, s
             f"<b>স্ট্যাটাস:</b> {status_bn}\n\n"
             f"<b>ব্যালেন্স:</b> <code>{balance_display}</code>\n"
             f"<b>অর্ডার:</b> {order_count}\n"
-            f"<b>মোট খরচ:</b> <code>{spent_display}</code>\n"
-            f"<b>রেফারেল:</b> {total_invited}\n\n"
-            f"<b>রেফারেল লিংক:</b>\n"
-            f"<code>{ref_link}</code>"
+            f"<b>মোট খরচ:</b> <code>{spent_display}</code>"
         )
     account_kb = get_account_keyboard(
         lang=lang,
         is_reseller=is_reseller,
         order_count=order_count,
+        include_referral=False,
     )
     await respond(event, text, account_kb)
 
@@ -324,7 +301,8 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
         text = (
             f"Invited: <code>{total_invited}</code>\n"
             f"Earned: <code>{earned_display}</code>\n"
-            f"{reward_line}\n"
+            f"{reward_line}"
+            "One reward per new friend who starts the bot and passes any required channel check. Not for link clicks.\n\n"
             "Your referral link:\n"
             f"<code>{ref_link}</code>"
         )
@@ -360,7 +338,7 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
         [
             InlineKeyboardButton(
                 text=back_label,
-                callback_data="open_account",
+                callback_data="back_to_main",
             ),
         ],
     ]

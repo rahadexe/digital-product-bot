@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import re
 import time
 from contextlib import suppress
@@ -13,7 +14,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import BaseFilter, Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import CallbackQuery, ForceReply, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.bot.formatting import (
     callback_int,
@@ -279,7 +280,8 @@ async def show_deposit_methods(event: Message | CallbackQuery, state: FSMContext
     symbol = await services.settings.get("currency_symbol")
     usd_rate = await services.settings.number("usd_rate")
     user_balance = float(user_data.get("balance", 0.0)) if user_data else 0.0
-    balance_display = price(symbol, user_balance, usd_rate=usd_rate, lang=lang)
+    show_usd = await services.settings.flag("show_usd_price")
+    balance_display = price(symbol, user_balance, usd_rate=usd_rate, show_usd=show_usd, lang=lang)
 
     if pending:
         if lang == "bn":
@@ -303,7 +305,7 @@ async def show_deposit_methods(event: Message | CallbackQuery, state: FSMContext
             text = f"<b>ব্যালেন্স:</b> <code>{balance_display}</code>\n\n{prompt}"
         else:
             prompt = (
-                "Choose a deposit method:"
+                "Choose a payment method."
                 if displayed_methods or instant
                 else "No payment methods are available right now."
             )
@@ -393,7 +395,7 @@ class MethodTextFilter(BaseFilter):
         regex_clean = re.sub(r'^[^\w\s]+\s*', '', clean).strip()
 
         ignored = {
-            "search", "wallet", "orders", "account", "support", "admin panel",
+            "search", "products", "wallet", "orders", "refer", "help", "account", "support", "admin panel",
             "all catalog", "all products", "back to main", "main menu", "back to catalog",
             "back to products", "back to wallet", "back", "cancel", "refresh", "balance history",
             "deposit history", "price list", "refer & earn", "language", "reseller panel", "become reseller",
@@ -508,21 +510,19 @@ async def render_method_details(
     user_id = event.from_user.id if event.from_user else 0
     lang = await services.users.get_language(user_id) if user_id else "en"
 
-    inst = format_deposit_method_card(
-        method_name=method_name,
-        account_info=account_info,
-        account_type=account_type,
-        min_dep=min_dep,
-        rate=rate,
-        symbol=symbol,
-        is_binance=is_binance,
-        lang=lang,
-    )
-
-    keyboard = get_deposit_quick_amount_keyboard(
-        is_binance=is_binance,
-        lang=lang,
-        back_target="dep_methods",
+    _, action = get_account_type_labels(account_type)
+    heading = method_name if is_binance else f"{method_name} · {action}"
+    destination_label = "Pay ID" if is_binance else "Number"
+    destination = "Open the payment page below." if is_payment_link else f"{destination_label}: <code>{escape(account_info)}</code>"
+    minimum = f"${min_dep:g}" if is_binance else f"৳{min_dep:g}"
+    inst = f"<b>{escape(heading)}</b>\n{destination}\nMinimum: <b>{minimum}</b>"
+    if not is_binance and rate > 1:
+        inst += f"\nRate: ৳{rate:g} = $1"
+    if custom_inst:
+        inst += f"\n\n{escape(custom_inst)}"
+    inst += "\n\nAfter paying, tap Payment Done."
+    keyboard = get_manual_deposit_invoice_keyboard(
+        account_info, lang=lang, method_id=method["id"], is_binance=is_binance,
     )
     card_msg_id = None
     card_chat_id = None
@@ -991,6 +991,44 @@ async def handle_deposit_change_amount(query: CallbackQuery, state: FSMContext, 
     await render_method_details(query, state, services, method)
 
 
+@router.callback_query(F.data.startswith("dep_paid_"))
+async def begin_payment_reference(query: CallbackQuery, state: FSMContext, services: Services):
+    """Open Telegram's reply input, without replacing the payment instructions."""
+    data = await state.get_data()
+    selected_id = data.get("method_id")
+    requested_id = (query.data or "").removeprefix("dep_paid_")
+    if (
+        not requested_id.isdecimal()
+        or str(selected_id) != requested_id
+        or await state.get_state() != DepositStates.method_selected.state
+    ):
+        await query.answer("This payment screen is no longer active. Open Wallet.", show_alert=True)
+        return
+    method = await services.deposits.get_method(selected_id)
+    if not method or not method.get("is_active", True):
+        await query.answer("This payment method is unavailable. Open Wallet.", show_alert=True)
+        return
+    if await services.deposits.pending_for(query.from_user.id):
+        await query.answer("Your previous payment is still being checked.", show_alert=True)
+        return
+    if not query.message:
+        return
+    is_binance = bool(data.get("is_binance"))
+    reference_label = "Order ID" if is_binance else "Transaction ID"
+    prompt = f"Enter your {escape(str(data.get('method_name') or 'payment'))} {reference_label}."
+    sent = await query.message.answer(
+        prompt,
+        reply_markup=ForceReply(force_reply=True, input_field_placeholder=reference_label),
+    )
+    await state.update_data(
+        reference_first=True, manual_amount=None, manual_txid=None, pay_amount=None,
+        binance_usdt=None, reference_prompt_id=getattr(sent, "message_id", None),
+    )
+    await state.set_state(DepositStates.waiting_for_txid)
+    with suppress(TelegramBadRequest):
+        await query.answer()
+
+
 @router.callback_query(F.data.in_({"dep_change_amount", "dep_confirm_paid", "dep_paid"}))
 async def ask_deposit_input(query: CallbackQuery, state: FSMContext, services: Services):
     data = await state.get_data()
@@ -1069,6 +1107,8 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
     lang = await services.users.get_language(message.from_user.id) if message.from_user else "en"
 
     clean_amount = re.sub(r"[^\d.]", "", raw_text)
+    if data.get("reference_first") and not re.fullmatch(r"\d+(?:\.\d{1,2})?", raw_text):
+        clean_amount = ""
 
     chat = getattr(message, "chat", None)
     chat_id = getattr(chat, "id", None)
@@ -1098,6 +1138,8 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
     )
 
     def _build_err_card(err_text: str) -> str:
+        if data.get("reference_first"):
+            return escape(err_text)
         return format_deposit_method_card(
             method_name=method_name,
             account_info=account_info,
@@ -1111,6 +1153,9 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
         )
 
     async def _send_or_edit_error(err_text: str, kb):
+        if data.get("reference_first"):
+            await message.answer(err_text, reply_markup=ForceReply(force_reply=True, input_field_placeholder="Amount"))
+            return
         if target_msg_id and getattr(message, "bot", None) and chat_id:
             try:
                 await message.bot.edit_message_text(
@@ -1130,7 +1175,7 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
 
     try:
         amount_num = float(clean_amount)
-        if amount_num <= 0:
+        if not math.isfinite(amount_num) or amount_num <= 0:
             raise ValueError()
     except (TypeError, ValueError):
         err_msg = f"সঠিক পরিমাণ লিখুন ({currency_label}):" if lang == "bn" else f"Enter valid amount in {currency_label}:"
@@ -1175,6 +1220,11 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
         binance_usdt=usd_amount,
         rate=rate,
     )
+    if data.get("reference_first") and data.get("manual_txid"):
+        # Current verification providers require an amount. Ask once, after the
+        # reference, and continue without asking for the same reference again.
+        await execute_deposit_submission(message, state, services)
+        return
     await state.set_state(DepositStates.waiting_for_txid)
 
     if is_binance:
@@ -1283,6 +1333,13 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
     usd_amount = float(data.get("usd_amount") or amount_num)
 
     if not TRANSACTION_ID_REGEX.fullmatch(clean_tx) or len(clean_tx) < 5 or " " in clean_tx:
+        if data.get("reference_first"):
+            label = "Order ID" if is_binance else "Transaction ID"
+            await message.answer(
+                f"Enter a valid {label}.",
+                reply_markup=ForceReply(force_reply=True, input_field_placeholder=label),
+            )
+            return
         err_msg = f"সঠিক {'Order ID' if is_binance else 'TrxID'} দিন:" if lang == "bn" else f"Enter valid {'Order ID' if is_binance else 'TrxID'}:"
         if is_binance:
             if lang == "bn":
@@ -1344,6 +1401,16 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         return
 
     await state.update_data(manual_txid=clean_tx)
+    if data.get("reference_first") and not (data.get("pay_amount") or amount_num):
+        # Do not invent an amount or weaken gateway verification. The configured
+        # provider needs the amount as well as the reference, so retain the ID.
+        await state.set_state(DepositStates.waiting_for_amount)
+        unit = "USDT" if is_binance else "BDT"
+        await message.answer(
+            f"Enter the amount you sent in {unit}.",
+            reply_markup=ForceReply(force_reply=True, input_field_placeholder=f"Amount in {unit}"),
+        )
+        return
     # Plan 1: Direct submission without redundant confirmation step
     await execute_deposit_submission(message, state, services)
 

@@ -87,7 +87,7 @@ class AccountRedesignTests(unittest.TestCase):
         kb_en = get_deposit_methods_keyboard([], lang="en", show_history=True)
         self.assertEqual(
             [[button.text for button in row] for row in kb_en.inline_keyboard],
-            [["📊 Deposit History"]],
+            [["History"]],
         )
 
         # Bengali labels are localized.
@@ -118,7 +118,7 @@ class AccountRedesignTests(unittest.TestCase):
                 ["bKash", "Nagad"],
                 ["Binance Pay"],
                 ["Jinpay Checkout"],
-                ["📊 Deposit History"],
+                ["History"],
             ],
         )
         self.assertEqual(
@@ -218,9 +218,10 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("<b>User ID:</b> <code>123</code>", text)
         self.assertIn("<b>Status:</b> Member", text)
         self.assertIn("<b>Orders:</b> 2", text)
-        self.assertIn("<b>Referrals:</b> 3", text)
-        self.assertIn("start=123", text)
-        self.assertEqual([button.text for button in keyboard.inline_keyboard[0]], ["Orders (2)", "Referral"])
+        self.assertNotIn("Referral", text)
+        self.assertNotIn("start=123", text)
+        self.assertEqual([button.text for button in keyboard.inline_keyboard[0]], ["Orders (2)", "API"])
+        self.assertEqual(keyboard.inline_keyboard[1][0].callback_data, "open_notifications_hub")
 
     async def test_reseller_account_shows_reseller_status(self):
         from types import SimpleNamespace
@@ -260,7 +261,7 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
         text = respond.await_args.args[1]
         keyboard = respond.await_args.args[2]
         self.assertIn("<b>Status:</b> Reseller", text)
-        self.assertIn("<b>Referrals:</b> 0", text)
+        self.assertNotIn("<b>Referrals:</b>", text)
         self.assertEqual(keyboard.inline_keyboard[2][0].text, "Reseller")
         self.assertEqual(keyboard.inline_keyboard[2][0].callback_data, "open_reseller_hub")
 

@@ -166,6 +166,20 @@ class MenuAndGuideTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(crashed, [], "menu buttons raised instead of answering")
         self.assertEqual(silent, [], "menu buttons answered with nothing at all")
 
+    async def test_six_compact_buttons_exit_the_transaction_reply_step(self):
+        from app.bot.handlers.deposit import DepositStates
+        from app.bot.keyboards import get_persistent_reply_keyboard
+
+        context = self.dp.fsm.get_context(self.bot, chat_id=CUSTOMER, user_id=CUSTOMER)
+        for row in get_persistent_reply_keyboard().keyboard:
+            for button in row:
+                with self.subTest(button=button.text):
+                    await context.set_state(DepositStates.waiting_for_txid)
+                    await context.set_data({"method_id": 1, "reference_first": True})
+                    replies = await self._feed(text=button.text)
+                    self.assertTrue(any(reply.get("text") for reply in replies))
+                    self.assertIsNone(await context.get_state(), button.text)
+
     async def test_every_navigation_target_still_exists(self):
         """A renamed handler must not be discoverable only by a customer pressing it."""
         import inspect

@@ -21,7 +21,7 @@ from app.bot.keyboards import (
 )
 
 
-def test_persistent_reply_keyboard_compact_four_action_layout():
+def test_persistent_reply_keyboard_compact_six_action_layout():
     cats = [
         {"id": 1, "name": "VPN", "icon": "🛡️"},
         {"id": 2, "name": "AI Tools", "icon": "🤖"},
@@ -32,10 +32,11 @@ def test_persistent_reply_keyboard_compact_four_action_layout():
     assert kb.is_persistent is False
     assert kb.resize_keyboard is True
 
-    assert len(rows) == 2
+    assert len(rows) == 3
     assert [[button.text for button in row] for row in rows] == [
-        ["শপ", "ওয়ালেট"],
-        ["সাপোর্ট", "একাউন্ট"],
+        ["🛍 প্রোডাক্টস", "💰 ওয়ালেট"],
+        ["📦 অর্ডারস", "🎁 রেফারেল"],
+        ["👤 একাউন্ট", "💬 হেল্প"],
     ]
 
 
@@ -47,10 +48,10 @@ def test_persistent_reply_keyboard_admin_and_reseller():
     kb = get_persistent_reply_keyboard(pinned_categories=cats, is_admin=True, is_reseller=True, lang="en")
     rows = kb.keyboard
 
-    # 2 customer rows + 1 reseller row + 1 admin row = 4 rows
-    assert len(rows) == 4
-    assert "Reseller Panel" in rows[2][0].text
-    assert "Admin Panel" in rows[3][0].text
+    # Three customer rows; operator tools stay role-restricted.
+    assert len(rows) == 5
+    assert "Reseller Panel" in rows[3][0].text
+    assert "Admin Panel" in rows[4][0].text
 
 
 def test_inline_keyboard_customer_first_bengali():
@@ -61,14 +62,12 @@ def test_inline_keyboard_customer_first_bengali():
     kb = get_main_inline_keyboard(pinned_categories=cats, is_admin=False, is_reseller=False, lang="bn")
     rows = kb.inline_keyboard
 
-    assert len(rows) == 2
-    assert [button.callback_data for button in rows[0]] == ["open_categories", "open_deposit"]
-    assert [button.callback_data for button in rows[1]] == ["open_support", "open_account"]
+    assert len(rows) == 3
+    assert [button.callback_data for button in rows[0]] == ["open_categories", "open_wallet"]
+    assert [button.callback_data for button in rows[1]] == ["open_orders", "open_referral"]
+    assert [button.callback_data for button in rows[2]] == ["open_account", "open_help"]
     assert [button.text for row in rows for button in row] == [
-        "শপ",
-        "ওয়ালেট",
-        "সাপোর্ট",
-        "একাউন্ট",
+        "🛍 প্রোডাক্টস", "💰 ওয়ালেট", "📦 অর্ডারস", "🎁 রেফারেল", "👤 একাউন্ট", "💬 হেল্প",
     ]
 
 
@@ -80,12 +79,12 @@ def test_six_button_grid_with_admin_and_reseller():
     kb = get_main_inline_keyboard(pinned_categories=cats, is_admin=True, is_reseller=True, lang="en")
     rows = kb.inline_keyboard
 
-    # 2 customer rows + 1 reseller row + 1 admin row = 4 rows
-    assert len(rows) == 4
-    assert [button.callback_data for button in rows[0]] == ["open_categories", "open_deposit"]
-    assert [button.callback_data for button in rows[1]] == ["open_support", "open_account"]
-    assert rows[2][0].callback_data == "open_reseller_panel"
-    assert rows[3][0].callback_data == "adm_dashboard"
+    assert len(rows) == 5
+    assert [button.callback_data for button in rows[0]] == ["open_categories", "open_wallet"]
+    assert [button.callback_data for button in rows[1]] == ["open_orders", "open_referral"]
+    assert [button.callback_data for button in rows[2]] == ["open_account", "open_help"]
+    assert rows[3][0].callback_data == "open_reseller_panel"
+    assert rows[4][0].callback_data == "adm_dashboard"
 
 
 def test_featured_products_do_not_expand_compact_main_menu():
@@ -98,9 +97,10 @@ def test_featured_products_do_not_expand_compact_main_menu():
     kb_bn = get_main_inline_keyboard(pinned_categories=pinned, featured_products=prods, is_admin=False, lang="bn")
     rows = kb_bn.inline_keyboard
 
-    assert len(rows) == 2
-    assert [button.callback_data for button in rows[0]] == ["open_categories", "open_deposit"]
-    assert [button.callback_data for button in rows[1]] == ["open_support", "open_account"]
+    assert len(rows) == 3
+    assert [button.callback_data for button in rows[0]] == ["open_categories", "open_wallet"]
+    assert [button.callback_data for button in rows[1]] == ["open_orders", "open_referral"]
+    assert [button.callback_data for button in rows[2]] == ["open_account", "open_help"]
 
 
 def test_product_list_separates_validity_from_legacy_title():
@@ -120,7 +120,7 @@ def test_product_list_separates_validity_from_legacy_title():
         lang="bn",
     )
 
-    assert keyboard.inline_keyboard[0][0].text == "Netflix 30 Days (Full Warranty) · 250 ৳"
+    assert keyboard.inline_keyboard[0][0].text == "Netflix · 30d (Full Warranty) · 250 ৳"
 
 
 def test_product_list_extracts_legacy_validity_when_field_is_empty():
@@ -133,7 +133,7 @@ def test_product_list_extracts_legacy_validity_when_field_is_empty():
         lang="bn",
     )
 
-    assert keyboard.inline_keyboard[0][0].text == "YouTube Premium 1 Month · 320 ৳"
+    assert keyboard.inline_keyboard[0][0].text == "YouTube Premium · 1mo · 320 ৳"
 
 
 def test_product_list_separates_legacy_warranty_from_product_name():
@@ -152,7 +152,7 @@ def test_product_list_separates_legacy_warranty_from_product_name():
         lang="bn",
     )
 
-    assert keyboard.inline_keyboard[0][0].text == "ChatGPT Plus 30 Days (FW) · 450 ৳"
+    assert keyboard.inline_keyboard[0][0].text == "ChatGPT Plus · 30d (FW) · 450 ৳"
 
 
 def test_product_warranty_is_optional_in_admin_payloads():
@@ -361,12 +361,12 @@ def test_top_products_dock_bengali_and_admin():
     kb = get_main_inline_keyboard(pinned_categories=pinned, featured_products=prods, is_admin=True, is_reseller=True, lang="bn")
     rows = kb.inline_keyboard
 
-    # 2 customer rows + reseller and admin rows = 4 rows
-    assert len(rows) == 4
-    assert [button.callback_data for button in rows[0]] == ["open_categories", "open_deposit"]
-    assert [button.callback_data for button in rows[1]] == ["open_support", "open_account"]
-    assert rows[2][0].callback_data == "open_reseller_panel"
-    assert rows[3][0].callback_data == "adm_dashboard"
+    assert len(rows) == 5
+    assert [button.callback_data for button in rows[0]] == ["open_categories", "open_wallet"]
+    assert [button.callback_data for button in rows[1]] == ["open_orders", "open_referral"]
+    assert [button.callback_data for button in rows[2]] == ["open_account", "open_help"]
+    assert rows[3][0].callback_data == "open_reseller_panel"
+    assert rows[4][0].callback_data == "adm_dashboard"
 
 
 def test_account_keyboard_clean_grid():

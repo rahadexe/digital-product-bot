@@ -21,7 +21,6 @@ from app.bot.formatting import (
     AUTO_DELETE_ENABLED,
     _quiet_delete,
     clean_previous_menu,
-    format_dual_price,
     remember_menu_message,
     send_operator_html,
 )
@@ -48,15 +47,19 @@ def build_welcome_text(
     lang: str = "en",
     balance_str: str = "",
     user_name: str = "",
+    store_name: str = "",
 ) -> str:
     prefix = t("maintenance_notice", lang, icon_warning=ICON_WARNING, notice=escape(paused_notice)) if paused_notice else ""
     greeting = f"Welcome, {escape(user_name)}" if user_name else "Welcome"
+    if store_name:
+        greeting = f"Welcome to {escape(store_name)}"
     if lang == "bn":
         greeting = f"স্বাগতম, {escape(user_name)}" if user_name else "স্বাগতম"
     bal_label = "Balance" if lang != "bn" else "ব্যালেন্স"
     lines = [f"<b>{greeting}</b>"]
     if balance_str:
         lines.append(f"{bal_label}: <code>{balance_str}</code>")
+    lines.append("Choose an option below." if lang != "bn" else "নিচের অপশন বেছে নিন।")
     return prefix + "\n".join(lines)
 
 
@@ -71,29 +74,16 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
         services.settings.admin_chat_ids(),
     )
     store_name = values.get("store_name", "Premium Haven")
-    support_handle = values.get("support_username", "")
-
     lang = "en"
-    symbol = values.get("currency_symbol", "$")
-    usd_rate = float(values.get("usd_rate", 125.0))
-    user_balance = float(user.get("balance", 0.0)) if user else 0.0
-    balance_display = format_dual_price(user_balance, symbol, usd_rate=usd_rate, lang=lang)
-
-    user_name = ""
-    if user:
-        user_name = user.get("first_name") or user.get("username") or ""
-    if not user_name and getattr(message, "from_user", None):
-        user_name = message.from_user.first_name or ""
 
     text = build_welcome_text(
         paused_notice=paused_notice,
         lang=lang,
-        balance_str=balance_display,
-        user_name=user_name,
+        store_name=store_name,
     )
 
     is_admin = tg_user_id in admin_ids
-    is_reseller = (user.get("rank") or "").strip().lower() == "reseller" if user else False
+    is_reseller = (user.get("rank") or "").strip().lower() in {"reseller", "reseller partner"} if user else False
 
     main_reply_kb = get_persistent_reply_keyboard(
         is_reseller=is_reseller,

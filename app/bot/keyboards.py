@@ -67,6 +67,22 @@ def _catalog_button_name(name: str, icon: str, custom_id: str) -> str:
     return name
 
 
+def _customer_menu(lang: str = "en", show_icons: bool = True) -> list[tuple[str, str]]:
+    """Keep the reply keyboard, inline menu and navigation labels in sync."""
+    items = [
+        ("🛍", "Products", "প্রোডাক্টস", "open_categories"),
+        ("💰", "Wallet", "ওয়ালেট", "open_wallet"),
+        ("📦", "Orders", "অর্ডারস", "open_orders"),
+        ("🎁", "Refer", "রেফারেল", "open_referral"),
+        ("👤", "Account", "একাউন্ট", "open_account"),
+        ("💬", "Help", "হেল্প", "open_help"),
+    ]
+    return [
+        (f"{icon} {bn if lang == 'bn' else en}" if show_icons else (bn if lang == "bn" else en), callback)
+        for icon, en, bn, callback in items
+    ]
+
+
 def get_main_inline_keyboard(
     pinned_categories: List[Dict[str, Any]] | None = None,
     featured_products: List[Dict[str, Any]] | None = None,
@@ -79,27 +95,15 @@ def get_main_inline_keyboard(
     show_usd: bool = True,
 ) -> InlineKeyboardMarkup:
     """
-    Compact customer menu:
-    - Row 1: [ Shop ] | [ Wallet ]
-    - Row 2: [ Support ] | [ Account ]
-    - Optional rows: reseller and admin panels
+    Six short customer actions; operator rows remain role-specific.
     """
     rows: List[List[InlineKeyboardButton]] = []
 
-    shop_label = "Shop" if lang != "bn" else "শপ"
-    wallet_label = "Wallet" if lang != "bn" else "ওয়ালেট"
-    account_label = "Account" if lang != "bn" else "একাউন্ট"
-    support_label = "Support" if lang != "bn" else "সাপোর্ট"
-
-    shop_btn = InlineKeyboardButton(text=shop_label, callback_data="open_categories")
-    wallet_btn = InlineKeyboardButton(text=wallet_label, callback_data="open_deposit")
-    account_btn = InlineKeyboardButton(text=account_label, callback_data="open_account")
-    support_btn = InlineKeyboardButton(text=support_label, callback_data="open_support")
-
-    rows.extend([
-        [shop_btn, wallet_btn],
-        [support_btn, account_btn],
-    ])
+    customer_buttons = [
+        InlineKeyboardButton(text=label, callback_data=callback)
+        for label, callback in _customer_menu(lang)
+    ]
+    rows.extend(customer_buttons[i:i + 2] for i in range(0, len(customer_buttons), 2))
 
     # Reseller Panel (if reseller)
     if is_reseller:
@@ -134,27 +138,12 @@ def get_persistent_reply_keyboard(
     show_icons: bool = True,
 ) -> ReplyKeyboardMarkup:
     """
-    Compact customer menu:
-    - Row 1: [ Shop ] | [ Wallet ]
-    - Row 2: [ Support ] | [ Account ]
-    - Optional rows: reseller and admin panels
+    Six short customer actions; operator rows remain role-specific.
     """
     rows: List[List[KeyboardButton]] = []
 
-    shop_label = "Shop" if lang != "bn" else "শপ"
-    wallet_label = "Wallet" if lang != "bn" else "ওয়ালেট"
-    support_label = "Support" if lang != "bn" else "সাপোর্ট"
-    account_label = "Account" if lang != "bn" else "একাউন্ট"
-
-    shop_btn = KeyboardButton(text=shop_label)
-    wallet_btn = KeyboardButton(text=wallet_label)
-    support_btn = KeyboardButton(text=support_label)
-    account_btn = KeyboardButton(text=account_label)
-
-    rows.extend([
-        [shop_btn, wallet_btn],
-        [support_btn, account_btn],
-    ])
+    customer_buttons = [KeyboardButton(text=label) for label, _ in _customer_menu(lang, show_icons)]
+    rows.extend(customer_buttons[i:i + 2] for i in range(0, len(customer_buttons), 2))
 
     # Optional Reseller Row
     if is_reseller:
@@ -593,7 +582,12 @@ def get_account_keyboard(
             ),
         ],
     ]
-
+    if not include_referral:
+        rows[0][1] = InlineKeyboardButton(text=api_label, callback_data="open_api_hub")
+        rows[1][0] = InlineKeyboardButton(
+            text="Notifications" if lang != "bn" else "নোটিফিকেশন",
+            callback_data="open_notifications_hub",
+        )
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -750,13 +744,13 @@ def get_help_faq_keyboard(
         chan_label = "আপডেট চ্যানেল"
     else:
         faq_buttons = [
-            ("faq_buy", "How to buy products?"),
-            ("faq_deposit", "How to add balance?"),
-            ("faq_delivery", "How does delivery work?"),
-            ("faq_referral", "How to earn from referral?"),
+            ("faq_buy", "Buying"),
+            ("faq_deposit", "Payments"),
+            ("faq_delivery", "Delivery"),
+            ("faq_referral", "Referrals"),
         ]
-        tech_label = "Technical support"
-        chan_label = "Update Channel"
+        tech_label = "Support"
+        chan_label = "Updates"
 
     for callback, label in faq_buttons:
         rows.append([InlineKeyboardButton(text=label, callback_data=callback)])
@@ -826,6 +820,14 @@ def product_display_labels(product: Dict[str, Any]) -> tuple[str, str, str]:
     return title, duration, warranty
 
 
+def _compact_duration(label: str) -> str:
+    match = re.fullmatch(r"(\d+)\s*(days?|weeks?|months?|years?|hours?)(?:\s+validity)?", label, re.IGNORECASE)
+    if not match:
+        return label
+    units = {"day": "d", "week": "w", "month": "mo", "year": "y", "hour": "h"}
+    return match[1] + units[match[2].lower().rstrip("s")]
+
+
 def get_products_keyboard(
     products: List[Dict[str, Any]],
     page: int = 1,
@@ -859,11 +861,12 @@ def get_products_keyboard(
         price_formatted = format_dual_price(price_num, currency_symbol, usd_rate=usd_rate, show_usd=show_usd, lang=lang)
 
         clean_title, duration_label, warranty_label = product_display_labels(p)
+        duration_label = _compact_duration(duration_label)
         icon, custom_id = _catalog_icon(p)
         display_title = f"{icon} {clean_title}".strip() if icon else clean_title
 
         if duration_label and duration_label.lower() not in {"instant", "none", "n/a", ""}:
-            btn_text = f"{display_title} {duration_label}"
+            btn_text = f"{display_title} · {duration_label}"
         else:
             btn_text = display_title
         if warranty_label and warranty_label.lower() not in {"none", "n/a"}:
@@ -873,7 +876,7 @@ def get_products_keyboard(
         if len(btn_text) > 64:
             price_part = f" · {price_formatted}"
             duration_part = (
-                f" {duration_label}"
+                f" · {duration_label}"
                 if duration_label and duration_label.lower() not in {"instant", "none", "n/a", ""}
                 else ""
             )
@@ -1058,7 +1061,7 @@ def get_quantity_selector_keyboard(
     # Row 3: Description and shareable link
     extras = []
     if has_description:
-        desc_btn_text = "📝 Description" if lang != "bn" else "📝 বিবরণ"
+        desc_btn_text = "Details" if lang != "bn" else "📝 বিবরণ"
         extras.append(
             InlineKeyboardButton(
                 text=desc_btn_text,
@@ -1204,7 +1207,7 @@ def get_deposit_methods_keyboard(
             ])
 
     if show_history:
-        history_text = "📊 Deposit History" if lang != "bn" else "📊 ডিপোজিট হিস্ট্রি"
+        history_text = "History" if lang != "bn" else "📊 ডিপোজিট হিস্ট্রি"
         buttons.append([
             InlineKeyboardButton(
                 text=history_text,
@@ -1312,17 +1315,25 @@ def get_deposit_status_keyboard(
 def get_manual_deposit_invoice_keyboard(
     account_info: str,
     lang: str = "en",
+    method_id: int | None = None,
+    is_binance: bool = False,
 ) -> InlineKeyboardMarkup:
     """Actions shown under manual payment instructions."""
     destination = str(account_info or "").strip()
     buttons = []
     if destination.startswith("https://"):
-        pay_text = "🌐 Open payment page" if lang != "bn" else "🌐 পেমেন্ট পেজ খুলুন"
+        pay_text = "Open Payment" if lang != "bn" else "🌐 পেমেন্ট পেজ খুলুন"
         buttons.append([InlineKeyboardButton(text=pay_text, url=destination)])
-    paid_text = "✅ I've Paid" if lang != "bn" else "✅ পেমেন্ট করেছি"
-    back_text = "← Back" if lang != "bn" else "← ফিরে যান"
+    elif destination:
+        copy_label = "Copy ID" if is_binance else "Copy Number"
+        buttons.append([InlineKeyboardButton(
+            text=copy_label if lang != "bn" else "নম্বর কপি",
+            copy_text=CopyTextButton(text=destination[:256]),
+        )])
+    paid_text = "Payment Done" if lang != "bn" else "পেমেন্ট করেছি"
+    back_text = "Back" if lang != "bn" else "ফিরে যান"
     buttons.append([
-        InlineKeyboardButton(text=paid_text, callback_data="dep_paid"),
+        InlineKeyboardButton(text=paid_text, callback_data=f"dep_paid_{method_id}" if method_id else "dep_paid"),
         InlineKeyboardButton(text=back_text, callback_data="dep_methods"),
     ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)

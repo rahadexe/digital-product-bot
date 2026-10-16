@@ -10,7 +10,8 @@ from app.services.delivery import receipt, waiting_notice
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("pending", [None, {"id": 19}])
-async def test_wallet_shows_balance_and_direct_deposit_options(pending):
+@pytest.mark.parametrize("show_usd", [True, False])
+async def test_wallet_shows_balance_and_direct_deposit_options(pending, show_usd):
     query = CallbackQuery(id="wallet", from_user=User(id=123, is_bot=False, first_name="Test"), chat_instance="1", data="open_wallet")
     services = SimpleNamespace(
         deposits=SimpleNamespace(
@@ -19,13 +20,13 @@ async def test_wallet_shows_balance_and_direct_deposit_options(pending):
         ),
         payments=SimpleNamespace(instant_options=AsyncMock(return_value=None)),
         users=SimpleNamespace(
-            get=AsyncMock(return_value={"balance": 25}),
+            get=AsyncMock(return_value={"balance": 48.75}),
             get_language=AsyncMock(return_value="en"),
         ),
         settings=SimpleNamespace(
             get=AsyncMock(return_value="৳"),
             number=AsyncMock(return_value=125),
-            flag=AsyncMock(return_value=False),
+            flag=AsyncMock(return_value=show_usd),
             paused_message=AsyncMock(return_value=None),
         ),
     )
@@ -33,7 +34,8 @@ async def test_wallet_shows_balance_and_direct_deposit_options(pending):
     with patch("app.bot.handlers.deposit.respond", new_callable=AsyncMock) as respond:
         await show_deposit_methods(query, state, services)
     text, keyboard = respond.await_args.args[1:]
-    assert "Balance:" in text and "25" in text
+    assert "Balance:" in text
+    assert ("$0.39" if show_usd else "48.75") in text
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     if pending:
         assert callbacks == ["open_deposits"]

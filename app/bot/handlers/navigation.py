@@ -345,6 +345,17 @@ NAVIGATION_TEXTS = {
     "📚 Guide": "guide",
     "Guide": "guide",
 }
+# Canonical compact labels take precedence over legacy spelling variants above.
+NAVIGATION_TEXTS.update({
+    "🛍 Products": "shop", "🛍️ Products": "shop", "Products": "shop", "PRODUCTS": "shop",
+    "💰 Wallet": "deposit", "Wallet": "deposit", "WALLET": "deposit",
+    "📦 Orders": "orders", "Orders": "orders", "ORDERS": "orders",
+    "🎁 Refer": "referral", "Refer": "referral", "REFER": "referral",
+    "👤 Account": "account", "Account": "account", "ACCOUNT": "account",
+    "💬 Help": "help", "Help": "help", "HELP": "help",
+    "💰 My Balance": "deposit", "My Balance": "deposit",
+})
+
 COMMAND_ACTIONS = {
     "/start": "start",
     "/menu": "start",
@@ -353,6 +364,9 @@ COMMAND_ACTIONS = {
     "/shop": "shop",
     "/buy": "shop",
     "/deposit": "deposit",
+    "/wallet": "deposit",
+    "/balance": "deposit",
+    "/refer": "referral",
     "/account": "account",
     "/orders": "orders",
     "/support": "support",
