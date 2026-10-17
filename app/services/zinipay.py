@@ -465,22 +465,37 @@ class ZiniPayVerificationService:
                 deposit_id, AWAITING_SMS_POLL_SECONDS,
             )
 
-    async def _give_up_waiting(self, deposit_id: int) -> None:
+    async def _review_awaiting(self, deposit_id: int, note: str) -> bool:
+        """Move only an unclaimed, still-pending receipt lookup to manual review."""
         async with self.db.transaction() as conn:
-            await conn.execute(
-                "UPDATE payment_verification_attempts SET status='review',note=$2,updated_at=now() WHERE deposit_id=$1",
-                deposit_id, AWAITING_SMS_GAVE_UP,
+            pending = await conn.fetchval(
+                "SELECT id FROM deposits WHERE id=$1 AND status='pending' FOR UPDATE", deposit_id,
             )
+            if not pending:
+                return False
+            changed = await conn.fetchval(
+                "UPDATE payment_verification_attempts SET status='review',note=$2,updated_at=now() "
+                "WHERE deposit_id=$1 AND status='awaiting_sms' RETURNING deposit_id",
+                deposit_id, note,
+            )
+            if changed is None:
+                return False
             await conn.execute(
                 "UPDATE deposits SET admin_note=$2 WHERE id=$1 AND status='pending'",
-                deposit_id, AWAITING_SMS_GAVE_UP,
+                deposit_id, note,
             )
+        return True
+
+    async def _give_up_waiting(self, deposit_id: int) -> None:
+        await self._review_awaiting(deposit_id, AWAITING_SMS_GAVE_UP)
         # No second alert: the owner was told when it was filed and the card is already
         # in front of them. This only sharpens the note they read when they open it.
 
     async def _finish_awaiting(self, row: dict[str, Any]) -> bool:
         """The receipt has landed: consume it at the gateway and credit the wallet."""
-        deposit_id, amount, clean_tx = row["id"], float(row["amount"]), str(row["transaction_id"])
+        deposit_id = row["id"]
+        amount = float(row.get("pay_amount") if row.get("pay_amount") is not None else row["amount"])
+        clean_tx = str(row["transaction_id"])
         verify_res = await self.verify(amount, clean_tx)
         if not verify_res.get("ok"):
             return False
@@ -489,22 +504,27 @@ class ZiniPayVerificationService:
             paid_with = str((verify_res.get("raw") or {}).get("provider") or "an unnamed wallet")
             note = (f"The receipt arrived, but it is a {paid_with} transaction and the customer chose "
                     f"{row.get('method_name')}. Not credited.")
-            async with self.db.transaction() as conn:
-                # 'review' also takes it off the re-check list, so this is said once.
-                await conn.execute(
-                    "UPDATE payment_verification_attempts SET status='review',note=$2,updated_at=now() WHERE deposit_id=$1",
-                    deposit_id, note)
-                await conn.execute("UPDATE deposits SET admin_note=$2 WHERE id=$1 AND status='pending'", deposit_id, note)
-            await self.deposits.alert_admin_needs_review(deposit_id, note)
+            if await self._review_awaiting(deposit_id, note):
+                await self.deposits.alert_admin_needs_review(deposit_id, note)
             return False
         verify_id = verify_res.get("id")
         if verify_id is None:
             return False
         async with self.db.transaction() as conn:
-            await conn.execute(
-                "UPDATE payment_verification_attempts SET status='confirming',verify_id=$2,updated_at=now() "
-                "WHERE deposit_id=$1 AND status='awaiting_sms'", deposit_id, str(verify_id),
+            # Lock in the same order as customer cancellation: deposit, then attempt.
+            # Verification is read-only; confirmation consumes the receipt, so only
+            # the worker that still owns a pending attempt may call the gateway.
+            pending = await conn.fetchval(
+                "SELECT id FROM deposits WHERE id=$1 AND status='pending' FOR UPDATE", deposit_id,
             )
+            if not pending:
+                return False
+            claimed = await conn.fetchval(
+                "UPDATE payment_verification_attempts SET status='confirming',verify_id=$2,updated_at=now() "
+                "WHERE deposit_id=$1 AND status='awaiting_sms' RETURNING deposit_id", deposit_id, str(verify_id),
+            )
+            if not claimed:
+                return False
         confirm_res = await self.confirm(amount, clean_tx, verify_id)
         provider = confirm_res.get("provider") or verify_res.get("provider") or "bKash/Nagad"
         if not confirm_res.get("ok"):
@@ -527,19 +547,21 @@ class ZiniPayVerificationService:
                 deposit_id, note)
         await self.deposits.approve(deposit_id, admin_note=note)
         async with self.db.transaction() as conn:
-            await conn.execute(
+            persisted = await conn.fetchval(
                 "UPDATE payment_verification_attempts SET status=CASE WHEN d.status='approved' THEN 'completed' ELSE 'review' END,"
-                "note=$2,updated_at=now() FROM deposits d WHERE d.id=deposit_id AND deposit_id=$1",
+                "note=$2,updated_at=now() FROM deposits d WHERE d.id=deposit_id AND deposit_id=$1 RETURNING d.status",
                 deposit_id, note,
             )
-        logger.info("Deposit #%s credited once its ZiniPay receipt synced", deposit_id)
-        return True
+        if persisted == "approved":
+            logger.info("Deposit #%s credited once its ZiniPay receipt synced", deposit_id)
+            return True
+        return False
 
     async def _check_awaiting(self) -> None:
         """Ask the gateway again for receipts that had not synced when they were submitted."""
         async with self.db.transaction() as conn:
             due = [dict(r) for r in await conn.fetch(
-                "SELECT d.id, d.amount, d.transaction_id, d.method_name, "
+                "SELECT d.id, d.amount, d.pay_amount, d.transaction_id, d.method_name, "
                 "a.created_at < now()-$1*interval '1 minute' AS expired "
                 "FROM payment_verification_attempts a JOIN deposits d ON d.id=a.deposit_id "
                 "WHERE a.status='awaiting_sms' AND d.status='pending' AND d.next_check_at<=now() "

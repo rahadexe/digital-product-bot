@@ -363,7 +363,11 @@ class BinanceDepositService:
             raise InvalidInputError("Payment method is no longer available.")
         rate = float(method["rate_to_currency"] or 1) or 1
         min_dep = float(method["min_deposit"])
-        base_amount = money(expected_usdt * rate) if (expected_usdt and expected_usdt > 0) else money(min_dep * rate)
+        if expected_usdt is not None:
+            paid = money(expected_usdt, positive=True)
+            base_amount = money(paid / rate if method.get("auto_verify") == PROVIDER else paid * rate, positive=True)
+        else:
+            base_amount = money(min_dep if method.get("auto_verify") == PROVIDER else min_dep * rate, positive=True)
 
         key, secret = await self.get_credentials_for_method(method_id)
         has_keys = bool(key and secret)
