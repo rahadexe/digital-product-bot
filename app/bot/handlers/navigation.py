@@ -352,8 +352,14 @@ NAVIGATION_TEXTS.update({
     "📦 Orders": "orders", "Orders": "orders", "ORDERS": "orders",
     "🎁 Refer": "referral", "Refer": "referral", "REFER": "referral",
     "👤 Account": "account", "Account": "account", "ACCOUNT": "account",
+    "👤 Profile": "account", "Profile": "account", "PROFILE": "account",
+    "👤 PROFILE": "account", "profile": "account",
+    "👤 প্রোফাইল": "account", "প্রোফাইল": "account",
     "💬 Help": "help", "Help": "help", "HELP": "help",
-    "💰 My Balance": "deposit", "My Balance": "deposit",
+    "💰 My Balance": "deposit", "My Balance": "deposit", "MY BALANCE": "deposit",
+    "💳 My Balance": "deposit", "my balance": "deposit",
+    "Balance": "deposit", "balance": "deposit", "BALANCE": "deposit", "💰 Balance": "deposit",
+    "💰 আমার ব্যালেন্স": "deposit", "আমার ব্যালেন্স": "deposit",
 })
 
 COMMAND_ACTIONS = {
@@ -368,6 +374,8 @@ COMMAND_ACTIONS = {
     "/balance": "deposit",
     "/refer": "referral",
     "/account": "account",
+    "/profile": "account",
+    "/me": "account",
     "/orders": "orders",
     "/support": "support",
     "/help": "help",

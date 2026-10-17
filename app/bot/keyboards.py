@@ -74,7 +74,7 @@ def _customer_menu(lang: str = "en", show_icons: bool = True) -> list[tuple[str,
         ("💰", "Wallet", "ওয়ালেট", "open_wallet"),
         ("📦", "Orders", "অর্ডারস", "open_orders"),
         ("🎁", "Refer", "রেফারেল", "open_referral"),
-        ("👤", "Account", "একাউন্ট", "open_account"),
+        ("👤", "Profile", "প্রোফাইল", "open_account"),
         ("💬", "Help", "হেল্প", "open_help"),
     ]
     return [
@@ -550,44 +550,38 @@ def get_account_keyboard(
     ref_link: str | None = None,
     is_reseller: bool = False,
     order_count: int = 0,
-    include_referral: bool = True,
+    include_referral: bool = False,
     share_url: str | None = None,
 ) -> InlineKeyboardMarkup:
-    """Show account actions as a compact inline keyboard."""
-    orders_badge = f" ({order_count})" if order_count > 0 else ""
+    """Show profile actions directly, without duplicating the main menu.
+
+    Legacy arguments remain accepted so older callers cannot restore removed
+    Orders/Referral shortcuts or break when opening the profile.
+    """
     if lang != "bn":
-        my_orders_label = f"Orders{orders_badge}"
-        referral_label = "Referral"
         reseller_label = "Reseller"
         api_label = "API"
+        notifications_label = "Notifications"
+        back_label = "Back"
     else:
-        my_orders_label = f"অর্ডার{orders_badge}"
-        referral_label = "রেফারেল"
         reseller_label = "রিসেলার"
         api_label = "এপিআই"
+        notifications_label = "নোটিফিকেশন"
+        back_label = "ব্যাক"
 
     rows = [
         [
-            InlineKeyboardButton(text=my_orders_label, callback_data="open_orders_acc"),
-            InlineKeyboardButton(text=referral_label, callback_data="open_referral"),
+            InlineKeyboardButton(text=notifications_label, callback_data="open_notifications_hub"),
         ],
         [
             InlineKeyboardButton(text=api_label, callback_data="open_api_hub"),
-            InlineKeyboardButton(text="Language" if lang != "bn" else "ভাষা", callback_data="open_language_menu"),
-        ],
-        [
             InlineKeyboardButton(
                 text=reseller_label,
                 callback_data="open_reseller_hub" if is_reseller else "open_reseller",
             ),
         ],
+        [InlineKeyboardButton(text=back_label, callback_data="back_to_main")],
     ]
-    if not include_referral:
-        rows[0][1] = InlineKeyboardButton(text=api_label, callback_data="open_api_hub")
-        rows[1][0] = InlineKeyboardButton(
-            text="Notifications" if lang != "bn" else "নোটিফিকেশন",
-            callback_data="open_notifications_hub",
-        )
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 

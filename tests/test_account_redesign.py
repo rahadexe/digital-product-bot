@@ -17,37 +17,37 @@ class AccountRedesignTests(unittest.TestCase):
         rows = kb.inline_keyboard
 
         self.assertEqual(len(rows), 3)
-        self.assertEqual([button.text for button in rows[0]], ["Orders", "Referral"])
+        self.assertEqual([button.text for button in rows[0]], ["Notifications"])
         self.assertEqual(
             [button.callback_data for button in rows[0]],
-            ["open_orders_acc", "open_referral"],
+            ["open_notifications_hub"],
         )
-        self.assertEqual([button.text for button in rows[1]], ["API", "Language"])
+        self.assertEqual([button.text for button in rows[1]], ["API", "Reseller"])
         self.assertEqual(
             [button.callback_data for button in rows[1]],
-            ["open_api_hub", "open_language_menu"],
+            ["open_api_hub", "open_reseller"],
         )
-        self.assertEqual([button.text for button in rows[2]], ["Reseller"])
+        self.assertEqual([button.text for button in rows[2]], ["Back"])
         self.assertEqual(
             [button.callback_data for button in rows[2]],
-            ["open_reseller"],
+            ["back_to_main"],
         )
 
     def test_account_keyboard_reseller_tier(self):
         kb = get_account_keyboard(lang="en", is_reseller=True)
         rows = kb.inline_keyboard
         self.assertEqual(len(rows), 3)
-        self.assertEqual(rows[2][0].text, "Reseller")
-        self.assertEqual(rows[2][0].callback_data, "open_reseller_hub")
+        self.assertEqual(rows[1][1].text, "Reseller")
+        self.assertEqual(rows[1][1].callback_data, "open_reseller_hub")
 
     def test_account_keyboard_structure_bengali(self):
         kb = get_account_keyboard(lang="bn", is_reseller=False)
         rows = kb.inline_keyboard
 
         self.assertEqual(len(rows), 3)
-        self.assertEqual([button.text for button in rows[0]], ["অর্ডার", "রেফারেল"])
-        self.assertEqual([button.text for button in rows[1]], ["এপিআই", "ভাষা"])
-        self.assertEqual([button.text for button in rows[2]], ["রিসেলার"])
+        self.assertEqual([button.text for button in rows[0]], ["নোটিফিকেশন"])
+        self.assertEqual([button.text for button in rows[1]], ["এপিআই", "রিসেলার"])
+        self.assertEqual([button.text for button in rows[2]], ["ব্যাক"])
 
     def test_language_keyboard_marks_bangla_as_coming_soon(self):
         kb = get_language_selection_keyboard()
@@ -213,15 +213,21 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
 
         text = respond.await_args.args[1]
         keyboard = respond.await_args.args[2]
-        self.assertNotIn("<b>My Account</b>", text)
-        self.assertIn("<b>Name:</b> Test Customer", text)
-        self.assertIn("<b>User ID:</b> <code>123</code>", text)
-        self.assertIn("<b>Status:</b> Member", text)
-        self.assertIn("<b>Orders:</b> 2", text)
+        self.assertEqual(text, "<b>Profile</b>\nTest Customer\nID: <code>123</code>")
+        for duplicate in ("Balance", "Orders", "Spent", "Member"):
+            self.assertNotIn(duplicate, text)
         self.assertNotIn("Referral", text)
         self.assertNotIn("start=123", text)
-        self.assertEqual([button.text for button in keyboard.inline_keyboard[0]], ["Orders (2)", "API"])
-        self.assertEqual(keyboard.inline_keyboard[1][0].callback_data, "open_notifications_hub")
+        self.assertEqual([button.text for button in keyboard.inline_keyboard[0]], ["Notifications"])
+        self.assertEqual(
+            [button.callback_data for button in keyboard.inline_keyboard[1]],
+            ["open_api_hub", "open_reseller"],
+        )
+        self.assertEqual(keyboard.inline_keyboard[-1][0].callback_data, "back_to_main")
+        services.users.stats.assert_not_awaited()
+        services.settings.get.assert_not_awaited()
+        services.settings.number.assert_not_awaited()
+        state.clear.assert_awaited_once()
 
     async def test_reseller_account_shows_reseller_status(self):
         from types import SimpleNamespace
@@ -260,10 +266,13 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
 
         text = respond.await_args.args[1]
         keyboard = respond.await_args.args[2]
-        self.assertIn("<b>Status:</b> Reseller", text)
+        self.assertIn("Status: Reseller", text)
         self.assertNotIn("<b>Referrals:</b>", text)
-        self.assertEqual(keyboard.inline_keyboard[2][0].text, "Reseller")
-        self.assertEqual(keyboard.inline_keyboard[2][0].callback_data, "open_reseller_hub")
+        self.assertNotIn("Balance", text)
+        self.assertNotIn("Orders", text)
+        self.assertNotIn("Spent", text)
+        self.assertEqual(keyboard.inline_keyboard[1][1].text, "Reseller")
+        self.assertEqual(keyboard.inline_keyboard[1][1].callback_data, "open_reseller_hub")
 
     async def test_language_menu_marks_bangla_coming_soon(self):
         from types import SimpleNamespace

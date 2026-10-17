@@ -227,16 +227,23 @@ async def cancel_deposit_flow(query: CallbackQuery, state: FSMContext):
 
 @router.message(Command("wallet"))
 @router.message(Command("deposit"))
+@router.message(Command("balance"))
 @router.message(F.text.in_({
     "Wallet", "wallet", "💳 Wallet", "💼 Wallet", "💰 Wallet",
     "WALLET", "💳 WALLET",
+    "Balance", "balance", "BALANCE", "💰 Balance",
+    "My Balance", "my balance", "MY BALANCE", "💰 My Balance", "💳 My Balance",
+    "💰 আমার ব্যালেন্স", "আমার ব্যালেন্স",
     "💳 ওয়ালেট", "ওয়ালেট",
     "Add Balance", "add balance", "💰 Add Balance", "💳 Add Balance", "Deposit", "deposit", "💳 Deposit",
     "ADD BALANCE", "💳 ADD BALANCE", "DEPOSIT", "💳 DEPOSIT",
     "💳 অ্যাড ব্যালেন্স", "অ্যাড ব্যালেন্স",
 }))
 @router.message(F.text.casefold() == "wallet")
+@router.message(F.text.casefold() == "balance")
+@router.message(F.text.casefold() == "my balance")
 @router.callback_query(F.data == "open_wallet")
+@router.callback_query(F.data == "open_balance")
 @router.callback_query(F.data == "open_deposit")
 @router.callback_query(F.data == "dep_methods")
 @router.callback_query(F.data == "dep_back")
@@ -395,11 +402,11 @@ class MethodTextFilter(BaseFilter):
         regex_clean = re.sub(r'^[^\w\s]+\s*', '', clean).strip()
 
         ignored = {
-            "search", "products", "wallet", "orders", "refer", "help", "account", "support", "admin panel",
+            "search", "products", "wallet", "orders", "refer", "help", "account", "profile", "support", "admin panel",
             "all catalog", "all products", "back to main", "main menu", "back to catalog",
             "back to products", "back to wallet", "back", "cancel", "refresh", "balance history",
             "deposit history", "price list", "refer & earn", "language", "reseller panel", "become reseller",
-            "সার্চ", "ওয়ালেট", "অর্ডার", "একাউন্ট", "সাপোর্ট", "অ্যাডমিন প্যানেল",
+            "সার্চ", "ওয়ালেট", "অর্ডার", "একাউন্ট", "প্রোফাইল", "সাপোর্ট", "অ্যাডমিন প্যানেল",
             "সকল প্রোডাক্ট", "মেইন মেনু", "ব্যাক", "বাতিল", "রিফ্রেশ", "ব্যালেন্স হিস্ট্রি", "ডিপোজিট হিস্ট্রি",
         }
         if clean in ignored or regex_clean in ignored:
