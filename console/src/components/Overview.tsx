@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ArrowUpRight, RefreshCw, Wallet, ShoppingBag, UsersRound, Package, ArrowRight } from 'lucide-react';
 import { api, forgetAnswers, type OverviewStats, type SupplierStatus } from '@/lib/api';
 import { useMoney } from '@/lib/currency';
 import { EmptyRow, errorText, tone, when, type Say } from './ui';
@@ -94,9 +95,10 @@ export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) =
   if (!stats) return <section className="panel dashboard-error" role="alert"><p>Could not load the dashboard.</p><button type="button" className="btn ghost" onClick={() => void load()}>Try again</button></section>;
 
   const metrics = [
-    { label: 'Total revenue', value: money(stats.total_revenue), screen: 'orders', primary: true },
-    { label: 'Orders', value: stats.total_orders.toLocaleString(), screen: 'orders' },
-    { label: 'Customers', value: stats.total_users.toLocaleString(), screen: 'users' },
+    { label: 'Total revenue', value: money(stats.total_revenue), screen: 'orders', primary: true, icon: Wallet, foot: 'All-time sales' },
+    { label: 'Orders', value: stats.total_orders.toLocaleString(), screen: 'orders', icon: ShoppingBag, foot: 'All-time purchases' },
+    { label: 'Customers', value: stats.total_users.toLocaleString(), screen: 'users', icon: UsersRound, foot: 'Registered accounts' },
+    { label: 'Available stock', value: stats.available_stock.toLocaleString(), screen: 'inventory', icon: Package, foot: 'Ready to deliver' },
   ];
   const point = selectedPoint === null ? null : chart.points[selectedPoint];
   const pending = stats.waiting_orders + stats.pending_deposits;
@@ -104,14 +106,18 @@ export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) =
   return (
     <div className="dashboard-layout">
       <header className="workspace-heading">
-        <div><h1>Dashboard</h1></div>
-        <button type="button" className="btn ghost" disabled={refreshing} onClick={() => void load(true)}>{refreshing ? 'Refreshing…' : 'Refresh'}</button>
+        <div><span className="eyebrow">Your workspace</span><h1>Dashboard</h1><p className="page-description">A clear view of your store. Everything you need to act.</p></div>
+        <button type="button" className="btn ghost" disabled={refreshing} onClick={() => void load(true)}><RefreshCw size={15} className={refreshing ? 'studio-spin' : ''} aria-hidden="true" />{refreshing ? 'Refreshing…' : 'Refresh'}</button>
       </header>
       {failed ? <p className="note bad" role="alert">Refresh failed. Showing the last loaded figures.</p> : null}
+      <section className="attention-banner">
+        <div><span className="attention-icon" aria-hidden="true"><ShoppingBag size={21} /></span><div><h2>{pending ? `${pending} ${pending === 1 ? 'item needs' : 'items need'} your attention` : 'You’re all caught up'}</h2><p>{pending ? 'Review top-ups and keep your paid orders moving.' : 'No pending top-ups or orders awaiting delivery.'}</p></div></div>
+        <button type="button" onClick={() => onOpen(stats.waiting_orders ? 'orders/waiting' : pending ? 'deposits' : 'products')}>{pending ? 'Review now' : 'Manage products'}<ArrowRight size={16} aria-hidden="true" /></button>
+      </section>
       <div className="overview-metrics overview-essential">
-        {metrics.map(({ label, value, screen, primary }) => (
+        {metrics.map(({ label, value, screen, primary, icon: Icon, foot }) => (
           <button type="button" key={label} className={`overview-metric${primary ? ' featured' : ''}`} onClick={() => onOpen(screen)}>
-            <span className="metric-caption">{label}</span><strong>{value}</strong><span className="metric-foot">All time</span>
+            <span className="metric-caption">{label}<span className="metric-icon"><Icon size={18} aria-hidden="true" /></span></span><strong>{value}</strong><span className="metric-foot">{foot}<ArrowUpRight size={15} aria-hidden="true" /></span>
           </button>
         ))}
       </div>
@@ -158,10 +164,10 @@ export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) =
             const waiting = order.status === 'completed' && order.fulfillment === 'waiting';
             return <tr key={order.id}>
               <td className="name"><button type="button" className="order-reference" onClick={() => onOpen(`orders/${order.id}`)}>O{order.id}</button><small>{when(order.created_at)}</small></td>
-              <td><div className="overview-customer" title={order.username ? `@${order.username}` : String(order.tg_user_id)}><span>{customer}</span></div></td>
-              <td><span className={`pill ${waiting ? 'warn' : tone(order.status)}`}>{waiting ? 'Awaiting delivery' : order.status}</span></td>
+              <td data-label="Customer"><div className="overview-customer" title={order.username ? `@${order.username}` : String(order.tg_user_id)}><span>{customer}</span></div></td>
+              <td data-label="Status"><span className={`pill ${waiting ? 'warn' : tone(order.status)}`}>{waiting ? 'Awaiting delivery' : order.status}</span></td>
               <td className="overview-delivery">{order.source === 'manual' ? 'Manual' : order.source === 'stock' ? 'Instant' : order.source || 'Instant'}</td>
-              <td className="right money">{money(order.price)}</td>
+              <td className="right money" data-label="Total">{money(order.price)}</td>
             </tr>;
           })}{!stats.recent_orders.length ? <EmptyRow columns={5}>No orders yet.</EmptyRow> : null}</tbody>
         </table></div>

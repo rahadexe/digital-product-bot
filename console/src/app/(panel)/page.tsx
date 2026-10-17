@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  X,
+  X, LayoutDashboard, ShoppingBag, Wallet, UsersRound, Package, Truck,
+  Boxes, FolderOpen, CalendarDays, Smile, Megaphone, Handshake, Activity as ActivityIcon,
+  Settings as SettingsIcon, LogOut, ChevronRight, ShieldCheck, MoreHorizontal,
+  type LucideIcon,
 } from 'lucide-react';
 import { api, setCsrf } from '@/lib/api';
 import { Broadcast } from '@/components/Broadcast';
@@ -55,6 +58,28 @@ const ITEMS: { key: Key; label: string }[] = [
   { key: 'settings', label: 'Settings' },
 ];
 
+const NAV_ICONS: Record<Key, LucideIcon> = {
+  overview: LayoutDashboard, orders: ShoppingBag, deposits: Wallet, users: UsersRound,
+  products: Package, suppliers: Truck, inventory: Boxes, categories: FolderOpen,
+  validities: CalendarDays, emojis: Smile, broadcast: Megaphone,
+  'reseller-apps': Handshake, activity: ActivityIcon, settings: SettingsIcon,
+};
+const NAV_GROUPS: { label: string; keys: Key[] }[] = [
+  { label: 'Workspace', keys: ['overview', 'orders', 'deposits', 'users'] },
+  { label: 'Catalog', keys: ['products', 'inventory', 'suppliers', 'categories', 'validities', 'emojis'] },
+  { label: 'Manage', keys: ['broadcast', 'reseller-apps', 'activity', 'settings'] },
+];
+const MOBILE_KEYS: Key[] = ['overview', 'orders', 'products', 'deposits'];
+const DESCRIPTIONS: Record<Key, string> = {
+  overview: 'Your store at a glance.', orders: 'Track purchases and deliver with confidence.',
+  deposits: 'Review payments and wallet top-ups.', users: 'Customers, balances and account details.',
+  products: 'Organize the products your customers love.', inventory: 'Keep your digital stock ready to sell.',
+  suppliers: 'Manage connections and imported products.', categories: 'Make your catalog easier to explore.',
+  validities: 'Organize subscription durations.', emojis: 'Your store’s icon library.',
+  broadcast: 'Keep your customers in the loop.', 'reseller-apps': 'Review and manage reseller requests.',
+  activity: 'A clear record of store activity.', settings: 'Configure your store, payments and bot.',
+};
+
 const isKey = (value: string): value is Key => ITEMS.some((item) => item.key === value);
 
 /** The address holds the screen and, for Settings, the tab (#settings/payments), so a reload lands in the same place. */
@@ -80,6 +105,10 @@ export default function ConsolePage() {
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const mobileMenuButton = useRef<HTMLButtonElement | null>(null);
+  const drawerRef = useRef<HTMLElement | null>(null);
+  const workspaceRef = useRef<HTMLDivElement | null>(null);
+  const mainRef = useRef<HTMLElement | null>(null);
+  const bottomNavRef = useRef<HTMLElement | null>(null);
   const timer = useRef<number | undefined>(undefined);
 
   const say = useCallback((message: string, kind: 'good' | 'bad' = 'good') => {
@@ -169,20 +198,33 @@ export default function ConsolePage() {
   useEffect(() => {
     if (!mobileMenuOpen) return;
     const prevOverflow = document.body.style.overflow;
-    const prevTouchAction = document.body.style.touchAction;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const background = [workspaceRef.current, mainRef.current, bottomNavRef.current].filter((el): el is HTMLElement => Boolean(el));
+    background.forEach((el) => { el.inert = true; });
+    const controls = () => Array.from(drawerRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href]') ?? []).filter((el) => el.getClientRects().length > 0);
+    controls()[0]?.focus();
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        mobileMenuButton.current?.focus();
         setMobileMenuOpen(false);
       }
+      if (event.key === 'Tab') {
+        const all = controls();
+        const first = all[0];
+        const last = all[all.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      }
     };
+    const closeOnDesktop = () => { if (window.innerWidth > 760) setMobileMenuOpen(false); };
     document.body.style.overflow = 'hidden';
-    document.body.style.touchAction = 'none';
     document.addEventListener('keydown', closeOnEscape);
+    window.addEventListener('resize', closeOnDesktop);
     return () => {
       document.body.style.overflow = prevOverflow;
-      document.body.style.touchAction = prevTouchAction;
+      background.forEach((el) => { el.inert = false; });
       document.removeEventListener('keydown', closeOnEscape);
+      window.removeEventListener('resize', closeOnDesktop);
+      previousFocus?.focus();
     };
   }, [mobileMenuOpen]);
 
@@ -216,7 +258,6 @@ export default function ConsolePage() {
   if (!signedIn) return <SignIn onDone={check} storeName={storeName} />;
 
   const closeMobileMenu = () => {
-    mobileMenuButton.current?.focus();
     setMobileMenuOpen(false);
   };
 
@@ -231,6 +272,21 @@ export default function ConsolePage() {
     // hashchange applies navigation after the unsaved-settings guard.
   };
   const label = ITEMS.find((item) => item.key === screen.key)?.label ?? 'Dashboard';
+  const navigation = () => NAV_GROUPS.map((group) => (
+    <div className="nav-group" key={group.label}>
+      <p className="nav-group-label">{group.label}</p>
+      {group.keys.map((key) => {
+        const Icon = NAV_ICONS[key];
+        const item = ITEMS.find((entry) => entry.key === key)!;
+        const count = key === 'orders' ? waitingOrders : key === 'deposits' ? pending : key === 'reseller-apps' ? pendingResellerApps : 0;
+        return <button key={key} type="button" className={screen.key === key ? 'active' : ''} aria-current={screen.key === key ? 'page' : undefined} onClick={() => open(key)}>
+          <Icon size={18} aria-hidden="true" /><span>{item.label}</span>
+          {count > 0 ? <span className="count" aria-label={`${count} pending`}>{count}</span> : null}
+          {screen.key === key && !count ? <ChevronRight size={14} className="nav-chevron" aria-hidden="true" /> : null}
+        </button>;
+      })}
+    </div>
+  ));
 
   return (
     <div className="console">
@@ -239,6 +295,7 @@ export default function ConsolePage() {
       </a>
 
       {/* Top Mobile Bar */}
+      <div ref={workspaceRef} className="workspace-chrome">
       <header className="mobile-header">
         <button
           ref={mobileMenuButton}
@@ -256,17 +313,23 @@ export default function ConsolePage() {
           </span>
           <X className={`menu-toggle-icon menu-toggle-close${mobileMenuOpen ? ' visible' : ''}`} size={24} aria-hidden="true" />
         </button>
-        {storeName ? (
+        {(
           <button
             type="button"
             onClick={() => open('overview')}
             className="mobile-brand-title"
             style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
           >
-            <BrandWordmark name={storeName} />
+            <BrandWordmark name={storeName || 'Store Console'} />
           </button>
-        ) : null}
+        )}
+        <span className="mobile-screen-label">{label}</span>
       </header>
+      <header className="workspace-topbar">
+        <div className="workspace-breadcrumb"><span>Workspace</span><ChevronRight size={14} aria-hidden="true" /><strong>{label}</strong></div>
+        <div className="operator-badge"><ShieldCheck size={15} aria-hidden="true" /><span>Admin workspace</span></div>
+      </header>
+      </div>
 
       {/* Off-canvas Mobile Drawer */}
       <div
@@ -274,7 +337,7 @@ export default function ConsolePage() {
         onClick={closeMobileMenu}
         aria-hidden={!mobileMenuOpen}
       >
-        <aside id="mobile-navigation" className="drawer-panel" aria-label="Mobile navigation" onClick={(e) => e.stopPropagation()}>
+        <aside ref={drawerRef} id="mobile-navigation" className="drawer-panel" role={mobileMenuOpen ? 'dialog' : undefined} aria-modal={mobileMenuOpen ? true : undefined} aria-label="Mobile navigation" onClick={(e) => e.stopPropagation()}>
           <div className="drawer-header">
             {storeName ? (
               <button
@@ -296,21 +359,7 @@ export default function ConsolePage() {
             </button>
           </div>
 
-          <div className="drawer-nav">
-            {ITEMS.map(({ key, label: name }) => (
-              <button
-                key={key}
-                type="button"
-                className={screen.key === key ? 'active' : ''}
-                onClick={() => open(key)}
-              >
-                <span>{name}</span>
-                {key === 'deposits' && pending > 0 ? <span className="count">{pending}</span> : null}
-                {key === 'orders' && waitingOrders > 0 ? <span className="count">{waitingOrders}</span> : null}
-                {key === 'reseller-apps' && pendingResellerApps > 0 ? <span className="count">{pendingResellerApps}</span> : null}
-              </button>
-            ))}
-          </div>
+          <div className="drawer-nav">{navigation()}</div>
 
           <div className="drawer-footer">
             <button
@@ -325,7 +374,7 @@ export default function ConsolePage() {
                 }
               }}
             >
-              <span>Sign out</span>
+              <LogOut size={17} aria-hidden="true" /><span>Sign out</span>
             </button>
           </div>
         </aside>
@@ -333,31 +382,16 @@ export default function ConsolePage() {
 
       {/* Desktop Sidebar Rail */}
       <nav className="rail" aria-label="Main navigation">
-        {storeName ? (
+        {(
           <button
             type="button"
             onClick={() => open('overview')}
             style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', width: '100%' }}
           >
-            <Brand name={storeName} />
+            <Brand name={storeName || 'Store Console'} />
           </button>
-        ) : null}
-        <div className="rail-items">
-          {ITEMS.map(({ key, label: name }) => (
-            <button
-              key={key}
-              type="button"
-              className={screen.key === key ? 'active' : ''}
-              aria-current={screen.key === key ? 'page' : undefined}
-              onClick={() => open(key)}
-            >
-              <span>{name}</span>
-              {key === 'deposits' && pending > 0 ? <span className="count">{pending}</span> : null}
-              {key === 'orders' && waitingOrders > 0 ? <span className="count">{waitingOrders}</span> : null}
-              {key === 'reseller-apps' && pendingResellerApps > 0 ? <span className="count">{pendingResellerApps}</span> : null}
-            </button>
-          ))}
-        </div>
+        )}
+        <div className="rail-items">{navigation()}</div>
         <div className="spacer" />
         <div className="rail-foot">
           <button
@@ -372,16 +406,16 @@ export default function ConsolePage() {
               }
             }}
           >
-            <span>Sign out</span>
+            <LogOut size={17} aria-hidden="true" /><span>Sign out</span>
           </button>
         </div>
       </nav>
 
-      <main className="main" id="main-content" tabIndex={-1}>
+      <main ref={mainRef} className="main" id="main-content" tabIndex={-1}>
         <div className="main-inner" data-screen={screen.key}>
           {screen.key !== 'overview' && !(screen.key === 'users' && screen.tab) ? (
             <header className="page-head">
-              <h1>{label}</h1>
+              <div><span className="eyebrow">Store management</span><h1>{label}</h1><p className="page-description">{DESCRIPTIONS[screen.key]}</p></div>
             </header>
           ) : null}
 
@@ -429,6 +463,14 @@ export default function ConsolePage() {
         </div>
       </main>
 
+      <nav ref={bottomNavRef} className="mobile-dock" aria-label="Quick navigation">
+        {MOBILE_KEYS.map((key) => {
+          const Icon = NAV_ICONS[key];
+          return <button key={key} type="button" className={screen.key === key ? 'active' : ''} aria-current={screen.key === key ? 'page' : undefined} onClick={() => open(key)}><Icon size={20} aria-hidden="true" /><span>{key === 'overview' ? 'Home' : ITEMS.find((item) => item.key === key)!.label}</span></button>;
+        })}
+        <button type="button" className={!MOBILE_KEYS.includes(screen.key) ? 'active' : ''} aria-label="More navigation" aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" onClick={() => setMobileMenuOpen(true)}><MoreHorizontal size={20} aria-hidden="true" /><span>More</span></button>
+      </nav>
+
       {toast ? (
         <div className={`toast ${toast.kind}`} role="status" aria-live="polite">
           {toast.message}
@@ -442,6 +484,7 @@ function Brand({ name }: { name?: string }) {
   if (!name) return null;
   return (
     <div className="brand">
+      <span className="brand-symbol" aria-hidden="true"><Package size={21} /></span>
       <BrandWordmark name={name} />
     </div>
   );
