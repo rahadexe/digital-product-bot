@@ -119,7 +119,7 @@ async def test_reference_is_retained_for_the_required_amount_then_submitted_once
         submit.assert_not_awaited()
         assert (await state.get_data())["manual_txid"] == "BK123456"
         assert await state.get_state() == DepositStates.waiting_for_amount.state
-        assert message.answer.await_args.args[0] == "Enter the amount you sent in BDT."
+        assert message.answer.await_args.args[0] == "Enter the amount you sent in BDT, e.g. 50."
         assert isinstance(message.answer.await_args.kwargs["reply_markup"], ForceReply)
         message.text = "100.50"
         await process_deposit_amount(message, state, svc)

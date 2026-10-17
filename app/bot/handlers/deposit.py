@@ -11,11 +11,12 @@ from typing import Any
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.filters import BaseFilter, Command
+from aiogram.filters import BaseFilter, Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, ForceReply, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
+from app.bot.deposit_input import parse_deposit_amount, payment_instruction_note
 from app.bot.formatting import (
     callback_int,
     get_last_menu_message,
@@ -80,6 +81,28 @@ async def _delete_user_message(message: Message) -> None:
     if chat and getattr(chat, "type", "") == "private":
         with suppress(Exception):
             await message.delete()
+
+
+async def _send_input_prompt(
+    message: Message, state: FSMContext, text: str, *, field: str, placeholder: str,
+) -> None:
+    """Replace only this step's previous prompt; never delete payment details."""
+    data = await state.get_data()
+    previous_id = data.get(field)
+    sent = await message.answer(
+        text, reply_markup=ForceReply(force_reply=True, input_field_placeholder=placeholder),
+    )
+    sent_id = getattr(sent, "message_id", None)
+    if isinstance(sent_id, int):
+        await state.update_data({field: sent_id})
+    chat_id = getattr(getattr(message, "chat", None), "id", None)
+    bot = getattr(message, "bot", None)
+    if (
+        bot and chat_id and isinstance(sent_id, int) and isinstance(previous_id, int) and previous_id != sent_id
+        and previous_id != data.get("card_msg_id")
+    ):
+        with suppress(Exception):
+            await bot.delete_message(chat_id=chat_id, message_id=previous_id)
 
 
 def get_account_type_labels(account_type: str | None) -> tuple[str, str]:
@@ -365,7 +388,7 @@ class InstantPaymentTextFilter(BaseFilter):
         return False
 
 
-@router.message(InstantPaymentTextFilter())
+@router.message(StateFilter(None), InstantPaymentTextFilter())
 async def ask_instant_amount_from_text(
     message: Message,
     state: FSMContext,
@@ -490,7 +513,7 @@ async def render_method_details(
     rate = float(method.get("rate_to_currency") or 0.0)
     account_type = method.get("account_type") or "personal"
     auto_verify = method.get("auto_verify") or "none"
-    custom_inst = str(method.get("instructions") or "").strip()
+    custom_inst = payment_instruction_note(str(method.get("instructions") or "").strip())
 
     is_binance = "binance" in method_name.lower() or account_type == "crypto" or auto_verify == "binance_pay"
     is_payment_link = account_info.startswith("https://")
@@ -552,7 +575,7 @@ async def render_method_details(
         await state.update_data(card_msg_id=card_msg_id, card_chat_id=card_chat_id)
 
 
-@router.message(MethodTextFilter())
+@router.message(StateFilter(None), MethodTextFilter())
 async def handle_deposit_method_by_text(message: Message, state: FSMContext, services: Services, method: dict[str, Any]):
     """Dynamic handler when customer taps a payment method button from the reply keyboard."""
     await render_method_details(message, state, services, method)
@@ -630,7 +653,7 @@ async def create_instant_payment(message: Message, state: FSMContext, services: 
         await navigate(raw_text, message, state, services)
         return
     try:
-        clean_amount = raw_text.replace("৳", "").replace("$", "").replace(",", "").strip()
+        clean_amount = str(parse_deposit_amount(raw_text))
         invoice = await services.payments.create_invoice(message.from_user.id, clean_amount)
     except ValueError as exc:
         await message.answer(f"{ICON_WARNING} {escape(str(exc))}", reply_markup=get_cancel_keyboard())
@@ -1113,14 +1136,8 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
     currency_label = "$" if is_binance else "৳"
     lang = await services.users.get_language(message.from_user.id) if message.from_user else "en"
 
-    clean_amount = re.sub(r"[^\d.]", "", raw_text)
-    if data.get("reference_first") and not re.fullmatch(r"\d+(?:\.\d{1,2})?", raw_text):
-        clean_amount = ""
-
     chat = getattr(message, "chat", None)
     chat_id = getattr(chat, "id", None)
-    if chat_id and getattr(chat, "type", "") == "private":
-        asyncio.create_task(_delete_user_message(message))
 
     target_msg_id = data.get("card_msg_id") or (get_last_menu_message(chat_id) if chat_id else None)
 
@@ -1161,7 +1178,10 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
 
     async def _send_or_edit_error(err_text: str, kb):
         if data.get("reference_first"):
-            await message.answer(err_text, reply_markup=ForceReply(force_reply=True, input_field_placeholder="Amount"))
+            await _send_input_prompt(
+                message, state, err_text, field="amount_prompt_id",
+                placeholder="Amount in USDT" if is_binance else "Amount in BDT",
+            )
             return
         if target_msg_id and getattr(message, "bot", None) and chat_id:
             try:
@@ -1181,11 +1201,16 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
         )
 
     try:
-        amount_num = float(clean_amount)
+        amount_num = float(parse_deposit_amount(raw_text, is_binance=is_binance))
         if not math.isfinite(amount_num) or amount_num <= 0:
             raise ValueError()
     except (TypeError, ValueError):
-        err_msg = f"সঠিক পরিমাণ লিখুন ({currency_label}):" if lang == "bn" else f"Enter valid amount in {currency_label}:"
+        if lang == "bn":
+            err_msg = f"সঠিক পরিমাণ লিখুন ({currency_label}), যেমন: ৫০।"
+        else:
+            unit = "USDT" if is_binance else "BDT"
+            example = max(min_dep, 1.0 if is_binance else 50.0)
+            err_msg = f"Enter valid amount in {unit}, e.g. {example:g}."
         await _send_or_edit_error(_build_err_card(err_msg), quick_kb)
         return
 
@@ -1212,6 +1237,9 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
         err_msg = f"সর্বোচ্চ ডিপোজিট {max_bdt:.0f} ৳:" if lang == "bn" else f"Maximum deposit is {max_bdt:.0f} ৳:"
         await _send_or_edit_error(_build_err_card(err_msg), quick_kb)
         return
+
+    if chat_id and getattr(chat, "type", "") == "private":
+        asyncio.create_task(_delete_user_message(message))
 
     if is_binance:
         usd_amount = amount_num
@@ -1331,8 +1359,6 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
 
     chat = getattr(message, "chat", None)
     chat_id = getattr(chat, "id", None)
-    if chat_id and getattr(chat, "type", "") == "private":
-        asyncio.create_task(_delete_user_message(message))
 
     target_msg_id = data.get("card_msg_id") or (get_last_menu_message(chat_id) if chat_id else None)
 
@@ -1342,9 +1368,9 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
     if not TRANSACTION_ID_REGEX.fullmatch(clean_tx) or len(clean_tx) < 5 or " " in clean_tx:
         if data.get("reference_first"):
             label = "Order ID" if is_binance else "Transaction ID"
-            await message.answer(
-                f"Enter a valid {label}.",
-                reply_markup=ForceReply(force_reply=True, input_field_placeholder=label),
+            await _send_input_prompt(
+                message, state, f"Enter a valid {label} from your receipt.",
+                field="reference_prompt_id", placeholder=label,
             )
             return
         err_msg = f"সঠিক {'Order ID' if is_binance else 'TrxID'} দিন:" if lang == "bn" else f"Enter valid {'Order ID' if is_binance else 'TrxID'}:"
@@ -1407,15 +1433,18 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             )
         return
 
+    if chat_id and getattr(chat, "type", "") == "private":
+        asyncio.create_task(_delete_user_message(message))
     await state.update_data(manual_txid=clean_tx)
     if data.get("reference_first") and not (data.get("pay_amount") or amount_num):
         # Do not invent an amount or weaken gateway verification. The configured
         # provider needs the amount as well as the reference, so retain the ID.
         await state.set_state(DepositStates.waiting_for_amount)
         unit = "USDT" if is_binance else "BDT"
-        await message.answer(
-            f"Enter the amount you sent in {unit}.",
-            reply_markup=ForceReply(force_reply=True, input_field_placeholder=f"Amount in {unit}"),
+        example = max(float(data.get("min_deposit") or 1.0), 1.0 if is_binance else 50.0)
+        await _send_input_prompt(
+            message, state, f"Enter the amount you sent in {unit}, e.g. {example:g}.",
+            field="amount_prompt_id", placeholder=f"Amount in {unit}",
         )
         return
     # Plan 1: Direct submission without redundant confirmation step

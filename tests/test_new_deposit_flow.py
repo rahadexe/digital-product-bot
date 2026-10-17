@@ -721,7 +721,7 @@ async def test_process_deposit_amount_invalid_keeps_full_card_and_chips():
 
     # 3. User typed message was deleted
     await asyncio.sleep(0.01)
-    message.delete.assert_called_once()
+    message.delete.assert_not_called()
 
 
 @pytest.mark.asyncio
