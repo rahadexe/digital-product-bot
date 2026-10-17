@@ -1,12 +1,11 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter, Manrope } from 'next/font/google';
+import '@fontsource-variable/manrope';
 import './console.css';
 import './workspace.css';
 import './records.css';
+import './studio.css';
 
-// The Mini App's typeface for reading, Manrope for headings and figures. next/font serves both from this site.
-const display = Manrope({ subsets: ['latin'], weight: ['600', '700', '800'], variable: '--font-display', display: 'swap' });
-const text = Inter({ subsets: ['latin'], variable: '--font-text', display: 'swap' });
+// Bundled with the console: no external font request at build time or runtime.
 
 export const metadata: Metadata = {
   title: 'Console',
@@ -17,9 +16,10 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#f7f8fa',
+  themeColor: '#f5f7fb',
+  viewportFit: 'cover',
 };
 
 export default function PanelLayout({ children }: { children: React.ReactNode }) {
-  return <div className={`console-root ${display.variable} ${text.variable}`}>{children}</div>;
+  return <div className="console-root">{children}</div>;
 }
