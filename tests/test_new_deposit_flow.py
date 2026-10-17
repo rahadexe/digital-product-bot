@@ -83,7 +83,7 @@ async def test_wallet_with_pending_deposit_keeps_history_and_hides_new_payment_m
     keyboard = message.answer.call_args.kwargs["reply_markup"]
     assert "<b>Balance:</b>" in text
     assert "💰" not in text
-    assert "Deposit D20 is being verified" in text
+    assert "Top-up D20 is being verified" in text
     assert [button.text for row in keyboard.inline_keyboard for button in row] == [
         "History",
     ]
@@ -350,7 +350,7 @@ async def test_process_deposit_txid_direct_submission():
     status_msg = message.answer.return_value
     assert status_msg.edit_text.called
     status_text = status_msg.edit_text.call_args[0][0]
-    assert "Deposit D42" in status_text
+    assert "Top-up D42" in status_text
     assert "bKash" in status_text
     assert "৳100" in status_text
     assert "BL12345678" in status_text
@@ -443,7 +443,7 @@ async def test_deposit_refresh_callback():
     query.answer.assert_called_with("✅ Deposit Approved!")
     assert msg.edit_text.called
     text = msg.edit_text.call_args[0][0]
-    assert "Deposit D42" in text
+    assert "Top-up D42" in text
     assert "Approved" in text
     assert "৳500 ($2.14)" in text
     assert "Current Balance: <code>৳750.00</code>" in text
@@ -520,7 +520,7 @@ async def test_exchange_rate_and_dollar_conversion_flow():
     assert kwargs["quoted_rate"] == 1.0
 
     status_card = status_mock.edit_text.call_args[0][0]
-    assert "Deposit D99" in status_card
+    assert "Top-up D99" in status_card
     assert "bKash" in status_card
     assert "৳500" in status_card
     assert "BLA7X8Y9Z0" in status_card
@@ -654,7 +654,7 @@ async def test_process_deposit_txid_in_place_edit():
     # 4. Status card edited onto the existing card
     assert card_msg_mock.edit_text.called
     status_text = card_msg_mock.edit_text.call_args[0][0]
-    assert "Deposit D101" in status_text
+    assert "Top-up D101" in status_text
     assert "bKash" in status_text
     assert "৳500" in status_text
     assert "BLA7X8Y9Z0" in status_text

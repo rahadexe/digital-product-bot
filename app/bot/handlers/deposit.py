@@ -238,7 +238,7 @@ def format_deposit_status_card(
             st_display = "❌ <code>Rejected</code>"
 
         card = (
-            f"<b>Deposit {dep_prefix}</b>\n"
+            f"<b>Top-up {dep_prefix}</b>\n"
             f"Method: <b>{escape(method_name)}</b> (<code>{amount_str}</code>)\n"
             f"TrxID: <code>{escape(txid)}</code>\n"
             f"Status: {st_display}"
@@ -320,7 +320,7 @@ async def show_deposit_methods(event: Message | CallbackQuery, state: FSMContext
 
     paused_msg = await services.settings.paused_message()
     if paused_msg:
-        await respond(event, f"{ICON_WARNING} <b>Deposits Temporarily Paused</b>\n\n{escape(paused_msg)}", None)
+        await respond(event, f"<b>Top-ups paused</b>\n\n{escape(paused_msg)}", None)
         return
 
     instant = await services.payments.instant_options()
@@ -348,7 +348,7 @@ async def show_deposit_methods(event: Message | CallbackQuery, state: FSMContext
         else:
             text = (
                 f"<b>Balance:</b> <code>{balance_display}</code>\n"
-                f"⏳ Deposit {format_deposit_id(pending['id'])} is being verified. Your balance will update when it is complete."
+                f"Top-up {format_deposit_id(pending['id'])} is being verified. Do not pay again."
             )
         keyboard = get_deposit_methods_keyboard([], instant_label=None, show_history=True, lang=lang, back_target=back_target)
     else:
@@ -652,10 +652,10 @@ def _instant_keyboard(invoice: dict) -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text=f"Pay ৳{invoice['pay_amount']:.2f}", url=invoice["payment_url"])]
         )
     rows.append(
-        [InlineKeyboardButton(text="I've Paid", callback_data=f"inst_chk_{invoice['reference']}")]
+        [InlineKeyboardButton(text="Payment Done", callback_data=f"inst_chk_{invoice['reference']}")]
     )
     rows.append(
-        [InlineKeyboardButton(text="Cancel Invoice", callback_data=f"inst_can_{invoice['reference']}")]
+        [InlineKeyboardButton(text="Cancel Payment", callback_data=f"inst_can_{invoice['reference']}")]
     )
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -666,11 +666,10 @@ async def _render_instant_invoice(invoice: dict, services: Services) -> tuple[st
     ref = escape(str(invoice.get("reference") or invoice.get("id") or ""))
     ref_suffix = f" #{ref}" if ref else ""
     text = (
-        f"{ICON_NOTE} <b>Payment Invoice{ref_suffix}</b>\n\n"
-        f"{ICON_MONEY} <b>Payable Amount:</b> <code>{formatted_amount}</code>\n"
-        f"{ICON_LIGHTNING} <b>Method:</b> Instant Auto Gateway\n"
-        f"{ICON_TIMER} <b>Status:</b> Waiting for Payment\n\n"
-        f"Click the <b>Pay</b> button below to complete payment (bKash, Nagad, Rocket, etc. supported). Your balance will be credited instantly upon successful payment."
+        f"<b>Top-up{ref_suffix}</b>\n"
+        f"Amount: <code>{formatted_amount}</code>\n"
+        "Status: Awaiting payment\n\n"
+        "Tap Pay to open checkout. Balance is added after verification."
     )
     return text, _instant_keyboard(invoice)
 
@@ -713,18 +712,16 @@ async def check_instant_payment(query: CallbackQuery, state: FSMContext, service
         ref_suffix = f" #{ref}" if ref else ""
         pay_amt = float(invoice.get("pay_amount") or invoice.get("credit_amount") or 0.0)
         text = (
-            f"{ICON_NOTE} <b>Payment Invoice{ref_suffix}</b>\n\n"
-            f"{ICON_MONEY} <b>Payable Amount:</b> <code>{pay_amt:.2f} BDT</code>\n"
-            f"{ICON_LIGHTNING} <b>Method:</b> Instant Auto Gateway\n"
-            f"{ICON_CHECK} <b>Status:</b> <b>Paid / Completed</b>\n\n"
-            f"✅ <i>Payment completed successfully! Balance has been added to your wallet.</i>"
+            f"<b>Payment verified{ref_suffix}</b>\n"
+            f"Paid: <code>{pay_amt:.2f} BDT</code>\n"
+            "Your wallet has been updated."
         )
         if query.message:
             with suppress(TelegramBadRequest):
                 await query.message.edit_text(
                     text,
                     reply_markup=InlineKeyboardMarkup(
-                        inline_keyboard=[[InlineKeyboardButton(text="💳 Deposit Menu", callback_data="open_deposit")]]
+                        inline_keyboard=[[InlineKeyboardButton(text="Wallet", callback_data="open_wallet")]]
                     ),
                 )
         with suppress(TelegramBadRequest):
@@ -733,21 +730,21 @@ async def check_instant_payment(query: CallbackQuery, state: FSMContext, service
         text = (
             f"{ICON_CROSS} <b>Payment Invoice #{escape(reference)} is no longer active.</b>\n\n"
             f"Status: <code>{invoice['status'].title()}</code>\n"
-            f"Please create a new deposit request."
+            "If you have already paid, contact Support before paying again."
         )
         if query.message:
             with suppress(TelegramBadRequest):
                 await query.message.edit_text(
                     text,
                     reply_markup=InlineKeyboardMarkup(
-                        inline_keyboard=[[InlineKeyboardButton(text="🔙 Back to Deposit", callback_data="open_deposit")]]
+                        inline_keyboard=[[InlineKeyboardButton(text="Wallet", callback_data="open_wallet")]]
                     ),
                 )
         with suppress(TelegramBadRequest):
             await query.answer("Invoice is no longer active.", show_alert=True)
     else:
         with suppress(TelegramBadRequest):
-            await query.answer("Payment is not completed yet. Please complete the payment on the gateway and check again.", show_alert=True)
+            await query.answer("Payment is not verified yet. If you have paid, wait and check again. Do not pay twice.", show_alert=True)
 
 
 @router.callback_query(F.data.startswith("inst_can_"))
@@ -764,15 +761,14 @@ async def ask_cancel_instant_payment(query: CallbackQuery, state: FSMContext, se
         return
 
     text = (
-        f"{ICON_WARNING} <b>Cancel Payment Invoice #{escape(reference)}?</b>\n\n"
-        f"Are you sure you want to cancel this payment invoice?\n\n"
-        f"<i>⚠️ Note: If you have already sent money on the gateway, do not cancel. Tap \"I've Paid\" instead.</i>"
+        f"<b>Cancel payment #{escape(reference)}?</b>\n\n"
+        "Already paid? Keep this payment and tap Payment Done."
     )
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="❌ Confirm", callback_data=f"inst_cancfm_{reference}", style="danger"),
-                InlineKeyboardButton(text="🔙 Keep", callback_data=f"inst_view_{reference}"),
+                InlineKeyboardButton(text="Cancel Payment", callback_data=f"inst_cancfm_{reference}", style="danger"),
+                InlineKeyboardButton(text="Keep Payment", callback_data=f"inst_view_{reference}"),
             ]
         ]
     )
@@ -821,27 +817,27 @@ async def confirm_cancel_instant_payment(query: CallbackQuery, state: FSMContext
     if invoice["status"] == "completed":
         user = await services.users.get(query.from_user.id)
         text = (
-            f"{ICON_CHECK} <b>Payment Already Completed!</b>\n"
-            f"{ICON_SPARKLES} {price(symbol, invoice['credit_amount'], usd_rate=usd_rate)} has been credited to your account.\n\n"
-            f"{ICON_BALANCE} <b>Current Balance:</b> <code>{price(symbol, user['balance'] if user else 0.0, usd_rate=usd_rate)}</code>"
+            "<b>Payment already verified</b>\n"
+            f"Added: <code>{price(symbol, invoice['credit_amount'], usd_rate=usd_rate)}</code>\n"
+            f"Balance: <code>{price(symbol, user['balance'] if user else 0.0, usd_rate=usd_rate)}</code>"
         )
         reply_markup = InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text="💳 Deposit Menu", callback_data="open_deposit")]]
+            inline_keyboard=[[InlineKeyboardButton(text="Wallet", callback_data="open_wallet")]]
         )
     else:
         text = (
-            f"{ICON_CROSS} <b>Payment Invoice #{escape(reference)} Cancelled</b>\n\n"
-            f"Invoice has been successfully cancelled and no balance was deducted. You can make a new deposit anytime."
+            f"<b>Payment cancelled · {escape(reference)}</b>\n\n"
+            "This invoice is closed. If you already paid, contact Support before paying again."
         )
         reply_markup = InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text="🔙 Back to Deposit", callback_data="open_deposit")]]
+            inline_keyboard=[[InlineKeyboardButton(text="Wallet", callback_data="open_wallet")]]
         )
 
     if query.message:
         with suppress(TelegramBadRequest):
             await query.message.edit_text(text, reply_markup=reply_markup)
     with suppress(TelegramBadRequest):
-        await query.answer("Invoice cancelled.")
+        await query.answer("Payment already verified." if invoice["status"] == "completed" else "Invoice cancelled.")
 
 
 # --- Manual deposit (bKash, Nagad, Binance) ---

@@ -268,19 +268,24 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
     earned_display = total_earned_str
 
     if lang != "bn":
-        reward_line = f"Reward: <code>{reward_display}</code> per friend\n" if reward_enabled and reward_amount > 0 else f"Reward: <code>0 {symbol}</code> per friend\n"
+        reward_line = (
+            f"Earn <b>{reward_display}</b> per new friend.\n"
+            "They must start the bot and complete any required channel check."
+            if reward_enabled and reward_amount > 0
+            else "Referral rewards are currently paused."
+        )
         text = (
-            f"Invited: <code>{total_invited}</code>\n"
-            f"Earned: <code>{earned_display}</code>\n"
-            f"{reward_line}"
-            "One reward per new friend who starts the bot and passes any required channel check. Not for link clicks.\n\n"
-            "Your referral link:\n"
+            "<b>Refer & Earn</b>\n\n"
+            f"{reward_line}\n\n"
+            f"Successful invites: <code>{total_invited}</code>\n"
+            f"Earned: <code>{earned_display}</code>\n\n"
+            "Your link:\n"
             f"<code>{ref_link}</code>"
         )
         copy_label = "Copy Link"
         share_label = "Share"
         back_label = "Back"
-        share_msg = quote(f"Join {store_name}:\n{ref_link}")
+        share_msg = quote(f"Join {store_name}")
     else:
         reward_line = f"বোনাস: <code>{reward_display}</code> (প্রতি রেফার)\n" if reward_enabled and reward_amount > 0 else f"বোনাস: <code>0 {symbol}</code> (প্রতি রেফার)\n"
         text = (
@@ -293,7 +298,7 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
         copy_label = "লিংক কপি করুন"
         share_label = "শেয়ার"
         back_label = "Back"
-        share_msg = quote(f"{store_name}-এ জয়েন করুন:\n{ref_link}")
+        share_msg = quote(f"{store_name}-এ জয়েন করুন")
 
     buttons: list[list[InlineKeyboardButton]] = [
         [
@@ -303,7 +308,7 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
             ),
             InlineKeyboardButton(
                 text=share_label,
-                url=f"https://t.me/share/url?url={ref_link}&text={share_msg}",
+                url=f"https://t.me/share/url?url={quote(ref_link, safe='')}&text={share_msg}",
             ),
         ],
         [
@@ -369,14 +374,14 @@ async def show_reseller_hub(event: Message | CallbackQuery, state: FSMContext | 
 
         if lang != "bn":
             text = (
-                "<b>Reseller Partner</b>\n\n"
-                "Status: <b>Active Partner</b>\n"
-                "Pricing: Wholesale Rates Active\n"
+                "<b>Reseller</b>\n\n"
+                "Status: Active\n"
+                "Reseller pricing is enabled.\n"
                 f"Orders: <b>{stats['total_orders']}</b>\n"
                 f"Spent: <b>{recent_spend_str}</b>\n"
                 f"Balance: <b>{balance_str}</b>"
             )
-            api_btn_text = "Developer API"
+            api_btn_text = "API"
             refresh_btn_text = "Refresh"
             back_btn_text = "Back"
         else:
@@ -409,8 +414,7 @@ async def show_reseller_hub(event: Message | CallbackQuery, state: FSMContext | 
             if lang != "bn":
                 text = (
                     "<b>Reseller Application</b>\n\n"
-                    "Status: <b>Under Review</b>\n\n"
-                    "Your application has been submitted and is currently being reviewed."
+                    "Your application is under review."
                 )
                 cancel_btn_text = "Cancel Application"
                 contact_btn_text = "Contact Support"
@@ -459,10 +463,10 @@ async def show_reseller_hub(event: Message | CallbackQuery, state: FSMContext | 
             if lang != "bn":
                 text = (
                     "<b>Reseller Program</b>\n\n"
-                    "Get exclusive wholesale discount pricing across our entire catalog and maximize your profit margins on every order."
+                    "Apply for reseller pricing on eligible products."
                     f"{comp_block}"
                 )
-                apply_btn_text = "Apply as Reseller"
+                apply_btn_text = "Apply"
                 contact_btn_text = "Contact Support"
                 back_btn_text = "Back"
             else:
@@ -543,7 +547,7 @@ async def show_api_hub(event: Message | CallbackQuery, state: FSMContext | None,
 
     if lang != "bn":
         text = (
-            "<b>Developer API</b>\n\n"
+            "<b>API</b>\n\n"
             f"Status: <b>{status_line}</b> ({tier_label})\n"
             f"API Key: {key_display}\n"
             f"Balance: <b>{balance_str}</b>\n"
@@ -629,21 +633,15 @@ async def show_notifications_hub(event: Message | CallbackQuery, state: FSMConte
 
     if lang != "bn":
         text = (
-            "🔔 <b>Notification Settings</b>\n\n"
-            "Control what updates and messages you receive from this bot:\n\n"
-            "• <b>Order Status:</b> Instant alert when your order is delivered or processed.\n"
-            "• <b>Deposit Alerts:</b> Instant confirmation when your wallet is credited.\n"
-            "• <b>News & Offers:</b> Notifications about new products, restocks, and promotions.\n\n"
-            "<i>Tap any button below to toggle ON or OFF:</i>"
+            "<b>Notifications</b>\n\n"
+            "Payment results and order deliveries are always sent.\n"
+            "News, offers and restock alerts are optional."
         )
     else:
         text = (
-            "🔔 <b>নোটিফিকেশন সেটিংস</b>\n\n"
-            "বট থেকে কোন কোন নোটিফিকেশন পেতে চান তা নিয়ন্ত্রণ করুন:\n\n"
-            "• <b>অর্ডার আপডেট:</b> অর্ডার সম্পন্ন ও ডেলিভারি হলে তাৎক্ষণিক নোটিফিকেশন।\n"
-            "• <b>ডিপোজিট নোটিশ:</b> ওয়ালেটে টাকা জমা হওয়া মাত্রই মেসেজ।\n"
-            "• <b>অফার ও নোটিশ:</b> নতুন প্রোডাক্ট রিস্টক ও আকর্ষণীয় ডিসকাউন্ট অফার।\n\n"
-            "<i>চালু বা বন্ধ করতে নিচের বাটনে ট্যাপ করুন:</i>"
+            "<b>নোটিফিকেশন</b>\n\n"
+            "পেমেন্টের ফলাফল ও অর্ডার ডেলিভারি সবসময় পাঠানো হয়।\n"
+            "খবর, অফার ও রিস্টক নোটিশ চালু বা বন্ধ করতে পারেন।"
         )
 
     kb = get_notification_settings_keyboard(prefs, lang=lang)
@@ -657,6 +655,10 @@ async def handle_notification_toggle(query: CallbackQuery, services: Services):
         return
 
     key = query.data.removeprefix("notif_toggle_")
+    if key != "notify_news":
+        with suppress(TelegramBadRequest):
+            await query.answer("Payment results and order deliveries stay on.")
+        return
     updated_prefs = await services.users.toggle_notification_preference(tg_user.id, key)
     lang = await services.users.get_language(tg_user.id)
 
@@ -669,8 +671,8 @@ async def handle_notification_toggle(query: CallbackQuery, services: Services):
         status_str = "চালু করা হয়েছে ✅" if updated_prefs.get(key, True) else "বন্ধ করা হয়েছে 🔕"
         toast = f"নোটিফিকেশন {status_str}"
     else:
-        status_str = "Enabled ✅" if updated_prefs.get(key, True) else "Disabled 🔕"
-        toast = f"Notification: {status_str}"
+        status_str = "On" if updated_prefs.get(key, True) else "Off"
+        toast = f"News & Offers: {status_str}"
     with suppress(TelegramBadRequest):
         await query.answer(toast)
 
@@ -1445,6 +1447,8 @@ async def view_deposit_detail(query: CallbackQuery, state: FSMContext, services:
             status_line += f"\n<i>{escape(deposit['admin_note'])}</i>"
     else:
         status_line = f"<b>{t('status_pending', lang)}</b>"
+    if lang != "bn" and deposit["status"] == "pending":
+        status_line += "\n<i>Checking your payment details. Do not pay again.</i>"
 
     text = (
         f"{t('deposit_detail_title', lang, id=format_deposit_id(deposit['id']))}\n\n"

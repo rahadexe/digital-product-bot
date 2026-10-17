@@ -24,15 +24,15 @@ DEFAULT_LANGUAGE = "en"
 TRANSLATIONS: dict[str, dict[str, str]] = {
     "en": {
         # Buttons
-        "btn_shop": "🛍️ Store",
+        "btn_shop": "Products",
         "btn_wallet": "💳 Wallet",
-        "btn_deposit": "💳 Deposit",
-        "btn_add_balance": "💳 Deposit",
+        "btn_deposit": "Top Up",
+        "btn_add_balance": "Top Up",
         "btn_search": "🔍 Search",
-        "btn_refer_earn": "🎁 Referral",
-        "btn_account": "👤 Account",
-        "btn_profile": "👤 My Profile",
-        "btn_support": "🎧 Support",
+        "btn_refer_earn": "Refer",
+        "btn_account": "Profile",
+        "btn_profile": "Profile",
+        "btn_support": "Contact Support",
         "btn_help": "💬 Help",
         "btn_become_reseller": "💼 Become Reseller",
         "btn_reseller_panel": "💼 Reseller Panel",
@@ -41,30 +41,30 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "btn_notifications": "🔔 Notifications",
         "btn_reseller_api": "🔑 API & Reseller",
         "btn_admin_panel": "Admin Panel",
-        "btn_other_products": "🛍️ Store",
-        "btn_all_products": "🛍️ Store",
+        "btn_other_products": "Products",
+        "btn_all_products": "Products",
         "btn_my_orders": "📦 Orders",
-        "btn_my_balance": "💰 My Balance",
-        "btn_order_history": "📦 Order History",
-        "btn_balance_history": "📊 Deposit History",
-        "btn_deposit_history": "📊 Deposit History",
+        "btn_my_balance": "Wallet",
+        "btn_order_history": "Orders",
+        "btn_balance_history": "History",
+        "btn_deposit_history": "History",
         "btn_change_language": "🌐 Language",
         "btn_price_list": "📊 Price List",
-        "btn_back": "🔙 Back",
-        "btn_close": "❌ Close",
-        "btn_confirm": "✅ Confirm",
-        "btn_cancel": "❌ Cancel",
+        "btn_back": "Back",
+        "btn_close": "Close",
+        "btn_confirm": "Confirm",
+        "btn_cancel": "Cancel",
         "btn_copy_format": "📋 Copy Format",
-        "btn_contact_management": "📞 Contact Management",
-        "btn_deposit_menu": "💳 Deposit Menu",
-        "btn_main_menu": "🏠 Main Menu",
-        "btn_share_referral": "🚀 Share Link",
-        "btn_copy_link": "📋 Copy Link",
+        "btn_contact_management": "Contact Support",
+        "btn_deposit_menu": "Wallet",
+        "btn_main_menu": "Menu",
+        "btn_share_referral": "Share",
+        "btn_copy_link": "Copy Link",
         "btn_view_terms": "📜 Terms & Conditions",
         "btn_pay": "💳 Pay {amount}",
-        "btn_ive_paid": "✅ I've Paid",
-        "btn_cancel_invoice": "❌ Cancel Invoice",
-        "btn_keep": "🔙 Keep",
+        "btn_ive_paid": "Payment Done",
+        "btn_cancel_invoice": "Cancel Payment",
+        "btn_keep": "Keep Payment",
 
         # Language Selection
         "select_language_title": "🌐 <b>Language</b>",
@@ -126,7 +126,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "support_title": "{icon_support} <b>Support</b>",
         "help_title": "<b>Most common questions:</b>",
         "support_text": "Need help with an order or wallet? Message us.",
-        "support_unavailable": "Support is offline. Check the guide or channels.",
+        "support_unavailable": "No support contact is configured. Check Help or the update channels.",
         "channel_list_title": "Our channels",
         "channel_list_intro": "Join for new products and offers.",
         "channel_list_empty": "No channels yet.",
@@ -145,12 +145,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "reseller_b1": "Bulk discounts & wholesale reseller rates",
         "reseller_b2": "REST API Key to integrate your bot or website",
         "reseller_b3": "Rapid delivery & instant automatic credentials",
-        "reseller_b4": "24/7 direct management access",
+        "reseller_b4": "Contact Support for assistance",
 
         # Deposit
         "deposit_select_method": (
             "{icon_coin} <b>Balance:</b> <code>{balance}</code>\n"
-            "👇 <i>Choose a payment method.</i>"
+            "Choose a method to top up."
         ),
         "deposit_pending_warning": (
             "{icon_timer} <b>Pending Deposit Request</b>\n\n"
@@ -159,35 +159,35 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         ),
         "deposit_closed": "{icon_warning} <b>Deposits Temporarily Closed</b>\n\n{notice}",
         "deposit_unavailable": "{icon_warning} <b>Deposits unavailable</b>\n\nNo payment methods are available.",
-        "deposit_enter_amount": "{icon_money} <b>Enter an amount to add</b>\n💡 <i>Example: 100</i>",
+        "deposit_enter_amount": "Enter the amount in BDT, e.g. 100.",
         # Navigation & Pagination Buttons
         "btn_refresh": "Refresh",
         "btn_next": "Next",
-        "btn_prev": "Prev",
-        "btn_copy_credentials": "📋 Copy Credentials",
-        "btn_copy_trxid": "📋 Copy TrxID",
-        "btn_copy_number": "📋 Copy Number",
-        "btn_copy_uid": "📋 Copy Binance UID",
-        "btn_payment_done": "✅ Payment Done",
-        "btn_change_amount": "✏️ Change Amount",
-        "btn_change_method": "🔄 Change Method",
-        "btn_open_payment_page": "🌐 Open Payment Page",
-        "btn_support_chat": "💬 Chat with Support",
-        "btn_guide": "📖 Guide",
-        "btn_cancel_deposit": "❌ Cancel Deposit",
-        "btn_browse_products": "🛍️ Browse Products",
-        "btn_back": "🔙 Back",
+        "btn_prev": "Previous",
+        "btn_copy_credentials": "Copy Credentials",
+        "btn_copy_trxid": "Copy TrxID",
+        "btn_copy_number": "Copy Number",
+        "btn_copy_uid": "Copy Binance UID",
+        "btn_payment_done": "Payment Done",
+        "btn_change_amount": "Change Amount",
+        "btn_change_method": "Change Method",
+        "btn_open_payment_page": "Pay Now",
+        "btn_support_chat": "Contact Support",
+        "btn_guide": "Guide",
+        "btn_cancel_deposit": "Cancel Top-up",
+        "btn_browse_products": "Browse Products",
+        "btn_back": "Back",
 
         # Order History & Details
-        "order_history_title": "{icon_orders} <b>Order History</b>",
+        "order_history_title": "<b>Orders</b>",
         "order_history_empty": (
-            "🛒 No orders yet.\n"
+            "No orders yet.\n"
             "Browse products to get started."
         ),
-        "order_history_page": "{icon_orders} <b>Order History (Page {page}/{total_pages})</b>",
+        "order_history_page": "<b>Orders</b> · {page}/{total_pages}",
         "order_not_found": "Order not found.",
         "order_preparing": "Paid. Preparing your order for delivery.",
-        "order_detail_title": "{icon_orders} <b>Order #{id} Details</b>",
+        "order_detail_title": "<b>Order {id}</b>",
         "order_product": "Product",
         "order_price_paid": "Price Paid",
         "order_date": "Date",
@@ -195,24 +195,24 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "order_credentials": "Delivered Credentials",
 
         # Balance / Deposit History & Details
-        "balance_history_title": "{icon_stats} <b>Deposit History</b>",
+        "balance_history_title": "<b>Top-up History</b>",
         "balance_history_hint": "",
         "balance_history_empty": (
-            "💳 No transactions yet\n"
-            "⚡ Top up wallet to buy"
+            "No top-ups yet.\n"
+            "Choose a payment method in Wallet to get started."
         ),
-        "balance_history_page": "{icon_stats} <b>Deposit History</b>",
-        "deposit_not_found": "Deposit record not found.",
-        "deposit_detail_title": "<b>Deposit {id}</b>",
+        "balance_history_page": "<b>Top-up History</b>",
+        "deposit_not_found": "Top-up not found. Open Wallet to check History.",
+        "deposit_detail_title": "<b>Top-up {id}</b>",
         "status_approved_msg": "Payment verified. Your balance is updated.",
-        "status_rejected_msg": "Deposit request rejected.",
-        "status_pending_msg": "Payment received and awaiting review.",
+        "status_rejected_msg": "Top-up not approved. Contact Support if you have already paid.",
+        "status_pending_msg": "Your payment details are awaiting verification. Do not pay again.",
         "deposit_amount": "Amount",
         "deposit_method": "Method",
         "deposit_trxid": "Transaction ID",
         "deposit_submitted_at": "Submitted",
         "deposit_reviewed_at": "Reviewed",
-        "deposit_admin_note": "Admin Note",
+        "deposit_admin_note": "Note",
         "status_approved": "Approved",
         "status_rejected": "Rejected",
         "status_pending": "Pending Review",
@@ -225,7 +225,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
 
         "deposit_choose_method": (
             "💰 <b>Balance:</b> <code>{balance}</code>\n\n"
-            "<b>Select Payment Method</b>"
+            "Choose a method to top up."
         ),
         "deposit_paused_title": "{icon_warning} <b>Deposits Temporarily Paused</b>",
         "deposit_pending_summary": (
@@ -236,17 +236,17 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "<b>TrxID:</b> <code>{trxid}</code>\n\n"
             "<i>Balance is added after verification.</i>"
         ),
-        "deposit_enter_amount_prompt": "{icon_money} <b>Enter an amount to add</b>\n💡 <i>Example: 100</i>",
-        "deposit_enter_txid_prompt": "{icon_next} <b>Enter the TrxID</b>\n💡 <i>Example: <code>BLA7X8Y9Z0</code></i>",
+        "deposit_enter_amount_prompt": "Enter the amount in BDT, e.g. 100.",
+        "deposit_enter_txid_prompt": "Send the TrxID from your payment receipt.",
         "deposit_trxid_used": "{icon_cross} This TrxID was already used.",
         "deposit_amount_mismatch": "{icon_cross} Amount doesn't match. Select Change Amount to update it.",
         "deposit_invalid_trxid": "{icon_cross} Invalid TrxID. Check your receipt and try again.",
         "deposit_tries_left": "Tries left: {tries}",
         "deposit_submitted_notice": (
-            "{icon_check} <b>Deposit submitted.</b>\n"
+            "<b>Payment details submitted</b>\n"
             "Method: {method}\n"
             "Amount: {amount}\n"
-            "Balance is added after review."
+            "Balance is added after verification. Do not pay again."
         ),
         "deposit_pending_still": (
             "{icon_timer} <b>You already have a pending deposit.</b>\n\n"
@@ -391,7 +391,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         ),
         "deposit_closed": "{icon_warning} <b>ডিপোজিট সাময়িকভাবে বন্ধ আছে</b>\n\n{notice}",
         "deposit_unavailable": "{icon_warning} <b>ডিপোজিট বন্ধ</b>\n\nকোনো পেমেন্ট মেথড নেই।",
-        "deposit_enter_amount": "{icon_money} <b>কত টাকা যোগ করবেন?</b>\n💡 <i>যেমন: 100</i>",
+        "deposit_enter_amount": "টাকার পরিমাণ লিখুন, যেমন: 100।",
         # Navigation & Pagination Buttons
         "btn_refresh": "রিফ্রেশ",
         "btn_next": "পরবর্তী",
@@ -411,15 +411,15 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "btn_back": "🔙 ব্যাক",
 
         # Order History & Details
-        "order_history_title": "{icon_orders} <b>অর্ডার হিস্ট্রি</b>",
+        "order_history_title": "<b>অর্ডার</b>",
         "order_history_empty": (
             "🛒 কোনো অর্ডার নেই।\n"
             "কিনতে প্রোডাক্ট দেখুন।"
         ),
-        "order_history_page": "{icon_orders} <b>অর্ডার হিস্ট্রি (পৃষ্ঠা {page}/{total_pages})</b>",
+        "order_history_page": "<b>অর্ডার</b> · {page}/{total_pages}",
         "order_not_found": "অর্ডার খুঁজে পাওয়া যায়নি।",
         "order_preparing": "পেমেন্ট হয়েছে। অর্ডার প্রস্তুত হচ্ছে।",
-        "order_detail_title": "{icon_orders} <b>অর্ডার #{id} বিবরণ</b>",
+        "order_detail_title": "<b>অর্ডার {id}</b>",
         "order_product": "প্রোডাক্ট",
         "order_price_paid": "মূল্য পরিশোধিত",
         "order_date": "তারিখ",
@@ -427,13 +427,13 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "order_credentials": "ডেলিভারিকৃত ক্রেডেনশিয়াল",
 
         # Balance / Deposit History & Details
-        "balance_history_title": "{icon_stats} <b>ডিপোজিট হিস্ট্রি</b>",
+        "balance_history_title": "<b>টপ-আপ হিস্ট্রি</b>",
         "balance_history_hint": "",
         "balance_history_empty": (
             "💳 কোনো লেনদেন নেই\n"
             "⚡ ব্যালেন্স যোগ করুন"
         ),
-        "balance_history_page": "{icon_stats} <b>ডিপোজিট হিস্ট্রি</b>",
+        "balance_history_page": "<b>টপ-আপ হিস্ট্রি</b>",
         "deposit_not_found": "ডিপোজিট রেকর্ড পাওয়া যায়নি।",
         "deposit_detail_title": "<b>ডিপোজিট {id}</b>",
         "status_approved_msg": "পেমেন্ট যাচাই হয়েছে। ব্যালেন্স যোগ হয়েছে।",
@@ -468,14 +468,14 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "<b>TrxID:</b> <code>{trxid}</code>\n\n"
             "<i>যাচাই হলে ব্যালেন্স যোগ হবে।</i>"
         ),
-        "deposit_enter_amount_prompt": "{icon_money} <b>কত টাকা যোগ করবেন?</b>\n💡 <i>যেমন: 100</i>",
-        "deposit_enter_txid_prompt": "{icon_next} <b>TrxID লিখুন</b>\n💡 <i>যেমন: <code>BLA7X8Y9Z0</code></i>",
+        "deposit_enter_amount_prompt": "টাকার পরিমাণ লিখুন, যেমন: 100।",
+        "deposit_enter_txid_prompt": "আপনার পেমেন্টের রসিদ থেকে TrxID পাঠান।",
         "deposit_trxid_used": "{icon_cross} এই TrxID আগেই ব্যবহার হয়েছে।",
         "deposit_amount_mismatch": "{icon_cross} টাকার অঙ্ক মেলেনি। ঠিক করতে টাকা পরিবর্তন করুন।",
         "deposit_invalid_trxid": "{icon_cross} TrxID ভুল। রসিদ দেখে আবার দিন।",
         "deposit_tries_left": "বাকি চেষ্টা: {tries}",
         "deposit_submitted_notice": (
-            "{icon_check} <b>ডিপোজিট জমা হয়েছে।</b>\n"
+            "<b>পেমেন্টের তথ্য জমা হয়েছে।</b>\n"
             "মেথড: {method}\n"
             "পরিমাণ: {amount}\n"
             "যাচাই শেষে ব্যালেন্স যোগ হবে।"

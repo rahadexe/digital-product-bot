@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
+from html import escape
 from typing import Any
 
 import asyncpg
@@ -80,7 +81,9 @@ class InventoryService:
                 await record(conn, "bulk_stock_added", f"Added {len(fresh)} stock items to Product ID {product_id}{seats}")
                 if self.notifier:
                     subscribers = await conn.fetch(
-                        "SELECT tg_user_id FROM restock_notifications WHERE product_id = $1", product_id
+                        "SELECT r.tg_user_id FROM restock_notifications r "
+                        "LEFT JOIN user_notification_preferences p ON p.tg_user_id=r.tg_user_id "
+                        "WHERE r.product_id = $1 AND COALESCE(p.notify_news, TRUE)", product_id
                     )
                     if subscribers:
                         prod = await conn.fetchrow("SELECT title FROM products WHERE id = $1", product_id)
@@ -98,13 +101,11 @@ class InventoryService:
                             self.notifier.in_background(
                                 self.notifier.send(
                                     uid,
-                                    f"🔔 <b>Product Restocked</b>\n\n"
-                                    f"<b>{title}</b> is back in stock!\n"
-                                    f"Available for purchase now.",
+                                    f"<b>Back in stock</b>\n{escape(title)}",
                                     keyboard=kb,
                                 )
                             )
-                        await conn.execute("DELETE FROM restock_notifications WHERE product_id = $1", product_id)
+                    await conn.execute("DELETE FROM restock_notifications WHERE product_id = $1", product_id)
         skipped = len([item for item in items if item.strip()]) - len(fresh)
         return {"added": len(fresh), "skipped": skipped}
 

@@ -52,7 +52,7 @@ FAQ_ITEMS: dict[str, dict[str, Any]] = {
     "deposit": {
         "answer": {
             "en": (
-                "<b>How to add balance</b>\n\n"
+                "<b>Top up your wallet</b>\n\n"
                 "1. Open Wallet and choose a payment method.\n"
                 "2. Pay the displayed account, then tap Payment Done.\n"
                 "3. Reply with your TrxID or Binance Order ID, then the amount sent.\n"
@@ -89,11 +89,11 @@ FAQ_ITEMS: dict[str, dict[str, Any]] = {
         "answer": {
             "en": (
                 "<b>How referrals work</b>\n\n"
-                "1. Open Refer to copy your referral link.\n"
-                "2. Share the link with friends.\n"
-                "3. Your friend must open the link, start the bot, and pass any required channel check.\n"
-                "4. If referral rewards are enabled, the configured reward is added to your wallet once for that friend.\n"
-                "5. Invited and Earned update for completed rewards, not for link clicks."
+                "Open Refer and share your link.\n"
+                "A new friend must start the bot through your link and complete any required channel check.\n\n"
+                "When rewards are enabled, you earn once per eligible friend. "
+                "Rewards are for eligible friends, not for link clicks. "
+                "Successful invites counts rewarded friends."
             ),
             "bn": (
                 "<b>রেফারেল থেকে কীভাবে আয় করবেন</b>\n\n"
@@ -162,10 +162,9 @@ async def show_faq_answer(query: CallbackQuery, state: FSMContext, services: Ser
         handle = (settings_map.get("support_username") or "").lstrip("@")
         if lang != "bn":
             text = (
-                "<b>Technical support</b>\n\n"
-                "Need help with an order or wallet balance? Contact our support team.\n\n"
-                f"<b>Telegram:</b> @{handle or 'Support'}\n"
-                "<b>Availability:</b> 24/7"
+                "<b>Support</b>\n\n"
+                "Send your order or top-up reference and a short description of the issue.\n\n"
+                + (f"Telegram: @{handle}" if handle else "No support contact is configured. Check the update channels.")
             )
         else:
             text = (

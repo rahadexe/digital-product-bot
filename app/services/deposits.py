@@ -15,6 +15,7 @@ from typing import Any
 import asyncpg
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
+from app.bot.customer_copy import wallet_updated
 from app.bot.icons import (
     ICON_ACCOUNT,
     ICON_BALANCE,
@@ -636,16 +637,12 @@ class DepositService:
             "new_balance": new_balance if new_balance is not None else amount,
             "method_name": deposit["method_name"],
         }
-        method_name = escape(deposit["method_name"])
         if notify_customer:
             self.notifier.in_background(
                 self._notify_customer(
                     deposit["tg_user_id"],
                     lambda symbol: (
-                        f"✅ <b>Deposit Approved</b>\n\n"
-                        f"<b>Amount:</b> <code>{amount:.2f} {symbol}</code>\n"
-                        f"<b>Method:</b> {method_name}\n"
-                        f"<b>New Balance:</b> <code>{details['new_balance']:.2f} {symbol}</code>"
+                        wallet_updated(amount, details["new_balance"], symbol, deposit_id)
                     ),
                 )
             )
@@ -698,11 +695,12 @@ class DepositService:
             self._notify_customer(
                 tg_user_id,
                 lambda symbol: (
-                    f"❌ <b>Deposit Rejected</b>\n\n"
-                    f"<b>Method:</b> {method_name}\n"
-                    f"<b>Amount:</b> <code>{amount:.2f} {symbol}</code>\n"
-                    f"<b>TrxID:</b> <code>{trx_id}</code>\n"
-                    f"<b>Reason:</b> {escape(admin_note)}"
+                    f"<b>Top-up not approved · {format_deposit_id(deposit_id)}</b>\n"
+                    f"Method: {method_name}\n"
+                    f"Amount: <code>{amount:.2f} {symbol}</code>\n"
+                    f"TrxID: <code>{trx_id}</code>\n"
+                    f"Reason: {escape(admin_note) or 'Payment could not be verified.'}\n\n"
+                    "Contact Support if you have already paid."
                 ),
                 keyboard=support_kb,
             )

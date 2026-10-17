@@ -46,6 +46,11 @@ class DeliveryWorker:
         message = await self.delivery.claim_next()
         if not message:
             return False
+        if (message.get("broadcast_id") and not message.get("order_id")
+                and not message.get("about_order_id")
+                and not await self.delivery.news_allowed(message["tg_user_id"])):
+            await self.delivery.cancel(message)
+            return True
         order = await self.delivery.order_for(message) if message['order_id'] else None
         if message['order_id'] and (not order or order['status'] == 'refunded'):
             await self.delivery.cancel(message)
