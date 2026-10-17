@@ -105,6 +105,32 @@ async def _send_input_prompt(
             await bot.delete_message(chat_id=chat_id, message_id=previous_id)
 
 
+async def _retry_payment_input(
+    status_msg: Message, message: Message, state: FSMContext, text: str, *, amount: bool = False,
+) -> None:
+    """Keep the valid field and route the next reply to the field that needs correction."""
+    data = await state.get_data()
+    is_binance = (
+        data.get("is_binance") or "binance" in data.get("method_name", "").lower()
+        or data.get("auto_verify") in ("binance", "binance_pay")
+    )
+    if amount:
+        await state.update_data(manual_amount=None, pay_amount=None, usd_amount=None, binance_usdt=None)
+        await state.set_state(DepositStates.waiting_for_amount)
+        field, placeholder = "amount_prompt_id", "Amount in USDT" if is_binance else "Amount in BDT"
+    else:
+        await state.update_data(manual_txid=None)
+        await state.set_state(
+            DepositStates.waiting_for_binance_ref if is_binance else DepositStates.waiting_for_txid,
+        )
+        field, placeholder = "reference_prompt_id", "Order ID" if is_binance else "Transaction ID"
+    await _safe_edit_or_answer(
+        status_msg, message, "Payment not verified.",
+        reply_markup=get_deposit_trxid_prompt_keyboard(),
+    )
+    await _send_input_prompt(message, state, text, field=field, placeholder=placeholder)
+
+
 def get_account_type_labels(account_type: str | None) -> tuple[str, str]:
     """Returns (type_display, action_display)"""
     at = (account_type or "personal").lower()
@@ -515,7 +541,10 @@ async def render_method_details(
     auto_verify = method.get("auto_verify") or "none"
     custom_inst = payment_instruction_note(str(method.get("instructions") or "").strip())
 
-    is_binance = "binance" in method_name.lower() or account_type == "crypto" or auto_verify == "binance_pay"
+    is_binance = "binance" in method_name.lower() or account_type == "crypto" or auto_verify in ("binance", "binance_pay")
+    if auto_verify == "binance":
+        # Legacy on-chain minimums are stored in wallet BDT, but customers enter coins.
+        min_dep *= rate or 1.0
     is_payment_link = account_info.startswith("https://")
 
     # Global exchange rate from settings: all fiat/BDT methods use global usd_rate, crypto is 1.0.
@@ -927,8 +956,8 @@ async def handle_deposit_quick_amount(query: CallbackQuery, state: FSMContext, s
         return
 
     max_dep = await services.settings.number("max_deposit_limit")
-    if not is_binance and max_dep and amount_num > (max_dep * rate):
-        max_bdt = max_dep * rate
+    if not is_binance and max_dep and amount_num > max_dep:
+        max_bdt = max_dep
         err_msg = f"সর্বোচ্চ ডিপোজিট {max_bdt:.0f} ৳:" if lang == "bn" else f"Maximum deposit is {max_bdt:.0f} ৳:"
         with suppress(TelegramBadRequest):
             await query.answer(err_msg, show_alert=True)
@@ -1232,8 +1261,8 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
 
     rate = float(data.get("rate") or 1.0)
     max_dep = await services.settings.number("max_deposit_limit")
-    if not is_binance and max_dep and amount_num > (max_dep * rate):
-        max_bdt = max_dep * rate
+    if not is_binance and max_dep and amount_num > max_dep:
+        max_bdt = max_dep
         err_msg = f"সর্বোচ্চ ডিপোজিট {max_bdt:.0f} ৳:" if lang == "bn" else f"Maximum deposit is {max_bdt:.0f} ৳:"
         await _send_or_edit_error(_build_err_card(err_msg), quick_kb)
         return
@@ -1689,12 +1718,7 @@ async def execute_deposit_submission(
         except DuplicateTransactionError:
             lang = await services.users.get_language(user_id)
             text = "❌ এই TrxID আগেই ব্যবহার করা হয়েছে।" if lang == "bn" else "❌ This TrxID has already been used. Send a new one."
-            await _safe_edit_or_answer(
-                status_msg,
-                user_msg,
-                text,
-                reply_markup=get_cancel_keyboard(back_target="dep_invoice", lang=lang),
-            )
+            await _retry_payment_input(status_msg, user_msg, state, text)
             return
         except PendingDepositError:
             await state.clear()
@@ -1709,8 +1733,21 @@ async def execute_deposit_submission(
             await _safe_edit_or_answer(status_msg, user_msg, f"❌ {escape(str(exc))}")
             return
         except Exception as exc:
-            logger.warning("ZiniPay claim exception: %s. Gracefully routing to manual review.", exc)
+            logger.warning("ZiniPay claim interrupted (%s); preserving the payment for review.", type(exc).__name__)
             try:
+                # The gateway call may have succeeded after a local reservation.
+                # Never file a second request or lose the saved payment on this path.
+                existing = await services.deposits.find_by_transaction(clean_tx)
+                if existing and existing.get("tg_user_id") == user_id:
+                    await state.clear()
+                    await _safe_edit_or_answer(
+                        status_msg, user_msg,
+                        "Your payment is already recorded. Open History to check its status. Do not pay again.",
+                        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                            InlineKeyboardButton(text="History", callback_data="open_deposits"),
+                        ]]),
+                    )
+                    return
                 dep_id = await services.deposits.create_request(
                     tg_user_id=user_id,
                     method_id=method_id,
@@ -1718,7 +1755,7 @@ async def execute_deposit_submission(
                     transaction_id=clean_tx,
                     pay_amount=actual_pay,
                     quoted_rate=rate,
-                    admin_note=f"ZiniPay auto-verify unavailable ({str(exc)[:80]}). Auto-routed to manual review.",
+                    admin_note="ZiniPay verification interrupted. Review the merchant statement before approval.",
                 )
                 await state.clear()
                 lang = await services.users.get_language(user_id)
@@ -1734,7 +1771,16 @@ async def execute_deposit_submission(
                 await _safe_edit_or_answer(status_msg, user_msg, text, reply_markup=keyboard)
                 return
             except Exception:
-                pass
+                await state.clear()
+                await _safe_edit_or_answer(
+                    status_msg, user_msg,
+                    "Verification is unavailable. Check History or contact Help before retrying. Do not pay again.",
+                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="History", callback_data="open_deposits")],
+                        [InlineKeyboardButton(text="Help", callback_data="open_support")],
+                    ]),
+                )
+                return
 
         if res.get("auto_verified") and res.get("credited"):
             await services.deposits.clear_verification_failures(user_id)
@@ -1796,7 +1842,7 @@ async def execute_deposit_submission(
             if remaining_attempts <= 0:
                 await services.deposits.clear_verification_failures(user_id)
                 await state.clear()
-                admin_note = "ZiniPay auto-verify failed 3x. Auto-routed to manual review."
+                admin_note = f"ZiniPay auto-verify failed 3x ({res.get('error')}). Review the receipt and amount before approval."
                 try:
                     dep_id = await services.deposits.create_request(
                         tg_user_id=user_id,
@@ -1820,16 +1866,29 @@ async def execute_deposit_submission(
                     await _safe_edit_or_answer(status_msg, user_msg, text, reply_markup=keyboard)
                     return
                 except Exception:
-                    pass
+                    await _safe_edit_or_answer(
+                        status_msg, user_msg,
+                        "Unable to save this payment. Check History or contact Help before retrying. Do not pay again.",
+                        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                            [InlineKeyboardButton(text="History", callback_data="open_deposits")],
+                            [InlineKeyboardButton(text="Help", callback_data="open_support")],
+                        ]),
+                    )
+                    return
 
-            left = f"\n<i>Tries left: {remaining_attempts}</i>"
-            error_msg = f"❌ Invalid TrxID. Check your SMS / receipt and enter the correct TrxID.{left}"
-            await _safe_edit_or_answer(
-                status_msg,
-                user_msg,
-                error_msg,
-                reply_markup=get_deposit_trxid_prompt_keyboard(lang=lang),
-            )
+            if res["error"] == "amount_mismatch":
+                await _retry_payment_input(
+                    status_msg, user_msg, state,
+                    "Amount does not match the receipt. Enter the amount you sent in BDT.",
+                    amount=True,
+                )
+            else:
+                error_msg = (
+                    "This TrxID has already been used. Enter a new Transaction ID."
+                    if res["error"] == "already_used" else
+                    f"Invalid TrxID for {escape(method_name)}. Enter the Transaction ID from your receipt."
+                )
+                await _retry_payment_input(status_msg, user_msg, state, error_msg)
             return
 
     # 5. Standard Manual Deposit
@@ -1845,12 +1904,7 @@ async def execute_deposit_submission(
     except DuplicateTransactionError:
         lang = await services.users.get_language(user_id)
         text = "❌ এই TrxID আগেই ব্যবহার করা হয়েছে।" if lang == "bn" else "❌ This TrxID has already been used."
-        await _safe_edit_or_answer(
-            status_msg,
-            user_msg,
-            text,
-            reply_markup=get_cancel_keyboard(back_target="dep_invoice", lang=lang),
-        )
+        await _retry_payment_input(status_msg, user_msg, state, text)
         return
     except PendingDepositError:
         await state.clear()
@@ -1911,11 +1965,9 @@ async def claim_binance_payment(
     try:
         result = await services.binance.claim(user_msg.from_user.id, method_id, ref, expected_usdt=expected_usdt)
     except DuplicateTransactionError:
-        await _safe_edit_or_answer(
-            status_msg,
-            user_msg,
-            "❌ এই Order ID আগেই ব্যবহার করা হয়েছে।" if lang == "bn" else "❌ This Order ID has already been used.",
-            reply_markup=get_cancel_keyboard(back_target="dep_invoice", lang=lang),
+        await _retry_payment_input(
+            status_msg, user_msg, state,
+            "This Order ID has already been used. Enter a new Order ID from Binance.",
         )
         return
     except PendingDepositError:
@@ -1940,12 +1992,7 @@ async def claim_binance_payment(
             err_text = "❌ এই Order ID আগেই ব্যবহার করা হয়েছে।" if lang == "bn" else "❌ This Order ID has already been used."
         else:
             err_text = "❌ Order ID পাওয়া যায়নি। Binance থেকে চেক করে আবার দিন।" if lang == "bn" else "❌ Order ID not found. Check it in Binance and send it again."
-        await _safe_edit_or_answer(
-            status_msg,
-            user_msg,
-            err_text,
-            reply_markup=get_cancel_keyboard(back_target="dep_invoice", lang=lang),
-        )
+        await _retry_payment_input(status_msg, user_msg, state, err_text)
         return
 
     await state.clear()

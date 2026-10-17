@@ -15,7 +15,7 @@ import re
 import unittest
 import uuid
 from decimal import Decimal
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 from urllib.parse import urlsplit
 
 import asyncpg
@@ -667,6 +667,181 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await self.balance(), 0.0)
 
     # ---- wallet integrity -----------------------------------------------------
+
+    async def test_known_invoice_id_does_not_override_a_contradictory_reference(self):
+        invoice = await self._invoice()
+        result = await self._refresh(invoice['reference'], {
+            'status': 'COMPLETED', 'invoice_id': 'INV-1', 'val_id': 'SM-OTHER',
+            'amount': 500, 'transaction_id': 'CONFLICT-REF-1',
+        })
+        self.assertEqual(result['status'], 'failed')
+        self.assertEqual(await self.balance(), 0)
+
+    async def test_hosted_payment_with_an_explicit_wrong_currency_is_refused(self):
+        invoice = await self._invoice()
+        result = await self._refresh(invoice['reference'], {
+            'status': 'COMPLETED', 'val_id': invoice['reference'], 'currency': 'USD',
+            'amount': 500, 'transaction_id': 'WRONG-CURRENCY-1',
+        })
+        self.assertEqual(result['status'], 'failed')
+        self.assertEqual(await self.balance(), 0)
+
+    async def test_transport_success_does_not_override_a_pending_invoice(self):
+        invoice = await self._invoice()
+        result = await self._refresh(invoice['reference'], {
+            'status': True, 'data': {
+                'status': 'PENDING', 'val_id': invoice['reference'],
+                'amount': 500, 'transaction_id': 'NOT-PAID-YET',
+            },
+        })
+        self.assertEqual(result['status'], 'pending')
+        self.assertEqual(await self.balance(), 0)
+
+    async def test_nested_completed_payment_is_read_despite_transport_success(self):
+        invoice = await self._invoice()
+        result = await self._refresh(invoice['reference'], {
+            'status': True, 'data': {
+                'status': 'COMPLETED', 'val_id': invoice['reference'],
+                'amount': 500, 'transaction_id': 'NESTED-PAID-1',
+            },
+        })
+        self.assertEqual(result['status'], 'completed')
+        self.assertEqual(await self.balance(), 500)
+
+    async def test_explicit_transport_failure_does_not_credit_nested_completion(self):
+        invoice = await self._invoice()
+        result = await self._refresh(invoice['reference'], {
+            'success': False, 'data': {
+                'status': 'COMPLETED', 'val_id': invoice['reference'],
+                'amount': 500, 'transaction_id': 'REFUSED-NESTED-1',
+            },
+        })
+        self.assertEqual(result['status'], 'pending')
+        self.assertEqual(await self.balance(), 0)
+
+    async def _awaiting_deposit(self, *, credit=500, paid=500):
+        dep_id = await self.s.deposits.create_request(
+            CUSTOMER, self.method, credit, 'LATE-RECEIPT-1', pay_amount=paid,
+        )
+        await self.s.zinipay._mark_awaiting(dep_id)
+        async with self.db.connect() as conn:
+            return dict(await conn.fetchrow('SELECT * FROM deposits WHERE id=$1', dep_id))
+
+    @staticmethod
+    def _verified_late_receipt(amount=500):
+        return {'ok': True, 'id': 77, 'provider': 'bKash',
+                'raw': {'provider': 'bKash', 'amount': amount, 'trxID': 'LATE-RECEIPT-1'}}
+
+    async def test_cancel_during_receipt_lookup_never_consumes_the_payment(self):
+        row = await self._awaiting_deposit()
+
+        async def verify(*_):
+            self.assertTrue(await self.s.deposits.cancel_awaiting_sms(row['id'], CUSTOMER))
+            return self._verified_late_receipt()
+
+        with patch.object(self.s.zinipay, 'verify', side_effect=verify), \
+             patch.object(self.s.zinipay, 'confirm', new_callable=AsyncMock) as confirm:
+            result = await self.s.zinipay._finish_awaiting(row)
+        confirm.assert_not_awaited()
+        self.assertFalse(result)
+        self.assertEqual(await self.balance(), 0)
+
+    async def test_a_late_receipt_is_confirmed_only_once_across_workers(self):
+        row = await self._awaiting_deposit()
+        verifying = asyncio.Event()
+        confirmations = 0
+        lookups = 0
+
+        async def verify(*_):
+            nonlocal lookups
+            lookups += 1
+            if lookups == 2:
+                verifying.set()
+            await asyncio.wait_for(verifying.wait(), timeout=5)
+            return self._verified_late_receipt()
+
+        async def confirm(*_):
+            nonlocal confirmations
+            confirmations += 1
+            await asyncio.sleep(0.02)
+            return {'ok': True, 'provider': 'bKash'}
+
+        with patch.object(self.s.zinipay, 'verify', side_effect=verify), \
+             patch.object(self.s.zinipay, 'confirm', side_effect=confirm):
+            outcomes = await asyncio.gather(
+                self.s.zinipay._finish_awaiting(row), self.s.zinipay._finish_awaiting(row),
+            )
+        self.assertEqual(confirmations, 1)
+        self.assertEqual(sum(outcomes), 1)
+        self.assertEqual(await self.balance(), 500)
+
+    async def test_late_receipt_verifies_the_paid_amount_not_the_quoted_credit(self):
+        row = await self._awaiting_deposit(credit=40, paid=500)
+        with patch.object(self.s.zinipay, 'verify', return_value=self._verified_late_receipt()) as verify, \
+             patch.object(self.s.zinipay, 'confirm', return_value={'ok': True}) as confirm:
+            await self.s.zinipay._finish_awaiting(row)
+        verify.assert_awaited_once_with(500, 'LATE-RECEIPT-1')
+        confirm.assert_awaited_once_with(500, 'LATE-RECEIPT-1', 77)
+        self.assertEqual(await self.balance(), 40)
+
+    async def test_expired_lookup_cannot_downgrade_an_inflight_confirmation(self):
+        row = await self._awaiting_deposit()
+        async with self.db.connect() as conn:
+            await conn.execute(
+                "UPDATE payment_verification_attempts SET status='confirming' WHERE deposit_id=$1", row['id'],
+            )
+        await self.s.zinipay._give_up_waiting(row['id'])
+        async with self.db.connect() as conn:
+            status = await conn.fetchval(
+                'SELECT status FROM payment_verification_attempts WHERE deposit_id=$1', row['id'],
+            )
+        self.assertEqual(status, 'confirming')
+
+    async def test_manual_binance_quote_uses_usdt_not_bdt_for_the_paid_amount(self):
+        method = await self.s.deposits.create_method(
+            'Binance', '12345678', min_deposit=0.2, rate=125, account_type='crypto',
+        )
+        quote = await self.s.deposits.quote(method, 250)
+        self.assertEqual(quote['pay_amount'], 2)
+        self.assertEqual(quote['paid_currency'], 'USDT')
+        result = await self.s.binance.claim(CUSTOMER, method, 'MANUAL-BINANCE-1', expected_usdt=2)
+        self.assertFalse(result['credited'])
+        pending = await self.s.deposits.find_by_transaction('MANUAL-BINANCE-1')
+        self.assertEqual(float(pending['amount']), 250)
+        self.assertEqual(float(pending['pay_amount']), 2)
+        self.assertEqual(pending['paid_currency'], 'USDT')
+
+    async def test_onchain_binance_claim_uses_its_quoted_conversion_direction(self):
+        method = await self.s.deposits.create_method(
+            'Binance Chain', 'chain-test-address', min_deposit=25, rate=0.008,
+            auto_verify='binance', account_type='crypto',
+        )
+        result = await self.s.binance.claim(CUSTOMER, method, 'CHAIN-REFERENCE-1', expected_usdt=2)
+        self.assertFalse(result['credited'])
+        pending = await self.s.deposits.find_by_transaction('CHAIN-REFERENCE-1')
+        self.assertEqual(float(pending['amount']), 250)
+        self.assertEqual(float(pending['pay_amount']), 2)
+        self.assertEqual(pending['paid_currency'], 'USDT')
+
+    async def test_explicit_paid_amount_cannot_bypass_the_bdt_wallet_limit(self):
+        await self.s.settings.update({'max_deposit_limit': '100'})
+        method = await self.s.deposits.create_method(
+            'Binance', '12345678', min_deposit=0.2, rate=125, account_type='crypto',
+        )
+        with self.assertRaises(InvalidInputError):
+            await self.s.deposits.create_request(
+                CUSTOMER, method, 250, 'LIMIT-BINANCE-1', pay_amount=2, quoted_rate=125,
+            )
+        self.assertIsNone(await self.s.deposits.pending_for(CUSTOMER))
+
+    async def test_a_confirmed_receipt_is_not_reported_as_credited_if_approval_fails(self):
+        row = await self._awaiting_deposit()
+        with patch.object(self.s.zinipay, 'verify', return_value=self._verified_late_receipt()), \
+             patch.object(self.s.zinipay, 'confirm', return_value={'ok': True}), \
+             patch.object(self.s.deposits, 'approve', return_value=(False, 'Still pending', None)):
+            credited = await self.s.zinipay._finish_awaiting(row)
+        self.assertFalse(credited)
+        self.assertEqual(await self.balance(), 0)
 
     async def test_every_credit_is_recorded_in_the_ledger(self):
         invoice = await self._invoice()

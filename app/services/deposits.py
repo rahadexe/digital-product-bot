@@ -65,6 +65,15 @@ class PendingDepositError(InvalidInputError):
     pass
 
 
+def is_binance_pay_method(method: Any) -> bool:
+    """Pay/manual crypto rates are BDT per coin; legacy on-chain rates are inverse."""
+    return method.get("auto_verify") != "binance" and (
+        method.get("auto_verify") == "binance_pay"
+        or method.get("account_type") == "crypto"
+        or "binance" in (method.get("name") or "").lower()
+    )
+
+
 class DepositService:
     CACHE_SECONDS = 60.0
 
@@ -253,7 +262,7 @@ class DepositService:
         symbol = values["currency_symbol"]
         limit = float(values["max_deposit_limit"])
         rate = float(method["rate_to_currency"])
-        is_pay = method.get("auto_verify") == "binance_pay"
+        is_pay = is_binance_pay_method(method)
         minimum = method["min_deposit"] * rate if is_pay else method["min_deposit"]
         if amount < minimum:
             raise InvalidInputError(f"The minimum deposit for this method is {symbol}{minimum:.2f}.")
@@ -268,7 +277,7 @@ class DepositService:
             "amount": amount,
             "rate": rate,
             "pay_amount": round(amount / rate if is_pay else amount * rate, 4),
-            "paid_currency": values.get("binance_coin", "USDT") if method.get("auto_verify") in ("binance", "binance_pay") else "BDT",
+            "paid_currency": values.get("binance_coin", "USDT") if is_pay or method.get("auto_verify") == "binance" else "BDT",
         }
 
     async def quote(self, method_id: int, amount: Any) -> dict[str, Any]:
@@ -317,13 +326,14 @@ class DepositService:
                     actual_amount = amount
                     rate = float(quoted_rate if quoted_rate is not None else (method["rate_to_currency"] or 1.0))
                     min_dep = float(method["min_deposit"] or 0.0)
-                    is_pay = method.get("auto_verify") == "binance_pay" or "binance" in (method.get("name") or "").lower()
-                    if actual_pay_amount < min_dep:
+                    is_pay = is_binance_pay_method(method)
+                    minimum_amount = actual_amount if method.get("auto_verify") == "binance" else actual_pay_amount
+                    if minimum_amount < min_dep:
                         curr_sym = "$" if is_pay else values.get("currency_symbol", "৳")
                         raise InvalidInputError(f"The minimum deposit for this method is {curr_sym}{min_dep:g}.")
                     limit = float(values.get("max_deposit_limit") or 0.0)
-                    if limit and actual_pay_amount > limit:
-                        curr_sym = "$" if is_pay else values.get("currency_symbol", "৳")
+                    if limit and actual_amount > limit:
+                        curr_sym = values.get("currency_symbol", "৳")
                         raise InvalidInputError(f"The maximum single deposit is {curr_sym}{limit:g}. Contact support for larger payments.")
                     quote = {
                         "method_id": method["id"],
@@ -334,7 +344,7 @@ class DepositService:
                         "amount": actual_amount,
                         "rate": rate,
                         "pay_amount": actual_pay_amount,
-                        "paid_currency": values.get("binance_coin", "USDT") if is_pay else "BDT",
+                        "paid_currency": values.get("binance_coin", "USDT") if is_pay or method.get("auto_verify") == "binance" else "BDT",
                     }
                 else:
                     quote = await self._quote(method, amount, values)

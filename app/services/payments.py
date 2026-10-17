@@ -165,11 +165,14 @@ class ZiniPayClient:
         status, body = await self._post("verify", payload)
         if status == 404:
             return None
+        if status != 200 or body.get("success") is False or body.get("status") is False:
+            raise PaymentProviderError(_provider_message(status, body))
         # Flattened, so a wrapped answer is read the same way as a plain one.
+        # A transport-level True must never replace the invoice's PENDING status.
         answer: dict[str, Any] = {}
-        for source in reversed(_nested(body)):
+        for source in _nested(body):
             answer.update({key: value for key, value in source.items() if not isinstance(value, dict)})
-        if status != 200 or "status" not in answer:
+        if "status" not in answer:
             raise PaymentProviderError(_provider_message(status, body))
         return answer
 
@@ -569,6 +572,8 @@ class PaymentService:
             answered_reference = str(result.get("val_id") or result.get("valId") or "")
             ref_match = bool(answered_reference and answered_reference == row["reference"])
             inv_match = bool(answered_invoice and (answered_invoice == row["provider_invoice_id"] or answered_invoice == row["reference"]))
+            if answered_reference and not ref_match:
+                problems.append("the answer names a different payment reference")
             # ZiniPay answers with its own invoice UUID and with val_id, the reference we
             # gave it. Creation only ever told us the reference, so the UUID never matched
             # what was stored and a paid invoice was failed with "the verified invoice does
@@ -589,6 +594,9 @@ class PaymentService:
                     problems.append("the answer names another invoice of ours")
             paid = _decimal(result.get("without_fee", result.get("amount")))
             expected = _decimal(row["pay_amount"])
+            answered_currency = str(result.get("currency") or "").strip().upper()
+            if answered_currency and answered_currency != LOCAL_CURRENCY:
+                problems.append(f"the payment currency is {answered_currency}, not {LOCAL_CURRENCY}")
             if abs(paid - expected) > AMOUNT_TOLERANCE:
                 problems.append(f"paid {paid:.2f} {LOCAL_CURRENCY} but the invoice was for {expected:.2f} {LOCAL_CURRENCY}")
             if problems:

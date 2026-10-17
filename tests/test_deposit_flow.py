@@ -221,6 +221,56 @@ class DepositConversation(unittest.IsolatedAsyncioTestCase):
         stored = await self.s.deposits.find_by_transaction('BKMISMATCH1')
         self.assertTrue(stored is None or stored['status'] != 'approved')
 
+    async def test_corrected_amount_keeps_the_reference_and_credits_once(self):
+        await self._compact_payment('BKAMOUNT1')
+        mismatch = ({'success': False, 'message': 'Transaction amount mismatch', 'data': None}, 400)
+        await self.s.zinipay.http.aclose()
+        with patch.object(Bot, 'edit_message_text', side_effect=TelegramBadRequest(method=None, message='test fallback')):
+            async with self.gateway(mismatch) as client:
+                self.s.zinipay.http = client
+                await self.tap(text='200')
+            self.assertIn('amount', self.last().lower())
+            self.assertNotIn('Invalid TrxID', self.last())
+            self.assertIsInstance(self.markups[-1], ForceReply)
+            async with self.gateway(receipt(100, 'BKAMOUNT1')) as client:
+                self.s.zinipay.http = client
+                await self.tap(text='৳100')
+        self.assertEqual(await self.balance(), 100, self.last())
+
+    async def test_used_reference_can_be_corrected_without_reentering_the_amount(self):
+        await self.s.users.sync_profile(CUSTOMER + 5, first_name='Other')
+        old = await self.s.deposits.create_request(CUSTOMER + 5, self.method, 100, 'BKUSED111')
+        await self.s.deposits.reject(old)
+        await self._compact_payment('BKUSED111')
+        await self.s.zinipay.http.aclose()
+        with patch.object(Bot, 'edit_message_text', side_effect=TelegramBadRequest(method=None, message='test fallback')):
+            await self.tap(text='100')
+            self.assertIn('already been used', self.last())
+            self.assertIsInstance(self.markups[-1], ForceReply)
+            async with self.gateway(receipt(100, 'BKNEW1111')) as client:
+                self.s.zinipay.http = client
+                await self.tap(text='BKNEW1111')
+        self.assertEqual(await self.balance(), 100, self.last())
+
+    async def test_gateway_exception_after_reservation_preserves_one_reviewable_deposit(self):
+        await self._compact_payment('BKCRASH11')
+        created = []
+
+        async def interrupted(*args, **kwargs):
+            created.append(await self.s.deposits.create_request(
+                CUSTOMER, self.method, 100, 'BKCRASH11', pay_amount=100,
+            ))
+            raise RuntimeError('simulated interruption after reservation')
+
+        with patch.object(self.s.zinipay, 'claim', side_effect=interrupted), \
+             patch.object(Bot, 'edit_message_text', side_effect=TelegramBadRequest(method=None, message='test fallback')):
+            await self.tap(text='100')
+        self.assertEqual(len(created), 1)
+        self.assertIn('History', self.last())
+        self.assertIn('Do not pay again', self.last())
+        self.assertEqual(await self.balance(), 0)
+        self.assertEqual((await self.s.deposits.pending_for(CUSTOMER))['id'], created[0])
+
     async def test_a_receipt_still_in_transit_leaves_one_card_on_screen(self):
         await self.submit(250, 'BK00000001', MISSING, retries=(0.01, 0.01, 0.01))
         cards = [text for text in self.posted if plain(text).strip() != '🏠']

@@ -14,6 +14,7 @@ from aiogram.types import ForceReply
 from app.bot.deposit_input import parse_deposit_amount, payment_instruction_note
 from app.bot.handlers.deposit import (
     DepositStates,
+    claim_binance_payment,
     create_instant_payment,
     process_deposit_amount,
     process_deposit_txid,
@@ -37,7 +38,7 @@ def message(text):
 def services():
     return SimpleNamespace(
         users=SimpleNamespace(get_language=AsyncMock(return_value="en")),
-        settings=SimpleNamespace(number=AsyncMock(return_value=1000)),
+        settings=SimpleNamespace(number=AsyncMock(return_value=100000)),
     )
 
 
@@ -230,7 +231,7 @@ async def test_payment_details_hide_old_amount_directions_but_preserve_merchant_
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("raw", ["৳49", "৪৯ টাকা", "৳125,001"])
+@pytest.mark.parametrize("raw", ["৳49", "৪৯ টাকা", "৳100,001"])
 async def test_formatted_amounts_still_obey_minimum_and_maximum_limits(raw):
     state = await waiting_state()
     incoming = message(raw)
@@ -240,6 +241,58 @@ async def test_formatted_amounts_still_obey_minimum_and_maximum_limits(raw):
     assert await state.get_state() == DepositStates.waiting_for_amount.state
     assert (await state.get_data())["manual_txid"] == "ROCKET12345"
     assert (await state.get_data()).get("pay_amount") is None
+
+
+@pytest.mark.asyncio
+async def test_bdt_limit_is_not_multiplied_by_the_usd_display_rate():
+    state = await waiting_state()
+    svc = services()
+    svc.settings.number.return_value = 1000
+    with patch("app.bot.handlers.deposit.execute_deposit_submission", new_callable=AsyncMock) as submit:
+        await process_deposit_amount(message("৳1001"), state, svc)
+    submit.assert_not_awaited()
+    assert (await state.get_data()).get("pay_amount") is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("error", ["not_found", "already_used"])
+async def test_binance_reference_retry_keeps_the_valid_amount(error):
+    state = await waiting_state()
+    await state.update_data(
+        is_binance=True, method_name="Binance", manual_amount=2, pay_amount=2,
+        binance_usdt=2, min_deposit=0.2,
+    )
+    incoming = message("2")
+    svc = services()
+    svc.binance = SimpleNamespace(claim=AsyncMock(return_value={"error": error}))
+    status = SimpleNamespace(edit_text=AsyncMock())
+    await claim_binance_payment(incoming, state, svc, 3, "OLD-ORDER-1", expected_usdt=2, status_msg=status)
+    assert await state.get_state() == DepositStates.waiting_for_binance_ref.state
+    assert (await state.get_data())["pay_amount"] == 2
+    assert (await state.get_data())["manual_txid"] is None
+    assert isinstance(incoming.answer.await_args.kwargs["reply_markup"], ForceReply)
+    incoming.text = "NEW-ORDER-1"
+    with patch("app.bot.handlers.deposit.execute_deposit_submission", new_callable=AsyncMock) as submit:
+        await process_deposit_txid(incoming, state, svc)
+    submit.assert_awaited_once_with(incoming, state, svc)
+    assert (await state.get_data())["manual_txid"] == "NEW-ORDER-1"
+
+
+@pytest.mark.asyncio
+async def test_onchain_method_shows_the_minimum_in_the_currency_the_customer_enters():
+    state = context()
+    incoming = message("Binance Chain")
+    svc = services()
+    svc.deposits = SimpleNamespace(pending_for=AsyncMock(return_value=None))
+    svc.settings.get = AsyncMock(return_value="৳")
+    svc.settings.number.return_value = 125
+    await render_method_details(incoming, state, svc, {
+        "id": 3, "name": "Binance Chain", "account_info": "chain-test-address",
+        "min_deposit": 25, "rate_to_currency": 0.008, "auto_verify": "binance",
+        "account_type": "crypto",
+    })
+    assert (await state.get_data())["min_deposit"] == pytest.approx(0.2)
+    assert "Minimum: <b>$0.2</b>" in incoming.answer.await_args.args[0]
 
 
 @pytest.mark.asyncio
