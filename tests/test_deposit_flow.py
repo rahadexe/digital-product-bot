@@ -166,18 +166,22 @@ class DepositConversation(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.last(), 'Enter your bKash Transaction ID.')
         self.assertIsInstance(self.markups[-1], ForceReply)
         await self.tap(text=trx)
-        self.assertEqual(self.last(), 'Enter the amount you sent in BDT.')
+        self.assertEqual(self.last(), 'Enter the amount you sent in BDT, e.g. 50.')
         self.assertIsNone(await self.s.deposits.pending_for(CUSTOMER))
         self.assertEqual(await self.balance(), 0.0, 'a reference alone never credits a wallet')
 
     async def test_compact_payment_flow_credits_once_without_repeating_the_reference(self):
         await self._compact_payment('BKCOMPACT1')
+        await self.tap(text='100 tk?')
+        self.assertIn('Enter valid amount', self.last())
+        self.assertIsNone(await self.s.deposits.pending_for(CUSTOMER))
+        self.assertEqual(await self.balance(), 0.0)
         await self.s.zinipay.http.aclose()
         # All Telegram traffic stays local to this test, including card edits.
         with patch.object(Bot, 'edit_message_text', side_effect=TelegramBadRequest(method=None, message='test fallback')):
             async with self.gateway(receipt(100, 'BKCOMPACT1')) as client:
                 self.s.zinipay.http = client
-                await self.tap(text='100')
+                await self.tap(text='৳১০০ টাকা')
         self.assertEqual(await self.balance(), 100.0, self.last())
         stored = await self.s.deposits.find_by_transaction('BKCOMPACT1')
         self.assertEqual(stored['status'], 'approved')
@@ -191,7 +195,7 @@ class DepositConversation(unittest.IsolatedAsyncioTestCase):
         with patch.object(Bot, 'edit_message_text', side_effect=TelegramBadRequest(method=None, message='test fallback')):
             async with self.gateway(receipt(100, 'NGCOMPACT1', provider='Nagad')) as client:
                 self.s.zinipay.http = client
-                await self.tap(text='100')
+                await self.tap(text='100 tk')
         self.assertEqual(await self.balance(), 0.0)
         self.assertIn('Invalid TrxID', self.last())
 
@@ -199,12 +203,23 @@ class DepositConversation(unittest.IsolatedAsyncioTestCase):
         await self._compact_payment('BKMANUAL1')
         with patch.object(self.s.zinipay, 'is_enabled', new_callable=AsyncMock, return_value=False), \
              patch.object(Bot, 'edit_message_text', side_effect=TelegramBadRequest(method=None, message='test fallback')):
-            await self.tap(text='100')
+            await self.tap(text='BDT 100')
         stored = await self.s.deposits.find_by_transaction('BKMANUAL1')
         self.assertEqual(stored['status'], 'pending')
         self.assertEqual(float(stored['amount']), 100.0)
         self.assertEqual(stored['tg_user_id'], CUSTOMER)
         self.assertEqual(await self.balance(), 0.0)
+
+    async def test_formatted_amount_cannot_credit_a_receipt_with_a_different_amount(self):
+        await self._compact_payment('BKMISMATCH1')
+        await self.s.zinipay.http.aclose()
+        with patch.object(Bot, 'edit_message_text', side_effect=TelegramBadRequest(method=None, message='test fallback')):
+            async with self.gateway(receipt(100, 'BKMISMATCH1')) as client:
+                self.s.zinipay.http = client
+                await self.tap(text='৳200')
+        self.assertEqual(await self.balance(), 0.0)
+        stored = await self.s.deposits.find_by_transaction('BKMISMATCH1')
+        self.assertTrue(stored is None or stored['status'] != 'approved')
 
     async def test_a_receipt_still_in_transit_leaves_one_card_on_screen(self):
         await self.submit(250, 'BK00000001', MISSING, retries=(0.01, 0.01, 0.01))
