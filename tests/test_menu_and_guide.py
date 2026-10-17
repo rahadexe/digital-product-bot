@@ -230,6 +230,53 @@ class MenuAndGuideTests(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(any("balance:" in text.lower() for text in texts), replies)
                 self.assertFalse(any("<b>Profile</b>" in text for text in texts), replies)
 
+    async def test_amount_input_is_not_captured_by_a_matching_payment_method_label(self):
+        from app.bot.handlers.deposit import DepositStates
+
+        await self.services.deposits.create_method("Rocket 500", "01700000000")
+        context = self.dp.fsm.get_context(self.bot, chat_id=CUSTOMER, user_id=CUSTOMER)
+        await context.set_state(DepositStates.waiting_for_amount)
+        await context.set_data({
+            "method_id": 1, "method_name": "bKash", "reference_first": True,
+            "manual_txid": "BK12345678", "min_deposit": 50, "rate": 125,
+        })
+        with patch("app.bot.handlers.deposit.execute_deposit_submission", new_callable=AsyncMock) as submit:
+            await self._feed(text="500")
+        submit.assert_awaited_once()
+        self.assertEqual((await context.get_data())["manual_txid"], "BK12345678")
+        self.assertEqual((await context.get_data())["pay_amount"], 500)
+
+    async def test_reference_input_is_not_captured_by_payment_brand_detection(self):
+        from app.bot.handlers.deposit import DepositStates
+
+        context = self.dp.fsm.get_context(self.bot, chat_id=CUSTOMER, user_id=CUSTOMER)
+        await context.set_state(DepositStates.waiting_for_txid)
+        await context.set_data({
+            "method_id": 1, "method_name": "bKash", "reference_first": True,
+            "min_deposit": 50, "rate": 125,
+        })
+        await self._feed(text="bKash123456")
+        self.assertEqual(await context.get_state(), DepositStates.waiting_for_amount.state)
+        self.assertEqual((await context.get_data())["manual_txid"], "bKash123456")
+
+    async def test_hosted_checkout_label_cannot_steal_a_manual_payment_amount(self):
+        from app.bot.handlers.deposit import DepositStates
+
+        context = self.dp.fsm.get_context(self.bot, chat_id=CUSTOMER, user_id=CUSTOMER)
+        await context.set_state(DepositStates.waiting_for_amount)
+        await context.set_data({
+            "method_id": 1, "method_name": "bKash", "reference_first": True,
+            "manual_txid": "BK12345678", "min_deposit": 50, "rate": 125,
+        })
+        with (
+            patch.object(self.services.payments, "instant_options", new_callable=AsyncMock) as instant,
+            patch("app.bot.handlers.deposit.execute_deposit_submission", new_callable=AsyncMock) as submit,
+        ):
+            instant.return_value = {"label": "Checkout 500", "min_amount": 50}
+            await self._feed(text="500")
+        submit.assert_awaited_once()
+        self.assertEqual((await context.get_data())["pay_amount"], 500)
+
     async def test_an_unknown_button_falls_back_to_the_dashboard(self):
         """A label with no action must not leave the customer with nothing."""
         from app.bot.handlers import navigation
