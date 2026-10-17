@@ -200,7 +200,7 @@ class MenuAndGuideTests(unittest.IsolatedAsyncioTestCase):
     async def test_a_menu_button_leaves_the_prompt_behind(self):
         """Tapping a menu button means leaving, not answering the question."""
         await self._strand_in_a_prompt()
-        await self._feed(text="My Profile")
+        await self._feed(text="👤 Profile")
         context = self.dp.fsm.get_context(self.bot, chat_id=CUSTOMER, user_id=CUSTOMER)
         self.assertIsNone(await context.get_state(),
                           "the deposit prompt should have been dropped")
@@ -211,6 +211,24 @@ class MenuAndGuideTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(any("balance:" in (r.get("text") or "").lower() for r in replies), replies)
         context = self.dp.fsm.get_context(self.bot, chat_id=CUSTOMER, user_id=CUSTOMER)
         self.assertIsNone(await context.get_state())
+
+    async def test_profile_and_legacy_account_buttons_open_the_same_clean_screen(self):
+        for label in ("👤 Profile", "Profile", "/profile", "👤 Account", "Account", "/account"):
+            with self.subTest(label=label):
+                replies = await self._feed(text=label)
+                texts = [reply.get("text") or "" for reply in replies]
+                self.assertTrue(any("<b>Profile</b>" in text for text in texts), replies)
+                profile_text = next(text for text in texts if "<b>Profile</b>" in text)
+                for duplicate in ("Balance", "Orders", "Spent"):
+                    self.assertNotIn(duplicate, profile_text)
+
+    async def test_legacy_balance_entries_open_wallet_instead_of_profile(self):
+        for label in ("/balance", "Balance", "My Balance", "💰 My Balance"):
+            with self.subTest(label=label):
+                replies = await self._feed(text=label)
+                texts = [reply.get("text") or "" for reply in replies]
+                self.assertTrue(any("balance:" in text.lower() for text in texts), replies)
+                self.assertFalse(any("<b>Profile</b>" in text for text in texts), replies)
 
     async def test_an_unknown_button_falls_back_to_the_dashboard(self):
         """A label with no action must not leave the customer with nothing."""

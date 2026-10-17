@@ -36,7 +36,7 @@ def test_persistent_reply_keyboard_compact_six_action_layout():
     assert [[button.text for button in row] for row in rows] == [
         ["🛍 প্রোডাক্টস", "💰 ওয়ালেট"],
         ["📦 অর্ডারস", "🎁 রেফারেল"],
-        ["👤 একাউন্ট", "💬 হেল্প"],
+        ["👤 প্রোফাইল", "💬 হেল্প"],
     ]
 
 
@@ -67,7 +67,7 @@ def test_inline_keyboard_customer_first_bengali():
     assert [button.callback_data for button in rows[1]] == ["open_orders", "open_referral"]
     assert [button.callback_data for button in rows[2]] == ["open_account", "open_help"]
     assert [button.text for row in rows for button in row] == [
-        "🛍 প্রোডাক্টস", "💰 ওয়ালেট", "📦 অর্ডারস", "🎁 রেফারেল", "👤 একাউন্ট", "💬 হেল্প",
+        "🛍 প্রোডাক্টস", "💰 ওয়ালেট", "📦 অর্ডারস", "🎁 রেফারেল", "👤 প্রোফাইল", "💬 হেল্প",
     ]
 
 
@@ -372,10 +372,12 @@ def test_top_products_dock_bengali_and_admin():
 def test_account_keyboard_clean_grid():
     kb = get_account_keyboard(lang="en")
     all_callbacks = [btn.callback_data for row in kb.inline_keyboard for btn in row if btn.callback_data]
-    assert "open_orders_acc" in all_callbacks
-    assert "open_referral" in all_callbacks
+    assert "open_orders_acc" not in all_callbacks
+    assert "open_referral" not in all_callbacks
     assert "open_api_hub" in all_callbacks
-    assert "open_language_menu" in all_callbacks
+    assert "open_language_menu" not in all_callbacks
+    assert "open_notifications_hub" in all_callbacks
+    assert "back_to_main" in all_callbacks
     assert "open_deposits" not in all_callbacks
     assert "open_reseller" in all_callbacks
     assert len(kb.inline_keyboard) == 3

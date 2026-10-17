@@ -51,7 +51,7 @@ def test_six_customer_buttons_are_short_and_routable():
     assert labels == [
         ["🛍 Products", "💰 Wallet"],
         ["📦 Orders", "🎁 Refer"],
-        ["👤 Account", "💬 Help"],
+        ["👤 Profile", "💬 Help"],
     ]
     assert labels == [[b.text for b in row] for row in inline.inline_keyboard]
     assert [NAVIGATION_TEXTS[b.text] for row in reply.keyboard for b in row] == [

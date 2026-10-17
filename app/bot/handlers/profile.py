@@ -96,7 +96,6 @@ def reseller_api_links(config) -> tuple[str, list[list[InlineKeyboardButton]]]:
 
 @router.message(Command("me"))
 @router.message(Command("profile"))
-@router.message(Command("balance"))
 @router.message(Command("account"))
 @router.message(F.text.in_({
     "My Profile",
@@ -113,13 +112,6 @@ def reseller_api_links(config) -> tuple[str, list[list[InlineKeyboardButton]]]:
     "👤 ACCOUNT",
     "ACCOUNT",
     "💼 Account",
-    "Balance",
-    "balance",
-    "💰 Balance",
-    "💰 My Balance",
-    "My Balance",
-    "my balance",
-    "MY BALANCE",
     "👤 আমার প্রোফাইল",
     "আমার প্রোফাইল",
     "👤 একাউন্ট",
@@ -142,11 +134,9 @@ def reseller_api_links(config) -> tuple[str, list[list[InlineKeyboardButton]]]:
 @router.message(F.text.casefold() == "my profile")
 @router.message(F.text.casefold() == "profile")
 @router.message(F.text.casefold() == "account")
-@router.message(F.text.casefold() == "balance")
 @router.message(F.text.casefold() == "account & refer")
 @router.message(F.text.casefold() == "account and refer")
 @router.callback_query(F.data == "open_account")
-@router.callback_query(F.data == "open_balance")
 async def show_user_profile(event: Message | CallbackQuery, state: FSMContext, services: Services):
     await state.clear()
     tg_user = event.from_user
@@ -160,42 +150,23 @@ async def show_user_profile(event: Message | CallbackQuery, state: FSMContext, s
     rank_val = (user.get("rank") or "Standard").strip()
     is_reseller = rank_val.lower() in {"reseller", "reseller partner"}
 
-    symbol = await services.settings.get("currency_symbol")
-    usd_rate = await services.settings.number("usd_rate")
-    user_balance = float(user.get("balance", 0.0))
-    balance_display = price(symbol, user_balance, usd_rate=usd_rate, lang=lang)
-
-    stats_data = await services.users.stats(tg_user.id) or {}
-    order_count = int(stats_data.get("order_count", 0))
-    total_spent_val = stats_data.get("total_spent", 0.0)
-    spent_display = price(symbol, float(total_spent_val), usd_rate=usd_rate, lang=lang)
-
-    status_name = "Reseller" if is_reseller else "Member"
     if lang != "bn":
         text = (
-            f"<b>Name:</b> {user_name}\n"
-            f"<b>User ID:</b> <code>{tg_user.id}</code>\n"
-            f"<b>Status:</b> {status_name}\n\n"
-            f"<b>Balance:</b> <code>{balance_display}</code>\n"
-            f"<b>Orders:</b> {order_count}\n"
-            f"<b>Spent:</b> <code>{spent_display}</code>"
+            "<b>Profile</b>\n"
+            f"{user_name}\n"
+            f"ID: <code>{tg_user.id}</code>"
         )
+        if is_reseller:
+            text += "\nStatus: Reseller"
     else:
-        status_bn = "রিসেলার" if is_reseller else "মেম্বার"
         text = (
-            f"<b>নাম:</b> {user_name}\n"
-            f"<b>ইউজার আইডি:</b> <code>{tg_user.id}</code>\n"
-            f"<b>স্ট্যাটাস:</b> {status_bn}\n\n"
-            f"<b>ব্যালেন্স:</b> <code>{balance_display}</code>\n"
-            f"<b>অর্ডার:</b> {order_count}\n"
-            f"<b>মোট খরচ:</b> <code>{spent_display}</code>"
+            "<b>প্রোফাইল</b>\n"
+            f"{user_name}\n"
+            f"আইডি: <code>{tg_user.id}</code>"
         )
-    account_kb = get_account_keyboard(
-        lang=lang,
-        is_reseller=is_reseller,
-        order_count=order_count,
-        include_referral=False,
-    )
+        if is_reseller:
+            text += "\nস্ট্যাটাস: রিসেলার"
+    account_kb = get_account_keyboard(lang=lang, is_reseller=is_reseller)
     await respond(event, text, account_kb)
 
 

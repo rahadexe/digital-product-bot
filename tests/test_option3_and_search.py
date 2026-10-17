@@ -23,7 +23,7 @@ def test_main_inline_keyboard_compact_six_action_layout():
     assert [button.callback_data for button in rows[1]] == ["open_orders", "open_referral"]
     assert [button.callback_data for button in rows[2]] == ["open_account", "open_help"]
     assert [button.text for row in rows for button in row] == [
-        "🛍 Products", "💰 Wallet", "📦 Orders", "🎁 Refer", "👤 Account", "💬 Help",
+        "🛍 Products", "💰 Wallet", "📦 Orders", "🎁 Refer", "👤 Profile", "💬 Help",
     ]
 
     # Admin check
@@ -32,13 +32,17 @@ def test_main_inline_keyboard_compact_six_action_layout():
     assert kb_admin.inline_keyboard[3][0].callback_data == "adm_dashboard"
 
 
-def test_account_keyboard_has_language_and_referral_actions():
+def test_account_keyboard_keeps_profile_actions_direct():
     kb = get_account_keyboard(lang="en")
     callbacks = [btn.callback_data for row in kb.inline_keyboard for btn in row]
-    assert "open_referral" in callbacks
-    assert "open_language_menu" in callbacks
+    assert "open_referral" not in callbacks
+    assert "open_language_menu" not in callbacks
+    assert "open_orders_acc" not in callbacks
     assert "open_deposits" not in callbacks
+    assert "open_notifications_hub" in callbacks
+    assert "open_api_hub" in callbacks
     assert "open_reseller" in callbacks
+    assert "back_to_main" in callbacks
 
 
 def test_search_prompt_keyboard_back_target():

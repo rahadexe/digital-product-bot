@@ -75,13 +75,13 @@ FAQ_ITEMS: dict[str, dict[str, Any]] = {
                 "<b>How delivery works</b>\n\n"
                 "• Automatic items: Credentials/keys are delivered instantly in this chat right after purchase.\n"
                 "• Manual items: The bot confirms the order is being prepared, and the delivery arrives in a separate message when ready.\n"
-                "• Order history: Open Account, then Orders, to find past orders and delivered details."
+                "• Order history: Open Orders to find past orders and delivered details."
             ),
             "bn": (
                 "<b>ডেলিভারি কীভাবে হয়</b>\n\n"
                 "• অটোমেটিক ডেলিভারি: সফলভাবে কেনার সাথে সাথেই স্বয়ংক্রিয়ভাবে এই চ্যাটে ডেলিভারি পেয়ে যাবেন।\n"
                 "• ম্যানুয়াল ডেলিভারি: যেসব প্রোডাক্টে ম্যানুয়াল প্রসেসিং প্রয়োজন, আগে অর্ডার প্রস্তুত (prepared) হওয়ার বার্তা পাবেন। তৈরি হলে আলাদা মেসেজে ডেলিভারি আসবে।\n"
-                "• আগের অর্ডার ও ডেলিভারির তথ্য Account খুলে Orders-এ দেখুন।"
+                "• আগের অর্ডার ও ডেলিভারির তথ্য Orders-এ দেখুন।"
             ),
         },
     },
@@ -97,7 +97,7 @@ FAQ_ITEMS: dict[str, dict[str, Any]] = {
             ),
             "bn": (
                 "<b>রেফারেল থেকে কীভাবে আয় করবেন</b>\n\n"
-                "১. নিচের মেনু থেকে Account খুললে আপনার রেফারেল লিংক দেখতে পাবেন।\n"
+                "১. নিচের মেনু থেকে Refer খুললে আপনার রেফারেল লিংক দেখতে পাবেন।\n"
                 "২. বন্ধুর সাথে লিংকটি শেয়ার করুন।\n"
                 "৩. বন্ধুকে লিংক খুলে বট চালু করতে হবে এবং প্রয়োজন হলে চ্যানেল যাচাই সম্পন্ন করতে হবে।\n"
                 "৪. রেফারেল বোনাস চালু থাকলে ওই বন্ধুর জন্য নির্ধারিত বোনাস একবার আপনার ওয়ালেটে যোগ হবে।\n"
@@ -279,13 +279,13 @@ GUIDE_TEXTS = {
     "en": (
         f"{ICON_NOTE} <b>How to use the bot</b>\n\n"
         f"{ICON_DEPOSIT} <b>1. Add balance</b>\n"
-        f"Choose a payment method, enter an amount and submit the TrxID.\n\n"
+        f"Open Wallet, choose a method, pay, then tap Payment Done. Send the reference and amount.\n\n"
         f"{ICON_SHOP} <b>2. Choose a product</b>\n"
         f"Browse a category and set the quantity.\n\n"
         f"{ICON_CHECK} <b>3. Confirm</b>\n"
         f"Pay from your wallet. Automatic orders arrive here; manual orders follow.\n\n"
-        f"{ICON_ORDERS} Orders and referrals are in <b>My Profile</b>.\n"
-        f"{ICON_SUPPORT} Need help? Open Support below."
+        f"{ICON_ORDERS} Open <b>Orders</b> for purchases or <b>Refer</b> for your invite link.\n"
+        f"{ICON_SUPPORT} Need help? Open Help below."
     ),
     "bn": (
         f"{ICON_NOTE} <b>বট ব্যবহার</b>\n\n"
@@ -295,7 +295,7 @@ GUIDE_TEXTS = {
         f"ক্যাটাগরি খুলে পরিমাণ ঠিক করুন।\n\n"
         f"{ICON_CHECK} <b>৩. নিশ্চিত করুন</b>\n"
         f"ওয়ালেট থেকে টাকা কাটবে। অটো অর্ডার এখানেই, ম্যানুয়াল অর্ডার পরে পাবেন।\n\n"
-        f"{ICON_ORDERS} অর্ডার ও রেফারেল পাবেন <b>আমার প্রোফাইল</b>-এ।\n"
+        f"{ICON_ORDERS} কেনাকাটা দেখতে <b>Orders</b>, রেফারেল লিংকের জন্য <b>Refer</b> খুলুন।\n"
         f"{ICON_SUPPORT} সাহায্যের জন্য নিচে সাপোর্ট খুলুন।"
     ),
 }
