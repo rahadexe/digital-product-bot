@@ -21,3 +21,7 @@ populated mobile record cards, drawer focus containment and Escape, tablet resiz
 long store/customer names, product form validation and save/retry, dashboard error
 recovery, empty states and narrow-screen sign-in. Screenshots and a JSON report
 are written to `ARTIFACT_DIR`.
+
+Mobile app regressions also verify a single app-bar title, bottom-sheet navigation,
+order/status alignment and customer-detail wrapping with no buyer overlap.
+Orders, products and deposits previews use populated synthetic records.

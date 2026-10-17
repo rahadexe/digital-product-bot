@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { SlidersHorizontal } from 'lucide-react';
 import { api, type Category, type Product } from '@/lib/api';
 import { useMoney } from '@/lib/currency';
 import { EmptyRow, FlagRow, Modal, errorText, useConfirm, type Say } from './ui';
@@ -88,6 +89,7 @@ export function Products({ say }: { say: Say }) {
   const [products, setProducts] = useState<Product[] | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [search, setSearch] = useState('');
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [filter, setFilter] = useState<ProductFilter>('all');
   const [supplierFilter, setSupplierFilter] = useState<SupplierFilter>('all');
   const [categoryFilter, setCategoryFilter] = useState<number | 'all'>('all');
@@ -327,7 +329,7 @@ export function Products({ say }: { say: Say }) {
       </div>
 
       <section className="panel">
-        <header className="product-toolbar" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
+        <header className={`product-toolbar${mobileFiltersOpen ? ' mobile-filters-open' : ''}`} style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
           {/* Top row: search & filters */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
             <div className="filters" style={{ flexWrap: 'wrap', gap: 10, flex: 1 }}>
@@ -346,6 +348,11 @@ export function Products({ say }: { say: Say }) {
                 />
               </div>
 
+              <button type="button" className="btn ghost mobile-filter-toggle" aria-label="Product filters" aria-expanded={mobileFiltersOpen} aria-controls="product-extra-filters" onClick={() => setMobileFiltersOpen(open => !open)}>
+                <SlidersHorizontal size={18} aria-hidden="true" />
+                <span>Filters{supplierFilter !== 'all' || categoryFilter !== 'all' ? ' •' : ''}</span>
+              </button>
+              <div id="product-extra-filters" className="product-extra-filters">
               {/* Supplier dropdown filter */}
               <CustomSelect
                 value={supplierFilter}
@@ -395,6 +402,7 @@ export function Products({ say }: { say: Say }) {
                 ]}
                 minWidth={110}
               />
+              </div>
 
               <span className="muted" style={{ fontSize: '12px', alignSelf: 'center' }}>
                 {shown.length} of {products?.length ?? 0} shown ({totalStockUnits} local units)

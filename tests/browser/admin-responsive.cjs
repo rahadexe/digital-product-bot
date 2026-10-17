@@ -32,6 +32,7 @@ const order = {
   id: 42, user_id: 1, tg_user_id: 123, first_name: customer.first_name,
   product_id: 1, product_title: product.title, price: 150, delivered_item: '',
   status: 'completed', fulfillment: 'waiting', source: 'manual', created_at: customer.created_at,
+  customer_input: 'synthetic.customer.with.a.long.address@example.test',
 };
 const deposit = {
   id: 19, user_id: 1, tg_user_id: 123, first_name: customer.first_name, method_id: 1,
@@ -106,11 +107,64 @@ const deposit = {
           await rows.first().waitFor();
           assert.equal(await rows.first().evaluate(el => getComputedStyle(el).display), 'grid', `${screen} uses populated mobile cards`);
         }
+        if (width <= 760 && screen === 'orders') {
+          const geometry = await page.locator('.orders-directory tbody tr').first().evaluate(row => {
+            const cell = label => row.querySelector(`[data-label="${label}"]`).getBoundingClientRect();
+            const product = cell('Product'), buyer = cell('Buyer'), status = cell('Status'), id = cell('Order');
+            const details = row.querySelector('.order-customer-input').getBoundingClientRect();
+            return {
+              productBottom: product.bottom, buyerTop: buyer.top,
+              detailsBottom: details.bottom, detailsTop: details.top,
+              orderTop: id.top, statusTop: status.top,
+              rowHeight: row.getBoundingClientRect().height,
+              inputFits: row.querySelector('.order-customer-input').scrollWidth <= details.width + 1,
+            };
+          });
+          assert.ok(geometry.buyerTop >= geometry.productBottom + 8, 'Buyer clears product cell');
+          assert.ok(geometry.buyerTop >= geometry.detailsBottom + 8, 'Customer details never overlap buyer');
+          assert.ok(Math.abs(geometry.orderTop - geometry.statusTop) <= 12, 'Order and status share the first row');
+          assert.ok(geometry.inputFits, 'Long customer details wrap inside the card');
+          assert.ok(geometry.rowHeight < 420, 'Populated order stays compact');
+        }
         results.push({ screen, width, ...dimensions });
       }
       console.log(`Passed all 14 screens at ${width}px`);
     }
     await page.setViewportSize({ width: 390, height: 844 });
+    for (const screen of ['orders', 'products', 'deposits']) {
+      await page.goto(`${baseURL}/#${screen}`);
+      await page.locator('.main-inner table tbody tr').first().waitFor();
+      await page.waitForTimeout(150);
+      assert.equal(await page.locator('.mobile-app-heading h1').innerText(), screen[0].toUpperCase() + screen.slice(1));
+      assert.equal(await page.locator('.main-inner > .page-head').isVisible(), false, 'App bar replaces repeated desktop heading');
+      await page.screenshot({ path: `${output}/${screen}-mobile.png`, fullPage: true });
+      if (screen === 'products' || screen === 'orders') {
+        const filterButton = page.getByRole('button', { name: screen === 'products' ? 'Product filters' : 'Order filters', exact: true });
+        const extras = page.locator(screen === 'products' ? '#product-extra-filters' : '#order-date-filter');
+        assert.equal(await extras.isVisible(), false, 'Extra filters stay out of the default mobile list');
+        await filterButton.click();
+        assert.equal(await extras.isVisible(), true, 'Extra filters remain accessible');
+        assert.equal(await filterButton.getAttribute('aria-expanded'), 'true');
+        await filterButton.click();
+        if (screen === 'products') {
+          const inputRect = await page.getByRole('searchbox', { name: 'Search products' }).boundingBox();
+          const buttonRect = await filterButton.boundingBox();
+          assert.ok(Math.abs(inputRect.y - buttonRect.y) <= 3, 'Search and filters share one compact app-toolbar row');
+        }
+      }
+    }
+    const originalOrder = { ...order };
+    Object.assign(order, { id: 1001, product_title: 'Gemini Pro', first_name: 'Demo Customer', customer_input: 'demo@example.test', price: 99 });
+    await page.goto(`${baseURL}/#orders`);
+    await page.reload();
+    await page.getByRole('button', { name: 'Gemini Pro', exact: true }).waitFor();
+    await page.screenshot({ path: `${output}/orders-mobile-preview.png`, fullPage: true });
+    Object.assign(order, { customer_input: '', status: 'completed', fulfillment: 'delivered', delivery_status: 'failed' });
+    await page.reload();
+    await page.getByText('message failed', { exact: true }).waitFor();
+    assert.equal(await page.locator('.order-customer-input').count(), 0, 'No empty customer-details block');
+    assert.ok(await page.getByRole('button', { name: 'Details', exact: true }).isVisible(), 'Completed order keeps its details action');
+    Object.assign(order, originalOrder);
     await page.goto(`${baseURL}/#overview`);
     await page.locator('.attention-banner').waitFor();
     await page.mouse.move(0, 0);
@@ -120,6 +174,13 @@ const deposit = {
     await page.getByRole('button', { name: 'More navigation' }).click();
     const drawer = page.getByRole('dialog', { name: 'Mobile navigation' });
     await drawer.waitFor();
+    await page.waitForFunction(() => {
+      const rect = document.querySelector('#mobile-navigation').getBoundingClientRect();
+      return Math.abs(rect.bottom - innerHeight) <= 1;
+    });
+    const sheet = await drawer.boundingBox();
+    assert.ok(Math.abs(sheet.y + sheet.height - 844) <= 1, 'Navigation opens as a bottom sheet');
+    await page.screenshot({ path: `${output}/navigation-mobile.png` });
     assert.equal(await page.locator('main').evaluate(el => el.inert), true);
     const drawerScroll = await drawer.locator('.drawer-nav').evaluate(el => {
       el.scrollTop = el.scrollHeight;
