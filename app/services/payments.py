@@ -21,6 +21,7 @@ import httpx
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
+from app.bot.customer_copy import wallet_updated
 from app.bot.icons import (
     ICON_ACCOUNT,
     ICON_BALANCE,
@@ -45,15 +46,6 @@ from app.services.notifications import Notifier
 from app.services.settings import SettingsService
 
 logger = logging.getLogger("app.services.payments")
-
-# How long a confirmation stays before taking itself away.
-#
-# Not instantly: Telegram has already pushed a notification by then, so a customer who
-# opens it would find nothing there and ask support where their money went. This is the
-# web-checkout confirmation, sent when the gateway confirms — usually while the customer
-# is still waiting, but the webhook can arrive a few minutes late, or the poller can be
-# what credits it. Ten minutes covers stepping away without letting every top-up pile up.
-CONFIRMATION_LIFETIME_SECONDS = 10 * 60
 
 PROVIDER = "zinipay"
 ZINIPAY_API = "https://api.zinipay.com/v1/payment"
@@ -673,17 +665,15 @@ class PaymentService:
                 ref_suffix = f" #{ref}" if ref else ""
                 pay_amt = float(row_dict.get("pay_amount") or credit)
                 updated_text = (
-                    f"{ICON_NOTE} <b>Payment Invoice{ref_suffix}</b>\n\n"
-                    f"{ICON_MONEY} <b>Payable Amount:</b> <code>{pay_amt:.2f} {LOCAL_CURRENCY}</code>\n"
-                    f"<b>Method:</b> Automatic Gateway\n"
-                    f"<b>Status:</b> Completed\n\n"
-                    f"<i>Payment completed successfully. Balance has been credited to your wallet.</i>"
+                    f"<b>Payment verified{ref_suffix}</b>\n"
+                    f"Paid: <code>{pay_amt:.2f} {LOCAL_CURRENCY}</code>\n"
+                    "Your wallet has been updated."
                 )
                 kb = InlineKeyboardMarkup(
                     inline_keyboard=[[
                         InlineKeyboardButton(
-                            text="Deposit Menu",
-                            callback_data="open_deposit",
+                            text="Wallet",
+                            callback_data="open_wallet",
                         )
                     ]]
                 )
@@ -696,15 +686,10 @@ class PaymentService:
             except Exception as e:
                 logger.debug("Could not edit invoice message %s: %s", message_id, e)
 
-        # A confirmation, not a record: the amount is in Deposit History and the balance
-        # is on the profile. Left in place it is one more message between the customer
-        # and the ones that matter, every time they top up.
+        # Keep financial confirmations available when the customer returns to the chat.
         await self.notifier.send(
             row["tg_user_id"],
-            f"✅ <b>Payment Successful</b>\n\n"
-            f"<b>Amount:</b> <code>{credit:.2f} {symbol}</code>\n"
-            f"<b>New Balance:</b> <code>{float(balance or 0):.2f} {symbol}</code>",
-            clears_after=CONFIRMATION_LIFETIME_SECONDS,
+            wallet_updated(credit, float(balance or 0), symbol, deposit_id),
         )
         pay_amt = float(row["pay_amount"] or 0)
         paid_line = f" (Paid {pay_amt:.2f} {LOCAL_CURRENCY})" if abs(credit - pay_amt) > 0.01 else ""

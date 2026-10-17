@@ -143,9 +143,9 @@ class UserService:
             self.notifier.in_background(
                 self.notifier.send(
                     referrer_id,
-                    f"✅ <b>Referral Bonus Received</b>\n\n"
-                    f"<b>Friend:</b> {joined_name}\n"
-                    f"<b>Bonus:</b> <code>+{reward_str}</code>",
+                    f"<b>Referral reward</b>\n"
+                    f"{joined_name} joined through your link.\n"
+                    f"<code>+{reward_str}</code> added to your wallet.",
                 )
             )
         return {"referrer_id": referrer_id, "amount": reward_amount}
@@ -302,14 +302,14 @@ class UserService:
 
     async def _notify_adjustment(self, tg_user_id: int, delta: float, balance: float, reason: str) -> None:
         symbol = escape(await self.settings.get("currency_symbol"))
-        header = "✅ <b>Wallet Credited</b>" if delta >= 0 else "ℹ️ <b>Wallet Deducted</b>"
-        action_type = "Credit" if delta >= 0 else "Deduction"
+        header = "<b>Wallet updated</b>"
+        action_type = "Added" if delta >= 0 else "Deducted"
         await self.notifier.send(
             tg_user_id,
-            f"{header}\n\n"
-            f"<b>{action_type}:</b> <code>{delta:+.2f} {symbol}</code>\n"
-            f"<b>Current Balance:</b> <code>{balance:.2f} {symbol}</code>\n"
-            f"<b>Reason:</b> {escape(reason or 'Admin adjustment')}",
+            f"{header}\n"
+            f"{action_type}: <code>{abs(delta):.2f} {symbol}</code>\n"
+            f"Balance: <code>{balance:.2f} {symbol}</code>\n"
+            f"Reason: {escape(reason or 'Admin adjustment')}",
         )
 
     async def set_banned(self, tg_user_id: int, banned: bool | None = None) -> bool:
@@ -349,7 +349,7 @@ class UserService:
         return clean_lang
 
     async def get_notification_preferences(self, tg_user_id: int) -> dict[str, bool]:
-        """Fetch user notification preferences (defaults to all true)."""
+        """Only news is optional; payment results and deliveries are essential."""
         async with self.db.connect() as conn:
             row = await conn.fetchrow(
                 "SELECT notify_orders, notify_deposits, notify_news FROM user_notification_preferences WHERE tg_user_id = $1",
@@ -358,14 +358,14 @@ class UserService:
             if not row:
                 return {"notify_orders": True, "notify_deposits": True, "notify_news": True}
             return {
-                "notify_orders": bool(row["notify_orders"]),
-                "notify_deposits": bool(row["notify_deposits"]),
+                "notify_orders": True,
+                "notify_deposits": True,
                 "notify_news": bool(row["notify_news"]),
             }
 
     async def toggle_notification_preference(self, tg_user_id: int, key: str) -> dict[str, bool]:
         """Toggle a specific notification preference and return updated map."""
-        valid_keys = {"notify_orders", "notify_deposits", "notify_news"}
+        valid_keys = {"notify_news"}
         if key not in valid_keys:
             return await self.get_notification_preferences(tg_user_id)
 

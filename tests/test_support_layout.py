@@ -112,7 +112,9 @@ async def test_technical_support_detail_has_plain_text_and_action():
     await show_faq_answer(query, MagicMock(), services)
 
     text, kwargs = query.message.edit_text.call_args.args[0], query.message.edit_text.call_args.kwargs
-    assert "<b>Technical support</b>" in text
+    assert "<b>Support</b>" in text
+    assert "order or top-up reference" in text
+    assert "24/7" not in text
     assert "@support_team" in text
     assert not any(icon in text for icon in EMOJI_ICONS)
     buttons = kwargs["reply_markup"].inline_keyboard

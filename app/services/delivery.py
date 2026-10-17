@@ -63,8 +63,7 @@ def receipt(order: dict[str, Any], lang: str = "en") -> str:
             f"✅ <b>Delivered · {format_order_id(order_id)}</b>\n",
             f"<b>Product:</b> {title}",
             f"Paid: <code>{price_str}</code>",
-            "<b>Status:</b> Delivered\n",
-            "<b>Delivery Details:</b>",
+            "<b>Delivery:</b>",
         ]
 
     cred_items = [escape(it.strip()) for it in raw_content.splitlines() if it.strip()]
@@ -84,13 +83,8 @@ class DeliveryService:
 
     async def enqueue_order(self, tg_user_id: int, order: dict[str, Any], *, conn: asyncpg.Connection | None = None) -> None:
         sql = "INSERT INTO outbox (tg_user_id, text, order_id) VALUES ($1, $2, $3) ON CONFLICT (order_id) DO NOTHING"
-        if not order.get('language'):
-            if conn is not None:
-                order['language'] = await conn.fetchval("SELECT language FROM users WHERE tg_user_id = $1", tg_user_id) or 'bn'
-            else:
-                async with self.db.connect() as c:
-                    order['language'] = await c.fetchval("SELECT language FROM users WHERE tg_user_id = $1", tg_user_id) or 'bn'
-        text = receipt(order, lang=order.get('language', 'bn'))
+        # Customer-facing bot copy is English, including accounts with old saved languages.
+        text = receipt(order, lang="en")
         if conn is not None:
             await conn.execute(sql, tg_user_id, text, order['order_id'])
             return
@@ -99,9 +93,7 @@ class DeliveryService:
 
     async def enqueue_waiting_notice(self, tg_user_id: int, order: dict[str, Any], *, conn: asyncpg.Connection) -> None:
         """Tells a customer whose order is waiting that it was paid. Not the receipt, which follows on delivery."""
-        if not order.get('language'):
-            order['language'] = await conn.fetchval("SELECT language FROM users WHERE tg_user_id = $1", tg_user_id) or 'bn'
-        text = waiting_notice(order, lang=order.get('language', 'bn'))
+        text = waiting_notice(order, lang="en")
         await conn.execute(
             "INSERT INTO outbox (tg_user_id, text, about_order_id) VALUES ($1, $2, $3)",
             tg_user_id,
@@ -127,7 +119,10 @@ class DeliveryService:
         async with self.db.transaction() as conn:
             job_id = await conn.fetchval("INSERT INTO broadcasts (text) VALUES ($1) RETURNING id", text)
             await conn.execute(
-                "INSERT INTO outbox (tg_user_id, text, broadcast_id) SELECT tg_user_id, $1, $2 FROM users WHERE is_banned = 0",
+                "INSERT INTO outbox (tg_user_id, text, broadcast_id) "
+                "SELECT u.tg_user_id, $1, $2 FROM users u "
+                "LEFT JOIN user_notification_preferences p ON p.tg_user_id=u.tg_user_id "
+                "WHERE u.is_banned = 0 AND COALESCE(p.notify_news, TRUE)",
                 text,
                 job_id,
             )
@@ -166,7 +161,11 @@ class DeliveryService:
 
     async def recipient_count(self) -> int:
         async with self.db.connect() as conn:
-            return await conn.fetchval("SELECT COUNT(*) FROM users WHERE is_banned = 0") or 0
+            return await conn.fetchval(
+                "SELECT COUNT(*) FROM users u "
+                "LEFT JOIN user_notification_preferences p ON p.tg_user_id=u.tg_user_id "
+                "WHERE u.is_banned = 0 AND COALESCE(p.notify_news, TRUE)"
+            ) or 0
 
     async def recent_broadcasts(self, limit: int = 30) -> list[dict]:
         async with self.db.connect() as conn:
@@ -225,6 +224,15 @@ class DeliveryService:
     async def claim_next(self) -> dict[str, Any] | None:
         now = time.time()
         async with self.db.connect() as conn:
+            # A customer can opt out after a broadcast was queued. Never suppress receipts.
+            await conn.execute(
+                "UPDATE outbox o SET status='cancelled' "
+                "WHERE broadcast_id IS NOT NULL AND order_id IS NULL AND about_order_id IS NULL "
+                "AND (status IN ('pending','failed') OR (status='sending' AND next_attempt <= $1)) "
+                "AND EXISTS (SELECT 1 FROM user_notification_preferences p "
+                "WHERE p.tg_user_id=o.tg_user_id AND NOT p.notify_news)",
+                now,
+            )
             # SKIP LOCKED lets concurrent workers claim different rows.
             # Order receipts are prioritised over broadcasts so a bulk send never delays a purchase delivery.
             row = await conn.fetchrow(
@@ -237,6 +245,15 @@ class DeliveryService:
                 uuid.uuid4().hex,
             )
         return dict(row) if row else None
+
+    async def news_allowed(self, tg_user_id: int) -> bool:
+        """Recheck optional broadcasts just before sending, not just when queued."""
+        async with self.db.connect() as conn:
+            preference = await conn.fetchval(
+                "SELECT notify_news FROM user_notification_preferences WHERE tg_user_id=$1",
+                tg_user_id,
+            )
+        return preference is not False
 
     async def order_for(self, message: dict[str, Any]) -> dict[str, Any] | None:
         async with self.db.connect() as conn:

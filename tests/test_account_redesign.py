@@ -65,19 +65,13 @@ class AccountRedesignTests(unittest.TestCase):
         kb = get_notification_settings_keyboard(prefs, lang="en")
         rows = kb.inline_keyboard
 
-        self.assertEqual(len(rows), 4)
-        self.assertIn("On ✅", rows[0][0].text)
-        self.assertEqual(rows[0][0].callback_data, "notif_toggle_notify_orders")
-
-        self.assertIn("Off ❌", rows[1][0].text)
-        self.assertEqual(rows[1][0].callback_data, "notif_toggle_notify_deposits")
-
-        self.assertIn("On ✅", rows[2][0].text)
-        self.assertEqual(rows[2][0].callback_data, "notif_toggle_notify_news")
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0][0].text, "News & Offers: On")
+        self.assertEqual(rows[0][0].callback_data, "notif_toggle_notify_news")
 
         # Back returns to open_account
-        self.assertEqual(rows[3][0].callback_data, "open_account")
-        self.assertEqual(rows[3][0].text, "🔙 Back")
+        self.assertEqual(rows[1][0].callback_data, "open_account")
+        self.assertEqual(rows[1][0].text, "Back")
 
     def test_deposit_history_keyboard_and_prompts(self):
         from app.bot.keyboards import get_deposit_methods_keyboard
@@ -130,7 +124,7 @@ class AccountRedesignTests(unittest.TestCase):
         prompt_en = t("deposit_choose_method", "en", balance="$10.00")
         self.assertEqual(
             prompt_en,
-            "💰 <b>Balance:</b> <code>$10.00</code>\n\n<b>Select Payment Method</b>",
+            "💰 <b>Balance:</b> <code>$10.00</code>\n\nChoose a method to top up.",
         )
 
         prompt_bn = t("deposit_choose_method", "bn", balance="৳১০০")
@@ -142,12 +136,12 @@ class AccountRedesignTests(unittest.TestCase):
 
         # Check title and hint
         title_en = t("balance_history_title", "en", icon_stats="📊")
-        self.assertEqual(title_en, "📊 <b>Deposit History</b>")
+        self.assertEqual(title_en, "<b>Top-up History</b>")
         self.assertEqual(t("balance_history_hint", "en"), "")
 
         # Check btn_deposit
         # Check deposit_detail_title without #id
-        self.assertEqual(t("deposit_detail_title", "en", id="D21"), "<b>Deposit D21</b>")
+        self.assertEqual(t("deposit_detail_title", "en", id="D21"), "<b>Top-up D21</b>")
         self.assertEqual(t("deposit_detail_title", "bn", id="D21"), "<b>ডিপোজিট D21</b>")
 
 
@@ -395,10 +389,10 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
         kb = respond.await_args.args[2]
 
         self.assertNotIn("<b>Referral</b>", text)
-        self.assertIn("Invited: <code>4</code>", text)
+        self.assertIn("Successful invites: <code>4</code>", text)
         self.assertIn("Earned:", text)
-        self.assertIn("Reward: <code>", text)
-        self.assertIn("per friend", text)
+        self.assertIn("Earn <b>20 ৳</b> per new friend", text)
+        self.assertIn("required channel check", text)
         self.assertIn("https://t.me/test_bot?start=999", text)
 
         button_texts = [btn.text for row in kb.inline_keyboard for btn in row]

@@ -19,14 +19,14 @@ def test_supported_languages():
 
 def test_i18n_translation_and_fallback():
     # English
-    assert t("btn_add_balance", "en") == "💳 Deposit"
+    assert t("btn_add_balance", "en") == "Top Up"
     # Bengali
     assert t("btn_add_balance", "bn") == "💳 ডিপোজিট"
     
     # Missing key fallback
     assert t("non_existent_key_xyz", "bn") == "non_existent_key_xyz"
     # Missing language fallback to English
-    assert t("btn_add_balance", "fr") == "💳 Deposit"
+    assert t("btn_add_balance", "fr") == "Top Up"
 
 def test_i18n_interpolation():
     assert "500 BDT" in t("btn_pay", "en", amount="500 BDT")

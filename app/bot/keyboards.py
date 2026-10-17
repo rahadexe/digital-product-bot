@@ -587,25 +587,17 @@ def get_account_keyboard(
 
 def get_notification_settings_keyboard(prefs: dict[str, bool], lang: str = "en") -> InlineKeyboardMarkup:
     """Interactive toggle keyboard for customer notification preferences."""
-    orders_on = prefs.get("notify_orders", True)
-    deposits_on = prefs.get("notify_deposits", True)
     news_on = prefs.get("notify_news", True)
 
     if lang != "bn":
-        orders_btn = f"📦 Order Status: {'On ✅' if orders_on else 'Off ❌'}"
-        deposits_btn = f"💳 Deposit Alerts: {'On ✅' if deposits_on else 'Off ❌'}"
-        news_btn = f"📢 News & Offers: {'On ✅' if news_on else 'Off ❌'}"
-        back_btn = "🔙 Back"
+        news_btn = f"News & Offers: {'On' if news_on else 'Off'}"
+        back_btn = "Back"
     else:
-        orders_btn = f"📦 অর্ডার আপডেট: {'চালু ✅' if orders_on else 'বন্ধ ❌'}"
-        deposits_btn = f"💳 ডিপোজিট নোটিশ: {'চালু ✅' if deposits_on else 'বন্ধ ❌'}"
-        news_btn = f"📢 অফার ও নোটিশ: {'চালু ✅' if news_on else 'বন্ধ ❌'}"
-        back_btn = "🔙 ব্যাক"
+        news_btn = f"অফার ও নোটিশ: {'চালু' if news_on else 'বন্ধ'}"
+        back_btn = "ব্যাক"
 
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text=orders_btn, callback_data="notif_toggle_notify_orders")],
-            [InlineKeyboardButton(text=deposits_btn, callback_data="notif_toggle_notify_deposits")],
             [InlineKeyboardButton(text=news_btn, callback_data="notif_toggle_notify_news")],
             [InlineKeyboardButton(text=back_btn, callback_data="open_account")],
         ]

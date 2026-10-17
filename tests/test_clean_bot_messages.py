@@ -39,7 +39,7 @@ async def test_wallet_shows_balance_and_direct_deposit_options(pending, show_usd
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     if pending:
         assert callbacks == ["open_deposits"]
-        assert "Deposit D19 is being verified" in text
+        assert "Top-up D19 is being verified" in text
     else:
         assert callbacks == ["dep_method_1", "open_deposits"]
     state.clear.assert_awaited_once()

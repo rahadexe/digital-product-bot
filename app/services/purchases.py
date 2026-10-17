@@ -13,6 +13,7 @@ from typing import Any
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
+from app.bot.customer_copy import order_refunded
 from app.bot.formatting import price
 from app.bot.icons import (
     ICON_ACCOUNT,
@@ -744,12 +745,8 @@ class PurchaseService:
             return False, f"Refund failed: {type(exc).__name__}"
 
         symbol = escape(await self.settings.get("currency_symbol"))
-        refund_customer_msg = (
-            f"✅ <b>Order Refunded</b>\n\n"
-            f"<b>Order ID:</b> <code>{format_order_id(order_id)}</code>\n"
-            f"<b>Product:</b> {escape(order['product_title'])}\n"
-            f"<b>Refund to Wallet:</b> <code>+{order['price']:.2f} {symbol}</code>\n\n"
-            f"<i>Amount has been refunded to your wallet balance.</i>"
+        refund_customer_msg = order_refunded(
+            order_id, order["product_title"], order["price"], symbol
         )
         self.notifier.in_background(
             self.notifier.send(order["tg_user_id"], refund_customer_msg)
