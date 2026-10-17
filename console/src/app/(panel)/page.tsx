@@ -297,6 +297,12 @@ export default function ConsolePage() {
       {/* Top Mobile Bar */}
       <div ref={workspaceRef} className="workspace-chrome">
       <header className="mobile-header">
+        <div className="mobile-app-heading">
+          <span className="mobile-store-link" title={storeName || 'Store Console'}>
+            {storeName || 'Store Console'}
+          </span>
+          <h1>{screen.key === 'overview' ? 'Home' : label}</h1>
+        </div>
         <button
           ref={mobileMenuButton}
           type="button"
@@ -313,17 +319,6 @@ export default function ConsolePage() {
           </span>
           <X className={`menu-toggle-icon menu-toggle-close${mobileMenuOpen ? ' visible' : ''}`} size={24} aria-hidden="true" />
         </button>
-        {(
-          <button
-            type="button"
-            onClick={() => open('overview')}
-            className="mobile-brand-title"
-            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
-          >
-            <BrandWordmark name={storeName || 'Store Console'} />
-          </button>
-        )}
-        <span className="mobile-screen-label">{label}</span>
       </header>
       <header className="workspace-topbar">
         <div className="workspace-breadcrumb"><span>Workspace</span><ChevronRight size={14} aria-hidden="true" /><strong>{label}</strong></div>

@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { MoreHorizontal, SlidersHorizontal } from 'lucide-react';
+import { MobileRecord } from './MobileRecord';
 import { api, type Category, type Product } from '@/lib/api';
 import { useMoney } from '@/lib/currency';
 import { EmptyRow, FlagRow, Modal, errorText, useConfirm, type Say } from './ui';
@@ -88,6 +90,9 @@ export function Products({ say }: { say: Say }) {
   const [products, setProducts] = useState<Product[] | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [search, setSearch] = useState('');
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [mobileSelection, setMobileSelection] = useState(false);
+  const [actionProduct, setActionProduct] = useState<Product | null>(null);
   const [filter, setFilter] = useState<ProductFilter>('all');
   const [supplierFilter, setSupplierFilter] = useState<SupplierFilter>('all');
   const [categoryFilter, setCategoryFilter] = useState<number | 'all'>('all');
@@ -101,6 +106,32 @@ export function Products({ say }: { say: Say }) {
   const [posting, setPosting] = useState(false);
   const [confirm, confirmDialog] = useConfirm();
   const money = useMoney();
+
+  function editProduct(product: Product) {
+    const iconFields = editableProductFields(product.title, product.icon || '', product.custom_emoji_id || '');
+    const separated = separateProductLabels(iconFields.title, product.duration_label, product.warranty_label || '');
+    setDraft({
+      id: product.id, category_id: product.category_id ?? null, title: separated.title,
+      description: product.description, icon: iconFields.icon, price: product.price,
+      reseller_price: product.reseller_price ?? null, duration_label: separated.duration_label,
+      warranty_label: separated.warranty_label, sort_order: product.sort_order,
+      is_pinned: Boolean(product.is_pinned), is_active: Boolean(product.is_active),
+      delivery_type: product.delivery_type || 'stock', custom_emoji_id: product.custom_emoji_id || '',
+      upstream_product_id: product.upstream_product_id ?? null,
+      supplier_code: product.supplier_code || 'digital_mart',
+      upstream_devices: product.upstream_devices ?? 1, upstream_share_hours: product.upstream_share_hours ?? 24,
+      requires_customer_input: Boolean(product.requires_customer_input),
+      customer_input_prompt: product.customer_input_prompt || '',
+    });
+  }
+
+  async function pinProduct(product: Product) {
+    try {
+      await api.pinProduct(product.id);
+      say(product.is_pinned ? 'Product unpinned from top.' : 'Product pinned to top!');
+      await load();
+    } catch (cause) { say(errorText(cause), 'bad'); }
+  }
 
   const load = useCallback(async () => {
     try {
@@ -327,7 +358,7 @@ export function Products({ say }: { say: Say }) {
       </div>
 
       <section className="panel">
-        <header className="product-toolbar" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
+        <header className={`product-toolbar${mobileFiltersOpen ? ' mobile-filters-open' : ''}`} style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
           {/* Top row: search & filters */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
             <div className="filters" style={{ flexWrap: 'wrap', gap: 10, flex: 1 }}>
@@ -346,6 +377,11 @@ export function Products({ say }: { say: Say }) {
                 />
               </div>
 
+              <button type="button" className="btn ghost mobile-filter-toggle" aria-label="Product filters" aria-expanded={mobileFiltersOpen} aria-controls="product-extra-filters" onClick={() => setMobileFiltersOpen(open => !open)}>
+                <SlidersHorizontal size={18} aria-hidden="true" />
+                <span>Filters{supplierFilter !== 'all' || categoryFilter !== 'all' ? ' •' : ''}</span>
+              </button>
+              <div id="product-extra-filters" className="product-extra-filters">
               {/* Supplier dropdown filter */}
               <CustomSelect
                 value={supplierFilter}
@@ -395,6 +431,7 @@ export function Products({ say }: { say: Say }) {
                 ]}
                 minWidth={110}
               />
+              </div>
 
               <span className="muted" style={{ fontSize: '12px', alignSelf: 'center' }}>
                 {shown.length} of {products?.length ?? 0} shown ({totalStockUnits} local units)
@@ -403,7 +440,7 @@ export function Products({ say }: { say: Say }) {
 
             <button
               type="button"
-              className="btn primary"
+              className="btn primary new-product-action"
               onClick={() =>
                 setDraft({
                   id: null,
@@ -490,7 +527,44 @@ export function Products({ say }: { say: Say }) {
           )}
         </header>
 
-        <div className="scroll">
+        <div className="app-list-heading">
+          <span>{shown.length} {shown.length === 1 ? 'product' : 'products'}</span>
+          <button type="button" aria-pressed={mobileSelection} onClick={() => { setMobileSelection(!mobileSelection); setSelectedIds([]); }}>{mobileSelection ? 'Done' : 'Select'}</button>
+        </div>
+        {mobileSelection || selectedIds.length > 0 ? (
+          <label className="app-select-all">
+            <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAllVisible} />
+            Select all on this page
+          </label>
+        ) : null}
+        <ul className="app-record-list product-feed" aria-label="Products">
+          {paginatedShown.map(product => {
+            const category = categories.find(c => c.id === product.category_id);
+            const supplier = product.upstream_product_id ? product.supplier_code === 'safwan_tiger' ? 'Tiger Shop' : 'Digital Mart' : '';
+            const stock = !product.is_active ? 'Hidden' : supplier || (product.delivery_type === 'manual' ? 'Manual' : product.stock ? `${product.stock} in stock` : 'Out of stock');
+            return (
+              <li key={product.id} className={selectedIds.includes(product.id) ? 'selected' : ''}>
+                {mobileSelection || selectedIds.length > 0 ? <label className="app-record-select">
+                  <input type="checkbox" aria-label={`Select ${product.title}`} checked={selectedIds.includes(product.id)} onChange={event => setSelectedIds(ids => event.target.checked ? [...ids, product.id] : ids.filter(id => id !== product.id))} />
+                </label> : null}
+                <MobileRecord
+                  title={product.title}
+                  subtitle={[category?.name, product.duration_label].filter(Boolean).join(' · ') || 'Digital product'}
+                  meta={product.is_pinned ? 'Pinned' : undefined}
+                  amount={money(product.price)}
+                  status={stock}
+                  tone={!product.is_active ? 'neutral' : !supplier && product.delivery_type !== 'manual' && !product.stock ? 'warn' : 'good'}
+                  icon={product.icon || product.title.slice(0, 1).toUpperCase()}
+                  label={`Edit product: ${product.title}`}
+                  onOpen={() => editProduct(product)}
+                />
+                <button type="button" className="app-record-more" aria-label={`Actions for ${product.title}`} onClick={() => setActionProduct(product)}><MoreHorizontal size={21} aria-hidden="true" /></button>
+              </li>
+            );
+          })}
+          {!products ? <li className="app-list-empty" role="status">Loading products…</li> : shown.length === 0 ? <li className="app-list-empty">{search ? 'No matching products.' : 'No products in this view.'}</li> : null}
+        </ul>
+        <div className="scroll desktop-record-scroll">
           <table className="mobile-records products-list">
             <thead>
               <tr>
@@ -642,15 +716,7 @@ export function Products({ say }: { say: Say }) {
                         <button
                           type="button"
                           className={`mini ${product.is_pinned ? 'btn' : 'ghost'}`}
-                          onClick={async () => {
-                            try {
-                              await api.pinProduct(product.id);
-                              say(product.is_pinned ? 'Product unpinned from top.' : 'Product pinned to top!');
-                              await load();
-                            } catch (e) {
-                              say(errorText(e), 'bad');
-                            }
-                          }}
+                          onClick={() => void pinProduct(product)}
                           title={product.is_pinned ? 'Pinned to top (click to unpin)' : 'Pin to top of category'}
                         >
                           📌 {product.is_pinned ? 'Top' : 'Pin'}
@@ -661,42 +727,7 @@ export function Products({ say }: { say: Say }) {
                         <button
                           type="button"
                           className="mini"
-                          onClick={() =>
-                            {
-                              const iconFields = editableProductFields(
-                                product.title,
-                                product.icon || '',
-                                product.custom_emoji_id || ''
-                              );
-                              const separated = separateProductLabels(
-                                iconFields.title,
-                                product.duration_label,
-                                product.warranty_label || ''
-                              );
-                              setDraft({
-                                id: product.id,
-                                category_id: product.category_id ?? null,
-                                title: separated.title,
-                                description: product.description,
-                                icon: iconFields.icon,
-                                price: product.price,
-                                reseller_price: product.reseller_price ?? null,
-                                duration_label: separated.duration_label,
-                                warranty_label: separated.warranty_label,
-                                sort_order: product.sort_order,
-                                is_pinned: Boolean(product.is_pinned),
-                                is_active: Boolean(product.is_active),
-                                delivery_type: product.delivery_type || 'stock',
-                                custom_emoji_id: product.custom_emoji_id || '',
-                                upstream_product_id: product.upstream_product_id ?? null,
-                                supplier_code: product.supplier_code || 'digital_mart',
-                                upstream_devices: product.upstream_devices ?? 1,
-                                upstream_share_hours: product.upstream_share_hours ?? 24,
-                                requires_customer_input: Boolean(product.requires_customer_input),
-                                customer_input_prompt: product.customer_input_prompt || '',
-                              });
-                            }
-                          }
+                          onClick={() => editProduct(product)}
                         >
                           Edit
                         </button>
@@ -725,6 +756,7 @@ export function Products({ say }: { say: Say }) {
         {/* Pagination Footer */}
         {shown.length > 0 && (
           <div
+            className={`product-pagination${totalPages <= 1 ? ' single-page' : ''}`}
             style={{
               padding: '12px 18px',
               borderTop: '1px solid var(--border)',
@@ -778,6 +810,18 @@ export function Products({ say }: { say: Say }) {
         />
       ) : null}
 
+      {actionProduct ? (
+        <Modal title="Product actions" onClose={() => setActionProduct(null)}>
+          <div className="app-product-actions">
+            <p>{actionProduct.title}</p>
+            <button type="button" onClick={() => { editProduct(actionProduct); setActionProduct(null); }}>Edit product</button>
+            <button type="button" onClick={() => { setPreviewProduct(actionProduct); setActionProduct(null); }}>Post to channel</button>
+            <button type="button" onClick={() => { const product = actionProduct; setActionProduct(null); void toggleActive(product); }}>{actionProduct.is_active ? 'Hide from store' : 'Activate product'}</button>
+            <button type="button" onClick={() => { const product = actionProduct; setActionProduct(null); void pinProduct(product); }}>{actionProduct.is_pinned ? 'Unpin product' : 'Pin product'}</button>
+            <button type="button" className="danger" onClick={() => { const product = actionProduct; setActionProduct(null); void remove(product); }}>Delete product</button>
+          </div>
+        </Modal>
+      ) : null}
       {previewProduct ? (
         <Modal
           title="Channel Post Preview"

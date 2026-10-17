@@ -32,6 +32,7 @@ const order = {
   id: 42, user_id: 1, tg_user_id: 123, first_name: customer.first_name,
   product_id: 1, product_title: product.title, price: 150, delivered_item: '',
   status: 'completed', fulfillment: 'waiting', source: 'manual', created_at: customer.created_at,
+  customer_input: 'synthetic.customer.with.a.long.address@example.test',
 };
 const deposit = {
   id: 19, user_id: 1, tg_user_id: 123, first_name: customer.first_name, method_id: 1,
@@ -56,6 +57,7 @@ const deposit = {
     let longName = false;
     let failOverview = false;
     let emptyOverview = false;
+    let previewOrders = null;
     await page.route('**/api/**', async route => {
       const req = route.request();
       const path = new URL(req.url()).pathname.replace('/api/admin/', '');
@@ -79,7 +81,8 @@ const deposit = {
           recent_orders: emptyOverview ? [] : [{ id: 42, user_id: 1, tg_user_id: 123, first_name: 'A very long customer name that should never overflow the screen', product_title: product.title, price: 150, status: 'completed', fulfillment: 'waiting', source: 'manual', created_at: '2026-10-17T08:00:00Z' }],
         };
       }
-      else if (path === 'orders') body = { orders: [order], total: 1, waiting: 2, summary };
+      else if (path === 'orders') body = { orders: previewOrders || [order], total: previewOrders?.length || 1, waiting: 2, summary };
+      else if (/^orders\/\d+$/.test(path)) body = { order, stock_item: null, messages: [] };
       else if (path === 'deposits') body = { deposits: [deposit], total: 1, summary };
       else if (path === 'users') body = { users: [customer], total: 1, summary };
       else if (path === 'inventory') body = { items: [], total: 0, summary: { total: 0, available: 0, sold: 0, expired: 0 } };
@@ -101,16 +104,92 @@ const deposit = {
         await page.waitForTimeout(100);
         const dimensions = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth }));
         assert.ok(dimensions.document <= dimensions.viewport + 1, `${screen} overflows at ${width}px: ${dimensions.document}`);
-        if (width <= 760 && ['orders', 'deposits', 'products', 'users'].includes(screen)) {
+        if (width <= 760 && ['deposits', 'users'].includes(screen)) {
           const rows = page.locator('.main-inner table tbody tr:not(.empty-row)');
           await rows.first().waitFor();
           assert.equal(await rows.first().evaluate(el => getComputedStyle(el).display), 'grid', `${screen} uses populated mobile cards`);
+        }
+        if (['orders', 'products'].includes(screen)) {
+          const mobile = page.locator('.app-record-list');
+          const desktop = page.locator('.desktop-record-scroll');
+          assert.equal(await mobile.isVisible(), width <= 760, 'List markup is mobile-only');
+          assert.equal(await desktop.isVisible(), width > 760, 'Table markup is desktop-only');
+          if (width <= 760) {
+            const row = mobile.locator('.app-record').first();
+            await row.waitFor();
+            const geometry = await row.evaluate(el => {
+              const copy = el.querySelector('.app-record-copy').getBoundingClientRect();
+              const tail = el.querySelector('.app-record-tail').getBoundingClientRect();
+              return { height: el.getBoundingClientRect().height, copyRight: copy.right, amountLeft: tail.left, scroll: el.scrollWidth, width: el.clientWidth };
+            });
+            assert.ok(geometry.height >= 88 && geometry.height <= 168, 'Records stay compact even with long names');
+            assert.ok(geometry.copyRight <= geometry.amountLeft - 4, 'Titles never collide with price/status');
+            assert.ok(geometry.scroll <= geometry.width + 1, 'Record content stays contained');
+          }
         }
         results.push({ screen, width, ...dimensions });
       }
       console.log(`Passed all 14 screens at ${width}px`);
     }
     await page.setViewportSize({ width: 390, height: 844 });
+    for (const screen of ['orders', 'products', 'deposits']) {
+      await page.goto(`${baseURL}/#${screen}`);
+      await page.locator(screen === 'deposits' ? '.main-inner table tbody tr' : '.app-record-list .app-record').first().waitFor();
+      await page.waitForTimeout(150);
+      assert.equal(await page.locator('.mobile-app-heading h1').innerText(), screen[0].toUpperCase() + screen.slice(1));
+      assert.equal(await page.locator('.main-inner > .page-head').isVisible(), false, 'App bar replaces repeated desktop heading');
+      await page.screenshot({ path: `${output}/${screen}-mobile.png`, fullPage: true });
+      if (screen === 'products' || screen === 'orders') {
+        const filterButton = page.getByRole('button', { name: screen === 'products' ? 'Product filters' : 'Order filters', exact: true });
+        const extras = page.locator(screen === 'products' ? '#product-extra-filters' : '#order-date-filter');
+        assert.equal(await extras.isVisible(), false, 'Extra filters stay out of the default mobile list');
+        await filterButton.click();
+        assert.equal(await extras.isVisible(), true, 'Extra filters remain accessible');
+        assert.equal(await filterButton.getAttribute('aria-expanded'), 'true');
+        await filterButton.click();
+        if (screen === 'products') {
+          const inputRect = await page.getByRole('searchbox', { name: 'Search products' }).boundingBox();
+          const buttonRect = await filterButton.boundingBox();
+          assert.ok(Math.abs(inputRect.y - buttonRect.y) <= 3, 'Search and filters share one compact app-toolbar row');
+        }
+      }
+    }
+    const originalOrder = { ...order };
+    Object.assign(order, { id: 1001, product_title: 'Gemini Pro', first_name: 'Demo Customer', customer_input: 'demo@example.test', price: 99 });
+    previewOrders = [
+      { ...order },
+      { ...order, id: 1000, product_title: 'Netflix Premium', first_name: 'Sample Buyer', price: 249, fulfillment: 'delivered' },
+      { ...order, id: 999, product_title: 'Canva Pro', first_name: 'Test Customer', price: 129, fulfillment: 'delivered' },
+    ];
+    await page.goto(`${baseURL}/#orders`);
+    await page.reload();
+    await page.getByRole('button', { name: 'Open order 1001: Gemini Pro', exact: true }).waitFor();
+    await page.screenshot({ path: `${output}/orders-mobile-preview.png`, fullPage: true });
+    previewOrders = null;
+    await page.getByRole('button', { name: 'Open order 1001: Gemini Pro', exact: true }).click();
+    const orderDialog = page.getByRole('dialog', { name: 'Order O1001', exact: true });
+    await orderDialog.waitFor();
+    await orderDialog.getByText('demo@example.test', { exact: true }).waitFor();
+    await page.keyboard.press('Escape');
+    await orderDialog.waitFor({ state: 'hidden' });
+    Object.assign(order, { customer_input: '', status: 'completed', fulfillment: 'delivered', delivery_status: 'failed' });
+    await page.reload();
+    await page.locator('.order-feed').getByText('Delivery failed', { exact: true }).waitFor();
+    assert.equal(await page.locator('.order-customer-input').count(), 0, 'No empty customer-details block');
+    assert.ok(await page.locator('.order-feed .app-record').isVisible(), 'Completed order remains tappable');
+    Object.assign(order, originalOrder);
+    const originalProducts = products;
+    products = [
+      { ...product, title: 'Gemini Pro', price: 99, icon: 'G', duration_label: '1 month', stock: 8 },
+      { ...product, id: 2, title: 'Netflix Premium', price: 249, icon: 'N', duration_label: '1 month', stock: 12 },
+      { ...product, id: 3, title: 'Canva Pro', price: 129, icon: 'C', duration_label: '1 year', stock: 4 },
+      { ...product, id: 4, title: 'Spotify Premium', price: 149, icon: 'S', duration_label: '3 months', stock: 0 },
+    ];
+    await page.goto(`${baseURL}/#products`);
+    await page.reload();
+    await page.locator('.product-feed .app-record').first().waitFor();
+    await page.screenshot({ path: `${output}/products-mobile-preview.png`, fullPage: true });
+    products = originalProducts;
     await page.goto(`${baseURL}/#overview`);
     await page.locator('.attention-banner').waitFor();
     await page.mouse.move(0, 0);
@@ -120,6 +199,13 @@ const deposit = {
     await page.getByRole('button', { name: 'More navigation' }).click();
     const drawer = page.getByRole('dialog', { name: 'Mobile navigation' });
     await drawer.waitFor();
+    await page.waitForFunction(() => {
+      const rect = document.querySelector('#mobile-navigation').getBoundingClientRect();
+      return Math.abs(rect.bottom - innerHeight) <= 1;
+    });
+    const sheet = await drawer.boundingBox();
+    assert.ok(Math.abs(sheet.y + sheet.height - 844) <= 1, 'Navigation opens as a bottom sheet');
+    await page.screenshot({ path: `${output}/navigation-mobile.png` });
     assert.equal(await page.locator('main').evaluate(el => el.inert), true);
     const drawerScroll = await drawer.locator('.drawer-nav').evaluate(el => {
       el.scrollTop = el.scrollHeight;
@@ -149,7 +235,25 @@ const deposit = {
 
     await page.setViewportSize({ width: 320, height: 640 });
     await page.goto(`${baseURL}/#products`);
-    await page.locator('.products-list').waitFor();
+    await page.locator('.product-feed').waitFor();
+    await page.reload();
+    await page.locator('.product-feed .app-record').first().click();
+    const editDialog = page.getByRole('dialog', { name: 'Edit product', exact: true });
+    await editDialog.waitFor();
+    assert.equal(await editDialog.getByLabel('Regular Price', { exact: true }).inputValue(), '150', 'List opens existing edit form without changing price');
+    await page.keyboard.press('Escape');
+    await editDialog.waitFor({ state: 'hidden' });
+    await page.locator('.product-feed .app-record-more').first().click();
+    const actions = page.getByRole('dialog', { name: 'Product actions', exact: true });
+    await actions.waitFor();
+    await actions.getByRole('button', { name: 'Delete product', exact: true }).click();
+    const deleteConfirm = page.getByRole('dialog').last();
+    await deleteConfirm.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await page.getByRole('button', { name: 'Select', exact: true }).click();
+    await page.getByRole('checkbox', { name: 'Select all on this page', exact: true }).check();
+    assert.match(await page.locator('.product-toolbar').innerText(), /1 product\(s\) selected/);
+    await page.getByRole('button', { name: 'Deselect', exact: true }).click();
+    await page.getByRole('button', { name: 'Done', exact: true }).click();
     await page.getByRole('button', { name: /new product/i }).first().click();
     const dialog = page.getByRole('dialog', { name: 'New product' });
     await dialog.waitFor();
