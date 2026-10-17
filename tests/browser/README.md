@@ -23,5 +23,8 @@ recovery, empty states and narrow-screen sign-in. Screenshots and a JSON report
 are written to `ARTIFACT_DIR`.
 
 Mobile app regressions also verify a single app-bar title, bottom-sheet navigation,
-order/status alignment and customer-detail wrapping with no buyer overlap.
-Orders, products and deposits previews use populated synthetic records.
+independent semantic lists (not restyled tables), compact row geometry and no
+title/price overlap. Product rows open the existing edit form; secondary actions
+are available in a sheet and deletion still requires confirmation. Bulk selection,
+order details with customer input, filter expansion and delivery-failure states
+are covered. Orders/products preview screenshots use multiple synthetic records.

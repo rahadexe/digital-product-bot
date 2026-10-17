@@ -57,6 +57,7 @@ const deposit = {
     let longName = false;
     let failOverview = false;
     let emptyOverview = false;
+    let previewOrders = null;
     await page.route('**/api/**', async route => {
       const req = route.request();
       const path = new URL(req.url()).pathname.replace('/api/admin/', '');
@@ -80,7 +81,8 @@ const deposit = {
           recent_orders: emptyOverview ? [] : [{ id: 42, user_id: 1, tg_user_id: 123, first_name: 'A very long customer name that should never overflow the screen', product_title: product.title, price: 150, status: 'completed', fulfillment: 'waiting', source: 'manual', created_at: '2026-10-17T08:00:00Z' }],
         };
       }
-      else if (path === 'orders') body = { orders: [order], total: 1, waiting: 2, summary };
+      else if (path === 'orders') body = { orders: previewOrders || [order], total: previewOrders?.length || 1, waiting: 2, summary };
+      else if (/^orders\/\d+$/.test(path)) body = { order, stock_item: null, messages: [] };
       else if (path === 'deposits') body = { deposits: [deposit], total: 1, summary };
       else if (path === 'users') body = { users: [customer], total: 1, summary };
       else if (path === 'inventory') body = { items: [], total: 0, summary: { total: 0, available: 0, sold: 0, expired: 0 } };
@@ -102,29 +104,28 @@ const deposit = {
         await page.waitForTimeout(100);
         const dimensions = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth }));
         assert.ok(dimensions.document <= dimensions.viewport + 1, `${screen} overflows at ${width}px: ${dimensions.document}`);
-        if (width <= 760 && ['orders', 'deposits', 'products', 'users'].includes(screen)) {
+        if (width <= 760 && ['deposits', 'users'].includes(screen)) {
           const rows = page.locator('.main-inner table tbody tr:not(.empty-row)');
           await rows.first().waitFor();
           assert.equal(await rows.first().evaluate(el => getComputedStyle(el).display), 'grid', `${screen} uses populated mobile cards`);
         }
-        if (width <= 760 && screen === 'orders') {
-          const geometry = await page.locator('.orders-directory tbody tr').first().evaluate(row => {
-            const cell = label => row.querySelector(`[data-label="${label}"]`).getBoundingClientRect();
-            const product = cell('Product'), buyer = cell('Buyer'), status = cell('Status'), id = cell('Order');
-            const details = row.querySelector('.order-customer-input').getBoundingClientRect();
-            return {
-              productBottom: product.bottom, buyerTop: buyer.top,
-              detailsBottom: details.bottom, detailsTop: details.top,
-              orderTop: id.top, statusTop: status.top,
-              rowHeight: row.getBoundingClientRect().height,
-              inputFits: row.querySelector('.order-customer-input').scrollWidth <= details.width + 1,
-            };
-          });
-          assert.ok(geometry.buyerTop >= geometry.productBottom + 8, 'Buyer clears product cell');
-          assert.ok(geometry.buyerTop >= geometry.detailsBottom + 8, 'Customer details never overlap buyer');
-          assert.ok(Math.abs(geometry.orderTop - geometry.statusTop) <= 12, 'Order and status share the first row');
-          assert.ok(geometry.inputFits, 'Long customer details wrap inside the card');
-          assert.ok(geometry.rowHeight < 420, 'Populated order stays compact');
+        if (['orders', 'products'].includes(screen)) {
+          const mobile = page.locator('.app-record-list');
+          const desktop = page.locator('.desktop-record-scroll');
+          assert.equal(await mobile.isVisible(), width <= 760, 'List markup is mobile-only');
+          assert.equal(await desktop.isVisible(), width > 760, 'Table markup is desktop-only');
+          if (width <= 760) {
+            const row = mobile.locator('.app-record').first();
+            await row.waitFor();
+            const geometry = await row.evaluate(el => {
+              const copy = el.querySelector('.app-record-copy').getBoundingClientRect();
+              const tail = el.querySelector('.app-record-tail').getBoundingClientRect();
+              return { height: el.getBoundingClientRect().height, copyRight: copy.right, amountLeft: tail.left, scroll: el.scrollWidth, width: el.clientWidth };
+            });
+            assert.ok(geometry.height >= 88 && geometry.height <= 168, 'Records stay compact even with long names');
+            assert.ok(geometry.copyRight <= geometry.amountLeft - 4, 'Titles never collide with price/status');
+            assert.ok(geometry.scroll <= geometry.width + 1, 'Record content stays contained');
+          }
         }
         results.push({ screen, width, ...dimensions });
       }
@@ -133,7 +134,7 @@ const deposit = {
     await page.setViewportSize({ width: 390, height: 844 });
     for (const screen of ['orders', 'products', 'deposits']) {
       await page.goto(`${baseURL}/#${screen}`);
-      await page.locator('.main-inner table tbody tr').first().waitFor();
+      await page.locator(screen === 'deposits' ? '.main-inner table tbody tr' : '.app-record-list .app-record').first().waitFor();
       await page.waitForTimeout(150);
       assert.equal(await page.locator('.mobile-app-heading h1').innerText(), screen[0].toUpperCase() + screen.slice(1));
       assert.equal(await page.locator('.main-inner > .page-head').isVisible(), false, 'App bar replaces repeated desktop heading');
@@ -155,16 +156,40 @@ const deposit = {
     }
     const originalOrder = { ...order };
     Object.assign(order, { id: 1001, product_title: 'Gemini Pro', first_name: 'Demo Customer', customer_input: 'demo@example.test', price: 99 });
+    previewOrders = [
+      { ...order },
+      { ...order, id: 1000, product_title: 'Netflix Premium', first_name: 'Sample Buyer', price: 249, fulfillment: 'delivered' },
+      { ...order, id: 999, product_title: 'Canva Pro', first_name: 'Test Customer', price: 129, fulfillment: 'delivered' },
+    ];
     await page.goto(`${baseURL}/#orders`);
     await page.reload();
-    await page.getByRole('button', { name: 'Gemini Pro', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Open order 1001: Gemini Pro', exact: true }).waitFor();
     await page.screenshot({ path: `${output}/orders-mobile-preview.png`, fullPage: true });
+    previewOrders = null;
+    await page.getByRole('button', { name: 'Open order 1001: Gemini Pro', exact: true }).click();
+    const orderDialog = page.getByRole('dialog', { name: 'Order O1001', exact: true });
+    await orderDialog.waitFor();
+    await orderDialog.getByText('demo@example.test', { exact: true }).waitFor();
+    await page.keyboard.press('Escape');
+    await orderDialog.waitFor({ state: 'hidden' });
     Object.assign(order, { customer_input: '', status: 'completed', fulfillment: 'delivered', delivery_status: 'failed' });
     await page.reload();
-    await page.getByText('message failed', { exact: true }).waitFor();
+    await page.locator('.order-feed').getByText('Delivery failed', { exact: true }).waitFor();
     assert.equal(await page.locator('.order-customer-input').count(), 0, 'No empty customer-details block');
-    assert.ok(await page.getByRole('button', { name: 'Details', exact: true }).isVisible(), 'Completed order keeps its details action');
+    assert.ok(await page.locator('.order-feed .app-record').isVisible(), 'Completed order remains tappable');
     Object.assign(order, originalOrder);
+    const originalProducts = products;
+    products = [
+      { ...product, title: 'Gemini Pro', price: 99, icon: 'G', duration_label: '1 month', stock: 8 },
+      { ...product, id: 2, title: 'Netflix Premium', price: 249, icon: 'N', duration_label: '1 month', stock: 12 },
+      { ...product, id: 3, title: 'Canva Pro', price: 129, icon: 'C', duration_label: '1 year', stock: 4 },
+      { ...product, id: 4, title: 'Spotify Premium', price: 149, icon: 'S', duration_label: '3 months', stock: 0 },
+    ];
+    await page.goto(`${baseURL}/#products`);
+    await page.reload();
+    await page.locator('.product-feed .app-record').first().waitFor();
+    await page.screenshot({ path: `${output}/products-mobile-preview.png`, fullPage: true });
+    products = originalProducts;
     await page.goto(`${baseURL}/#overview`);
     await page.locator('.attention-banner').waitFor();
     await page.mouse.move(0, 0);
@@ -210,7 +235,25 @@ const deposit = {
 
     await page.setViewportSize({ width: 320, height: 640 });
     await page.goto(`${baseURL}/#products`);
-    await page.locator('.products-list').waitFor();
+    await page.locator('.product-feed').waitFor();
+    await page.reload();
+    await page.locator('.product-feed .app-record').first().click();
+    const editDialog = page.getByRole('dialog', { name: 'Edit product', exact: true });
+    await editDialog.waitFor();
+    assert.equal(await editDialog.getByLabel('Regular Price', { exact: true }).inputValue(), '150', 'List opens existing edit form without changing price');
+    await page.keyboard.press('Escape');
+    await editDialog.waitFor({ state: 'hidden' });
+    await page.locator('.product-feed .app-record-more').first().click();
+    const actions = page.getByRole('dialog', { name: 'Product actions', exact: true });
+    await actions.waitFor();
+    await actions.getByRole('button', { name: 'Delete product', exact: true }).click();
+    const deleteConfirm = page.getByRole('dialog').last();
+    await deleteConfirm.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await page.getByRole('button', { name: 'Select', exact: true }).click();
+    await page.getByRole('checkbox', { name: 'Select all on this page', exact: true }).check();
+    assert.match(await page.locator('.product-toolbar').innerText(), /1 product\(s\) selected/);
+    await page.getByRole('button', { name: 'Deselect', exact: true }).click();
+    await page.getByRole('button', { name: 'Done', exact: true }).click();
     await page.getByRole('button', { name: /new product/i }).first().click();
     const dialog = page.getByRole('dialog', { name: 'New product' });
     await dialog.waitFor();

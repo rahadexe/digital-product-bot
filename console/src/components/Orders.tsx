@@ -16,6 +16,7 @@ import {
 import { api, type Order, type OrderDetail, type OrderSummary } from '@/lib/api';
 import { useMoney } from '@/lib/currency';
 import { CustomSelect } from './CustomSelect';
+import { MobileRecord } from './MobileRecord';
 import { EmptyRow, Modal, Pager, errorText, tone, useConfirm, useDebounced, when, who, type Say } from './ui';
 
 const PAGE = 50;
@@ -240,7 +241,29 @@ export function Orders({
         ) : null}
       </div>
 
-        <div className="scroll" tabIndex={0} role="region" aria-label="Orders table" aria-busy={loading}>
+        <div className="app-list-heading"><span>{total} {total === 1 ? 'order' : 'orders'}</span><span>Latest first</span></div>
+        <ul className="app-record-list order-feed" aria-label="Orders" aria-busy={loading}>
+          {(orders ?? []).map(order => {
+            const waiting = order.status === 'completed' && order.fulfillment === 'waiting';
+            const deliveryFailed = !waiting && order.status === 'completed' && order.delivery_status === 'failed';
+            return (
+              <li key={order.id}>
+                <MobileRecord
+                  title={order.product_title}
+                  subtitle={getCustomerDisplayName(order)}
+                  meta={`#${order.id} · ${when(order.created_at)}`}
+                  amount={money(order.price)}
+                  status={waiting ? 'To deliver' : deliveryFailed ? 'Delivery failed' : order.status}
+                  tone={waiting ? 'warn' : deliveryFailed || order.status === 'failed' ? 'bad' : order.status === 'completed' ? 'good' : 'neutral'}
+                  label={`Open order ${order.id}: ${order.product_title}`}
+                  onOpen={() => openOrder(order.id)}
+                />
+              </li>
+            );
+          })}
+          {!orders ? <li className="app-list-empty" role="status">Loading orders…</li> : orders.length === 0 ? <li className="app-list-empty">{query ? 'No matching orders.' : waitingOnly ? 'All paid orders have been sent.' : 'No orders yet.'}</li> : null}
+        </ul>
+        <div className="scroll desktop-record-scroll" tabIndex={0} role="region" aria-label="Orders table" aria-busy={loading}>
           <table className="record-directory orders-directory">
             <thead>
               <tr>
