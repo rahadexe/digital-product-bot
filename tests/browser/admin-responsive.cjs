@@ -163,6 +163,7 @@ const emoji = { id: 1, name: 'Store subscription icon', emoji_id: '0000000000000
         }
         assert.equal(await page.locator('.page-description, .page-head .eyebrow, .mobile-store-link').count(), 0, 'No decorative intro text or repeated store name');
         assert.doesNotMatch(await page.locator('.app-list-heading').allInnerTexts().then(texts => texts.join(' ')), /Tap to |Tap for |Latest first/, 'List headings do not explain obvious taps');
+        assert.doesNotMatch(await page.locator('.main-inner').innerText(), /[—–•·→←✓✕]/u, 'Admin copy has no decorative dashes, bullet separators or text glyphs');
         if (width <= 760) {
           const redundantPagers = page.locator('.product-pagination.single-page, .order-pagination.single-page, .pager:not(:has(button:not(:disabled)))');
           assert.equal(await redundantPagers.evaluateAll(nodes => nodes.filter(node => node.getBoundingClientRect().height > 0).length), 0, 'Single-page counts/pagers do not repeat the list header');
@@ -203,6 +204,7 @@ const emoji = { id: 1, name: 'Store subscription icon', emoji_id: '0000000000000
     await page.goto(`${baseURL}/#deposits/instant`);
     await page.reload(); // The existing Deposits component owns its tab while mounted.
     await page.getByRole('button', { name: `View payment ${invoice.reference}` }).click();
+    assert.match(await detailDialog().innerText(), /SYNTHETIC-INVOICE-REFERENCE/, 'Meaningful hyphens inside payment references stay unchanged');
     await assertDialogFits();
     assert.match(await detailDialog().innerText(), /Amount to pay/);
     await page.keyboard.press('Escape');
@@ -292,7 +294,7 @@ const emoji = { id: 1, name: 'Store subscription icon', emoji_id: '0000000000000
     await detailDialog().getByRole('heading', { name: 'Edit bKash' }).waitFor();
     await assertDialogFits();
     await page.keyboard.press('Escape');
-    await page.getByTitle('Configure ZiniPay Gateway & Auto-Verification').click();
+    await page.getByTitle('ZiniPay settings').click();
     await detailDialog().getByRole('heading', { name: 'ZiniPay Gateway Settings' }).waitFor();
     await assertDialogFits();
     await page.keyboard.press('Escape');

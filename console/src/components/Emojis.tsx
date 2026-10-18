@@ -171,7 +171,7 @@ export function Emojis({ say }: { say: Say }) {
         <ul className="app-record-list emoji-feed" aria-label="Emojis">
           {filteredItems.map(item => <li key={`${item.is_system ? 'system' : 'custom'}-${item.emoji_id}`}>
             <MobileRecordDetails title={item.name} subtitle="" amount="" status={item.is_system ? 'System' : 'Custom'} tone="neutral" icon={<Smile size={20} />} label={`View emoji ${item.name}`} fields={[
-              ['Name', item.name], ['Emoji ID', item.emoji_id], ['Source', item.is_system ? 'System — protected' : 'Custom'],
+              ['Name', item.name], ['Emoji ID', item.emoji_id], ['Source', item.is_system ? 'Protected system emoji' : 'Custom'],
             ]}>
               <button type="button" className="btn" onClick={() => copyId(item.emoji_id)}>Copy emoji ID</button>
               {!item.is_system ? <button type="button" className="btn ghost danger" onClick={() => void handleDelete(item)}>Delete emoji</button> : null}

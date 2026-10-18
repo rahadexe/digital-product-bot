@@ -379,7 +379,7 @@ export function Products({ say }: { say: Say }) {
 
               <button type="button" className="btn ghost mobile-filter-toggle" aria-label="Product filters" aria-expanded={mobileFiltersOpen} aria-controls="product-extra-filters" onClick={() => setMobileFiltersOpen(open => !open)}>
                 <SlidersHorizontal size={18} aria-hidden="true" />
-                <span>Filters{supplierFilter !== 'all' || categoryFilter !== 'all' ? ' •' : ''}</span>
+                <span>Filters</span>
               </button>
               <div id="product-extra-filters" className="product-extra-filters">
               {/* Supplier dropdown filter */}
@@ -549,7 +549,7 @@ export function Products({ say }: { say: Say }) {
                 </label> : null}
                 <MobileRecord
                   title={product.title}
-                  subtitle={[category?.name, product.duration_label].filter(Boolean).join(' · ')}
+                  subtitle={[category?.name, product.duration_label].filter(Boolean).join(', ')}
                   meta={product.is_pinned ? 'Pinned' : undefined}
                   amount={money(product.price)}
                   status={stock}
@@ -620,8 +620,8 @@ export function Products({ say }: { say: Say }) {
                         </span>
                       ) : null}
                       <small style={{ display: 'block', color: 'var(--muted)', marginTop: 2 }}>
-                        {[cat?.name, product.duration_label, product.warranty_label].filter(Boolean).join(' · ')}
-                        {product.upstream_product_id ? ` · Upstream ID: #${product.upstream_product_id}` : ''}
+                        {[cat?.name, product.duration_label, product.warranty_label].filter(Boolean).join(', ')}
+                        {product.upstream_product_id ? `, ID #${product.upstream_product_id}` : ''}
                       </small>
                     </td>
                     <td className="money">

@@ -496,6 +496,7 @@ export function CustomSelect({
                 <button
                   type="button"
                   className="btn ghost"
+                  aria-label="Cancel custom value"
                   style={{ height: '30px', padding: '0 6px', fontSize: '12px', color: 'var(--muted)' }}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -503,7 +504,7 @@ export function CustomSelect({
                     setCustomVal('');
                   }}
                 >
-                  ✕
+                  <X size={16} aria-hidden="true" />
                 </button>
               </div>
             </div>

@@ -48,13 +48,13 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip, con
         <FlagRow
           label="Restocks"
           on={isOn('auto_restock_alerts', '1')}
-          onChange={(next) => void confirmAndFlip('auto_restock_alerts', next, 'Auto-post on Restock')}
+          onChange={(next) => void confirmAndFlip('auto_restock_alerts', next, 'Restock posts')}
         />
 
         <FlagRow
           label="Price drops"
           on={isOn('auto_price_drop_alerts', '1')}
-          onChange={(next) => void confirmAndFlip('auto_price_drop_alerts', next, 'Auto-post on Price Drop')}
+          onChange={(next) => void confirmAndFlip('auto_price_drop_alerts', next, 'Price drop posts')}
         />
       </div>
 
@@ -99,7 +99,7 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip, con
             <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
               Threshold (items)
             </span>
-            <div role="group" aria-label="Low-stock threshold">
+            <div role="group" aria-label="Low stock threshold">
               {['1', '2', '3', '5', '10'].map((num) => {
                 const active = (values.low_stock_threshold || '3') === num;
                 return (
@@ -191,8 +191,8 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip, con
         <div className="mandatory-row">
           <div className="mandatory-info">
             <div className="mandatory-title-row">
-              <strong>Security: Group Invites Auto-Blocked</strong>
-              <span className="mandatory-badge neutral">Auto-leave</span>
+              <strong>Group invites</strong>
+              <span className="mandatory-badge neutral">Auto leave</span>
             </div>
             <p className="mandatory-desc">
               When added to a Telegram group, the bot silently leaves immediately to prevent data leakage without sending spam alerts to admin inboxes.
@@ -203,8 +203,8 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip, con
         <div className="mandatory-row">
           <div className="mandatory-info">
             <div className="mandatory-title-row">
-              <strong>Security: Unauthorized Channels Auto-Blocked</strong>
-              <span className="mandatory-badge neutral">Auto-leave</span>
+              <strong>Unapproved channels</strong>
+              <span className="mandatory-badge neutral">Auto leave</span>
             </div>
             <p className="mandatory-desc">
               When added to an unconfigured channel, the bot silently leaves immediately to protect broadcasting without sending spam alerts to admin inboxes.

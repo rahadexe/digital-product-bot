@@ -108,7 +108,7 @@ export function Inventory({ say }: { say: Say }) {
               <MobileRecordDetails title={item.product_title || `Product ${item.product_id}`} subtitle={`#${item.id}`} amount={item.max_uses > 1 ? `${item.uses}/${item.max_uses} used` : ''} status={statusLabel} tone={expired ? 'bad' : item.status === 'available' ? 'good' : 'neutral'} label={`View stock item ${item.id}`} fields={[
                 ['Item', `#${item.id}`], ['Product', item.product_title], ['Status', statusLabel],
                 ['Added', when(item.created_at)], ['Expiry', item.expires_at ? when(item.expires_at) : 'No expiry'],
-                ['Customers', `${item.uses} of ${item.max_uses}`], ['Order', item.order_id ? `O${item.order_id}` : '—'],
+                ['Customers', `${item.uses} of ${item.max_uses}`], ['Order', item.order_id ? `O${item.order_id}` : ''],
               ]}>
                 {item.status === 'available' && !expired ? <>
                   <button type="button" className="btn" onClick={() => setEditing(item)}>Edit stock</button>
@@ -136,7 +136,7 @@ export function Inventory({ say }: { say: Say }) {
                     <td className="name">
                       {item.product_title}
                       <small>
-                        #{item.id} · added {when(item.created_at)}
+                        #{item.id}, added {when(item.created_at)}
                       </small>
                     </td>
                     <td>
@@ -226,7 +226,7 @@ export function Inventory({ say }: { say: Say }) {
           }
         >
           <p className="hint">
-            {removing.product_title} · item #{removing.id}
+            {removing.product_title}, item #{removing.id}
           </p>
           <p className="modal-message">
             {removing.uses ? 'Customers who already received this item will keep it. It will no longer be offered to new customers.' : 'This item will be removed from available stock.'}
@@ -357,7 +357,7 @@ function EditStock({ item, say, onClose, onSaved }: { item: InventoryItem; say: 
     >
       <p className="hint">
         {item.product_title}
-        {item.uses ? ` · already with ${item.uses} customer${item.uses === 1 ? '' : 's'}, who keep what they received` : ''}
+        {item.uses ? `, already with ${item.uses} customer${item.uses === 1 ? '' : 's'}, who keep what they received` : ''}
       </p>
       <label className="field">
         <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -488,9 +488,9 @@ function ExpiryPicker({ value, onChange }: { value: string; onChange: (val: stri
         }}
       >
         <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>
-          Auto-Expiry
+          Auto expiry
         </span>
-        <Switch on={enabled} onChange={handleToggle} label="Toggle auto-expiry" />
+        <Switch on={enabled} onChange={handleToggle} label="Auto expiry" />
       </div>
 
       <div

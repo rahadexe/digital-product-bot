@@ -125,7 +125,7 @@ export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) =
         <section className="revenue-panel">
           <header><div><h2>Revenue</h2><span className="muted">Last 14 days</span></div><span className="chart-period">{chart.orders.toLocaleString()} orders</span></header>
           <div className="revenue-total">{money(chart.total)}</div>
-          <div className="revenue-readout" aria-live="polite">{point ? <><strong>{point.label}</strong><span>{money(point.revenue)} · {point.orders} orders</span></> : <span>Daily revenue</span>}</div>
+          <div className="revenue-readout" aria-live="polite">{point ? <><strong>{point.label}</strong><span>{money(point.revenue)}, {point.orders} orders</span></> : <span>Daily revenue</span>}</div>
           {chart.points.length ? <div className="revenue-chart">
             <svg viewBox="0 0 700 214" role="group" aria-label={`Revenue over the last 14 days: ${money(chart.total)}`}>
               <defs><linearGradient id="revenue-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--accent)" stopOpacity=".16" /><stop offset="100%" stopColor="var(--accent)" stopOpacity=".01" /></linearGradient></defs>
@@ -151,7 +151,7 @@ export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) =
           {supplier?.is_configured ? <button type="button" className="supplier-summary" onClick={() => onOpen('suppliers')}>
             <span className="supplier-caption">Supplier balance</span>
             <strong className={(supplier.account?.balance ?? 0) < (supplier.low_balance_alert ?? 50) ? 'bad-text' : ''}>{supplier.account?.currency_symbol || '৳'}{(supplier.account?.balance ?? 0).toFixed(2)}</strong>
-            <span>{supplier.account?.name || 'Supplier'} · {supplier.upstream_products_count} products</span>
+            <span>{supplier.account?.name || 'Supplier'}, {supplier.upstream_products_count} products</span>
           </button> : null}
         </aside>
       </div>

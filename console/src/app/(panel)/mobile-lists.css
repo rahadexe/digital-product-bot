@@ -39,7 +39,6 @@
   .console-root .app-record-tail { display: flex; flex-direction: column; align-items: flex-end; gap: 7px; min-width: 0; max-width: 38%; flex: 0 0 auto; }
   .console-root .app-record-amount { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 14px; font-weight: 750; }
   .console-root .app-record-status { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; line-height: 1.35; color: var(--muted); text-transform: capitalize; white-space: nowrap; }
-  .console-root .app-record-status::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex: 0 0 5px; }
   .console-root .app-record-status.good { color: #168062; }
   .console-root .app-record-status.warn { color: #a36a13; }
   .console-root .app-record-status.bad { color: #be3449; }

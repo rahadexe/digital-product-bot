@@ -146,7 +146,7 @@ export function Pager({ total, offset, size, onChange }: { total: number; offset
   return (
     <div className="pager">
       <span role="status">
-        {offset + 1}–{Math.min(offset + size, total)} of {total}
+        {offset + 1} to {Math.min(offset + size, total)} of {total}
       </span>
       <span className="spacer" />
       <button type="button" className="mini" disabled={offset === 0} onClick={() => onChange(Math.max(0, offset - size))}>

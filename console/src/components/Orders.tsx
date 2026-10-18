@@ -24,7 +24,7 @@ const PAGE = 50;
 type Timeframe = 'all' | 'today' | '7d' | '30d' | 'custom';
 
 function formatOrderDateTime(iso?: string | null): string {
-  if (!iso) return '—';
+  if (!iso) return 'Unknown';
   try {
     const d = new Date(iso.includes('T') || iso.includes('Z') ? iso : `${iso.replace(' ', 'T')}Z`);
     if (isNaN(d.getTime())) return iso;
@@ -216,7 +216,6 @@ export function Orders({
                 onChange={(e) => { setDateFrom(e.target.value); setOffset(0); }}
               />
             </div>
-            <span className="date-arrow">→</span>
             <div className="date-box">
               <span className="date-label">To</span>
               <input
@@ -250,7 +249,7 @@ export function Orders({
               <li key={order.id}>
                 <MobileRecord
                   title={order.product_title}
-                  subtitle={`#${order.id} · ${getCustomerDisplayName(order)}`}
+                  subtitle={`#${order.id}, ${getCustomerDisplayName(order)}`}
                   amount={money(order.price)}
                   status={waiting ? 'To deliver' : deliveryFailed ? 'Delivery failed' : order.status}
                   tone={waiting ? 'warn' : deliveryFailed || order.status === 'failed' ? 'bad' : order.status === 'completed' ? 'good' : 'neutral'}

@@ -347,7 +347,7 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
           <tbody>{[{ code: 'digital_mart', name: 'Digital Mart', provider: dmProvider, currency: 'BDT' }, { code: 'safwan_tiger', name: 'Safwan Tiger', provider: stProvider, currency: 'USDT' }].map(({ code, name, provider, currency }) => <tr key={code}>
             <td><strong>{name}</strong></td>
             <td><span className={`pill ${provider?.connected ? 'good' : provider?.is_configured ? 'bad' : ''}`}>{provider?.connected ? 'Connected' : provider?.is_configured ? 'Connection error' : 'Not configured'}</span></td>
-              <td className="right money">{provider?.connected && provider.balance != null ? `${provider.balance.toFixed(2)} ${currency}` : '—'}</td>
+              <td className="right money">{provider?.connected && provider.balance != null ? `${provider.balance.toFixed(2)} ${currency}` : ''}</td>
             <td className="right">{provider?.products_count ?? 0}</td>
             <td className="right"><button type="button" className="btn ghost small" disabled={Boolean(syncing) || !provider?.is_configured} onClick={() => handleSync(code)}>Sync</button></td>
           </tr>)}</tbody></table>
@@ -458,7 +458,7 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                     style={{ width: '100%', boxSizing: 'border-box' }}
                   />
                   <small style={{ display: 'block', marginTop: 4, color: 'var(--muted)', fontSize: '11.5px' }}>
-                    Auto-added on wholesale rate (e.g. 15% margin).
+                    Markup on wholesale price.
                   </small>
                 </div>
 
@@ -727,7 +727,7 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                   <label className="app-record-select"><input type="checkbox" aria-label={`Select supplier product ${product.id}`} checked={selectedSyncedIds.includes(product.id)} onChange={event => setSelectedSyncedIds(ids => event.target.checked ? [...ids, product.id] : ids.filter(id => id !== product.id))} /></label>
                   <MobileRecordDetails title={product.title} subtitle={product.supplier_code === 'safwan_tiger' ? 'Safwan Tiger' : 'Digital Mart'} meta={product.duration_label || undefined} amount={money(product.price)} status={product.is_active ? 'Active' : 'Hidden'} tone={product.is_active ? 'good' : 'neutral'} icon={product.icon || undefined} label={`View supplier product ${product.id}`} fields={[
                     ['Product', product.title], ['Supplier ID', product.upstream_product_id], ['Category', categories.find(category => category.id === product.category_id)?.name || 'General'],
-                    ['Retail price', money(product.price)], ['Wholesale rate', product.reseller_price != null ? money(product.reseller_price) : '—'], ['Duration', product.duration_label || 'Default'],
+                    ['Retail price', money(product.price)], ['Wholesale rate', product.reseller_price != null ? money(product.reseller_price) : 'Not set'], ['Duration', product.duration_label || 'Default'],
                   ]}>
                     <button type="button" className="btn" onClick={() => void toggleProductActive(product)}>{product.is_active ? 'Hide product' : 'Activate product'}</button>
                   </MobileRecordDetails>
@@ -779,7 +779,7 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                             {p.icon ? <span style={{ marginRight: 6 }}>{p.icon}</span> : null}
                             {p.title}
                             <small style={{ display: 'block', color: 'var(--muted)', fontSize: '11px', marginTop: 2 }}>
-                              Supplier ID: #{p.upstream_product_id} • Duration: {p.duration_label || 'Default'}
+                              #{p.upstream_product_id}, {p.duration_label || 'Default'}
                             </small>
                           </td>
                           <td>
@@ -799,7 +799,7 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                           <td>{cat?.name || 'General'}</td>
                           <td style={{ fontWeight: 700 }}>{money(p.price)}</td>
                           <td style={{ color: 'var(--accent)', fontWeight: 600 }}>
-                            {p.reseller_price != null ? money(p.reseller_price) : '—'}
+                            {p.reseller_price != null ? money(p.reseller_price) : 'Not set'}
                           </td>
                           <td style={{ textAlign: 'center' }}>
                             <button
@@ -1034,8 +1034,8 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                   <label className="app-record-select"><input type="checkbox" aria-label={`Select remote product ${product.id}`} checked={selectedRemoteIds.includes(product.id)} onChange={event => setSelectedRemoteIds(ids => event.target.checked ? [...ids, product.id] : ids.filter(id => id !== product.id))} /></label>
                   <MobileRecordDetails title={product.title} subtitle={product.category_name} meta={product.duration || undefined} amount={`${product.currency_symbol}${product.reseller_price.toFixed(2)}`} status={product.in_store ? product.local_is_active ? 'Active' : 'Hidden' : 'Not imported'} tone={product.in_store && product.local_is_active ? 'good' : 'neutral'} icon={product.icon || undefined} label={`View remote product ${product.id}`} fields={[
                     ['Product', product.title], ['Supplier ID', product.id], ['Category', product.category_name],
-                    ['Wholesale rate', `${product.currency_symbol}${product.reseller_price.toFixed(2)} ${product.currency}`], ['Duration', product.duration || '—'],
-                    ['Warranty', product.warranty || '—'], ['Description', product.description || '—'],
+                    ['Wholesale rate', `${product.currency_symbol}${product.reseller_price.toFixed(2)} ${product.currency}`], ['Duration', product.duration || ''],
+                    ['Warranty', product.warranty || ''], ['Description', product.description || ''],
                   ]}>
                     <button type="button" className="btn" disabled={remoteImporting} onClick={() => void handleImportRemoteProduct(product)}>{product.in_store ? 'Re-sync' : 'Import to Store'}</button>
                   </MobileRecordDetails>
@@ -1084,8 +1084,8 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                             {rp.icon ? <span style={{ marginRight: 6 }}>{rp.icon}</span> : null}
                             {rp.title}
                             <small style={{ display: 'block', color: 'var(--muted)', fontSize: '11px', marginTop: 2 }}>
-                              Supplier ID: #{rp.id} • Duration: {rp.duration || '—'}
-                              {rp.warranty ? ` • Warranty: ${rp.warranty}` : ''}
+                              #{rp.id}{rp.duration ? `, ${rp.duration}` : ''}
+                              {rp.warranty ? `, warranty ${rp.warranty}` : ''}
                             </small>
                           </td>
                           <td>{rp.category_name}</td>

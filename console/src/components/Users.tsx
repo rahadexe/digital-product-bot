@@ -631,7 +631,6 @@ function CustomerProfilePage({
                 <span className="cust-meta-text">No username</span>
               )}
 
-              <span className="cust-meta-sep">·</span>
 
               <button
                 type="button"
@@ -645,7 +644,6 @@ function CustomerProfilePage({
 
               {user.created_at ? (
                 <>
-                  <span className="cust-meta-sep">·</span>
                   <span className="cust-meta-text">Joined {when(user.created_at)}</span>
                 </>
               ) : null}
@@ -814,7 +812,7 @@ function CustomerProfilePage({
               <div className="cust-reseller-stat-box">
                 <span className="label">Key Identifier</span>
                 <span className="val monospace">
-                  {resellerKey ? resellerKey.key_prefix : '—'}
+                  {resellerKey ? resellerKey.key_prefix : ''}
                 </span>
                 <span className="sub">
                   {resellerKey ? `Name: ${resellerKey.name}` : 'No key generated yet'}
@@ -958,7 +956,7 @@ function CustomerProfilePage({
               <ul className="app-record-list customer-order-feed" aria-label="Customer orders">
                 {orders.map(order => {
                   const waiting = order.status === 'completed' && order.fulfillment === 'waiting';
-                  return <li key={order.id}><MobileRecord title={order.product_title || `Order O${order.id}`} subtitle={`O${order.id} · ${when(order.created_at)}`} amount={money(order.price)} status={waiting ? 'To deliver' : order.status} tone={waiting ? 'warn' : tone(order.status) || 'neutral'} label={`Open order O${order.id}`} onOpen={() => { window.location.hash = `orders/${order.id}`; }} /></li>;
+                  return <li key={order.id}><MobileRecord title={order.product_title || `Order O${order.id}`} subtitle={`O${order.id}, ${when(order.created_at)}`} amount={money(order.price)} status={waiting ? 'To deliver' : order.status} tone={waiting ? 'warn' : tone(order.status) || 'neutral'} label={`Open order O${order.id}`} onOpen={() => { window.location.hash = `orders/${order.id}`; }} /></li>;
                 })}
               </ul>
               <div className="cust-orders-scrollable desktop-customer-orders">
@@ -973,7 +971,7 @@ function CustomerProfilePage({
                         <div className="cust-order-meta">
                           <strong className="cust-order-product">{order.product_title}</strong>
                           <span className="cust-order-sub">
-                            Order O{order.id} · {when(order.created_at)}
+                            Order O{order.id}, {when(order.created_at)}
                           </span>
                         </div>
                       </div>

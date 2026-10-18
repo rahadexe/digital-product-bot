@@ -69,7 +69,7 @@ export function ResellerApps({
                 onClick={() => choose(item.key)}
               >
                 {item.label}
-                <span className="count">{summary ? summary[item.key === 'all' ? 'total' : item.key] : '—'}</span>
+                <span className="count">{summary ? summary[item.key === 'all' ? 'total' : item.key] : null}</span>
               </button>
             ))}
           </div>
@@ -86,7 +86,7 @@ export function ResellerApps({
               <MobileRecordDetails title={app.full_name} subtitle={`@${tgHandle}`} amount="" status={app.status} tone={tone(app.status) || 'neutral'} label={`Review reseller ${app.full_name}`} fields={[
                 ['Telegram ID', app.tg_user_id], ['Telegram', <a key="tg" href={`https://t.me/${tgHandle}`} target="_blank" rel="noopener noreferrer">@{tgHandle}</a>],
                 ['Phone', app.phone_number], ['Store', <a key="store" href={channelUrl} target="_blank" rel="noopener noreferrer">{app.channel_link}</a>],
-                ['Status', app.status], ['Applied', when(app.created_at)], ['Admin note', app.admin_notes || '—'],
+                ['Status', app.status], ['Applied', when(app.created_at)], ['Admin note', app.admin_notes || ''],
               ]}>
                 {app.status === 'pending' ? <>
                   <button type="button" className="btn" disabled={busy === app.id} onClick={() => setReview({ app, approve: true })}>Approve reseller</button>
@@ -123,7 +123,7 @@ export function ResellerApps({
                     <td className="name">
                       <strong>{app.full_name}</strong>
                       <small>
-                        ID: <code>{app.tg_user_id}</code> · {when(app.created_at)}
+                        ID: <code>{app.tg_user_id}</code>, {when(app.created_at)}
                       </small>
                     </td>
 

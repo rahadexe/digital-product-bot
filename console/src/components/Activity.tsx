@@ -30,10 +30,10 @@ export function Activity({say}: {say: Say}) {
   }
   return <>{dialog}
     <section className="panel"><header><h2>Failed jobs</h2><button className="mini" onClick={()=>{forgetAnswers();setRevision(n=>n+1);}}>Refresh</button></header>
-      {error ? <div className="panel-body" role="alert">{error}</div> : <div className="panel-body">{jobs.length ? jobs.map(job=><div key={`${job.kind}-${job.id}`} className="activity-job"><span><strong>{job.kind} #{job.id}</strong><small>{job.error} · {job.attempts} attempts</small></span><button className="mini" disabled={busy} onClick={()=>void retry(job)}>Retry</button></div>) : <p>{data ? 'No failed jobs.' : 'Loading…'}</p>}</div>}
+      {error ? <div className="panel-body" role="alert">{error}</div> : <div className="panel-body">{jobs.length ? jobs.map(job=><div key={`${job.kind}-${job.id}`} className="activity-job"><span><strong>{job.kind} #{job.id}</strong><small>{job.error}, {job.attempts} attempts</small></span><button className="mini" disabled={busy} onClick={()=>void retry(job)}>Retry</button></div>) : <p>{data ? 'No failed jobs.' : 'Loading…'}</p>}</div>}
     </section>
     <section className="panel"><header><h2>Admin activity</h2><input type="search" aria-label="Search activity" placeholder="Search activity" value={search} onChange={e=>{setSearch(e.target.value);setOffset(0);}} /></header>
-      <div className="panel-body">{data?.entries.map(entry=><article className="activity-entry" key={entry.id}><strong>{entry.action.replaceAll('_',' ')}</strong><p>{entry.details}</p><small>{entry.actor} · {new Date(entry.created_at).toLocaleString()}</small></article>)}{data && !data.entries.length ? <p>No matching activity.</p> : null}</div>
+      <div className="panel-body">{data?.entries.map(entry=><article className="activity-entry" key={entry.id}><strong>{entry.action.replaceAll('_',' ')}</strong><p>{entry.details}</p><small>{entry.actor}, {new Date(entry.created_at).toLocaleString()}</small></article>)}{data && !data.entries.length ? <p>No matching activity.</p> : null}</div>
       <Pager total={data?.total ?? 0} offset={offset} size={50} onChange={setOffset}/>
     </section>
   </>;

@@ -58,7 +58,7 @@ export function UpdateChannels({ say }: { say: Say }) {
                   )}
                 </div>
                 <small>
-                  #{channel.sort_order} ·{' '}
+                  #{channel.sort_order}{' '}
                   <a href={channel.url} target="_blank" rel="noreferrer">
                     {channel.url.replace('https://', '')}
                   </a>

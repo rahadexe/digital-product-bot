@@ -19,7 +19,7 @@ export function MobileRecord({
       {icon ? <span className="app-record-icon" aria-hidden="true">{icon}</span> : null}
       <span className="app-record-copy">
         <strong className="app-record-title">{title}</strong>
-        {subtitle || meta ? <span className="app-record-subtitle">{[subtitle, meta].filter(Boolean).join(' · ')}</span> : null}
+        {subtitle || meta ? <span className="app-record-subtitle">{[subtitle, meta].filter(Boolean).join(', ')}</span> : null}
       </span>
       <span className="app-record-tail">
         {amount ? <strong className="app-record-amount">{amount}</strong> : null}

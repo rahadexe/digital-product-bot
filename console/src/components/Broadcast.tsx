@@ -211,7 +211,7 @@ export function Broadcast({ say }: { say: Say }) {
             <span className="stat-card-label">Active Recipients</span>
           </div>
           <div className="stat-card-value">
-            {recipientCount !== null ? recipientCount : '—'}
+            {recipientCount !== null ? recipientCount : null}
           </div>
         </div>
 
@@ -308,8 +308,8 @@ export function Broadcast({ say }: { say: Say }) {
                 />
               </div>
               <div style={{ display: 'flex', gap: '14px', marginTop: '8px', fontSize: '12px', color: 'var(--muted)' }}>
-                <span style={{ color: '#059669', fontWeight: 500 }}>✓ {progress.success} sent</span>
-                {progress.failed > 0 && <span style={{ color: 'var(--danger)', fontWeight: 500 }}>✕ {progress.failed} failed</span>}
+                <span style={{ color: '#059669', fontWeight: 500 }}>{progress.success} sent</span>
+                {progress.failed > 0 && <span style={{ color: 'var(--danger)', fontWeight: 500 }}>{progress.failed} failed</span>}
                 {progress.pending > 0 && <span>⏳ {progress.pending} pending</span>}
               </div>
             </div>
@@ -510,7 +510,6 @@ export function Broadcast({ say }: { say: Say }) {
                       }}
                     >
                       <span>12:00</span>
-                      <span style={{ color: '#059669', fontSize: '10px', fontWeight: 700 }}>✓✓</span>
                     </div>
                   </div>
                 </div>
@@ -526,13 +525,10 @@ export function Broadcast({ say }: { say: Say }) {
           <div>
             <h2>Recent Broadcasts</h2>
           </div>
-          <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
-            Latest 30 kept · auto-pruned
-          </span>
         </header>
         <ul className="app-record-list broadcast-feed" aria-label="Recent broadcasts">
           {recent.map(item => <li key={item.id}>
-            <MobileRecord title={`Broadcast #${item.id}`} subtitle={item.text.replace(/<[^>]*>/g, '').slice(0, 100)} meta={`${item.success} sent · ${item.failed} failed · ${when(item.created_at)}`} amount="" status={item.pending ? 'Sending' : 'Finished'} tone={item.pending ? 'warn' : item.failed ? 'warn' : 'good'} icon={<Send size={20} />} label={`View broadcast ${item.id}`} onOpen={() => setSelectedBroadcast(item)} />
+            <MobileRecord title={`Broadcast #${item.id}`} subtitle={item.text.replace(/<[^>]*>/g, '').slice(0, 100)} meta={`${item.success} sent, ${item.failed} failed`} amount="" status={item.pending ? 'Sending' : 'Finished'} tone={item.pending ? 'warn' : item.failed ? 'warn' : 'good'} icon={<Send size={20} />} label={`View broadcast ${item.id}`} onOpen={() => setSelectedBroadcast(item)} />
           </li>)}
           {!recent.length ? <li className="app-list-empty">{loadingInfo ? 'Loading broadcasts…' : 'No broadcasts sent yet.'}</li> : null}
         </ul>
@@ -579,7 +575,7 @@ export function Broadcast({ say }: { say: Say }) {
                             marginTop: '2px',
                           }}
                         >
-                          {b.text || '—'}
+                          {b.text || ''}
                         </div>
                       </td>
                       <td>

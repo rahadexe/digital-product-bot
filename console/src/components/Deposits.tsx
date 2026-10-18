@@ -219,7 +219,7 @@ function TopUps({
             return <li key={deposit.id}>
               <MobileRecord
                 title={who(deposit)}
-                subtitle={`${deposit.method_name || 'Deposit'} · D${deposit.id}`}
+                subtitle={`${deposit.method_name || 'Deposit'}, D${deposit.id}`}
                 amount={money(deposit.amount)}
                 status={flagged ? 'Needs review' : deposit.status}
                 tone={flagged ? 'bad' : tone(deposit.status) || 'neutral'}
@@ -275,11 +275,11 @@ function TopUps({
                             ['Deposit ID', `D${deposit.id}`],
                             ['Customer', who(deposit)],
                             ['Amount', money(deposit.amount)],
-                            ['Method', deposit.method_name || '—'],
-                            ['Transaction ID', deposit.transaction_id || '—'],
+                            ['Method', deposit.method_name || 'Not set'],
+                            ['Transaction ID', deposit.transaction_id || 'Not set'],
                             ['Created', when(deposit.created_at)],
                             ['Status', deposit.status],
-                            ['Admin note', deposit.admin_note || '—'],
+                            ['Admin note', deposit.admin_note || ''],
                           ]}
                         />
                       </div>
@@ -297,7 +297,7 @@ function TopUps({
                         className={`pill ${isBinance ? 'good' : ''}`}
                         style={{ textTransform: 'uppercase' }}
                       >
-                        {deposit.method_name || '—'}
+                        {deposit.method_name || 'Not set'}
                       </span>
                     </td>
                     <td data-label="Transaction ID">
@@ -403,11 +403,11 @@ function TopUps({
             {[
               ['Customer', who(selectedDeposit)],
               ['Wallet credit', money(selectedDeposit.amount)],
-              ['Method', selectedDeposit.method_name || '—'],
-              ['Transaction ID', selectedDeposit.transaction_id || '—'],
+              ['Method', selectedDeposit.method_name || 'Not set'],
+              ['Transaction ID', selectedDeposit.transaction_id || 'Not set'],
               ['Status', selectedDeposit.status],
               ['Created', when(selectedDeposit.created_at)],
-              ['Admin note', selectedDeposit.admin_note || '—'],
+              ['Admin note', selectedDeposit.admin_note || ''],
               ...(selectedDeposit.pay_amount != null ? [['Amount sent', `${selectedDeposit.pay_amount} (payment currency)`]] : []),
             ].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
           </dl>
@@ -488,7 +488,7 @@ function ReviewDialog({
       }
     >
       <p className="hint">
-        {who(deposit)} · {deposit.method_name} · <code>{deposit.transaction_id}</code>
+        {who(deposit)}, {deposit.method_name}, <code>{deposit.transaction_id}</code>
       </p>
       <label className="field">
         <span>{approve ? 'Admin note (optional)' : 'Reason sent to customer'}</span>
@@ -609,11 +609,11 @@ function Instant({
             ['Wallet credit', money(selectedPayment.credit_amount)],
             ['Amount to pay', `৳${selectedPayment.pay_amount.toFixed(2)}`],
             ['Reference', selectedPayment.reference],
-            ['Transaction ID', selectedPayment.provider_transaction_id || '—'],
+            ['Transaction ID', selectedPayment.provider_transaction_id || 'Not set'],
             ['Method', selectedPayment.payment_method || 'ZiniPay'],
             ['Status', selectedPayment.status],
             ['Created', when(selectedPayment.created_at)],
-            ['Last error', selectedPayment.last_error || '—'],
+            ['Last error', selectedPayment.last_error || ''],
           ].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
         </dl>
         {selectedPayment.status === 'pending' ? <button type="button" className="btn" disabled={busy === selectedPayment.reference} onClick={() => { const payment = selectedPayment; setSelectedPayment(null); void check(payment); }}>Check payment</button> : null}
@@ -645,7 +645,7 @@ function Instant({
                           ['Payable amount', `৳${payment.pay_amount.toFixed(2)}`],
                           ['Method', payment.payment_method || 'ZiniPay'],
                           ['Reference', payment.reference],
-                          ['Provider TrxID', payment.provider_transaction_id || '—'],
+                          ['Provider TrxID', payment.provider_transaction_id || 'Not set'],
                           ['Status', payment.status],
                           ['Created', when(payment.created_at)],
                         ]}

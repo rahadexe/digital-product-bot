@@ -7,6 +7,9 @@ credentials or a production database.
 Copy regressions also check that decorative page descriptions, repeated mobile
 store names, tap instructions and third metadata lines stay removed. Shorter
 notification labels keep their original keys; cancelling a toggle must not write.
+Populated screens also reject decorative dash/bullet/arrow/checkmark text.
+Parsing expressions, financial signs, dates, identifiers, URLs and secret masking
+are intentionally not rewritten.
 
 The optional browser-test environment needs `@playwright/test` available from the
 console's Node resolution path and a Playwright Chromium installation. These are
