@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   api,
+  forgetAnswers,
   type SupplierStatus,
   type Product,
   type Category,
@@ -10,7 +11,7 @@ import {
   type RemoteSupplierCatalogResponse,
 } from '@/lib/api';
 import { useMoney } from '@/lib/currency';
-import { PageLoading, errorText, useConfirm, type Say } from './ui';
+import { Modal, PageLoading, errorText, useConfirm, type Say } from './ui';
 import { CustomSelect } from './CustomSelect';
 import { MobileRecordDetails } from './MobileRecordDetails';
 
@@ -23,8 +24,7 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
   const [saving, setSaving] = useState(false);
   const [activeProvider, setActiveProvider] = useState<'digital_mart' | 'safwan_tiger'>('digital_mart');
   const [confirm, confirmDialog] = useConfirm();
-  const configPanel = useRef<HTMLDetailsElement>(null);
-  const apiUrlInput = useRef<HTMLInputElement>(null);
+  const [apiSettingsOpen, setApiSettingsOpen] = useState(false);
   const formInitialized = useRef(false);
 
   // Form fields
@@ -101,7 +101,8 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
     void loadData();
   }, [loadData]);
 
-  const loadRemoteCatalog = useCallback(async (supplierCode = exploreSupplier) => {
+  const loadRemoteCatalog = useCallback(async (supplierCode = exploreSupplier, refresh = false) => {
+    if (refresh) forgetAnswers();
     const request = ++remoteRequest.current;
     setRemoteLoading(true);
     setRemoteError('');
@@ -182,11 +183,14 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
 
   const openApiSettings = (code: 'digital_mart' | 'safwan_tiger') => {
     switchProvider(code);
-    if (configPanel.current) configPanel.current.open = true;
-    requestAnimationFrame(() => {
-      configPanel.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      apiUrlInput.current?.focus({ preventScroll: true });
-    });
+    setApiSettingsOpen(true);
+  };
+
+  const closeApiSettings = () => {
+    if (saving) return;
+    setApiSettingsOpen(false);
+    setApiKey('');
+    setShowApiKey(false);
   };
 
   const handleSaveConfig = async (e: React.FormEvent) => {
@@ -397,38 +401,7 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
         </div>
       </section>
 
-      {/* Configuration & Details Section */}
-      <details ref={configPanel} className="supplier-configuration"><summary>API settings</summary>
-        {/* Settings Card */}
-        <section className="panel" style={{ margin: 0 }}>
-          <header>
-            <div style={{ width: '100%' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-                {/* Provider switcher tabs */}
-                <div className="segmented" role="tablist">
-                  <button
-                    type="button"
-                    aria-label="Digital Mart (BDT)"
-                    className={activeProvider === 'digital_mart' ? 'active' : ''}
-                    onClick={() => switchProvider('digital_mart')}
-                    disabled={saving}
-                  >
-                    Digital Mart
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Safwan Tiger (USDT)"
-                    className={activeProvider === 'safwan_tiger' ? 'active' : ''}
-                    onClick={() => switchProvider('safwan_tiger')}
-                    disabled={saving}
-                  >
-                    Safwan Tiger
-                  </button>
-                </div>
-              </div>
-            </div>
-          </header>
-          <div className="panel-body">
+      {apiSettingsOpen ? <Modal title={`${activeProvider === 'digital_mart' ? 'Digital Mart' : 'Safwan Tiger'} API`} onClose={closeApiSettings} className="supplier-api-dialog">
             <form onSubmit={handleSaveConfig} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: 6 }}>
@@ -436,7 +409,6 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                 </label>
                 <input
                   type="url"
-                  ref={apiUrlInput}
                   aria-label="Supplier API URL"
                   value={baseUrl}
                   onChange={(e) => setBaseUrl(e.target.value)}
@@ -444,9 +416,6 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                   required
                   style={{ width: '100%', boxSizing: 'border-box' }}
                 />
-                <small style={{ display: 'block', marginTop: 4, color: 'var(--muted)', fontSize: '11.5px' }}>
-                  {activeProvider === 'safwan_tiger' ? 'Serves /balance, /products, and /order.' : 'Serves /me, /products, and /orders.'}
-                </small>
               </div>
 
               <div>
@@ -550,10 +519,7 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                 </button>
               </div>
             </form>
-          </div>
-        </section>
-
-      </details>
+      </Modal> : null}
 
       {/* Main Catalog View Section: Mode Switcher (Synced Products vs Live Supplier Explorer) */}
       <section className="panel" style={{ margin: 0 }}>
@@ -756,14 +722,7 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
 
             {/* Table of Synced Products */}
             {filteredSynced.length === 0 ? (
-              <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--muted)' }}>
-                <p style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text)' }}>
-                  No supplier products match your search or filters
-                </p>
-                <p style={{ fontSize: '12.5px', marginTop: 4 }}>
-                  Try another search or open &quot;Browse catalog&quot; to import products.
-                </p>
-              </div>
+              <p className="supplier-empty">No products found.</p>
             ) : (
               <>
               <label className="app-select-all"><input type="checkbox" checked={allVisibleSyncedSelected} onChange={toggleSelectAllVisibleSynced} /> Select page</label>
@@ -978,7 +937,7 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                 <button
                   type="button"
                   className="btn small"
-                  onClick={() => loadRemoteCatalog(exploreSupplier)}
+                  onClick={() => loadRemoteCatalog(exploreSupplier, true)}
                   disabled={remoteLoading || remoteImporting}
                 >
                   Refresh API
@@ -1070,14 +1029,7 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                 <button type="button" className="btn" onClick={() => loadRemoteCatalog()}>Retry</button>
               </div>
             ) : filteredRemote.length === 0 ? (
-              <div style={{ padding: '50px 20px', textAlign: 'center', color: 'var(--muted)' }}>
-                <p style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text)' }}>
-                  No live products returned from {exploreSupplier === 'safwan_tiger' ? 'Safwan Tiger' : 'Digital Mart'}
-                </p>
-                <p style={{ fontSize: '12.5px', marginTop: 4 }}>
-                  Ensure your API key and URL are configured properly above, or check your search keywords.
-                </p>
-              </div>
+              <p className="supplier-empty">No products found.</p>
             ) : (
               <>
               <label className="app-select-all"><input type="checkbox" checked={allVisibleRemoteSelected} onChange={toggleSelectAllRemote} /> Select results</label>

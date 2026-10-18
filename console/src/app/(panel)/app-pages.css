@@ -3,7 +3,6 @@
 .app-detail-trigger { flex: 1; min-width: 0; }
 .supplier-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
 .console-root .supplier-directory > header { justify-content: flex-end; }
-.supplier-configuration { scroll-margin-top: 88px; }
 .app-review-actions { display: grid; gap: 10px; margin-top: 20px; }
 .app-review-actions > button { width: 100%; min-height: 44px; }
 .app-duration-copy { display: grid; gap: 5px; flex: 1; min-width: 0; }
@@ -91,10 +90,7 @@
   .console-root .field :is(input:not([type='checkbox']), textarea, select) { min-height: 46px; background: #fafbfe; }
   .console-root .hint, .console-root .note { font-size: 12px; line-height: 1.65; }
 
-  /* Light supplier rows keep configuration secondary and stock readable. */
-  .console-root .supplier-configuration { border: 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 0; background: none; border-radius: 0; }
-  .console-root .supplier-configuration > summary { padding: 17px 0; min-height: 50px; font-size: 13px; font-weight: 650; }
-  .console-root .supplier-configuration[open] > .panel { border: 0; padding: 12px 0; }
+  /* Supplier configuration opens only from the provider's Add/Edit API action. */
   .console-root .supplier-directory .scroll { min-height: 0 !important; overflow: visible; }
   .console-root .main-inner[data-screen='suppliers'] .panel.supplier-directory .scroll :is(table, tbody) { display: block; min-width: 0; width: 100%; }
   .console-root .main-inner[data-screen='suppliers'] .panel.supplier-directory .scroll thead { display: none; }

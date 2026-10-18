@@ -25,6 +25,8 @@ const baseline = process.env.CAPTURE_BASELINE === '1';
     }));
     let count = 1;
     let pendingDeposits = 0;
+    let overviewGate = null;
+    let overviewFailure = false;
     let customerInput = 'sample18169@example.test';
     const order = () => ({
       id: 1001, user_id: 1, tg_user_id: 123, first_name: 'Sample Customer', username: 'sample_customer',
@@ -36,6 +38,13 @@ const baseline = process.env.CAPTURE_BASELINE === '1';
       const req = route.request();
       assert.equal(req.method(), 'GET', 'Geometry tests must not submit any admin mutations');
       const path = new URL(req.url()).pathname.split('/admin/')[1];
+      if (path === 'overview') {
+        if (overviewGate) await overviewGate;
+        if (overviewFailure) {
+          await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ detail: 'Synthetic overview failure' }) });
+          return;
+        }
+      }
       let body = [];
       if (path === 'session') body = { signed_in: true, csrf: 'synthetic-test-csrf', store_name: 'Sample Store' };
       else if (path === 'settings') body = { currency: 'BDT', currency_symbol: '৳', store_name: 'Sample Store', validity_presets: '12 months' };
@@ -53,8 +62,59 @@ const baseline = process.env.CAPTURE_BASELINE === '1';
       await route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) });
     });
     const checks = [];
+    const loadingChecks = [];
+    const homeGeometry = () => page.locator('.home-overview').evaluate(node => {
+      const box = element => {
+        const r = element.getBoundingClientRect();
+        return { x: r.x, y: r.y, width: r.width, height: r.height, background: getComputedStyle(element).backgroundColor };
+      };
+      return {
+        toolbar: box(node.querySelector('.home-toolbar')),
+        metrics: [...node.querySelectorAll('.home-metric')].map(box),
+        recent: box(node.querySelector('.home-recent > header')),
+      };
+    });
     for (const width of [320, 360, 390, 412, 760, 768, 1024, 1440]) {
       await page.setViewportSize({ width, height: 860 });
+      if (!baseline) for (const total of [0, 1, 5]) {
+        count = total;
+        let release;
+        overviewGate = new Promise(resolve => { release = resolve; });
+        try {
+          await page.goto(`${baseURL}/?loading=${width}-${total}#overview`);
+          await page.locator('.home-loading[aria-busy="true"]').waitFor();
+          await page.evaluate(() => document.fonts.ready);
+          const skeleton = await homeGeometry();
+          assert.equal(await page.locator('.home-loading .home-metric').count(), 4, 'Loading uses the same four metric cards');
+          assert.equal(await page.locator('.home-loading button, .home-loading input, .home-loading a').count(), 0, 'Loading placeholders are not fake interactive controls');
+          assert.equal(await page.locator('.dashboard-loading, .home-loading .home-revenue svg').count(), 0, 'No retired dashboard layout or expanded chart while loading');
+          assert.equal(await page.getByText('Getting your dashboard ready', { exact: true }).count(), 0, 'No unnecessary loading headline');
+          assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `Loading fits ${width}`);
+          if (width <= 760) {
+            assert.equal(Math.round(skeleton.metrics[0].y), Math.round(skeleton.metrics[1].y));
+            assert.ok(skeleton.metrics.every(card => card.height <= 120), 'Loading metrics stay compact');
+          }
+          if (width === 390 && total === 1) await page.screenshot({ path: `${output}/home-loading-after.png` });
+          release();
+          overviewGate = null;
+          await page.locator('.home-overview:not(.home-loading)').waitFor();
+          const loaded = await homeGeometry();
+          assert.ok(Math.abs(skeleton.toolbar.height - loaded.toolbar.height) <= 2, 'Loading toolbar matches the real toolbar');
+          for (let i = 0; i < 4; i++) {
+            assert.ok(Math.abs(skeleton.metrics[i].width - loaded.metrics[i].width) <= 1, 'Loading and loaded metric widths match');
+            assert.ok(Math.abs(skeleton.metrics[i].height - loaded.metrics[i].height) <= 2, `Loading and loaded metric heights match: ${JSON.stringify({ width, total, i, skeleton: skeleton.metrics[i], loaded: loaded.metrics[i] })}`);
+            assert.equal(skeleton.metrics[i].background, loaded.metrics[i].background, 'Loading does not invent a highlighted metric');
+            const shift = Math.abs(skeleton.metrics[i].y - loaded.metrics[i].y);
+            assert.ok(shift <= (total ? 2 : 64), `Only the data-dependent empty pending row can collapse: ${shift}px`);
+          }
+          assert.ok(Math.abs(skeleton.recent.height - loaded.recent.height) <= 2, 'Recent orders header keeps its size');
+          if (width === 390 && total === 1) await page.screenshot({ path: `${output}/home-loaded-after.png` });
+          loadingChecks.push({ width, orders: total });
+        } finally {
+          release();
+          overviewGate = null;
+        }
+      }
       for (const total of [0, 1, 5]) {
         count = total;
         await page.goto(`${baseURL}/#overview`);
@@ -147,8 +207,44 @@ const baseline = process.env.CAPTURE_BASELINE === '1';
     await page.reload();
     await page.getByRole('navigation', { name: 'Pending work' }).getByRole('button', { name: /Deposits/ }).click();
     await page.waitForURL('**/#deposits');
+    pendingDeposits = 0;
+    count = 1;
+    await page.goto(`${baseURL}/?refresh-check#overview`);
+    await page.locator('.home-overview:not(.home-loading)').waitFor();
+    for (const fail of [false, true]) {
+      let release;
+      overviewGate = new Promise(resolve => { release = resolve; });
+      overviewFailure = fail;
+      try {
+        const before = await page.locator('.home-metric').allTextContents();
+        await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+        await page.getByRole('button', { name: 'Refreshing', exact: true }).waitFor();
+        assert.equal(await page.locator('.home-loading').count(), 0, 'Refresh keeps the loaded layout instead of replacing it');
+        assert.deepEqual(await page.locator('.home-metric').allTextContents(), before, 'Refresh keeps the last loaded values');
+        release();
+        overviewGate = null;
+        await page.getByRole('button', { name: 'Refresh', exact: true }).waitFor();
+        if (fail) assert.ok(await page.getByRole('alert').filter({ hasText: 'Refresh failed.' }).isVisible(), 'Failed refresh keeps loaded data and reports the failure');
+      } finally {
+        release();
+        overviewGate = null;
+        overviewFailure = false;
+      }
+    }
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    let releaseReduced;
+    overviewGate = new Promise(resolve => { releaseReduced = resolve; });
+    try {
+      await page.goto(`${baseURL}/?reduced-motion#overview`);
+      await page.locator('.home-loading').waitFor();
+      assert.ok(await page.locator('.home-skeleton').evaluateAll(nodes => nodes.every(node => getComputedStyle(node).animationName === 'none')), 'Reduced motion disables skeleton animation');
+    } finally {
+      releaseReduced();
+      overviewGate = null;
+    }
+    await page.locator('.home-overview:not(.home-loading)').waitFor();
     assert.equal(errors.length, 0, `Browser errors: ${errors.join('; ')}`);
-    fs.writeFileSync(`${output}/results.json`, JSON.stringify({ homeCases: checks, inputCases: 24, navigation: 'passed', browserErrors: errors }, null, 2));
-    console.log(`${checks.length} Home states, 24 exact-copy customer input cases and Stock/Deposits navigation passed.`);
+    fs.writeFileSync(`${output}/layout-quality-results.json`, JSON.stringify({ homeCases: checks, loadingCases: loadingChecks, refreshCases: 2, reducedMotion: 'passed', inputCases: 24, navigation: 'passed', browserErrors: errors }, null, 2));
+    console.log(`${checks.length} Home states, ${loadingChecks.length} delayed-loading transitions, 2 refresh cases, reduced motion, 24 exact-copy customer input cases and Stock/Deposits navigation passed.`);
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

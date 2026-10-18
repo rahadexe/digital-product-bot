@@ -742,9 +742,9 @@ export function Products({ say }: { say: Say }) {
               {products && shown.length === 0 ? (
                 <EmptyRow columns={6}>
                   {search
-                    ? 'No products match your search.'
+                    ? 'No products found.'
                     : filter === 'low_stock'
-                    ? 'No low stock products right now.'
+                    ? 'No low stock products.'
                     : 'No products found.'}
                 </EmptyRow>
               ) : null}
@@ -1080,7 +1080,7 @@ function ProductForm({
                 </button>
               </div>
               <div style={{ color: 'var(--muted)', fontSize: '11.5px', marginTop: '2px' }}>
-                Automatic fulfillment. Your name, emoji, duration and prices are kept when syncing.
+                Auto delivery. Custom product details stay unchanged.
               </div>
             </div>
           </div>
@@ -1122,7 +1122,7 @@ function ProductForm({
                 onChange={(e) => set({ upstream_devices: e.target.value === '' ? ('' as any) : parseInt(e.target.value) || 1 })}
               />
               <small style={{ color: 'var(--muted)', fontSize: '11px', marginTop: '2px', display: 'block' }}>
-                Seats per supplier account. Extra seats use the same purchase.
+                Shared seats use one supplier purchase.
               </small>
             </label>
             <label className="field" style={{ margin: 0 }}>
@@ -1136,7 +1136,7 @@ function ProductForm({
                 onChange={(e) => set({ upstream_share_hours: e.target.value === '' ? ('' as any) : parseInt(e.target.value) || 24 })}
               />
               <small style={{ color: 'var(--muted)', fontSize: '11px', marginTop: '2px', display: 'block' }}>
-                Unused seats expire after this time; the next order buys a new account.
+                After expiry, new orders buy a new account.
               </small>
             </label>
           </div>
@@ -1144,7 +1144,7 @@ function ProductForm({
       ) : null}
 
       <label className="field">
-        <span>Name <small style={{ color: 'var(--muted)', fontWeight: 'normal' }}>(validity goes in the field below)</small></span>
+        <span>Name</span>
         <input
           type="text"
           required

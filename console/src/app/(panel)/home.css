@@ -1,12 +1,12 @@
 /* Home owns its layout. It does not inherit table-to-card or generic panel rules. */
-.console-root .home-overview { display: grid; gap: 18px; width: 100%; min-width: 0; align-content: start; }
+.console-root .home-overview { display: grid; gap: 18px; width: 100%; min-width: 0; align-content: start; container-type: inline-size; container-name: home; }
 .home-overview *, .order-detail-customer * { box-sizing: border-box; }
 .home-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .home-toolbar h1 { margin: 0 0 6px; font-size: 24px; }
 .home-toolbar h2 { margin: 0; font-size: 14px; font-weight: 550; color: var(--muted); }
 .home-refresh { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 12px; }
 .home-queue { display: flex; flex-wrap: wrap; gap: 8px; }
-.home-queue > button { display: inline-flex; align-items: center; gap: 16px; min-height: 44px; padding: 10px 14px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-size: 13px; }
+.home-queue > :is(button, .home-loading-queue) { display: inline-flex; align-items: center; gap: 16px; min-height: 44px; padding: 10px 14px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-size: 13px; }
 .home-metrics { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; }
 .home-metric { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 8px; min-width: 0; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); text-align: left; }
 .home-metric > span { font-size: 12px; color: var(--muted); }
@@ -41,7 +41,22 @@
 .home-supplier { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; min-height: 44px; font-size: 13px; text-align: left; }
 .home-supplier > span { color: var(--muted); }
 .home-shortcuts { display: flex; gap: 8px; flex-wrap: wrap; }
-.home-shortcuts > button { min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 12px; }
+.home-shortcuts > :is(button, .home-loading-shortcut) { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 12px; }
+.home-skeleton { display: block; max-width: 100%; border-radius: 5px; background: var(--surface-2); }
+.home-loading-status { width: 70px; height: 14px; }
+.home-toolbar h2 > .home-loading-status { display: inline-block; vertical-align: middle; }
+.home-loading-value { width: 76px; height: 1.25em; }
+.home-loading-reference { width: 96px; height: 16px; }
+.home-loading-customer { width: 130px; height: 16px; }
+.home-loading-amount { width: 54px; height: 16px; }
+.home-loading-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; padding: 12px 0; font-size: 13px; }
+@keyframes home-loading-breathe { to { opacity: .45; } }
+@media (prefers-reduced-motion: no-preference) {
+  .home-loading .home-skeleton { animation: home-loading-breathe 1.6s ease-in-out infinite alternate; }
+}
+@container home (max-width: 620px) {
+  .home-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
 .console-root .order-detail-customer { display: grid; grid-template-columns: minmax(0,1fr); gap: 8px; margin-block: 4px; min-width: 0; }
 .order-detail-customer > .order-modal-label { font-size: 12px; color: var(--muted); }
 .console-root .order-customer-copy { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; min-height: 48px; padding: 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); text-align: left; }

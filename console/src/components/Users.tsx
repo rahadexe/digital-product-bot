@@ -740,9 +740,6 @@ function CustomerProfilePage({
                     <span className="pill" style={{ opacity: 0.7 }}>No Key Generated</span>
                   )}
                 </div>
-                <p className="cust-panel-desc" style={{ margin: '4px 0 0 0' }}>
-                  Programmatic wholesale purchasing and inventory integration via REST API.
-                </p>
               </div>
             </div>
 
@@ -789,8 +786,8 @@ function CustomerProfilePage({
             {newlyGeneratedKey && (
               <div className="cust-new-key-alert">
                 <div className="cust-new-key-header">
-                  <strong>Newly Generated API Key (Copy Now)</strong>
-                  <p>This full key will not be shown again. Share this securely with the reseller.</p>
+                  <strong>New API key</strong>
+                  <p>Shown once. Copy and share securely.</p>
                 </div>
                 <div className="cust-new-key-row">
                   <code>{newlyGeneratedKey}</code>

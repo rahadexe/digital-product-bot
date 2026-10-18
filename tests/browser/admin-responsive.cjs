@@ -142,8 +142,8 @@ const emoji = { id: 1, name: 'Store subscription icon', emoji_id: '0000000000000
         if (screen === 'deposits/instant' || screen.startsWith('suppliers')) await page.reload();
         await page.locator('.main-inner').waitFor();
         if (screen === 'suppliers/config') {
-          await page.locator('.supplier-configuration').waitFor();
-          await page.locator('.supplier-configuration > summary').click();
+          await page.getByRole('button', { name: 'Edit API for Digital Mart', exact: true }).click();
+          await page.getByRole('dialog', { name: 'Digital Mart API', exact: true }).waitFor();
         }
         if (screen === 'suppliers/explore') await page.getByRole('button', { name: /Browse catalog/ }).click();
         await page.waitForTimeout(100);
@@ -317,9 +317,17 @@ const emoji = { id: 1, name: 'Store subscription icon', emoji_id: '0000000000000
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'Remote import controls fit 320px');
     await page.getByRole('checkbox', { name: 'Select remote product 91', exact: true }).uncheck();
     assert.equal(mutations.length, 0, 'Supplier selection/details and cancelled emoji deletion never write');
+    assert.equal(await page.getByRole('button', { name: 'Add API for Safwan Tiger', exact: true }).count(), 1, 'One API setup entry per provider');
+    assert.equal(await page.getByRole('button', { name: 'Edit API for Digital Mart', exact: true }).count(), 1);
+    assert.equal(await page.locator('.supplier-configuration, summary:has-text("API settings")').count(), 0, 'No duplicate API accordion');
     await page.getByRole('button', { name: 'Add API for Safwan Tiger', exact: true }).click();
-    assert.equal(await page.locator('.supplier-configuration').evaluate(el => el.open), true);
-    assert.ok(await page.getByRole('button', { name: 'Safwan Tiger (USDT)', exact: true }).evaluate(el => el.classList.contains('active')));
+    await page.getByRole('dialog', { name: 'Safwan Tiger API', exact: true }).waitFor();
+    await assertDialogFits();
+    await page.getByLabel('Supplier API key', { exact: true }).fill('synthetic-discarded-key');
+    await page.keyboard.press('Escape');
+    assert.equal(await page.getByRole('dialog', { name: 'Safwan Tiger API', exact: true }).count(), 0);
+    await page.getByRole('button', { name: 'Add API for Safwan Tiger', exact: true }).click();
+    assert.equal(await page.getByLabel('Supplier API key', { exact: true }).inputValue(), '', 'Closing and reopening discards unsaved API keys');
     await page.getByRole('textbox', { name: 'Supplier API URL', exact: true }).fill('https://example.test/api');
     await page.getByLabel('Supplier API key', { exact: true }).fill('synthetic-test-key');
     assert.equal(await page.getByLabel('Supplier API key', { exact: true }).getAttribute('type'), 'password');
@@ -331,26 +339,30 @@ const emoji = { id: 1, name: 'Store subscription icon', emoji_id: '0000000000000
     assert.equal(supplierConfigPayload.api_key, 'synthetic-test-key');
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'Visible Add API form fits 320px');
     await page.locator('.toast').waitFor({ state: 'hidden' });
-    await page.evaluate(() => {
-      document.activeElement?.blur();
-      const panel = document.querySelector('.supplier-configuration');
-      window.scrollTo(0, panel.getBoundingClientRect().top + scrollY - 78);
-    });
+    await page.evaluate(() => document.activeElement?.blur());
     await page.waitForTimeout(150);
     await page.screenshot({ path: `${output}/supplier-api-setup-mobile.png` });
+    await page.keyboard.press('Escape');
     await page.getByRole('button', { name: 'Edit API for Digital Mart', exact: true }).click();
-    assert.ok(await page.getByRole('button', { name: 'Digital Mart (BDT)', exact: true }).evaluate(el => el.classList.contains('active')));
+    await page.getByRole('dialog', { name: 'Digital Mart API', exact: true }).waitFor();
     assert.equal(await page.getByLabel('Supplier API key', { exact: true }).inputValue(), '');
-    await page.locator('.supplier-configuration > summary').click();
+    await page.keyboard.press('Escape');
     await page.evaluate(() => { document.activeElement?.blur(); window.scrollTo(0, 0); });
     await page.waitForTimeout(200);
     await page.screenshot({ path: `${output}/supplier-add-api-mobile.png` });
+    await page.getByRole('button', { name: /Imported \(/ }).click();
+    await page.getByPlaceholder('Search supplier products or ID...').fill('no matches');
+    assert.equal(await page.locator('.supplier-empty').innerText(), 'No products found.', 'Empty state is one short line');
+    assert.equal(await page.getByText('Try another search or open \"Browse catalog\" to import products.', { exact: true }).count(), 0);
+    await page.getByPlaceholder('Search supplier products or ID...').fill('');
+    await page.getByRole('button', { name: /Browse catalog/ }).click();
 
     const requestsBeforeSearch = catalogRequests.length;
     await page.getByPlaceholder('Search live supplier catalog...').fill('no matches');
     await page.waitForTimeout(150);
     assert.equal(catalogRequests.length, requestsBeforeSearch, 'Typing a search never makes per-keystroke supplier requests');
     assert.equal(await page.getByRole('button', { name: 'View remote product 91', exact: true }).count(), 0);
+    assert.equal(await page.locator('.supplier-empty').innerText(), 'No products found.', 'Live catalog uses the same short empty state');
     await page.getByPlaceholder('Search live supplier catalog...').fill('');
     failSupplierCatalog = true;
     await page.getByRole('button', { name: 'Refresh API', exact: true }).click();
@@ -380,6 +392,7 @@ const emoji = { id: 1, name: 'Store subscription icon', emoji_id: '0000000000000
     assert.equal(mutations.length, 0, 'Opening/cancelling gateway configuration never saves payment settings');
     await page.goto(`${baseURL}/#settings/notifications`);
     await page.getByRole('heading', { name: 'Admin alerts', exact: true }).waitFor();
+    assert.equal(await page.locator('.mandatory-desc').count(), 0, 'Mandatory notifications do not repeat their labels in descriptions');
     assert.equal(await page.getByRole('heading', { name: 'Administrator Notifications', exact: true }).count(), 0, 'Alerts have no repeated section title');
     const deliveryAlert = page.getByRole('switch', { name: 'Automatic deliveries', exact: true });
     assert.equal(await deliveryAlert.getAttribute('aria-checked'), 'false');
@@ -391,8 +404,11 @@ const emoji = { id: 1, name: 'Store subscription icon', emoji_id: '0000000000000
     assert.equal(mutations.length, 0, 'Cancelling an alert toggle never writes settings');
     assert.equal(await page.locator('.flag-row .flag-row-text small').count(), 1, 'Only the useful low-stock clarification remains');
     await page.getByText('System & security', { exact: true }).click();
-    await page.getByText('Manual Deposit Requests', { exact: true }).waitFor();
+    await page.getByText('Manual deposits', { exact: true }).waitFor();
     await page.getByText('System & security', { exact: true }).click();
+    await page.goto(`${baseURL}/#settings`);
+    await page.getByText('No administrators yet.', { exact: true }).waitFor();
+    assert.equal(await page.locator('.admin-ids-list > .empty-state').innerText(), 'No administrators yet.', 'Admin empty state stays one short sentence');
     await page.setViewportSize({ width: 390, height: 844 });
 
     emptyLists = true;

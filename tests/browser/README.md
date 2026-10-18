@@ -27,6 +27,23 @@ multiline customer input and direct Stock navigation. Deposits remains accessibl
 from More and from Home's pending-deposit action. `CAPTURE_BASELINE=1` captures the
 previous layout without running the new-layout assertions.
 
+The same suite holds the overview response until the loading state is inspected:
+24 delayed-loading transitions at eight widths compare metric geometry, colors,
+toolbar and recent-order header with the loaded page. Pending controls and the
+number of order rows depend on the response; those can naturally change size.
+It also checks reduced motion and that slow or failed refreshes retain loaded
+figures instead of showing a different skeleton. Preview screenshots contain
+synthetic data only.
+
+Supplier API setup has one Add/Edit action per provider and opens a focused
+dialog, not a second accordion. Checks cover cancel/reopen key clearing,
+provider-specific save payloads, narrow dialog geometry and a single-line
+filtered empty state.
+
+Short-copy checks include the administrator empty state and mandatory notification
+rows without repeated descriptions. Confirmation dialogs and one-time-key
+warnings retain their consequences.
+
 The Admin UI workflow runs both suites against the default production build on
 matching pull requests and main-branch changes. Browser tooling is installed in
 an isolated runner directory, not in production dependencies. Synthetic screenshots

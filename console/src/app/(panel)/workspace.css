@@ -219,52 +219,14 @@ html:has(.console-root), body:has(.console-root) { background: #f7f8fa; }
 .refreshing { animation: workspace-spin 1s linear infinite; }
 @keyframes workspace-spin { to { transform: rotate(360deg); } }
 
-.dashboard-loading { display: grid; gap: 22px; }
-.dashboard-loading-heading { display: flex; align-items: center; gap: 13px; }
-.console-root .dashboard-loading-heading h1 { margin: 0; font-size: clamp(18px, 2vw, 22px); letter-spacing: -.035em; }
-.dashboard-loading-heading p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
-.dashboard-loading-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
-.dashboard-loading-metric, .dashboard-loading-chart, .dashboard-loading-operations, .dashboard-loading-orders { min-width: 0; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
-.dashboard-loading-metric { display: grid; align-content: space-between; gap: 14px; min-height: 128px; padding: 18px; }
-.dashboard-loading-metric:first-child { background: #edf5f2; border-color: #d6e7df; }
-.dashboard-loading-shape { display: block; height: 10px; border-radius: 5px; background: var(--surface-2); }
-.dashboard-loading-shape.short { width: 42%; }
-.dashboard-loading-shape.value { width: 58%; height: 25px; }
-.dashboard-loading-shape.tiny { width: 25%; height: 8px; }
-.dashboard-loading-content { display: grid; grid-template-columns: minmax(0, 1fr) 310px; gap: 24px; align-items: stretch; }
-.dashboard-loading-chart, .dashboard-loading-operations, .dashboard-loading-orders { padding: 20px; }
-.dashboard-loading-chart { display: grid; align-content: start; gap: 17px; min-height: 270px; }
-.dashboard-loading-chart-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-.dashboard-loading-chart-head .short { width: 22%; }
-.dashboard-loading-shape.badge { width: 14%; height: 22px; }
-.dashboard-loading-chart > .value { width: 20%; }
-.dashboard-loading-chart svg { width: 100%; height: 146px; overflow: visible; }
-.dashboard-loading-chart svg path { fill: none; stroke: color-mix(in srgb, var(--accent) 48%, var(--surface-2)); stroke-width: 3; stroke-linecap: round; }
-.dashboard-loading-chart svg path.baseline { stroke: var(--line); stroke-width: 1; }
-.dashboard-loading-operations { display: grid; align-content: start; gap: 16px; }
-.dashboard-loading-operations > .short { width: 44%; margin-bottom: 2px; }
-.dashboard-loading-operation { display: flex; align-items: center; gap: 10px; min-height: 43px; border-top: 1px solid var(--line); padding-top: 12px; }
-.dashboard-loading-shape.row { flex: 1; max-width: 70%; }
-.dashboard-loading-shape.count { width: 24px; height: 14px; }
-.dashboard-loading-orders { display: grid; gap: 15px; }
-.dashboard-loading-orders > .short { width: 18%; margin-bottom: 2px; }
-.dashboard-loading-shape.order { width: 100%; height: 38px; border-radius: 7px; }
-@keyframes dashboard-loading-breathe { to { opacity: .48; } }
-@media (prefers-reduced-motion: no-preference) {
-  .dashboard-loading-shape { animation: dashboard-loading-breathe 1.6s ease-in-out infinite alternate; }
-}
-
 @media (max-width: 1180px) {
   .overview-columns { grid-template-columns: minmax(0, 1fr); }
-  .dashboard-loading-content { grid-template-columns: minmax(0, 1fr); }
-  .dashboard-loading-operations { grid-template-columns: minmax(0, 1fr); }
   .overview-aside { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
   .overview-metric { padding: 17px; }
   .console-root .main { padding-inline: 24px; }
 }
 @media (max-width: 900px) {
   .overview-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .dashboard-loading-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .console-root .stat-cards-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .overview-aside { grid-template-columns: minmax(0, 1fr); }
   .workspace-shortcuts { gap: 10px; }
@@ -299,13 +261,6 @@ html:has(.console-root), body:has(.console-root) { background: #f7f8fa; }
   .console-root .modal > header, .console-root .modal > footer { padding: 16px 20px; }
   .console-root .form-columns { grid-template-columns: minmax(0, 1fr); }
   .dashboard-layout { gap: 18px; }
-  .dashboard-loading { gap: 16px; }
-  .dashboard-loading-metrics { gap: 10px; }
-  .dashboard-loading-metric { min-height: 106px; padding: 15px; }
-  .dashboard-loading-content { gap: 16px; }
-  .dashboard-loading-chart, .dashboard-loading-operations, .dashboard-loading-orders { padding: 16px; }
-  .dashboard-loading-chart { min-height: 220px; }
-  .dashboard-loading-chart svg { height: 120px; }
   .workspace-heading { align-items: center; }
   .eyebrow { font-size: 11px; }
   .overview-metrics { gap: 10px; }

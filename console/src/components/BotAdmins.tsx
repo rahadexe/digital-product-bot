@@ -150,7 +150,7 @@ export function BotAdmins({ say, values, setValues, setSaved }: BotAdminsProps) 
         <div className="admin-ids-list" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {adminIds.length === 0 ? (
             <div className="empty-state" style={{ padding: '14px 0', textAlign: 'center', color: 'var(--muted)' }}>
-              No administrators yet. The bot will accept admin commands from no one.
+              No administrators yet.
             </div>
           ) : (
             <div className="admin-chips-wrap">

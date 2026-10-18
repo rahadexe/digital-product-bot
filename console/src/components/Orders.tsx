@@ -680,9 +680,6 @@ function OrderDetailModal({
           <div className="order-modal-cred-header">
             <strong style={{ fontSize: '14px', color: '#ea580c' }}>Fulfill & Send to Customer</strong>
           </div>
-          <p style={{ margin: '6px 0 10px', fontSize: '12px', color: 'var(--muted)' }}>
-            Enter the credentials to deliver directly to the customer in Telegram.
-          </p>
           <textarea
             className="order-modal-cred-box"
             style={{ width: '100%', border: '1px solid var(--border)', resize: 'vertical' }}

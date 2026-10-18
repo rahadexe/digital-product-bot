@@ -6,49 +6,36 @@ import { api, forgetAnswers, type OverviewStats, type SupplierStatus } from '@/l
 import { useMoney } from '@/lib/currency';
 import { errorText, tone, when, type Say } from './ui';
 
+const metricLabels = ['Revenue', 'Orders', 'Customers', 'Stock'];
+const shortcuts = [{ label: 'Products', screen: 'products' }, { label: 'Broadcast', screen: 'broadcast' }, { label: 'Store settings', screen: 'settings' }];
+
 function DashboardLoading() {
   return (
-    <section className="dashboard-loading" role="status" aria-label="Loading dashboard" aria-busy="true">
-      <header className="dashboard-loading-heading">
-        <div>
-          <h1>Getting your dashboard ready</h1>
-          <p>Loading store activity and orders</p>
-        </div>
+    <section className="home-overview home-loading" role="status" aria-label="Loading dashboard" aria-busy="true">
+      <header className="home-toolbar" aria-hidden="true">
+        <div><h1>Home</h1><h2><span className="home-skeleton home-loading-status" /></h2></div>
+        <span className="home-refresh"><RefreshCw size={15} />Refresh</span>
       </header>
-      <div className="dashboard-loading-metrics" aria-hidden="true">
-        {[0, 1, 2, 3].map((item) => (
-          <div className="dashboard-loading-metric" key={item}>
-            <span className="dashboard-loading-shape short" />
-            <span className="dashboard-loading-shape value" />
-            <span className="dashboard-loading-shape tiny" />
+      <div className="home-queue" aria-hidden="true"><span className="home-loading-queue"><span className="home-skeleton home-loading-status" /></span></div>
+      <div className="home-metrics" aria-hidden="true">
+        {metricLabels.map(label => (
+          <div className="home-metric" key={label}>
+            <span>{label}</span><strong><span className="home-skeleton home-loading-value" /></strong>
           </div>
         ))}
       </div>
-      <div className="dashboard-loading-content" aria-hidden="true">
-        <div className="dashboard-loading-chart">
-          <div className="dashboard-loading-chart-head">
-            <span className="dashboard-loading-shape short" />
-            <span className="dashboard-loading-shape badge" />
-          </div>
-          <span className="dashboard-loading-shape value" />
-          <svg viewBox="0 0 700 170" preserveAspectRatio="none">
-            <path d="M4 145 C90 142 125 138 190 140 S280 145 340 87 S420 118 470 132 S580 139 696 126" />
-            <path className="baseline" d="M4 158 H696" />
-          </svg>
-        </div>
-        <div className="dashboard-loading-operations">
-          <span className="dashboard-loading-shape short" />
-          {[0, 1, 2].map((item) => (
-            <div className="dashboard-loading-operation" key={item}>
-              <span className="dashboard-loading-shape row" />
-              <span className="dashboard-loading-shape count" />
-            </div>
-          ))}
-        </div>
+      <section className="home-recent" aria-hidden="true">
+        <header><h2>Recent orders</h2><span className="home-view-all">View all</span></header>
+        <ul className="home-order-feed"><li><div className="home-order">
+          <span className="home-order-left"><span className="home-skeleton home-loading-reference" /><span className="home-skeleton home-loading-customer" /></span>
+          <span className="home-order-right"><span className="home-skeleton home-loading-amount" /><span className="home-skeleton home-loading-status" /></span>
+        </div></li></ul>
+      </section>
+      <div className="home-revenue" aria-hidden="true">
+        <div className="home-loading-summary"><strong>Revenue</strong><span className="home-skeleton home-loading-amount" /></div>
       </div>
-      <div className="dashboard-loading-orders" aria-hidden="true">
-        <span className="dashboard-loading-shape short" />
-        {[0, 1, 2].map((item) => <span className="dashboard-loading-shape order" key={item} />)}
+      <div className="home-shortcuts" aria-hidden="true">
+        {shortcuts.map(({ label }) => <span className="home-loading-shortcut" key={label}>{label}</span>)}
       </div>
     </section>
   );
@@ -157,7 +144,7 @@ export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) =
         <span>Supplier balance</span><strong>{supplier.account?.currency_symbol || '৳'}{(supplier.account?.balance ?? 0).toFixed(2)}</strong>
       </button> : null}
       <nav className="home-shortcuts" aria-label="Quick actions">
-        {[{ label: 'Products', screen: 'products' }, { label: 'Broadcast', screen: 'broadcast' }, { label: 'Store settings', screen: 'settings' }].map(({ label, screen }) => <button key={screen} type="button" onClick={() => onOpen(screen)}><span>{label}</span></button>)}
+        {shortcuts.map(({ label, screen }) => <button key={screen} type="button" onClick={() => onOpen(screen)}><span>{label}</span></button>)}
       </nav>
     </div>
   );

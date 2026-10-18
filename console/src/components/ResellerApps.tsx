@@ -292,11 +292,11 @@ function ResellerReviewDialog({
 
         {approve ? (
           <p style={{ fontSize: '0.85em', color: 'var(--color-text-muted)' }}>
-            Approving this application will automatically upgrade the user&apos;s rank to <b>Reseller</b>, enabling reseller prices. API access is available to all customers. A confirmation message will be sent to the applicant via Telegram.
+            Enables reseller prices and notifies the applicant.
           </p>
         ) : (
           <p style={{ fontSize: '0.85em', color: 'var(--color-text-muted)' }}>
-            Please state the reason for rejecting this application. This reason will be shared with the applicant via Telegram so they understand what is needed.
+            The reason is sent to the applicant.
           </p>
         )}
 

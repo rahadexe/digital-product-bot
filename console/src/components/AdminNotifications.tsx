@@ -155,24 +155,18 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip, con
         <div className="mandatory-row">
           <div className="mandatory-info">
             <div className="mandatory-title-row">
-              <strong>Manual Delivery Orders</strong>
+              <strong>Manual orders</strong>
               <span className="mandatory-badge warn">Always on</span>
             </div>
-            <p className="mandatory-desc">
-              Immediate alert when a customer orders a manual-delivery product requiring admin fulfillment.
-            </p>
           </div>
         </div>
 
         <div className="mandatory-row">
           <div className="mandatory-info">
             <div className="mandatory-title-row">
-              <strong>Manual Deposit Requests</strong>
+              <strong>Manual deposits</strong>
               <span className="mandatory-badge warn">Always on</span>
             </div>
-            <p className="mandatory-desc">
-              Immediate alert with Approve &amp; Reject buttons when a customer submits a manual bKash / Nagad / Rocket transaction receipt for admin verification.
-            </p>
           </div>
         </div>
 
@@ -182,9 +176,6 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip, con
               <strong>Payment &amp; gateway errors</strong>
               <span className="mandatory-badge danger">Always on</span>
             </div>
-            <p className="mandatory-desc">
-              Critical alerts when payment verification gateways (Binance Pay, ZiniPay) fail or timeout.
-            </p>
           </div>
         </div>
 
@@ -194,9 +185,6 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip, con
               <strong>Group invites</strong>
               <span className="mandatory-badge neutral">Auto leave</span>
             </div>
-            <p className="mandatory-desc">
-              When added to a Telegram group, the bot silently leaves immediately to prevent data leakage without sending spam alerts to admin inboxes.
-            </p>
           </div>
         </div>
 
@@ -206,9 +194,6 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip, con
               <strong>Unapproved channels</strong>
               <span className="mandatory-badge neutral">Auto leave</span>
             </div>
-            <p className="mandatory-desc">
-              When added to an unconfigured channel, the bot silently leaves immediately to protect broadcasting without sending spam alerts to admin inboxes.
-            </p>
           </div>
         </div>
         </details>
@@ -237,72 +222,54 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip, con
         <div className="mandatory-row">
           <div className="mandatory-info">
             <div className="mandatory-title-row">
-              <strong>Order Delivery &amp; Credentials</strong>
+              <strong>Delivery receipts</strong>
               <span className="mandatory-badge warn">Always on</span>
             </div>
-            <p className="mandatory-desc">
-              Sends product credentials, license keys, or accounts immediately upon order completion.
-            </p>
           </div>
         </div>
 
         <div className="mandatory-row">
           <div className="mandatory-info">
             <div className="mandatory-title-row">
-              <strong>Manual Order Acknowledgment</strong>
+              <strong>Queued orders</strong>
               <span className="mandatory-badge warn">Always on</span>
             </div>
-            <p className="mandatory-desc">
-              Sends an immediate confirmation that payment was received and manual order is in queue.
-            </p>
           </div>
         </div>
 
         <div className="mandatory-row">
           <div className="mandatory-info">
             <div className="mandatory-title-row">
-              <strong>Deposit Approved &amp; Balance Credited</strong>
+              <strong>Deposit credits</strong>
               <span className="mandatory-badge warn">Always on</span>
             </div>
-            <p className="mandatory-desc">
-              Sends wallet credit confirmation and updated balance when a deposit succeeds.
-            </p>
           </div>
         </div>
 
         <div className="mandatory-row">
           <div className="mandatory-info">
             <div className="mandatory-title-row">
-              <strong>Deposit Rejected Notification</strong>
+              <strong>Rejected deposits</strong>
               <span className="mandatory-badge warn">Always on</span>
             </div>
-            <p className="mandatory-desc">
-              Sends an explanation notice if an invalid TrxID or unverified deposit is rejected.
-            </p>
           </div>
         </div>
 
         <div className="mandatory-row">
           <div className="mandatory-info">
             <div className="mandatory-title-row">
-              <strong>Manual Balance Adjustments</strong>
+              <strong>Balance changes</strong>
               <span className="mandatory-badge warn">Always on</span>
             </div>
-            <p className="mandatory-desc">
-              Receipt sent to customer when admin adjusts their balance directly from the Customers tab.
-            </p>
           </div>
         </div>
 
         <div className="mandatory-row">
           <div className="mandatory-info">
             <div className="mandatory-title-row">
-              <strong>Order Refund Notification</strong>
+              <strong>Refunds</strong>
               <span className="mandatory-badge warn">Always on</span>
             </div>
-            <p className="mandatory-desc">
-              Instant notification and wallet refund receipt sent to customer when an order is refunded.
-            </p>
           </div>
         </div>
         </details>
