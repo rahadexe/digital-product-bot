@@ -155,10 +155,17 @@ const emoji = { id: 1, name: 'Store subscription icon', emoji_id: '0000000000000
               const tail = el.querySelector('.app-record-tail').getBoundingClientRect();
               return { height: el.getBoundingClientRect().height, copyRight: copy.right, amountLeft: tail.left, scroll: el.scrollWidth, width: el.clientWidth };
             });
-            assert.ok(geometry.height >= 88 && geometry.height <= 168, 'Records stay compact even with long names');
+            assert.ok(geometry.height >= 80 && geometry.height <= 144, 'Records stay compact even with long names');
             assert.ok(geometry.copyRight <= geometry.amountLeft - 4, 'Titles never collide with price/status');
             assert.ok(geometry.scroll <= geometry.width + 1, 'Record content stays contained');
+            assert.equal(await row.locator('.app-record-meta, .app-record-chevron').count(), 0, 'List rows have no third metadata line or redundant chevron');
           }
+        }
+        assert.equal(await page.locator('.page-description, .page-head .eyebrow, .mobile-store-link').count(), 0, 'No decorative intro text or repeated store name');
+        assert.doesNotMatch(await page.locator('.app-list-heading').allInnerTexts().then(texts => texts.join(' ')), /Tap to |Tap for |Latest first/, 'List headings do not explain obvious taps');
+        if (width <= 760) {
+          const redundantPagers = page.locator('.product-pagination.single-page, .order-pagination.single-page, .pager:not(:has(button:not(:disabled)))');
+          assert.equal(await redundantPagers.evaluateAll(nodes => nodes.filter(node => node.getBoundingClientRect().height > 0).length), 0, 'Single-page counts/pagers do not repeat the list header');
         }
         if (width === 390 || width === 1440) {
           await page.evaluate(() => scrollTo(0, 0));
@@ -290,6 +297,21 @@ const emoji = { id: 1, name: 'Store subscription icon', emoji_id: '0000000000000
     await assertDialogFits();
     await page.keyboard.press('Escape');
     assert.equal(mutations.length, 0, 'Opening/cancelling gateway configuration never saves payment settings');
+    await page.goto(`${baseURL}/#settings/notifications`);
+    await page.getByRole('heading', { name: 'Admin alerts', exact: true }).waitFor();
+    assert.equal(await page.getByRole('heading', { name: 'Administrator Notifications', exact: true }).count(), 0, 'Alerts have no repeated section title');
+    const deliveryAlert = page.getByRole('switch', { name: 'Automatic deliveries', exact: true });
+    assert.equal(await deliveryAlert.getAttribute('aria-checked'), 'false');
+    await deliveryAlert.click();
+    await detailDialog().getByRole('heading', { name: 'Enable Automatic deliveries?' }).waitFor();
+    await assertDialogFits();
+    await detailDialog().getByRole('button', { name: 'Cancel', exact: true }).click();
+    assert.equal(await deliveryAlert.getAttribute('aria-checked'), 'false', 'Cancelling an alert toggle retains its setting');
+    assert.equal(mutations.length, 0, 'Cancelling an alert toggle never writes settings');
+    assert.equal(await page.locator('.flag-row .flag-row-text small').count(), 1, 'Only the useful low-stock clarification remains');
+    await page.getByText('System & security', { exact: true }).click();
+    await page.getByText('Manual Deposit Requests', { exact: true }).waitFor();
+    await page.getByText('System & security', { exact: true }).click();
     await page.setViewportSize({ width: 390, height: 844 });
 
     emptyLists = true;
@@ -426,7 +448,7 @@ const emoji = { id: 1, name: 'Store subscription icon', emoji_id: '0000000000000
     const deleteConfirm = page.getByRole('dialog').last();
     await deleteConfirm.getByRole('button', { name: 'Cancel', exact: true }).click();
     await page.getByRole('button', { name: 'Select', exact: true }).click();
-    await page.getByRole('checkbox', { name: 'Select all on this page', exact: true }).check();
+    await page.getByRole('checkbox', { name: 'Select page', exact: true }).check();
     assert.match(await page.locator('.product-toolbar').innerText(), /1 product\(s\) selected/);
     await page.getByRole('button', { name: 'Deselect', exact: true }).click();
     await page.getByRole('button', { name: 'Done', exact: true }).click();
@@ -473,7 +495,7 @@ const emoji = { id: 1, name: 'Store subscription icon', emoji_id: '0000000000000
     failOverview = false;
     emptyOverview = true;
     await page.getByRole('button', { name: 'Try again', exact: true }).click();
-    await page.getByRole('heading', { name: 'You’re all caught up' }).waitFor();
+    await page.getByRole('heading', { name: 'All clear' }).waitFor();
     assert.match(await page.locator('.recent-orders').innerText(), /No orders yet/);
 
     signedIn = false;

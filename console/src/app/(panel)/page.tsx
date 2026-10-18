@@ -70,15 +70,6 @@ const NAV_GROUPS: { label: string; keys: Key[] }[] = [
   { label: 'Manage', keys: ['broadcast', 'reseller-apps', 'activity', 'settings'] },
 ];
 const MOBILE_KEYS: Key[] = ['overview', 'orders', 'products', 'deposits'];
-const DESCRIPTIONS: Record<Key, string> = {
-  overview: 'Your store at a glance.', orders: 'Track purchases and deliver with confidence.',
-  deposits: 'Review payments and wallet top-ups.', users: 'Customers, balances and account details.',
-  products: 'Organize the products your customers love.', inventory: 'Keep your digital stock ready to sell.',
-  suppliers: 'Manage connections and imported products.', categories: 'Make your catalog easier to explore.',
-  validities: 'Organize subscription durations.', emojis: 'Your store’s icon library.',
-  broadcast: 'Keep your customers in the loop.', 'reseller-apps': 'Review and manage reseller requests.',
-  activity: 'A clear record of store activity.', settings: 'Configure your store, payments and bot.',
-};
 
 const isKey = (value: string): value is Key => ITEMS.some((item) => item.key === value);
 
@@ -298,9 +289,6 @@ export default function ConsolePage() {
       <div ref={workspaceRef} className="workspace-chrome">
       <header className="mobile-header">
         <div className="mobile-app-heading">
-          <span className="mobile-store-link" title={storeName || 'Store Console'}>
-            {storeName || 'Store Console'}
-          </span>
           <h1>{screen.key === 'overview' ? 'Home' : label}</h1>
         </div>
         <button
@@ -410,7 +398,7 @@ export default function ConsolePage() {
         <div className="main-inner" data-screen={screen.key}>
           {screen.key !== 'overview' && !(screen.key === 'users' && screen.tab) ? (
             <header className="page-head">
-              <div><span className="eyebrow">Store management</span><h1>{label}</h1><p className="page-description">{DESCRIPTIONS[screen.key]}</p></div>
+              <h1>{label}</h1>
             </header>
           ) : null}
 

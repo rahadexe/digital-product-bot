@@ -212,7 +212,7 @@ function TopUps({
           </div>
         </header>
 
-        <div className="app-list-heading"><span>{total} {total === 1 ? 'deposit' : 'deposits'}</span><span>Tap to review</span></div>
+        <div className="app-list-heading"><span>{total} {total === 1 ? 'deposit' : 'deposits'}</span></div>
         <ul className="app-record-list deposit-feed" aria-label="Deposits" aria-busy={loading}>
           {!loadError ? (rows ?? []).map(deposit => {
             const flagged = deposit.status === 'pending' && Boolean(deposit.admin_note?.startsWith('Needs a look'));
@@ -220,7 +220,6 @@ function TopUps({
               <MobileRecord
                 title={who(deposit)}
                 subtitle={`${deposit.method_name || 'Deposit'} · D${deposit.id}`}
-                meta={when(deposit.created_at)}
                 amount={money(deposit.amount)}
                 status={flagged ? 'Needs review' : deposit.status}
                 tone={flagged ? 'bad' : tone(deposit.status) || 'neutral'}

@@ -202,14 +202,13 @@ export function Users({
           </div>
         </header>
 
-        <div className="app-list-heading"><span>{total} {total === 1 ? 'customer' : 'customers'}</span><span>Wallet balance</span></div>
+        <div className="app-list-heading"><span>{total} {total === 1 ? 'customer' : 'customers'}</span><span>Balance</span></div>
         <ul className="app-record-list customer-feed" aria-label="Customers" aria-busy={loading}>
           {(users ?? []).map(user => (
             <li key={user.id}>
               <MobileRecord
                 title={nameOf(user)}
                 subtitle={user.username ? `@${user.username}` : `ID ${user.tg_user_id}`}
-                meta={`Joined ${when(user.created_at)}`}
                 amount={money(user.balance)}
                 status={user.is_banned ? 'Banned' : user.rank === 'Reseller' ? 'Reseller' : 'Active'}
                 tone={user.is_banned ? 'bad' : 'good'}

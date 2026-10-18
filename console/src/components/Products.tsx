@@ -534,7 +534,7 @@ export function Products({ say }: { say: Say }) {
         {mobileSelection || selectedIds.length > 0 ? (
           <label className="app-select-all">
             <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAllVisible} />
-            Select all on this page
+            Select page
           </label>
         ) : null}
         <ul className="app-record-list product-feed" aria-label="Products">
@@ -549,7 +549,7 @@ export function Products({ say }: { say: Say }) {
                 </label> : null}
                 <MobileRecord
                   title={product.title}
-                  subtitle={[category?.name, product.duration_label].filter(Boolean).join(' · ') || 'Digital product'}
+                  subtitle={[category?.name, product.duration_label].filter(Boolean).join(' · ')}
                   meta={product.is_pinned ? 'Pinned' : undefined}
                   amount={money(product.price)}
                   status={stock}

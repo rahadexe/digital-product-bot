@@ -27,7 +27,7 @@
   .console-root .app-record-list { display: block; list-style: none; padding: 0; margin: 0; }
   .console-root .app-record-list > li { display: flex; align-items: center; min-width: 0; border-bottom: 1px solid var(--border); background: none; border-radius: 0; }
   .console-root .app-record-list > li.selected { background: #f5f4ff; }
-  .console-root .app-record { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; width: 100%; min-height: 96px; padding: 17px 0; background: none; border: 0; border-radius: 0; text-align: left; color: var(--text); font-family: inherit; }
+  .console-root .app-record { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; width: 100%; min-height: 80px; padding: 14px 0; background: none; border: 0; border-radius: 0; text-align: left; color: var(--text); font-family: inherit; }
   .console-root .app-record:active { background: #f6f7fb; }
   .console-root .app-record:focus-visible { outline-offset: -3px; border-radius: 8px; }
   .console-root .app-record-icon { display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 40px; border-radius: 12px; background: #f0effd; color: var(--accent); font-size: 21px; }
@@ -51,7 +51,7 @@
   .console-root .app-record-select input, .console-root .app-select-all input { width: 18px; height: 18px; accent-color: var(--accent); }
   .console-root .app-record-list .app-list-empty { display: block; padding: 48px 16px; text-align: center; font-size: 13px; line-height: 1.6; color: var(--muted); border: 0; }
   .console-root .main-inner[data-screen='products'] .product-pagination { border: 0 !important; padding: 16px 0 !important; font-size: 12px !important; }
-  .console-root .product-pagination.single-page > div:last-child { display: none !important; }
+  .console-root .product-pagination.single-page { display: none !important; }
   .console-root .main-inner[data-screen='orders'] .order-pagination.single-page { display: none; }
 }
 @media (max-width: 359px) {

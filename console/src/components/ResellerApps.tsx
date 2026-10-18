@@ -77,13 +77,13 @@ export function ResellerApps({
             <RefreshCw size={15} aria-hidden="true" />
           </button>
         </header>
-        <div className="app-list-heading"><span>{total} requests</span><span>Tap to review</span></div>
+        <div className="app-list-heading"><span>{total} {total === 1 ? 'request' : 'requests'}</span></div>
         <ul className="app-record-list reseller-feed" aria-label="Reseller requests">
           {(rows ?? []).map(app => {
             const tgHandle = app.telegram_handle.replace(/^@/, '');
             const channelUrl = app.channel_link.startsWith('http') ? app.channel_link : app.channel_link.startsWith('@') ? `https://t.me/${app.channel_link.slice(1)}` : `https://${app.channel_link}`;
             return <li key={app.id}>
-              <MobileRecordDetails title={app.full_name} subtitle={`@${tgHandle}`} meta={when(app.created_at)} amount="" status={app.status} tone={tone(app.status) || 'neutral'} icon={<Send size={20} />} label={`Review reseller ${app.full_name}`} fields={[
+              <MobileRecordDetails title={app.full_name} subtitle={`@${tgHandle}`} amount="" status={app.status} tone={tone(app.status) || 'neutral'} label={`Review reseller ${app.full_name}`} fields={[
                 ['Telegram ID', app.tg_user_id], ['Telegram', <a key="tg" href={`https://t.me/${tgHandle}`} target="_blank" rel="noopener noreferrer">@{tgHandle}</a>],
                 ['Phone', app.phone_number], ['Store', <a key="store" href={channelUrl} target="_blank" rel="noopener noreferrer">{app.channel_link}</a>],
                 ['Status', app.status], ['Applied', when(app.created_at)], ['Admin note', app.admin_notes || '—'],

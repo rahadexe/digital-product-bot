@@ -99,13 +99,13 @@ export function Inventory({ say }: { say: Say }) {
             Add stock
           </button>
         </header>
-        <div className="app-list-heading"><span>{total} stock {total === 1 ? 'item' : 'items'}</span><span>Tap for details</span></div>
+        <div className="app-list-heading"><span>{total} {total === 1 ? 'item' : 'items'}</span></div>
         <ul className="app-record-list stock-feed" aria-label="Stock items">
           {(items ?? []).map(item => {
             const expired = item.status === 'expired' || (Boolean(item.expires_at) && new Date(item.expires_at!) < new Date() && item.status !== 'sold');
             const statusLabel = expired ? 'Expired' : item.status === 'available' ? 'In stock' : item.uses ? 'Sold' : 'Off sale';
             return <li key={item.id}>
-              <MobileRecordDetails title={item.product_title || `Product ${item.product_id}`} subtitle={`Item #${item.id}`} meta={`Added ${when(item.created_at)}`} amount={item.max_uses > 1 ? `${item.uses}/${item.max_uses} used` : ''} status={statusLabel} tone={expired ? 'bad' : item.status === 'available' ? 'good' : 'neutral'} label={`View stock item ${item.id}`} fields={[
+              <MobileRecordDetails title={item.product_title || `Product ${item.product_id}`} subtitle={`#${item.id}`} amount={item.max_uses > 1 ? `${item.uses}/${item.max_uses} used` : ''} status={statusLabel} tone={expired ? 'bad' : item.status === 'available' ? 'good' : 'neutral'} label={`View stock item ${item.id}`} fields={[
                 ['Item', `#${item.id}`], ['Product', item.product_title], ['Status', statusLabel],
                 ['Added', when(item.created_at)], ['Expiry', item.expires_at ? when(item.expires_at) : 'No expiry'],
                 ['Customers', `${item.uses} of ${item.max_uses}`], ['Order', item.order_id ? `O${item.order_id}` : '—'],

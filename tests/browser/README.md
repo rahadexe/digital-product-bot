@@ -4,6 +4,10 @@
 All names, products, payments and balances are synthetic. It must never need admin
 credentials or a production database.
 
+Copy regressions also check that decorative page descriptions, repeated mobile
+store names, tap instructions and third metadata lines stay removed. Shorter
+notification labels keep their original keys; cancelling a toggle must not write.
+
 The optional browser-test environment needs `@playwright/test` available from the
 console's Node resolution path and a Playwright Chromium installation. These are
 test tools, not runtime dependencies. `CHROMIUM_PATH` can select a system browser.

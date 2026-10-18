@@ -21,7 +21,7 @@ export function MobileRecordDetails({
     {open && typeof document !== 'undefined' ? createPortal(
       <Modal title={record.title} className="record-drawer" onClose={() => setOpen(false)}>
         <dl className="record-details">
-          {fields.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value ?? '—'}</dd></div>)}
+          {fields.filter(([, value], index) => !(index === 0 && value === record.title) && value !== undefined && value !== null && value !== '' && value !== '—').map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
         </dl>
         {children ? <div className="app-review-actions" onClick={event => {
           if ((event.target as HTMLElement).closest('button:not(:disabled)')) setOpen(false);

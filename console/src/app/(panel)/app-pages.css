@@ -7,6 +7,10 @@
 .app-duration-copy strong { font-size: 14px; overflow-wrap: anywhere; }
 .app-duration-copy small { color: var(--muted); font-size: 12px; }
 .app-duration-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--accent-soft); color: var(--accent); flex: 0 0 40px; }
+.low-stock-threshold { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.low-stock-threshold > div { display: flex; flex-wrap: wrap; gap: 6px; max-width: 100%; }
+.low-stock-threshold button { min-width: 44px; }
+.settings-alerts-body { padding: 16px 20px; }
 
 @media (max-width: 760px) {
   html:has(.console-root), body:has(.console-root),
@@ -43,7 +47,7 @@
   .console-root .main-inner[data-screen] .panel .scroll.desktop-record-scroll { display: none; }
   .console-root .main-inner[data-screen] .pager { padding: 16px 0; background: none; gap: 8px; font-size: 12px; }
   .console-root .main-inner[data-screen] .pager .mini { min-height: 44px; padding-inline: 10px; }
-  .console-root .main-inner[data-screen] .pager:not(:has(button:not(:disabled))) button { display: none; }
+  .console-root .main-inner[data-screen] .pager:not(:has(button:not(:disabled))) { display: none; }
   .console-root .customer-feed .app-record-icon { background: #edf6f5; color: #198476; }
   .console-root .deposit-feed .app-record-icon { background: #eff2fc; color: #6478b1; }
   .console-root .app-record-list.validity-feed > li:not(.app-list-empty) { gap: 12px; min-height: 82px; padding: 12px 0; }
@@ -72,6 +76,9 @@
   .console-root .settings-card .row { padding: 16px 0; border-radius: 0; }
   .console-root .settings-card .row-actions { flex-wrap: wrap !important; }
   .console-root .settings-card .btn-card-save { min-width: 64px; min-height: 44px; }
+  .console-root .settings-card .low-stock-threshold { padding-inline: 0; }
+  .console-root .settings-alerts-body { padding: 0; }
+  .console-root .settings-alerts-body .flag-row { padding-inline: 0; }
   .console-root .main-inner[data-screen='settings'] .payment-accounts-panel { border: 0; border-radius: 0; box-shadow: none; }
   .console-root .main-inner[data-screen='settings'] .payment-accounts-panel > header { flex-direction: row; align-items: center; }
   .console-root .payment-accounts-panel .payment-account-list-wrap { padding: 0; }

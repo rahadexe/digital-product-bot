@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowUpRight, RefreshCw, Wallet, ShoppingBag, UsersRound, Package, ArrowRight } from 'lucide-react';
+import { RefreshCw, Wallet, ShoppingBag, UsersRound, Package, ArrowRight } from 'lucide-react';
 import { api, forgetAnswers, type OverviewStats, type SupplierStatus } from '@/lib/api';
 import { useMoney } from '@/lib/currency';
 import { EmptyRow, errorText, tone, when, type Say } from './ui';
@@ -95,10 +95,10 @@ export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) =
   if (!stats) return <section className="panel dashboard-error" role="alert"><p>Could not load the dashboard.</p><button type="button" className="btn ghost" onClick={() => void load()}>Try again</button></section>;
 
   const metrics = [
-    { label: 'Total revenue', value: money(stats.total_revenue), screen: 'orders', primary: true, icon: Wallet, foot: 'All-time sales' },
-    { label: 'Orders', value: stats.total_orders.toLocaleString(), screen: 'orders', icon: ShoppingBag, foot: 'All-time purchases' },
-    { label: 'Customers', value: stats.total_users.toLocaleString(), screen: 'users', icon: UsersRound, foot: 'Registered accounts' },
-    { label: 'Available stock', value: stats.available_stock.toLocaleString(), screen: 'inventory', icon: Package, foot: 'Ready to deliver' },
+    { label: 'Total revenue', value: money(stats.total_revenue), screen: 'orders', primary: true, icon: Wallet },
+    { label: 'Total orders', value: stats.total_orders.toLocaleString(), screen: 'orders', icon: ShoppingBag },
+    { label: 'Customers', value: stats.total_users.toLocaleString(), screen: 'users', icon: UsersRound },
+    { label: 'Available stock', value: stats.available_stock.toLocaleString(), screen: 'inventory', icon: Package },
   ];
   const point = selectedPoint === null ? null : chart.points[selectedPoint];
   const pending = stats.waiting_orders + stats.pending_deposits;
@@ -106,18 +106,18 @@ export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) =
   return (
     <div className="dashboard-layout">
       <header className="workspace-heading">
-        <div><span className="eyebrow">Your workspace</span><h1>Dashboard</h1><p className="page-description">A clear view of your store. Everything you need to act.</p></div>
+        <h1>Dashboard</h1>
         <button type="button" className="btn ghost" disabled={refreshing} onClick={() => void load(true)}><RefreshCw size={15} className={refreshing ? 'studio-spin' : ''} aria-hidden="true" />{refreshing ? 'Refreshing…' : 'Refresh'}</button>
       </header>
       {failed ? <p className="note bad" role="alert">Refresh failed. Showing the last loaded figures.</p> : null}
       <section className="attention-banner">
-        <div><span className="attention-icon" aria-hidden="true"><ShoppingBag size={21} /></span><div><h2>{pending ? `${pending} ${pending === 1 ? 'item needs' : 'items need'} your attention` : 'You’re all caught up'}</h2><p>{pending ? 'Review top-ups and keep your paid orders moving.' : 'No pending top-ups or orders awaiting delivery.'}</p></div></div>
-        <button type="button" onClick={() => onOpen(stats.waiting_orders ? 'orders/waiting' : pending ? 'deposits' : 'products')}>{pending ? 'Review now' : 'Manage products'}<ArrowRight size={16} aria-hidden="true" /></button>
+        <div><span className="attention-icon" aria-hidden="true"><ShoppingBag size={21} /></span><h2>{pending ? `${pending} pending` : 'All clear'}</h2></div>
+        <button type="button" onClick={() => onOpen(stats.waiting_orders ? 'orders/waiting' : pending ? 'deposits' : 'products')}>{pending ? 'Review' : 'Products'}<ArrowRight size={16} aria-hidden="true" /></button>
       </section>
       <div className="overview-metrics overview-essential">
-        {metrics.map(({ label, value, screen, primary, icon: Icon, foot }) => (
+        {metrics.map(({ label, value, screen, primary, icon: Icon }) => (
           <button type="button" key={label} className={`overview-metric${primary ? ' featured' : ''}`} onClick={() => onOpen(screen)}>
-            <span className="metric-caption">{label}<span className="metric-icon"><Icon size={18} aria-hidden="true" /></span></span><strong>{value}</strong><span className="metric-foot">{foot}<ArrowUpRight size={15} aria-hidden="true" /></span>
+            <span className="metric-caption">{label}<span className="metric-icon"><Icon size={18} aria-hidden="true" /></span></span><strong>{value}</strong>
           </button>
         ))}
       </div>

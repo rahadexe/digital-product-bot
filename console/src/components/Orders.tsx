@@ -241,7 +241,7 @@ export function Orders({
         ) : null}
       </div>
 
-        <div className="app-list-heading"><span>{total} {total === 1 ? 'order' : 'orders'}</span><span>Latest first</span></div>
+        <div className="app-list-heading"><span>{total} {total === 1 ? 'order' : 'orders'}</span></div>
         <ul className="app-record-list order-feed" aria-label="Orders" aria-busy={loading}>
           {(orders ?? []).map(order => {
             const waiting = order.status === 'completed' && order.fulfillment === 'waiting';
@@ -250,8 +250,7 @@ export function Orders({
               <li key={order.id}>
                 <MobileRecord
                   title={order.product_title}
-                  subtitle={getCustomerDisplayName(order)}
-                  meta={`#${order.id} · ${when(order.created_at)}`}
+                  subtitle={`#${order.id} · ${getCustomerDisplayName(order)}`}
                   amount={money(order.price)}
                   status={waiting ? 'To deliver' : deliveryFailed ? 'Delivery failed' : order.status}
                   tone={waiting ? 'warn' : deliveryFailed || order.status === 'failed' ? 'bad' : order.status === 'completed' ? 'good' : 'neutral'}

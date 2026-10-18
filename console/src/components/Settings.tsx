@@ -317,16 +317,15 @@ export function Settings({
           <section className="panel settings-card">
             <header>
               <div>
-                <h2>User service controls</h2>
+                <h2>Services</h2>
               </div>
             </header>
             <div className="service-control-list">
               <div className="service-control-item">
                 <div className="service-control-text">
-                  <strong>Store purchases & orders</strong>
+                  <strong>Purchases</strong>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {isStoreActive && <span className="badge-active-pill">On</span>}
                   <Switch
                     label="Store purchases"
                     on={isStoreActive}
@@ -356,7 +355,6 @@ export function Settings({
                   <strong>Accept deposits</strong>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {isDepositsActive && <span className="badge-active-pill">On</span>}
                   <Switch
                     label="Accept deposits"
                     on={isDepositsActive}
@@ -370,7 +368,6 @@ export function Settings({
                   <strong>Refer & Earn</strong>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {isReferralActive && <span className="badge-active-pill">On</span>}
                   <Switch
                     label="Refer & Earn"
                     on={isReferralActive}
@@ -570,12 +567,7 @@ export function Settings({
 
       {tab === 'notifications' && (
         <section className="panel settings-card">
-          <header>
-            <div>
-              <h2>Administrator Notifications</h2>
-            </div>
-          </header>
-          <div style={{ padding: '16px 20px' }}>
+          <div className="settings-alerts-body">
             <AdminNotifications
               say={say}
               values={values}
