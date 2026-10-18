@@ -73,6 +73,10 @@ class ReliabilityTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_migrations_repeat_and_cleanup(self):
         self.assertEqual(await migrate(self.db), [])
+        self.assertTrue(await self.scalar(
+            "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=$1 AND table_name='inventory_items' AND column_name='expires_at')",
+            self.schema,
+        ))
         for name in ('media_assets', 'home_banners', 'bot_welcome_banners', 'supplier_purchase_attempts'):
             self.assertIsNone(await self.scalar('SELECT to_regclass($1)', f'{self.schema}.{name}'))
         self.assertIsNone(await self.scalar('SELECT to_regclass($1)', f'{self.schema}.idx_orders_inventory_user'))
