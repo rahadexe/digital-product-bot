@@ -26,7 +26,8 @@ def test_store_currency_settings_are_locked_to_bdt():
     assert settings._validate("currency", "BDT") == "BDT"
     with pytest.raises(ValueError, match="must remain BDT"):
         settings._validate("currency", "USD")
-    assert settings._validate("currency_symbol", "$") == "৳"
+    with pytest.raises(ValueError, match="must remain ৳"):
+        settings._validate("currency_symbol", "$")
 
 
 class LegacyCurrencySettingsDatabase(EmptySettingsDatabase):
