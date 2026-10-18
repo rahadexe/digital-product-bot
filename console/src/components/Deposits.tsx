@@ -284,8 +284,8 @@ function TopUps({
                         />
                       </div>
                     </td>
-                    <td className="right" data-label="Amount">
-                      <strong className="money">{money(deposit.amount)}</strong>
+                    <td className="right" data-label="Wallet credit (BDT)">
+                      <strong className="money">{money(deposit.amount)} BDT</strong>
                       {deposit.pay_amount != null && deposit.rate_to_currency != null && deposit.rate_to_currency !== 1 ? (
                         <small style={{ display: 'block', color: 'var(--muted)', fontSize: '11px' }}>
                           pays {deposit.pay_amount.toFixed(2)} {isBinance ? 'USDT' : 'BDT'}
@@ -652,8 +652,8 @@ function Instant({
                       />
                     </div>
                   </td>
-                  <td data-label="Credit">
-                    <strong className="money">{money(payment.credit_amount)}</strong>
+                  <td data-label="Credit (BDT)">
+                    <strong className="money">{money(payment.credit_amount)} BDT</strong>
                     <small style={{ display: 'block', color: 'var(--muted)', fontSize: '11px' }}>
                       ৳{payment.pay_amount.toFixed(2)}
                     </small>
