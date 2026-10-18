@@ -20,6 +20,18 @@ test tools, not runtime dependencies. `CHROMIUM_PATH` can select a system browse
    from the repository root.
 3. Run `node tests/browser/admin-responsive.cjs` from the repository root.
 
+Also run `node tests/browser/layout-quality.cjs` against the same static build.
+This checks 24 Home states (zero, one and five orders at eight widths), inline
+header actions, two-column metrics, bounded row heights, exact-copy normal/long/
+multiline customer input and direct Stock navigation. Deposits remains accessible
+from More and from Home's pending-deposit action. `CAPTURE_BASELINE=1` captures the
+previous layout without running the new-layout assertions.
+
+The Admin UI workflow runs both suites against the default production build on
+matching pull requests and main-branch changes. Browser tooling is installed in
+an isolated runner directory, not in production dependencies. Synthetic screenshots
+and geometry results are retained as workflow artifacts for seven days.
+
 Optional environment variables: `BASE_URL` (default `http://127.0.0.1:4173`),
 `CHROMIUM_PATH`, `ARTIFACT_DIR` (default `/tmp/dpb-admin-design`).
 

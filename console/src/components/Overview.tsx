@@ -1,10 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { RefreshCw, Wallet, ShoppingBag, UsersRound, Package, ArrowRight } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { api, forgetAnswers, type OverviewStats, type SupplierStatus } from '@/lib/api';
 import { useMoney } from '@/lib/currency';
-import { EmptyRow, errorText, tone, when, type Say } from './ui';
+import { errorText, tone, when, type Say } from './ui';
 
 function DashboardLoading() {
   return (
@@ -95,35 +95,46 @@ export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) =
   if (!stats) return <section className="panel dashboard-error" role="alert"><p>Could not load the dashboard.</p><button type="button" className="btn ghost" onClick={() => void load()}>Try again</button></section>;
 
   const metrics = [
-    { label: 'Total revenue', value: money(stats.total_revenue), screen: 'orders', primary: true, icon: Wallet },
-    { label: 'Total orders', value: stats.total_orders.toLocaleString(), screen: 'orders', icon: ShoppingBag },
-    { label: 'Customers', value: stats.total_users.toLocaleString(), screen: 'users', icon: UsersRound },
-    { label: 'Available stock', value: stats.available_stock.toLocaleString(), screen: 'inventory', icon: Package },
+    { label: 'Revenue', value: money(stats.total_revenue), screen: 'orders' },
+    { label: 'Orders', value: stats.total_orders.toLocaleString(), screen: 'orders' },
+    { label: 'Customers', value: stats.total_users.toLocaleString(), screen: 'users' },
+    { label: 'Stock', value: stats.available_stock.toLocaleString(), screen: 'inventory' },
   ];
   const point = selectedPoint === null ? null : chart.points[selectedPoint];
   const pending = stats.waiting_orders + stats.pending_deposits;
 
   return (
-    <div className="dashboard-layout">
-      <header className="workspace-heading">
-        <h1>Dashboard</h1>
-        <button type="button" className="btn ghost" disabled={refreshing} onClick={() => void load(true)}><RefreshCw size={15} className={refreshing ? 'studio-spin' : ''} aria-hidden="true" />{refreshing ? 'Refreshing…' : 'Refresh'}</button>
+    <div className="home-overview">
+      <header className="home-toolbar">
+        <div><h1>Home</h1><h2>{pending ? `${pending} pending` : 'All clear'}</h2></div>
+        <button type="button" className="home-refresh" disabled={refreshing} onClick={() => void load(true)}><RefreshCw size={15} className={refreshing ? 'studio-spin' : ''} aria-hidden="true" />{refreshing ? 'Refreshing' : 'Refresh'}</button>
       </header>
       {failed ? <p className="note bad" role="alert">Refresh failed. Showing the last loaded figures.</p> : null}
-      <section className="attention-banner">
-        <div><span className="attention-icon" aria-hidden="true"><ShoppingBag size={21} /></span><h2>{pending ? `${pending} pending` : 'All clear'}</h2></div>
-        <button type="button" onClick={() => onOpen(stats.waiting_orders ? 'orders/waiting' : pending ? 'deposits' : 'products')}>{pending ? 'Review' : 'Products'}<ArrowRight size={16} aria-hidden="true" /></button>
-      </section>
-      <div className="overview-metrics overview-essential">
-        {metrics.map(({ label, value, screen, primary, icon: Icon }) => (
-          <button type="button" key={label} className={`overview-metric${primary ? ' featured' : ''}`} onClick={() => onOpen(screen)}>
-            <span className="metric-caption">{label}<span className="metric-icon"><Icon size={18} aria-hidden="true" /></span></span><strong>{value}</strong>
+      {pending ? <nav className="home-queue" aria-label="Pending work">
+        {stats.waiting_orders ? <button type="button" onClick={() => onOpen('orders/waiting')}>To deliver <strong>{stats.waiting_orders}</strong></button> : null}
+        {stats.pending_deposits ? <button type="button" onClick={() => onOpen('deposits')}>Deposits <strong>{stats.pending_deposits}</strong></button> : null}
+      </nav> : null}
+      <div className="home-metrics">
+        {metrics.map(({ label, value, screen }) => (
+          <button type="button" key={label} className="home-metric" onClick={() => onOpen(screen)}>
+            <span>{label}</span><strong>{value}</strong>
           </button>
         ))}
       </div>
-      <div className="overview-columns">
-        <section className="revenue-panel">
-          <header><div><h2>Revenue</h2><span className="muted">Last 14 days</span></div><span className="chart-period">{chart.orders.toLocaleString()} orders</span></header>
+      <section className="home-recent" aria-labelledby="home-recent-title">
+        <header><h2 id="home-recent-title">Recent orders</h2><button type="button" className="home-view-all" onClick={() => onOpen('orders')}>View all</button></header>
+        {stats.recent_orders.length ? <ul className="home-order-feed">{stats.recent_orders.map(order => {
+          const customer = [order.first_name, order.last_name].filter(Boolean).join(' ') || order.username || `User ${order.tg_user_id}`;
+          const waiting = order.status === 'completed' && order.fulfillment === 'waiting';
+          return <li key={order.id}><button type="button" className="home-order" aria-label={`Open order O${order.id}`} onClick={() => onOpen(`orders/${order.id}`)}>
+            <span className="home-order-left"><span className="home-order-reference"><strong>O{order.id}</strong><small>{when(order.created_at)}</small></span><span className="home-customer">{customer}</span></span>
+            <span className="home-order-right"><strong>{money(order.price)}</strong><span className={`pill ${waiting ? 'warn' : tone(order.status)}`}>{waiting ? 'Waiting' : order.status}</span></span>
+          </button></li>;
+        })}</ul> : <p className="home-empty">No orders yet.</p>}
+      </section>
+      <details className="home-revenue">
+          <summary><strong>Revenue</strong><span>Last 14 days</span><b>{money(chart.total)}</b></summary>
+          <div className="home-revenue-body">
           <div className="revenue-total">{money(chart.total)}</div>
           <div className="revenue-readout" aria-live="polite">{point ? <><strong>{point.label}</strong><span>{money(point.revenue)}, {point.orders} orders</span></> : <span>Daily revenue</span>}</div>
           {chart.points.length ? <div className="revenue-chart">
@@ -140,39 +151,12 @@ export function Overview({ say, onOpen }: { say: Say; onOpen: (screen: string) =
               </g>)}
             </svg>
           </div> : <div className="chart-empty">Revenue will appear here after your first order.</div>}
-        </section>
-        <aside className="overview-aside">
-          <section className="operations-panel">
-            <header><h2>Operations</h2><span className={`pill ${pending ? 'warn' : 'good'}`}>{pending ? `${pending} pending` : 'All clear'}</span></header>
-            <button type="button" className="operation-link" onClick={() => onOpen('orders/waiting')}><span>Orders to deliver</span><strong>{stats.waiting_orders}</strong></button>
-            <button type="button" className="operation-link" onClick={() => onOpen('deposits')}><span>Deposits to review</span><strong>{stats.pending_deposits}</strong></button>
-            <button type="button" className="operation-link" onClick={() => onOpen('inventory')}><span>Available stock</span><strong>{stats.available_stock}</strong></button>
-          </section>
-          {supplier?.is_configured ? <button type="button" className="supplier-summary" onClick={() => onOpen('suppliers')}>
-            <span className="supplier-caption">Supplier balance</span>
-            <strong className={(supplier.account?.balance ?? 0) < (supplier.low_balance_alert ?? 50) ? 'bad-text' : ''}>{supplier.account?.currency_symbol || '৳'}{(supplier.account?.balance ?? 0).toFixed(2)}</strong>
-            <span>{supplier.account?.name || 'Supplier'}, {supplier.upstream_products_count} products</span>
-          </button> : null}
-        </aside>
-      </div>
-      <section className="panel recent-orders">
-        <header><h2>Recent orders</h2><button type="button" className="btn ghost small" onClick={() => onOpen('orders')}>View all</button></header>
-        <div className="scroll"><table className="overview-orders">
-          <thead><tr><th>Order</th><th>Customer</th><th>Status</th><th>Delivery</th><th className="right">Total</th></tr></thead>
-          <tbody>{stats.recent_orders.map((order) => {
-            const customer = [order.first_name, order.last_name].filter(Boolean).join(' ') || order.username || `User ${order.tg_user_id}`;
-            const waiting = order.status === 'completed' && order.fulfillment === 'waiting';
-            return <tr key={order.id}>
-              <td className="name"><button type="button" className="order-reference" onClick={() => onOpen(`orders/${order.id}`)}>O{order.id}</button><small>{when(order.created_at)}</small></td>
-              <td data-label="Customer"><div className="overview-customer" title={order.username ? `@${order.username}` : String(order.tg_user_id)}><span>{customer}</span></div></td>
-              <td data-label="Status"><span className={`pill ${waiting ? 'warn' : tone(order.status)}`}>{waiting ? 'Awaiting delivery' : order.status}</span></td>
-              <td className="overview-delivery">{order.source === 'manual' ? 'Manual' : order.source === 'stock' ? 'Instant' : order.source || 'Instant'}</td>
-              <td className="right money" data-label="Total">{money(order.price)}</td>
-            </tr>;
-          })}{!stats.recent_orders.length ? <EmptyRow columns={5}>No orders yet.</EmptyRow> : null}</tbody>
-        </table></div>
-      </section>
-      <nav className="workspace-shortcuts" aria-label="Quick actions">
+          </div>
+      </details>
+      {supplier?.is_configured ? <button type="button" className="home-supplier" onClick={() => onOpen('suppliers')}>
+        <span>Supplier balance</span><strong>{supplier.account?.currency_symbol || '৳'}{(supplier.account?.balance ?? 0).toFixed(2)}</strong>
+      </button> : null}
+      <nav className="home-shortcuts" aria-label="Quick actions">
         {[{ label: 'Products', screen: 'products' }, { label: 'Broadcast', screen: 'broadcast' }, { label: 'Store settings', screen: 'settings' }].map(({ label, screen }) => <button key={screen} type="button" onClick={() => onOpen(screen)}><span>{label}</span></button>)}
       </nav>
     </div>

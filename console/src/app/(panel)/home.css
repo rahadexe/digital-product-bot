@@ -1,0 +1,68 @@
+/* Home owns its layout. It does not inherit table-to-card or generic panel rules. */
+.console-root .home-overview { display: grid; gap: 18px; width: 100%; min-width: 0; align-content: start; }
+.home-overview *, .order-detail-customer * { box-sizing: border-box; }
+.home-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.home-toolbar h1 { margin: 0 0 6px; font-size: 24px; }
+.home-toolbar h2 { margin: 0; font-size: 14px; font-weight: 550; color: var(--muted); }
+.home-refresh { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 12px; }
+.home-queue { display: flex; flex-wrap: wrap; gap: 8px; }
+.home-queue > button { display: inline-flex; align-items: center; gap: 16px; min-height: 44px; padding: 10px 14px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-size: 13px; }
+.home-metrics { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; }
+.home-metric { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 8px; min-width: 0; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); text-align: left; }
+.home-metric > span { font-size: 12px; color: var(--muted); }
+.home-metric > strong { max-width: 100%; font-size: clamp(20px,3vw,26px); line-height: 1.25; font-weight: 750; letter-spacing: -.025em; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.home-recent { min-width: 0; border-top: 1px solid var(--border); }
+.home-recent > header { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; min-height: 60px; padding: 8px 0; }
+.home-recent h2 { margin: 0; font-size: 15px; font-weight: 650; }
+.home-view-all { display: inline-flex; flex: 0 0 auto; width: auto; align-items: center; justify-content: center; min-height: 44px; padding: 8px 0 8px 12px; font-size: 12px; color: var(--accent); }
+.home-order-feed { list-style: none; padding: 0; margin: 0; }
+.home-order-feed > li + li { border-top: 1px solid var(--border); }
+.home-order { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 16px; min-height: 80px; padding: 12px 0; text-align: left; }
+.home-order-left, .home-order-right { display: grid; gap: 8px; min-width: 0; }
+.home-order-left { flex: 1; }
+.home-order-right { justify-items: end; flex: 0 1 auto; max-width: 48%; }
+.home-order-reference { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; font-size: 13px; }
+.home-order-reference small { color: var(--muted); font-size: 11px; }
+.home-customer { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--text-dim); }
+.home-order-right > strong { font-size: 14px; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.home-order .pill { max-width: 100%; white-space: normal; padding: 3px 7px; font-size: 10px; }
+.home-empty { margin: 0; padding: 20px 0; color: var(--muted); font-size: 13px; }
+.home-revenue { border-block: 1px solid var(--border); min-width: 0; }
+.home-revenue > summary { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; min-height: 56px; padding: 12px 0; cursor: pointer; list-style: none; font-size: 13px; }
+.home-revenue > summary::-webkit-details-marker { display: none; }
+.home-revenue > summary > span { font-size: 11px; color: var(--muted); }
+.home-revenue > summary > b { margin-left: auto; overflow-wrap: anywhere; max-width: 100%; }
+.home-revenue > summary::after { content: '+'; color: var(--muted); }
+.home-revenue[open] > summary::after { content: '−'; }
+.home-revenue-body { padding: 8px 0 18px; min-width: 0; }
+.home-revenue .revenue-chart { height: auto; min-height: 0; }
+.home-revenue .revenue-chart svg { display: block; width: 100%; height: auto; }
+.home-revenue .chart-empty { min-height: 0; padding: 16px 0; font-size: 12px; }
+.home-supplier { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; min-height: 44px; font-size: 13px; text-align: left; }
+.home-supplier > span { color: var(--muted); }
+.home-shortcuts { display: flex; gap: 8px; flex-wrap: wrap; }
+.home-shortcuts > button { min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 12px; }
+.console-root .order-detail-customer { display: grid; grid-template-columns: minmax(0,1fr); gap: 8px; margin-block: 4px; min-width: 0; }
+.order-detail-customer > .order-modal-label { font-size: 12px; color: var(--muted); }
+.console-root .order-customer-copy { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; min-height: 48px; padding: 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); text-align: left; }
+.order-customer-copy > span { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; font: inherit; font-size: 14px; line-height: 1.55; user-select: text; }
+.order-customer-copy > svg { flex: 0 0 16px; }
+.console-root .order-modal-cred-card:has(.order-not-delivered) { padding: 14px 16px; margin: 0; min-height: 0; }
+.console-root .order-not-delivered { margin: 0; padding: 10px 0 0; font-size: 13px; color: var(--muted); }
+.console-root .record-drawer > .body:has(> .order-modal-card) { display: flex; flex-direction: column; align-items: stretch; gap: 16px; }
+.console-root .record-drawer :is(.order-modal-card, .order-modal-cred-card) { flex: 0 0 auto; }
+.console-root .record-drawer .order-modal-row { display: grid; grid-template-columns: 88px minmax(0,1fr); gap: 10px; align-items: start; }
+.console-root .record-drawer .order-modal-val { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 6px; min-width: 0; }
+.console-root .record-drawer .order-modal-val > span { max-width: 100%; min-width: 0; overflow-wrap: anywhere; word-break: normal; }
+.console-root .record-drawer .order-modal-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.console-root .record-drawer .order-modal-footer > div { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.console-root .record-drawer .order-modal-footer > .btn { flex: 0 0 auto; min-width: 84px; }
+.console-root .record-drawer .order-modal-footer .btn.danger { background: transparent; color: var(--negative); }
+@media (max-width: 760px) {
+  .home-overview { gap: 16px; }
+  .home-toolbar h1 { display: none; }
+  .home-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+  .home-metric { padding: 14px; min-height: 86px; }
+  .console-root .order-modal-card { padding: 16px; }
+  .console-root .order-modal-meta-grid { gap: 14px; }
+}

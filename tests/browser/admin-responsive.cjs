@@ -156,6 +156,20 @@ const emoji = { id: 1, name: 'Store subscription icon', emoji_id: '0000000000000
           }).slice(0, 12).map(node => ({ tag: node.tagName, class: node.className, text: node.textContent.slice(0, 100), width: node.getBoundingClientRect().width }))));
         }
         assert.ok(dimensions.document <= dimensions.viewport + 1, `${screen} overflows at ${width}px: ${dimensions.document}`);
+        if (width <= 760) {
+          const headers = await page.locator('.main-inner .panel > header').evaluateAll(nodes => nodes.flatMap(header => {
+            const title = header.querySelector(':scope > h2');
+            const action = header.querySelector(':scope > button:only-of-type');
+            if (!title || !action || header.querySelector('input, select, .filters')) return [];
+            const a = title.getBoundingClientRect(), b = action.getBoundingClientRect(), r = header.getBoundingClientRect();
+            if (!a.width || !b.width) return [];
+            return [{ title: title.textContent, width: r.width, actionWidth: b.width, titleWidth: a.width, centerOffset: Math.abs(a.y + a.height / 2 - b.y - b.height / 2) }];
+          }));
+          for (const header of headers) {
+            assert.ok(header.actionWidth < header.width * .8, `${screen}: ${header.title} action must not fill the header`);
+            if (header.titleWidth + header.actionWidth + 16 < header.width) assert.ok(header.centerOffset < 16, `${screen}: ${header.title} title/action alignment`);
+          }
+        }
         if (['orders', 'products', 'deposits', 'deposits/instant', 'users', 'inventory', 'categories', 'validities', 'reseller-apps', 'suppliers', 'suppliers/config', 'suppliers/explore', 'emojis', 'broadcast'].includes(screen)) {
           const mobile = page.locator('.app-record-list');
           const desktop = page.locator('.desktop-record-scroll');
@@ -456,11 +470,11 @@ const emoji = { id: 1, name: 'Store subscription icon', emoji_id: '0000000000000
     await page.screenshot({ path: `${output}/products-mobile-preview.png`, fullPage: true });
     products = originalProducts;
     await page.goto(`${baseURL}/#overview`);
-    await page.locator('.attention-banner').waitFor();
+    await page.locator('.home-toolbar').waitFor();
     await page.mouse.move(0, 0);
     await page.screenshot({ path: `${output}/dashboard-mobile.png`, fullPage: true });
-    assert.equal(await page.locator('.overview-metric').count(), 4);
-    assert.equal(await page.locator('.overview-orders tbody tr').first().evaluate(el => getComputedStyle(el).display), 'grid');
+    assert.equal(await page.locator('.home-metric').count(), 4);
+    assert.equal(await page.locator('.home-order').first().evaluate(el => getComputedStyle(el).display), 'flex');
     await page.getByRole('button', { name: 'More navigation' }).click();
     const drawer = page.getByRole('dialog', { name: 'Mobile navigation' });
     await drawer.waitFor();
@@ -545,13 +559,13 @@ const emoji = { id: 1, name: 'Store subscription icon', emoji_id: '0000000000000
     longName = true;
     await page.goto(`${baseURL}/#overview`);
     await page.reload();
-    await page.locator('.attention-banner').waitFor();
+    await page.locator('.home-toolbar').waitFor();
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'Long store/customer names fit');
     longName = false;
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto(`${baseURL}/#overview`);
     await page.reload();
-    await page.locator('.attention-banner').waitFor();
+    await page.locator('.home-toolbar').waitFor();
     await page.screenshot({ path: `${output}/dashboard-desktop.png`, fullPage: true });
     failOverview = true;
     await page.getByRole('button', { name: 'Refresh', exact: true }).click();
@@ -563,7 +577,7 @@ const emoji = { id: 1, name: 'Store subscription icon', emoji_id: '0000000000000
     emptyOverview = true;
     await page.getByRole('button', { name: 'Try again', exact: true }).click();
     await page.getByRole('heading', { name: 'All clear' }).waitFor();
-    assert.match(await page.locator('.recent-orders').innerText(), /No orders yet/);
+    assert.match(await page.locator('.home-recent').innerText(), /No orders yet/);
 
     signedIn = false;
     await page.setViewportSize({ width: 320, height: 640 });

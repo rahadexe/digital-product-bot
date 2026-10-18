@@ -69,7 +69,7 @@ const NAV_GROUPS: { label: string; keys: Key[] }[] = [
   { label: 'Catalog', keys: ['products', 'inventory', 'suppliers', 'categories', 'validities', 'emojis'] },
   { label: 'Manage', keys: ['broadcast', 'reseller-apps', 'activity', 'settings'] },
 ];
-const MOBILE_KEYS: Key[] = ['overview', 'orders', 'products', 'deposits'];
+const MOBILE_KEYS: Key[] = ['overview', 'orders', 'products', 'inventory'];
 
 const isKey = (value: string): value is Key => ITEMS.some((item) => item.key === value);
 
@@ -449,7 +449,7 @@ export default function ConsolePage() {
       <nav ref={bottomNavRef} className="mobile-dock" aria-label="Quick navigation">
         {MOBILE_KEYS.map((key) => {
           const Icon = NAV_ICONS[key];
-          return <button key={key} type="button" className={screen.key === key ? 'active' : ''} aria-current={screen.key === key ? 'page' : undefined} onClick={() => open(key)}><Icon size={20} aria-hidden="true" /><span>{key === 'overview' ? 'Home' : ITEMS.find((item) => item.key === key)!.label}</span></button>;
+          return <button key={key} type="button" className={screen.key === key ? 'active' : ''} aria-current={screen.key === key ? 'page' : undefined} onClick={() => open(key)}><Icon size={20} aria-hidden="true" /><span>{key === 'overview' ? 'Home' : key === 'inventory' ? 'Stock' : ITEMS.find((item) => item.key === key)!.label}</span></button>;
         })}
         <button type="button" className={!MOBILE_KEYS.includes(screen.key) ? 'active' : ''} aria-label="More navigation" aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" onClick={() => setMobileMenuOpen(true)}><MoreHorizontal size={20} aria-hidden="true" /><span>More</span></button>
       </nav>

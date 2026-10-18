@@ -566,19 +566,17 @@ function OrderDetailModal({
           </div>
 
           {order.customer_input ? (
-            <div className="order-modal-row highlight-row" style={{ background: 'rgba(59, 130, 246, 0.08)', borderRadius: '6px', padding: '6px 8px', margin: '4px 0' }}>
-              <span className="order-modal-label" style={{ color: 'var(--primary, #3b82f6)', fontWeight: 600 }}>Customer Info</span>
-              <div className="order-modal-val">
-                <span
-                  className="order-modal-id-pill"
+            <div className="order-detail-customer">
+              <span className="order-modal-label">Customer info</span>
+                <button
+                  type="button"
+                  className="order-customer-copy"
                   onClick={() => copyText(order.customer_input || '', 'customer_input')}
-                  title="Click to copy customer info"
-                  style={{ fontWeight: 600, color: 'var(--foreground)' }}
+                  aria-label="Copy customer info"
                 >
                   <span>{order.customer_input}</span>
-                  {copiedField === 'customer_input' ? <Check size={11} className="good-text" /> : <Copy size={11} />}
-                </span>
-              </div>
+                  {copiedField === 'customer_input' ? <Check size={16} className="good-text" /> : <Copy size={16} />}
+                </button>
             </div>
           ) : null}
 
@@ -672,9 +670,7 @@ function OrderDetailModal({
             {order.delivered_item}
           </div>
         ) : (
-          <div className="order-modal-cred-box" style={{ textAlign: 'center', color: 'var(--muted)' }}>
-            {waiting ? 'Order has not been delivered yet.' : 'No credentials recorded.'}
-          </div>
+          <p className="order-not-delivered">{waiting ? 'Not delivered yet.' : 'No credentials recorded.'}</p>
         )}
       </div>
 
