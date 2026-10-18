@@ -1,16 +1,23 @@
 from __future__ import annotations
 
 import asyncio
-
-from typing import Any
+from typing import Annotated, Any
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Body, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.api.admin.auth import WRITE
 from app.api.deps import ServicesDep
+from app.services.suppliers import SupplierError, setting_number
 
 router = APIRouter(prefix="/suppliers")
+SupplierProductId = Annotated[int, Field(strict=True, gt=0, le=2147483647)]
+
+def invalidate_catalog(services: Any) -> None:
+    catalog = getattr(services, "catalog", None)
+    if catalog:
+        catalog.invalidate()
 
 
 class SupplierConfigPayload(BaseModel):
@@ -21,12 +28,31 @@ class SupplierConfigPayload(BaseModel):
     auto_sync: int | None = Field(default=None, ge=0, le=1)
     low_balance_alert: float | None = Field(default=None, ge=0, le=100000)
 
+    @field_validator("base_url")
+    @classmethod
+    def validate_url(cls, value: str) -> str:
+        value = value.strip().rstrip("/")
+        try:
+            parsed = urlsplit(value)
+            if (parsed.scheme != "https" or not parsed.hostname or parsed.username is not None
+                    or parsed.password is not None or parsed.query or parsed.fragment):
+                raise ValueError
+            _ = parsed.port
+        except ValueError:
+            raise ValueError("Use an HTTPS API base URL without credentials, query or fragment.") from None
+        return value
+
 
 class ImportSupplierProductsPayload(BaseModel):
     supplier_code: str = Field(default="digital_mart", max_length=64)
-    product_ids: list[int] = Field(..., min_length=1, max_length=500)
+    product_ids: list[SupplierProductId] = Field(..., min_length=1, max_length=500)
     activate: bool = Field(default=False)
-    target_category_id: int | None = Field(default=None)
+    target_category_id: SupplierProductId | None = Field(default=None)
+
+    @field_validator("product_ids")
+    @classmethod
+    def unique_products(cls, value: list[int]) -> list[int]:
+        return list(dict.fromkeys(value))
 
 
 
@@ -36,7 +62,12 @@ async def get_supplier_status(services: ServicesDep):
     st_sup = services.suppliers.get("safwan_tiger") if services.suppliers else None
 
     async def balance(client):
-        return await client.get_balance() if client else None
+        if not client:
+            return None
+        try:
+            return await client.get_balance()
+        except Exception:
+            return None
 
     dm_bal, st_bal = await asyncio.gather(balance(dm_sup), balance(st_sup))
 
@@ -53,16 +84,16 @@ async def get_supplier_status(services: ServicesDep):
             "SELECT COUNT(*) FROM orders WHERE source IN ('upstream_reseller', 'supplier_pending')"
         )
 
-    dm_markup = float(await services.settings.get("upstream_markup_percent") or 15.0)
-    dm_auto_sync = int(await services.settings.get("upstream_auto_sync") or 1)
-    dm_low_alert = float(await services.settings.get("upstream_low_balance_alert") or 50.0)
+    dm_markup = setting_number(await services.settings.get("upstream_markup_percent"), 15.0)
+    dm_auto_sync = int(setting_number(await services.settings.get("upstream_auto_sync"), 1))
+    dm_low_alert = setting_number(await services.settings.get("upstream_low_balance_alert"), 50.0)
 
-    st_markup = float(await services.settings.get("safwan_tiger_markup_percent") or 15.0)
-    st_auto_sync = int(await services.settings.get("safwan_tiger_auto_sync") or 0)
-    st_low_alert = float(await services.settings.get("safwan_tiger_low_balance_alert") or 5.0)
+    st_markup = setting_number(await services.settings.get("safwan_tiger_markup_percent"), 15.0)
+    st_auto_sync = int(setting_number(await services.settings.get("safwan_tiger_auto_sync"), 0))
+    st_low_alert = setting_number(await services.settings.get("safwan_tiger_low_balance_alert"), 5.0)
 
     def mask(k: str) -> str:
-        return f"{k[:8]}...{k[-4:]}" if len(k) > 12 else ("****" if k else "")
+        return "Configured" if k else ""
 
     providers = [
         {
@@ -120,8 +151,15 @@ async def sync_supplier_catalog(services: ServicesDep, supplier: str = Query("al
     if not services.suppliers:
         raise HTTPException(400, "Suppliers manager is not initialized.")
 
+    supplier = supplier.strip().lower()
     if supplier == "all":
-        results = await services.suppliers.sync_all()
+        try:
+            results = await services.suppliers.sync_all()
+        except SupplierError as exc:
+            raise HTTPException(502, str(exc)) from None
+        if not results:
+            raise HTTPException(400, "Configure a supplier first.")
+        invalidate_catalog(services)
         total_cats = sum(c for c, _ in results.values())
         total_prods = sum(p for _, p in results.values())
         return {
@@ -129,19 +167,23 @@ async def sync_supplier_catalog(services: ServicesDep, supplier: str = Query("al
             "categories_synced": total_cats,
             "products_synced": total_prods,
             "details": results,
-            "message": f"Successfully synced {total_prods} products across all suppliers!",
+            "message": f"Synced {total_prods} products.",
         }
 
     client = services.suppliers.get(supplier)
     if not client or not client.is_configured:
         raise HTTPException(400, f"Supplier '{supplier}' is not configured.")
 
-    cats, prods = await client.sync_catalog()
+    try:
+        cats, prods = await client.sync_catalog()
+    except SupplierError as exc:
+        raise HTTPException(502, str(exc)) from None
+    invalidate_catalog(services)
     return {
         "success": True,
         "categories_synced": cats,
         "products_synced": prods,
-        "message": f"Successfully synced {prods} products and {cats} categories from {client.name}!",
+        "message": f"Synced {prods} products.",
     }
 
 
@@ -157,8 +199,10 @@ async def get_supplier_remote_products(services: ServicesDep, supplier: str = Qu
 
     try:
         raw_products = await client.get_products()
-    except Exception as exc:
-        raise HTTPException(502, f"Failed to fetch live products from {client.name}: {exc}") from exc
+    except SupplierError as exc:
+        raise HTTPException(502, str(exc)) from None
+    except Exception:
+        raise HTTPException(502, "Could not load supplier products. Check the API settings.") from None
 
     # Cross-reference with store products
     async with services.db.connect() as conn:
@@ -229,22 +273,24 @@ async def import_supplier_products(services: ServicesDep, payload: ImportSupplie
     if not client or not client.is_configured:
         raise HTTPException(400, f"Supplier '{payload.supplier_code}' is not configured.")
 
+    options = {"filter_ids": payload.product_ids, "force_active": payload.activate}
     if payload.target_category_id is not None:
-        cats, prods = await client.sync_catalog(
-            filter_ids=payload.product_ids,
-            force_active=payload.activate,
-            target_category_id=payload.target_category_id,
-        )
-    else:
-        cats, prods = await client.sync_catalog(
-            filter_ids=payload.product_ids,
-            force_active=payload.activate,
-        )
+        async with services.db.connect() as conn:
+            if not await conn.fetchval("SELECT id FROM categories WHERE id = $1", payload.target_category_id):
+                raise HTTPException(422, "Category no longer exists. Refresh and try again.")
+        options["target_category_id"] = payload.target_category_id
+    try:
+        cats, prods = await client.sync_catalog(**options)
+    except SupplierError as exc:
+        raise HTTPException(502, str(exc)) from None
+    if not prods:
+        raise HTTPException(409, "No products imported. Refresh the supplier catalog.")
+    invalidate_catalog(services)
     return {
         "success": True,
         "products_synced": prods,
         "categories_synced": cats,
-        "message": f"Successfully imported {prods} product(s) from {client.name}!",
+        "message": f"Imported {prods} products.",
     }
 
 
@@ -281,15 +327,16 @@ async def update_supplier_config(services: ServicesDep, payload: SupplierConfigP
     client = services.suppliers.get(sup_code) if services.suppliers else None
     if client:
         client.base_url = url
+        client._balance_cache = None
         if key and key != "keep_existing":
             client.api_key = key
 
-    bal = await client.get_balance() if client and client.is_configured else None
+    bal = await client.get_balance(force=True) if client and client.is_configured else None
     connected = bool(bal and bal.get("ok"))
 
     return {
         "success": True,
         "connected": connected,
-        "message": f"{client.name if client else sup_code} configuration saved!" if connected else "Saved, but connection check failed. Verify API key and URL.",
+        "message": "Saved and connected." if connected else "Saved. Connection failed. Check API key and URL.",
         "balance": bal.get("balance", 0.0) if bal else None,
     }

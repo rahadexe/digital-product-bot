@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   api,
   type SupplierStatus,
@@ -23,6 +23,9 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
   const [saving, setSaving] = useState(false);
   const [activeProvider, setActiveProvider] = useState<'digital_mart' | 'safwan_tiger'>('digital_mart');
   const [confirm, confirmDialog] = useConfirm();
+  const configPanel = useRef<HTMLDetailsElement>(null);
+  const apiUrlInput = useRef<HTMLInputElement>(null);
+  const formInitialized = useRef(false);
 
   // Form fields
   const [baseUrl, setBaseUrl] = useState('');
@@ -51,6 +54,9 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
   const [remoteCategoryFilter, setRemoteCategoryFilter] = useState('all');
   const [remoteCatalog, setRemoteCatalog] = useState<RemoteSupplierCatalogResponse | null>(null);
   const [remoteLoading, setRemoteLoading] = useState(false);
+  const [remoteError, setRemoteError] = useState('');
+  const remoteRequest = useRef(0);
+  const statusRequest = useRef(0);
   const [selectedRemoteIds, setSelectedRemoteIds] = useState<number[]>([]);
   const [remoteImporting, setRemoteImporting] = useState(false);
   const [importActivateImmediately, setImportActivateImmediately] = useState(false);
@@ -59,61 +65,72 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
   const money = useMoney();
 
   const loadData = useCallback(async () => {
+    const request = ++statusRequest.current;
     try {
       const [supStatus, prods, cats] = await Promise.all([
         api.supplierStatus(),
         api.products(),
         api.categories(),
       ]);
+      if (request !== statusRequest.current) return;
       setStatus(supStatus);
       setProducts(prods.filter((p) => p.upstream_product_id != null));
       setCategories(cats);
 
-      const prov = supStatus.providers?.find((p) => p.code === activeProvider);
-      if (prov) {
+      const prov = supStatus.providers?.find((p) => p.code === 'digital_mart');
+      if (!formInitialized.current && prov) {
         setBaseUrl(prov.base_url);
         setMarkupPercent(prov.markup_percent ?? 15);
         setAutoSync(Boolean(prov.auto_sync ?? 1));
         setLowBalanceAlert(prov.low_balance_alert ?? (prov.currency === 'USDT' ? 5 : 50));
-      } else {
+      } else if (!formInitialized.current) {
         setBaseUrl(supStatus.base_url || 'https://dmb.bmdigital.bd/api/v1/reseller');
         setMarkupPercent(supStatus.markup_percent ?? 15);
         setAutoSync(Boolean(supStatus.auto_sync ?? 1));
         setLowBalanceAlert(supStatus.low_balance_alert ?? 50);
       }
+      formInitialized.current = true;
     } catch (err) {
-      say(errorText(err, 'Failed to load supplier status.'), 'bad');
+      if (request === statusRequest.current) say(errorText(err, 'Could not load suppliers.'), 'bad');
     } finally {
-      setLoading(false);
+      if (request === statusRequest.current) setLoading(false);
     }
-  }, [say, activeProvider]);
+  }, [say]);
 
   useEffect(() => {
     void loadData();
   }, [loadData]);
 
-  const loadRemoteCatalog = useCallback(async (supplierCode = exploreSupplier, search = remoteSearch) => {
+  const loadRemoteCatalog = useCallback(async (supplierCode = exploreSupplier) => {
+    const request = ++remoteRequest.current;
     setRemoteLoading(true);
+    setRemoteError('');
+    setRemoteCatalog(null);
+    setSelectedRemoteIds([]);
     try {
-      const res = await api.supplierRemoteProducts(supplierCode, search);
+      const res = await api.supplierRemoteProducts(supplierCode);
+      if (request !== remoteRequest.current) return;
       setRemoteCatalog(res);
-      setSelectedRemoteIds([]);
     } catch (err) {
-      say(errorText(err, `Failed to fetch live catalog from ${supplierCode}.`), 'bad');
+      if (request === remoteRequest.current) {
+        setRemoteError(errorText(err, 'Could not load catalog. Check the supplier settings.'));
+      }
     } finally {
-      setRemoteLoading(false);
+      if (request === remoteRequest.current) setRemoteLoading(false);
     }
-  }, [exploreSupplier, remoteSearch, say]);
+  }, [exploreSupplier]);
 
   useEffect(() => {
     if (viewMode === 'explore') {
       void loadRemoteCatalog(exploreSupplier);
     }
+    return () => { remoteRequest.current += 1; };
   }, [viewMode, exploreSupplier, loadRemoteCatalog]);
 
   const switchProvider = (code: 'digital_mart' | 'safwan_tiger') => {
     setActiveProvider(code);
     setApiKey('');
+    setShowApiKey(false);
     const prov = status?.providers?.find((p) => p.code === code);
     if (prov) {
       setBaseUrl(prov.base_url);
@@ -133,6 +150,17 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
     }
   };
 
+  const switchCatalog = (code: 'digital_mart' | 'safwan_tiger') => {
+    if (code === exploreSupplier) return;
+    remoteRequest.current += 1;
+    setRemoteCatalog(null);
+    setSelectedRemoteIds([]);
+    setRemoteCategoryFilter('all');
+    setRemoteSearch('');
+    setRemoteError('');
+    setExploreSupplier(code);
+  };
+
   const handleSync = async (supplierTarget: string = 'all') => {
     setSyncing(supplierTarget);
     try {
@@ -150,6 +178,15 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
     } finally {
       setSyncing(null);
     }
+  };
+
+  const openApiSettings = (code: 'digital_mart' | 'safwan_tiger') => {
+    switchProvider(code);
+    if (configPanel.current) configPanel.current.open = true;
+    requestAnimationFrame(() => {
+      configPanel.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      apiUrlInput.current?.focus({ preventScroll: true });
+    });
   };
 
   const handleSaveConfig = async (e: React.FormEvent) => {
@@ -220,6 +257,7 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
 
   // Import single remote product
   const handleImportRemoteProduct = async (remoteProd: RemoteSupplierProduct) => {
+    if (remoteLoading || remoteCatalog?.supplier !== exploreSupplier || remoteImporting) return;
     setRemoteImporting(true);
     const targetCat = importTargetCategoryId !== 'auto' ? Number(importTargetCategoryId) : null;
     try {
@@ -241,7 +279,7 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
 
   // Bulk import selected remote products
   const handleBulkImportRemote = async () => {
-    if (!selectedRemoteIds.length) return;
+    if (!selectedRemoteIds.length || remoteLoading || remoteCatalog?.supplier !== exploreSupplier || remoteImporting) return;
     setRemoteImporting(true);
     const targetCat = importTargetCategoryId !== 'auto' ? Number(importTargetCategoryId) : null;
     try {
@@ -319,6 +357,8 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
 
   // Remote products filter
   const filteredRemote = (remoteCatalog?.products ?? []).filter((rp) => {
+    const query = remoteSearch.trim().toLowerCase();
+    if (query && !`${rp.title} ${rp.category_name} ${rp.id}`.toLowerCase().includes(query)) return false;
     if (remoteCategoryFilter !== 'all' && rp.category_name !== remoteCategoryFilter) {
       return false;
     }
@@ -341,58 +381,63 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
       {confirmDialog}
 
       <section className="panel supplier-directory">
-        <header><h2>Connected suppliers</h2><button type="button" className="btn ghost small" disabled={Boolean(syncing)} onClick={() => handleSync('all')}>{syncing ? 'Syncing…' : 'Sync all'}</button></header>
+        <header><button type="button" className="btn ghost small" disabled={Boolean(syncing) || !status?.providers?.some(provider => provider.is_configured)} onClick={() => handleSync('all')}>{syncing ? 'Syncing…' : 'Sync all'}</button></header>
         <div className="scroll" role="region" aria-label="Suppliers table" tabIndex={0}>
           <table><thead><tr><th scope="col">Supplier</th><th scope="col">Status</th><th scope="col" className="right">Balance</th><th scope="col" className="right">Products</th><th scope="col" className="right">Actions</th></tr></thead>
           <tbody>{[{ code: 'digital_mart', name: 'Digital Mart', provider: dmProvider, currency: 'BDT' }, { code: 'safwan_tiger', name: 'Safwan Tiger', provider: stProvider, currency: 'USDT' }].map(({ code, name, provider, currency }) => <tr key={code}>
             <td><strong>{name}</strong></td>
             <td><span className={`pill ${provider?.connected ? 'good' : provider?.is_configured ? 'bad' : ''}`}>{provider?.connected ? 'Connected' : provider?.is_configured ? 'Connection error' : 'Not configured'}</span></td>
-              <td className="right money">{provider?.connected && provider.balance != null ? `${provider.balance.toFixed(2)} ${currency}` : '—'}</td>
+              <td className="right money">{provider?.connected && provider.balance != null ? `${provider.balance.toFixed(2)} ${currency}` : ''}</td>
             <td className="right">{provider?.products_count ?? 0}</td>
-            <td className="right"><button type="button" className="btn ghost small" disabled={Boolean(syncing) || !provider?.is_configured} onClick={() => handleSync(code)}>Sync</button></td>
+            <td className="right"><div className="supplier-actions">
+              <button type="button" className="btn primary small" disabled={saving} aria-label={`${provider?.is_configured ? 'Edit' : 'Add'} API for ${name}`} onClick={() => openApiSettings(code as 'digital_mart' | 'safwan_tiger')}>{provider?.is_configured ? 'Edit API' : 'Add API'}</button>
+              <button type="button" className="btn ghost small" disabled={Boolean(syncing) || !provider?.is_configured} onClick={() => handleSync(code)}>Sync</button>
+            </div></td>
           </tr>)}</tbody></table>
         </div>
       </section>
 
       {/* Configuration & Details Section */}
-      <details className="supplier-configuration"><summary>Supplier settings</summary>
+      <details ref={configPanel} className="supplier-configuration"><summary>API settings</summary>
         {/* Settings Card */}
         <section className="panel" style={{ margin: 0 }}>
           <header>
             <div style={{ width: '100%' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-                <h2>Supplier API Credentials</h2>
                 {/* Provider switcher tabs */}
                 <div className="segmented" role="tablist">
                   <button
                     type="button"
+                    aria-label="Digital Mart (BDT)"
                     className={activeProvider === 'digital_mart' ? 'active' : ''}
                     onClick={() => switchProvider('digital_mart')}
+                    disabled={saving}
                   >
-                    Digital Mart (BDT)
+                    Digital Mart
                   </button>
                   <button
                     type="button"
+                    aria-label="Safwan Tiger (USDT)"
                     className={activeProvider === 'safwan_tiger' ? 'active' : ''}
                     onClick={() => switchProvider('safwan_tiger')}
+                    disabled={saving}
                   >
-                    Safwan Tiger (USDT)
+                    Safwan Tiger
                   </button>
                 </div>
               </div>
-              <p style={{ marginTop: 4 }}>
-                Configure wholesale endpoint and API credentials for <strong>{activeProvider === 'safwan_tiger' ? 'Safwan Tiger Shop' : 'Digital Mart'}</strong>.
-              </p>
             </div>
           </header>
           <div className="panel-body">
             <form onSubmit={handleSaveConfig} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: 6 }}>
-                  Provider API Base URL
+                  API URL
                 </label>
                 <input
-                  type="text"
+                  type="url"
+                  ref={apiUrlInput}
+                  aria-label="Supplier API URL"
                   value={baseUrl}
                   onChange={(e) => setBaseUrl(e.target.value)}
                   placeholder={activeProvider === 'safwan_tiger' ? 'https://safwantigershopbot-production.up.railway.app/api' : 'https://dmb.bmdigital.bd/api/v1/reseller'}
@@ -406,22 +451,25 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
 
               <div>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: 6 }}>
-                  API Key ({activeProvider === 'safwan_tiger' ? 'Safwan Tiger' : 'Digital Mart'})
+                  API key
                 </label>
                 <div style={{ position: 'relative' }}>
                   <input
                     type={showApiKey ? 'text' : 'password'}
+                    aria-label="Supplier API key"
+                    autoComplete="new-password"
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
                     placeholder={
                       (activeProvider === 'safwan_tiger' ? stProvider?.api_key_masked : dmProvider?.api_key_masked)
-                        ? `Configured: ${activeProvider === 'safwan_tiger' ? stProvider?.api_key_masked : dmProvider?.api_key_masked}`
-                        : 'Enter secret API key...'
+                        ? 'Key configured'
+                        : 'Enter API key'
                     }
                     style={{ width: '100%', paddingRight: 40, boxSizing: 'border-box' }}
                   />
                   <button
                     type="button"
+                    aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
                     onClick={() => setShowApiKey(!showApiKey)}
                     style={{
                       position: 'absolute',
@@ -438,51 +486,48 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                   </button>
                 </div>
                 <small style={{ display: 'block', marginTop: 4, color: 'var(--muted)', fontSize: '11.5px' }}>
-                  Leave blank to keep existing configured key.
+                  Leave blank to keep the saved key.
                 </small>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: 6 }}>
-                    Profit Margin Markup (%)
+                    Markup (%)
                   </label>
                   <input
                     type="number"
                     min="0"
-                    max="200"
-                    step="1"
+                    max="500"
+                    step="0.01"
                     value={markupPercent}
                     onChange={(e) => setMarkupPercent(Number(e.target.value))}
                     required
                     style={{ width: '100%', boxSizing: 'border-box' }}
                   />
                   <small style={{ display: 'block', marginTop: 4, color: 'var(--muted)', fontSize: '11.5px' }}>
-                    Auto-added on wholesale rate (e.g. 15% margin).
+                    Markup on wholesale price.
                   </small>
                 </div>
 
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: 6 }}>
-                    Low Balance Alert Threshold ({activeProvider === 'safwan_tiger' ? 'USDT' : '৳'})
+                    Balance alert ({activeProvider === 'safwan_tiger' ? 'USDT' : '৳'})
                   </label>
                   <input
                     type="number"
                     min="0"
-                    step={activeProvider === 'safwan_tiger' ? '1' : '5'}
+                    step="0.01"
                     value={lowBalanceAlert}
                     onChange={(e) => setLowBalanceAlert(Number(e.target.value))}
                     required
                     style={{ width: '100%', boxSizing: 'border-box' }}
                   />
-                  <small style={{ display: 'block', marginTop: 4, color: 'var(--muted)', fontSize: '11.5px' }}>
-                    Telegram alert sent to admins if balance drops below this.
-                  </small>
                 </div>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                <input
+                  <input
                   type="checkbox"
                   id="auto_sync"
                   checked={autoSync}
@@ -490,7 +535,7 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                   style={{ width: 16, height: 16, cursor: 'pointer' }}
                 />
                 <label htmlFor="auto_sync" style={{ fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
-                  Enable Periodic Background Catalog Sync for {activeProvider === 'safwan_tiger' ? 'Safwan Tiger' : 'Digital Mart'}
+                  Auto sync
                 </label>
               </div>
 
@@ -501,7 +546,7 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                   disabled={saving}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600 }}
                 >
-                  {saving ? 'Saving...' : `Save & Test ${activeProvider === 'safwan_tiger' ? 'Tiger Shop' : 'Digital Mart'}`}
+                  {saving ? 'Connecting...' : 'Save & connect'}
                 </button>
               </div>
             </form>
@@ -727,7 +772,7 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                   <label className="app-record-select"><input type="checkbox" aria-label={`Select supplier product ${product.id}`} checked={selectedSyncedIds.includes(product.id)} onChange={event => setSelectedSyncedIds(ids => event.target.checked ? [...ids, product.id] : ids.filter(id => id !== product.id))} /></label>
                   <MobileRecordDetails title={product.title} subtitle={product.supplier_code === 'safwan_tiger' ? 'Safwan Tiger' : 'Digital Mart'} meta={product.duration_label || undefined} amount={money(product.price)} status={product.is_active ? 'Active' : 'Hidden'} tone={product.is_active ? 'good' : 'neutral'} icon={product.icon || undefined} label={`View supplier product ${product.id}`} fields={[
                     ['Product', product.title], ['Supplier ID', product.upstream_product_id], ['Category', categories.find(category => category.id === product.category_id)?.name || 'General'],
-                    ['Retail price', money(product.price)], ['Wholesale rate', product.reseller_price != null ? money(product.reseller_price) : '—'], ['Duration', product.duration_label || 'Default'],
+                    ['Retail price', money(product.price)], ['Wholesale rate', product.reseller_price != null ? money(product.reseller_price) : 'Not set'], ['Duration', product.duration_label || 'Default'],
                   ]}>
                     <button type="button" className="btn" onClick={() => void toggleProductActive(product)}>{product.is_active ? 'Hide product' : 'Activate product'}</button>
                   </MobileRecordDetails>
@@ -779,7 +824,7 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                             {p.icon ? <span style={{ marginRight: 6 }}>{p.icon}</span> : null}
                             {p.title}
                             <small style={{ display: 'block', color: 'var(--muted)', fontSize: '11px', marginTop: 2 }}>
-                              Supplier ID: #{p.upstream_product_id} • Duration: {p.duration_label || 'Default'}
+                              #{p.upstream_product_id}, {p.duration_label || 'Default'}
                             </small>
                           </td>
                           <td>
@@ -799,7 +844,7 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                           <td>{cat?.name || 'General'}</td>
                           <td style={{ fontWeight: 700 }}>{money(p.price)}</td>
                           <td style={{ color: 'var(--accent)', fontWeight: 600 }}>
-                            {p.reseller_price != null ? money(p.reseller_price) : '—'}
+                            {p.reseller_price != null ? money(p.reseller_price) : 'Not set'}
                           </td>
                           <td style={{ textAlign: 'center' }}>
                             <button
@@ -888,14 +933,16 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                   <button
                     type="button"
                     className={exploreSupplier === 'digital_mart' ? 'active' : ''}
-                    onClick={() => setExploreSupplier('digital_mart')}
+                    disabled={remoteImporting}
+                    onClick={() => switchCatalog('digital_mart')}
                   >
                     Digital Mart API
                   </button>
                   <button
                     type="button"
                     className={exploreSupplier === 'safwan_tiger' ? 'active' : ''}
-                    onClick={() => setExploreSupplier('safwan_tiger')}
+                    disabled={remoteImporting}
+                    onClick={() => switchCatalog('safwan_tiger')}
                   >
                     Safwan Tiger API
                   </button>
@@ -931,14 +978,14 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                 <button
                   type="button"
                   className="btn small"
-                  onClick={() => loadRemoteCatalog(exploreSupplier, remoteSearch)}
-                  disabled={remoteLoading}
+                  onClick={() => loadRemoteCatalog(exploreSupplier)}
+                  disabled={remoteLoading || remoteImporting}
                 >
                   Refresh API
                 </button>
               </div>
 
-              {/* Options */}
+            {/* Options */}
               <div className="supplier-import-options" style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted)' }}>Store Category:</span>
@@ -1017,6 +1064,11 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                   Fetching live products from {exploreSupplier === 'safwan_tiger' ? 'Safwan Tiger' : 'Digital Mart'} API...
                 </p>
               </div>
+            ) : remoteError ? (
+              <div role="alert" style={{ padding: '24px 18px' }}>
+                <p>{remoteError}</p>
+                <button type="button" className="btn" onClick={() => loadRemoteCatalog()}>Retry</button>
+              </div>
             ) : filteredRemote.length === 0 ? (
               <div style={{ padding: '50px 20px', textAlign: 'center', color: 'var(--muted)' }}>
                 <p style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text)' }}>
@@ -1034,8 +1086,8 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                   <label className="app-record-select"><input type="checkbox" aria-label={`Select remote product ${product.id}`} checked={selectedRemoteIds.includes(product.id)} onChange={event => setSelectedRemoteIds(ids => event.target.checked ? [...ids, product.id] : ids.filter(id => id !== product.id))} /></label>
                   <MobileRecordDetails title={product.title} subtitle={product.category_name} meta={product.duration || undefined} amount={`${product.currency_symbol}${product.reseller_price.toFixed(2)}`} status={product.in_store ? product.local_is_active ? 'Active' : 'Hidden' : 'Not imported'} tone={product.in_store && product.local_is_active ? 'good' : 'neutral'} icon={product.icon || undefined} label={`View remote product ${product.id}`} fields={[
                     ['Product', product.title], ['Supplier ID', product.id], ['Category', product.category_name],
-                    ['Wholesale rate', `${product.currency_symbol}${product.reseller_price.toFixed(2)} ${product.currency}`], ['Duration', product.duration || '—'],
-                    ['Warranty', product.warranty || '—'], ['Description', product.description || '—'],
+                    ['Wholesale rate', `${product.currency_symbol}${product.reseller_price.toFixed(2)} ${product.currency}`], ['Duration', product.duration || ''],
+                    ['Warranty', product.warranty || ''], ['Description', product.description || ''],
                   ]}>
                     <button type="button" className="btn" disabled={remoteImporting} onClick={() => void handleImportRemoteProduct(product)}>{product.in_store ? 'Re-sync' : 'Import to Store'}</button>
                   </MobileRecordDetails>
@@ -1084,8 +1136,8 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                             {rp.icon ? <span style={{ marginRight: 6 }}>{rp.icon}</span> : null}
                             {rp.title}
                             <small style={{ display: 'block', color: 'var(--muted)', fontSize: '11px', marginTop: 2 }}>
-                              Supplier ID: #{rp.id} • Duration: {rp.duration || '—'}
-                              {rp.warranty ? ` • Warranty: ${rp.warranty}` : ''}
+                              #{rp.id}{rp.duration ? `, ${rp.duration}` : ''}
+                              {rp.warranty ? `, warranty ${rp.warranty}` : ''}
                             </small>
                           </td>
                           <td>{rp.category_name}</td>

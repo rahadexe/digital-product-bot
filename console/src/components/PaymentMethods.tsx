@@ -372,7 +372,7 @@ export function PaymentMethods({
                 type="button"
                 className={`btn ghost small gateway-config-btn${zinipayActive ? ' is-configured' : ''}`}
                 onClick={() => setIsZinipayModalOpen(true)}
-                title="Configure ZiniPay Gateway & Auto-Verification"
+                title="ZiniPay settings"
               >
                 <Zap size={14} />
                 <span>ZiniPay Gateway</span>

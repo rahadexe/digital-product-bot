@@ -64,6 +64,10 @@ const emoji = { id: 1, name: 'Store subscription icon', emoji_id: '0000000000000
     let emptyLists = false;
     let failDeposits = false;
     let previewOrders = null;
+    let failSupplierCatalog = false;
+    let slowDigitalMart = false;
+    let supplierConfigPayload;
+    const catalogRequests = [];
     const mutations = [];
     await page.route('**/api/**', async route => {
       const req = route.request();
@@ -101,7 +105,17 @@ const emoji = { id: 1, name: 'Store subscription icon', emoji_id: '0000000000000
       else if (path === 'emojis') body = { system: [], custom: [emoji], all: [emoji] };
       else if (path === 'reseller-applications') body = { applications: [reseller], total: 1, summary: { total: 1, pending: 1, approved: 0, rejected: 0 } };
       else if (path === 'suppliers/status') body = { is_configured: true, providers: [{ code: 'digital_mart', name: 'Digital Mart', currency: 'BDT', currency_symbol: '৳', is_configured: true, base_url: 'https://example.test/api', api_key_masked: '', balance: 3000, connected: true, markup_percent: 15, auto_sync: 1, low_balance_alert: 50, products_count: 1 }], base_url: 'https://example.test/api', account: { balance: 3000, currency_symbol: '৳' }, upstream_products_count: 1 };
-      else if (path === 'suppliers/remote-products') body = { supplier: 'digital_mart', supplier_name: 'Demo supplier', currency: 'BDT', total: 1, filtered_total: 1, categories: ['Subscriptions'], products: [{ id: 91, title: product.title, category_name: 'Subscriptions', duration: '1 month', reseller_price: 90, regular_price: 150, currency: 'BDT', currency_symbol: '৳', in_store: false, icon: '', description: '', warranty: '', local_id: null }] };
+      else if (path === 'suppliers/config') {
+        supplierConfigPayload = req.postDataJSON();
+        body = { success: true, connected: true, message: 'Saved and connected.' };
+      }
+      else if (path === 'suppliers/remote-products') {
+        const supplier = new URL(req.url()).searchParams.get('supplier') || 'digital_mart';
+        catalogRequests.push(supplier);
+        if (failSupplierCatalog) return route.fulfill({ status: 502, contentType: 'application/json', body: JSON.stringify({ detail: 'Check the API key and URL.' }) });
+        if (slowDigitalMart && supplier === 'digital_mart') await new Promise(resolve => setTimeout(resolve, 600));
+        body = { supplier, supplier_name: 'Demo supplier', currency: 'BDT', total: 1, filtered_total: 1, categories: ['Subscriptions'], products: [{ id: supplier === 'safwan_tiger' ? 92 : 91, title: product.title, category_name: 'Subscriptions', duration: '1 month', reseller_price: 90, regular_price: 150, currency: 'BDT', currency_symbol: '৳', in_store: false, icon: '', description: '', warranty: '', local_id: null }] };
+      }
       else if (path === 'audit-logs') body = { entries: [{ id: 1, action: 'product_updated', details: 'Updated subscription price and availability.', actor: 'Demo admin', created_at: customer.created_at }], total: 1, actions: ['product_updated'] };
       else if (path === 'failed-jobs') body = [{ kind: 'notification', id: 4, attempts: 2, error: 'Synthetic delivery error. Review the order before retrying.' }];
       else if (path === 'payments/status') body = { enabled: false, configured: false };
@@ -155,10 +169,18 @@ const emoji = { id: 1, name: 'Store subscription icon', emoji_id: '0000000000000
               const tail = el.querySelector('.app-record-tail').getBoundingClientRect();
               return { height: el.getBoundingClientRect().height, copyRight: copy.right, amountLeft: tail.left, scroll: el.scrollWidth, width: el.clientWidth };
             });
-            assert.ok(geometry.height >= 88 && geometry.height <= 168, 'Records stay compact even with long names');
+            assert.ok(geometry.height >= 80 && geometry.height <= 144, 'Records stay compact even with long names');
             assert.ok(geometry.copyRight <= geometry.amountLeft - 4, 'Titles never collide with price/status');
             assert.ok(geometry.scroll <= geometry.width + 1, 'Record content stays contained');
+            assert.equal(await row.locator('.app-record-meta, .app-record-chevron').count(), 0, 'List rows have no third metadata line or redundant chevron');
           }
+        }
+        assert.equal(await page.locator('.page-description, .page-head .eyebrow, .mobile-store-link').count(), 0, 'No decorative intro text or repeated store name');
+        assert.doesNotMatch(await page.locator('.app-list-heading').allInnerTexts().then(texts => texts.join(' ')), /Tap to |Tap for |Latest first/, 'List headings do not explain obvious taps');
+        assert.doesNotMatch(await page.locator('.main-inner').innerText(), /[—–•·→←✓✕]/u, 'Admin copy has no decorative dashes, bullet separators or text glyphs');
+        if (width <= 760) {
+          const redundantPagers = page.locator('.product-pagination.single-page, .order-pagination.single-page, .pager:not(:has(button:not(:disabled)))');
+          assert.equal(await redundantPagers.evaluateAll(nodes => nodes.filter(node => node.getBoundingClientRect().height > 0).length), 0, 'Single-page counts/pagers do not repeat the list header');
         }
         if (width === 390 || width === 1440) {
           await page.evaluate(() => scrollTo(0, 0));
@@ -196,6 +218,7 @@ const emoji = { id: 1, name: 'Store subscription icon', emoji_id: '0000000000000
     await page.goto(`${baseURL}/#deposits/instant`);
     await page.reload(); // The existing Deposits component owns its tab while mounted.
     await page.getByRole('button', { name: `View payment ${invoice.reference}` }).click();
+    assert.match(await detailDialog().innerText(), /SYNTHETIC-INVOICE-REFERENCE/, 'Meaningful hyphens inside payment references stay unchanged');
     await assertDialogFits();
     assert.match(await detailDialog().innerText(), /Amount to pay/);
     await page.keyboard.press('Escape');
@@ -280,16 +303,82 @@ const emoji = { id: 1, name: 'Store subscription icon', emoji_id: '0000000000000
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'Remote import controls fit 320px');
     await page.getByRole('checkbox', { name: 'Select remote product 91', exact: true }).uncheck();
     assert.equal(mutations.length, 0, 'Supplier selection/details and cancelled emoji deletion never write');
+    await page.getByRole('button', { name: 'Add API for Safwan Tiger', exact: true }).click();
+    assert.equal(await page.locator('.supplier-configuration').evaluate(el => el.open), true);
+    assert.ok(await page.getByRole('button', { name: 'Safwan Tiger (USDT)', exact: true }).evaluate(el => el.classList.contains('active')));
+    await page.getByRole('textbox', { name: 'Supplier API URL', exact: true }).fill('https://example.test/api');
+    await page.getByLabel('Supplier API key', { exact: true }).fill('synthetic-test-key');
+    assert.equal(await page.getByLabel('Supplier API key', { exact: true }).getAttribute('type'), 'password');
+    await page.getByRole('button', { name: 'Save & connect', exact: true }).click();
+    await page.getByRole('button', { name: 'Save & connect', exact: true }).waitFor();
+    await page.waitForFunction(() => document.querySelector('[aria-label="Supplier API key"]')?.value === '');
+    assert.equal(supplierConfigPayload.supplier_code, 'safwan_tiger');
+    assert.equal(supplierConfigPayload.base_url, 'https://example.test/api');
+    assert.equal(supplierConfigPayload.api_key, 'synthetic-test-key');
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'Visible Add API form fits 320px');
+    await page.locator('.toast').waitFor({ state: 'hidden' });
+    await page.evaluate(() => {
+      document.activeElement?.blur();
+      const panel = document.querySelector('.supplier-configuration');
+      window.scrollTo(0, panel.getBoundingClientRect().top + scrollY - 78);
+    });
+    await page.waitForTimeout(150);
+    await page.screenshot({ path: `${output}/supplier-api-setup-mobile.png` });
+    await page.getByRole('button', { name: 'Edit API for Digital Mart', exact: true }).click();
+    assert.ok(await page.getByRole('button', { name: 'Digital Mart (BDT)', exact: true }).evaluate(el => el.classList.contains('active')));
+    assert.equal(await page.getByLabel('Supplier API key', { exact: true }).inputValue(), '');
+    await page.locator('.supplier-configuration > summary').click();
+    await page.evaluate(() => { document.activeElement?.blur(); window.scrollTo(0, 0); });
+    await page.waitForTimeout(200);
+    await page.screenshot({ path: `${output}/supplier-add-api-mobile.png` });
+
+    const requestsBeforeSearch = catalogRequests.length;
+    await page.getByPlaceholder('Search live supplier catalog...').fill('no matches');
+    await page.waitForTimeout(150);
+    assert.equal(catalogRequests.length, requestsBeforeSearch, 'Typing a search never makes per-keystroke supplier requests');
+    assert.equal(await page.getByRole('button', { name: 'View remote product 91', exact: true }).count(), 0);
+    await page.getByPlaceholder('Search live supplier catalog...').fill('');
+    failSupplierCatalog = true;
+    await page.getByRole('button', { name: 'Refresh API', exact: true }).click();
+    await page.getByRole('alert').filter({ hasText: 'Check the API key and URL.' }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'View remote product 91', exact: true }).count(), 0, 'Failed refresh removes stale products');
+    failSupplierCatalog = false;
+    await page.getByRole('button', { name: 'Retry', exact: true }).click();
+    await page.getByRole('button', { name: 'View remote product 91', exact: true }).waitFor();
+    slowDigitalMart = true;
+    await page.getByRole('button', { name: 'Refresh API', exact: true }).click();
+    await page.getByRole('button', { name: 'Safwan Tiger API', exact: true }).click();
+    await page.getByRole('button', { name: 'View remote product 92', exact: true }).waitFor();
+    await page.waitForTimeout(700);
+    assert.equal(await page.getByRole('button', { name: 'View remote product 91', exact: true }).count(), 0, 'Slow response from previous supplier cannot replace current catalog');
+    assert.equal(await page.getByRole('button', { name: 'View remote product 92', exact: true }).count(), 1);
+    slowDigitalMart = false;
+    mutations.length = 0;
     await page.goto(`${baseURL}/#settings/payments`);
     await page.getByTitle('Edit bKash').click();
     await detailDialog().getByRole('heading', { name: 'Edit bKash' }).waitFor();
     await assertDialogFits();
     await page.keyboard.press('Escape');
-    await page.getByTitle('Configure ZiniPay Gateway & Auto-Verification').click();
+    await page.getByTitle('ZiniPay settings').click();
     await detailDialog().getByRole('heading', { name: 'ZiniPay Gateway Settings' }).waitFor();
     await assertDialogFits();
     await page.keyboard.press('Escape');
     assert.equal(mutations.length, 0, 'Opening/cancelling gateway configuration never saves payment settings');
+    await page.goto(`${baseURL}/#settings/notifications`);
+    await page.getByRole('heading', { name: 'Admin alerts', exact: true }).waitFor();
+    assert.equal(await page.getByRole('heading', { name: 'Administrator Notifications', exact: true }).count(), 0, 'Alerts have no repeated section title');
+    const deliveryAlert = page.getByRole('switch', { name: 'Automatic deliveries', exact: true });
+    assert.equal(await deliveryAlert.getAttribute('aria-checked'), 'false');
+    await deliveryAlert.click();
+    await detailDialog().getByRole('heading', { name: 'Enable Automatic deliveries?' }).waitFor();
+    await assertDialogFits();
+    await detailDialog().getByRole('button', { name: 'Cancel', exact: true }).click();
+    assert.equal(await deliveryAlert.getAttribute('aria-checked'), 'false', 'Cancelling an alert toggle retains its setting');
+    assert.equal(mutations.length, 0, 'Cancelling an alert toggle never writes settings');
+    assert.equal(await page.locator('.flag-row .flag-row-text small').count(), 1, 'Only the useful low-stock clarification remains');
+    await page.getByText('System & security', { exact: true }).click();
+    await page.getByText('Manual Deposit Requests', { exact: true }).waitFor();
+    await page.getByText('System & security', { exact: true }).click();
     await page.setViewportSize({ width: 390, height: 844 });
 
     emptyLists = true;
@@ -426,7 +515,7 @@ const emoji = { id: 1, name: 'Store subscription icon', emoji_id: '0000000000000
     const deleteConfirm = page.getByRole('dialog').last();
     await deleteConfirm.getByRole('button', { name: 'Cancel', exact: true }).click();
     await page.getByRole('button', { name: 'Select', exact: true }).click();
-    await page.getByRole('checkbox', { name: 'Select all on this page', exact: true }).check();
+    await page.getByRole('checkbox', { name: 'Select page', exact: true }).check();
     assert.match(await page.locator('.product-toolbar').innerText(), /1 product\(s\) selected/);
     await page.getByRole('button', { name: 'Deselect', exact: true }).click();
     await page.getByRole('button', { name: 'Done', exact: true }).click();
@@ -473,7 +562,7 @@ const emoji = { id: 1, name: 'Store subscription icon', emoji_id: '0000000000000
     failOverview = false;
     emptyOverview = true;
     await page.getByRole('button', { name: 'Try again', exact: true }).click();
-    await page.getByRole('heading', { name: 'You’re all caught up' }).waitFor();
+    await page.getByRole('heading', { name: 'All clear' }).waitFor();
     assert.match(await page.locator('.recent-orders').innerText(), /No orders yet/);
 
     signedIn = false;

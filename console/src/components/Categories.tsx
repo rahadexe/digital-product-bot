@@ -172,12 +172,12 @@ export function Categories({ say }: { say: Say }) {
           </button>
         </header>
 
-        <div className="app-list-heading"><span>{shown.length} categories</span><span>Tap to manage</span></div>
+        <div className="app-list-heading"><span>{shown.length} {shown.length === 1 ? 'category' : 'categories'}</span></div>
         <ul className="app-record-list category-feed" aria-label="Categories">
           {shown.map(cat => {
             const count = (products ?? []).filter(product => product.category_id === cat.id).length;
             return <li key={cat.id}>
-              <MobileRecordDetails title={cat.name} subtitle={`${count} ${count === 1 ? 'product' : 'products'}`} meta={cat.has_validity_filter ? 'Validity filter on' : undefined} amount="" status={cat.is_active ? 'Active' : 'Hidden'} tone={cat.is_active ? 'good' : 'neutral'} icon={cat.icon || Array.from(cat.name)[0]} label={`Manage category ${cat.name}`} fields={[
+              <MobileRecordDetails title={cat.name} subtitle={`${count} ${count === 1 ? 'product' : 'products'}`} amount="" status={cat.is_active ? 'Active' : 'Hidden'} tone={cat.is_active ? 'good' : 'neutral'} icon={cat.icon || undefined} label={`Manage category ${cat.name}`} fields={[
                 ['Category', cat.name], ['Products', count], ['Status', cat.is_active ? 'Active' : 'Hidden'],
                 ['Sort order', cat.sort_order], ['Validity filter', cat.has_validity_filter ? 'On' : 'Off'],
               ]}>

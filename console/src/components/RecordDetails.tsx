@@ -21,10 +21,10 @@ export function RecordDetails({ label, title, fields, children }: {
       {open && typeof document !== 'undefined' && createPortal(
         <Modal title={title} className="record-drawer" onClose={() => setOpen(false)}>
           <dl className="record-details">
-            {fields.map(([name, value]) => (
+            {fields.filter(([, value]) => value !== undefined && value !== null && value !== '' && value !== '—').map(([name, value]) => (
               <div key={name}>
                 <dt>{name}</dt>
-                <dd>{value ?? '—'}</dd>
+                <dd>{value}</dd>
               </div>
             ))}
           </dl>

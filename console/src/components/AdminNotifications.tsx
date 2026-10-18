@@ -36,27 +36,25 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip, con
       <div className="panel-subhead" style={{ borderTop: 0 }}>
         <div>
           <h3>
-            <span>Public channel announcements</span>
+            <span>Channel posts</span>
           </h3>
           <p>
-            Automatic posts to ({channel ? <code style={{ wordBreak: 'break-all' }}>{channel}</code> : 'configured in Channels tab'}).
+            {channel ? <code style={{ wordBreak: 'break-all' }}>{channel}</code> : <a href="#settings/channels">Set channel</a>}
           </p>
         </div>
       </div>
 
       <div className="rows">
         <FlagRow
-          label="Auto-post on Restock"
-          hint="Post to your channels when stock is added."
+          label="Restocks"
           on={isOn('auto_restock_alerts', '1')}
-          onChange={(next) => void confirmAndFlip('auto_restock_alerts', next, 'Auto-post on Restock')}
+          onChange={(next) => void confirmAndFlip('auto_restock_alerts', next, 'Restock posts')}
         />
 
         <FlagRow
-          label="Auto-post on Price Drop"
-          hint="Post to your channels when a price drops."
+          label="Price drops"
           on={isOn('auto_price_drop_alerts', '1')}
-          onChange={(next) => void confirmAndFlip('auto_price_drop_alerts', next, 'Auto-post on Price Drop')}
+          onChange={(next) => void confirmAndFlip('auto_price_drop_alerts', next, 'Price drop posts')}
         />
       </div>
 
@@ -64,53 +62,44 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip, con
       <div className="panel-subhead notif-section-head">
         <div>
           <h3>
-            <span>Admin alert preferences</span>
+            <span>Admin alerts</span>
           </h3>
-          <p>
-            Notifications dispatched directly to the Telegram accounts configured under &ldquo;Who runs this shop&rdquo;.
-          </p>
         </div>
       </div>
 
       <div className="rows">
         {/* TOGGLABLE (ON/OFF) FIRST */}
-        <div className="notif-divider">
-          <span>Configurable Alerts (Toggle on/off)</span>
-        </div>
 
         <FlagRow
-          label="Instant Stock Purchases"
-          hint="Notify admins after automatic delivery."
+          label="Automatic deliveries"
           on={isOn('notify_admin_orders', '0')}
-          onChange={(next) => void confirmAndFlip('notify_admin_orders', next, 'Instant Stock Purchases')}
+          onChange={(next) => void confirmAndFlip('notify_admin_orders', next, 'Automatic deliveries')}
         />
 
         <FlagRow
-          label="Automatic Gateway Deposits"
-          hint="Notify admins after a gateway deposit is credited."
+          label="Auto deposits"
           on={isOn('notify_admin_payments', '0')}
           onChange={(next) => void confirmAndFlip('notify_admin_payments', next, 'Automatic Gateway Deposits')}
         />
 
         <FlagRow
-          label="Stock Restock Alerts"
-          hint="Notify admins when stock is added."
+          label="Restocks"
           on={isOn('notify_admin_restock', '1')}
           onChange={(next) => void confirmAndFlip('notify_admin_restock', next, 'Stock Restock Alerts')}
         />
 
         <FlagRow
-          label="Low Stock &amp; Out of Stock Alerts"
-          hint={`Immediate Telegram alert when stock falls to ${values.low_stock_threshold || '3'} items or fewer, or becomes completely sold out`}
+          label="Low stock"
+          hint="Includes out of stock."
           on={isOn('notify_admin_low_stock', '1')}
           onChange={(next) => void confirmAndFlip('notify_admin_low_stock', next, 'Low Stock Alerts')}
         />
         {isOn('notify_admin_low_stock', '1') && (
-          <div style={{ padding: '8px 16px 14px', background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <div className="low-stock-threshold">
             <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
-              Alert threshold:
+              Threshold (items)
             </span>
-            <div style={{ display: 'inline-flex', gap: '6px' }}>
+            <div role="group" aria-label="Low stock threshold">
               {['1', '2', '3', '5', '10'].map((num) => {
                 const active = (values.low_stock_threshold || '3') === num;
                 return (
@@ -118,10 +107,11 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip, con
                     key={num}
                     type="button"
                     className={`button compact ${active ? 'primary' : 'ghost'}`}
+                    aria-pressed={active}
                     style={{
                       padding: '2px 10px',
                       fontSize: '12px',
-                      minHeight: '26px',
+                      minHeight: '44px',
                       borderRadius: '6px',
                       border: active ? '1px solid var(--accent)' : '1px solid var(--border)',
                       background: active ? 'var(--accent)' : 'transparent',
@@ -140,33 +130,28 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip, con
                       }
                     }}
                   >
-                    {num} {num === '3' ? '(Default)' : ''}
+                    {num}
                   </button>
                 );
               })}
             </div>
-            <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
-              items remaining
-            </span>
           </div>
         )}
 
         <FlagRow
-          label="Price Change Alerts (Drop &amp; Up)"
-          hint="Notify admins when a price changes."
+          label="Price changes"
           on={isOn('notify_admin_price_change', '1')}
           onChange={(next) => void confirmAndFlip('notify_admin_price_change', next, 'Price Change Alerts')}
         />
 
         <FlagRow
           label="New customers"
-          hint="Notify admins when a customer joins."
           on={isOn('notify_admin_new_user', '0')}
           onChange={(next) => void confirmAndFlip('notify_admin_new_user', next, 'New Customers Alert')}
         />
 
         <details className="notification-details">
-          <summary>System &amp; security alerts <span>Always configured</span></summary>
+          <summary>System &amp; security</summary>
         <div className="mandatory-row">
           <div className="mandatory-info">
             <div className="mandatory-title-row">
@@ -206,8 +191,8 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip, con
         <div className="mandatory-row">
           <div className="mandatory-info">
             <div className="mandatory-title-row">
-              <strong>Security: Group Invites Auto-Blocked</strong>
-              <span className="mandatory-badge neutral">Auto-leave</span>
+              <strong>Group invites</strong>
+              <span className="mandatory-badge neutral">Auto leave</span>
             </div>
             <p className="mandatory-desc">
               When added to a Telegram group, the bot silently leaves immediately to prevent data leakage without sending spam alerts to admin inboxes.
@@ -218,8 +203,8 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip, con
         <div className="mandatory-row">
           <div className="mandatory-info">
             <div className="mandatory-title-row">
-              <strong>Security: Unauthorized Channels Auto-Blocked</strong>
-              <span className="mandatory-badge neutral">Auto-leave</span>
+              <strong>Unapproved channels</strong>
+              <span className="mandatory-badge neutral">Auto leave</span>
             </div>
             <p className="mandatory-desc">
               When added to an unconfigured channel, the bot silently leaves immediately to protect broadcasting without sending spam alerts to admin inboxes.
@@ -235,21 +220,14 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip, con
           <h3>
             <span>Customer notifications</span>
           </h3>
-          <p>
-            Order, wallet and referral messages.
-          </p>
         </div>
       </div>
 
       <div className="rows">
         {/* TOGGLABLE (ON/OFF) FIRST */}
-        <div className="notif-divider">
-          <span>Configurable Customer Alerts</span>
-        </div>
 
         <FlagRow
-          label="Referral Bonus Alerts"
-          hint="Notify the referrer when a reward is credited."
+          label="Referral rewards"
           on={isOn('notify_user_referral', '1')}
           onChange={(next) => void flip('notify_user_referral', next, 'Referral Bonus Alerts')}
         />

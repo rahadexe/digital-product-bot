@@ -2356,8 +2356,10 @@ async def adm_upstream_status(message: Message, services: Services):
     if await _deny(message, services):
         return
     reseller = services.upstream_reseller
+    if reseller:
+        await reseller._ensure_config()
     if not reseller or not reseller.is_configured:
-        await message.answer("Upstream reseller API is not configured in .env.")
+        await message.answer("Configure the supplier API in the admin panel.")
         return
 
     account = await reseller.get_account()
@@ -2365,6 +2367,7 @@ async def adm_upstream_status(message: Message, services: Services):
         await message.answer("Failed to connect to upstream reseller API. Check your key and network.")
         return
 
+    account = account.get("user", account)
     name = account.get("name") or "Reseller"
     tg_id = account.get("tg_user_id") or ""
     bal = account.get("balance", 0.0)
@@ -2396,6 +2399,8 @@ async def adm_do_sync_upstream_cb(query: CallbackQuery, services: Services):
     if await _deny(query, services):
         return
     reseller = services.upstream_reseller
+    if reseller:
+        await reseller._ensure_config()
     if not reseller or not reseller.is_configured:
         await query.answer("Upstream not configured.", show_alert=True)
         return
@@ -2403,7 +2408,14 @@ async def adm_do_sync_upstream_cb(query: CallbackQuery, services: Services):
     with suppress(TelegramBadRequest):
         await query.answer("Syncing catalog with upstream provider...")
 
-    cats, prods = await reseller.sync_catalog()
+    from app.services.suppliers import SupplierError
+    try:
+        cats, prods = await reseller.sync_catalog()
+    except SupplierError as exc:
+        if query.message:
+            await query.message.answer(html.escape(str(exc)))
+        return
+    services.catalog.invalidate()
     result_text = f"<b>Sync Complete</b>\n\n• Categories created: {cats}\n• Products synced/updated: {prods}"
     if query.message:
         await query.message.answer(result_text)

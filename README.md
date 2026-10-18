@@ -30,6 +30,26 @@ TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5432/postgres python -m unitte
 cd console && npm ci && npm run dev     # console on :3000, API on :8000
 ```
 
+## Supplier setup
+
+Open **Suppliers** in the admin panel. Each supported provider has an **Add API**
+or **Edit API** button. Enter its HTTPS API base URL and key, then choose
+**Save & connect**. A blank key keeps the saved key. The connection check makes
+a fresh, read-only balance request; saving settings never places an order.
+
+Digital Mart and Safwan Tiger use separate API adapters, credentials, currencies,
+markup and auto-sync switches. A different provider needs its own documented
+adapter, not just an arbitrary URL.
+
+Use **Browse catalog** to select products and import them. Imports are hidden
+unless activation is selected. **Sync** and background sync update only products
+already imported, preserving custom titles, categories and higher selling prices.
+Invalid keys, unavailable catalogs and missing selected products are reported as
+errors, not successful zero-product imports.
+
+Orders accepted by a supplier or with an unknown payment outcome must be checked
+with that supplier before retrying. They are never automatically purchased again.
+
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md) — layout, durability, and what will need attention as the store grows

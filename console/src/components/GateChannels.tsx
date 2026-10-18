@@ -61,7 +61,7 @@ export function GateChannels({ say, isGateEnabled }: { say: Say; isGateEnabled?:
                 )}
               </div>
               <small>
-                {channel.channel_username} ·{' '}
+                {channel.channel_username}{' '}
                 <a href={channel.invite_link} target="_blank" rel="noreferrer">
                   {channel.invite_link.replace('https://', '')}
                 </a>
