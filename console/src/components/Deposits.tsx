@@ -12,6 +12,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { RecordDetails } from './RecordDetails';
+import { MobileRecord } from './MobileRecord';
 import { api, type Deposit, type DepositSummary, type PaymentInvoice } from '@/lib/api';
 import { useMoney } from '@/lib/currency';
 import { EmptyRow, FlagRow, Modal, Pager, errorText, tone, useDebounced, when, who, type Say } from './ui';
@@ -149,6 +150,7 @@ function TopUps({
   }
 
   const pCount = summary?.pending_count ?? (waiting ? total : 0);
+  const [selectedDeposit, setSelectedDeposit] = useState<Deposit | null>(null);
 
   return (
     <>
@@ -210,7 +212,28 @@ function TopUps({
           </div>
         </header>
 
-        <div className="scroll" tabIndex={0} role="region" aria-label="Deposits table" aria-busy={loading}>
+        <div className="app-list-heading"><span>{total} {total === 1 ? 'deposit' : 'deposits'}</span><span>Tap to review</span></div>
+        <ul className="app-record-list deposit-feed" aria-label="Deposits" aria-busy={loading}>
+          {!loadError ? (rows ?? []).map(deposit => {
+            const flagged = deposit.status === 'pending' && Boolean(deposit.admin_note?.startsWith('Needs a look'));
+            return <li key={deposit.id}>
+              <MobileRecord
+                title={who(deposit)}
+                subtitle={`${deposit.method_name || 'Deposit'} · D${deposit.id}`}
+                meta={when(deposit.created_at)}
+                amount={money(deposit.amount)}
+                status={flagged ? 'Needs review' : deposit.status}
+                tone={flagged ? 'bad' : tone(deposit.status) || 'neutral'}
+                icon={<Wallet size={20} />}
+                label={`Review deposit D${deposit.id}`}
+                onOpen={() => setSelectedDeposit(deposit)}
+              />
+            </li>;
+          }) : null}
+          {loadError ? <li className="app-list-empty" role="alert">{loadError}<button className="btn ghost" onClick={() => void load()}>Retry deposits</button></li>
+            : !rows || !rows.length ? <li className="app-list-empty">{loading ? 'Loading deposits…' : waiting ? 'No deposits waiting for review.' : 'No deposits match your search.'}</li> : null}
+        </ul>
+        <div className="scroll desktop-record-scroll" tabIndex={0} role="region" aria-label="Deposits table" aria-busy={loading}>
           <table className="record-directory deposit-directory">
             <thead>
               <tr>
@@ -375,6 +398,27 @@ function TopUps({
         <Pager total={total} offset={offset} size={PAGE} onChange={setOffset} />
       </section>
 
+      {selectedDeposit ? (
+        <Modal title={`Deposit D${selectedDeposit.id}`} className="record-drawer" onClose={() => setSelectedDeposit(null)}>
+          <dl className="record-details">
+            {[
+              ['Customer', who(selectedDeposit)],
+              ['Wallet credit', money(selectedDeposit.amount)],
+              ['Method', selectedDeposit.method_name || '—'],
+              ['Transaction ID', selectedDeposit.transaction_id || '—'],
+              ['Status', selectedDeposit.status],
+              ['Created', when(selectedDeposit.created_at)],
+              ['Admin note', selectedDeposit.admin_note || '—'],
+              ...(selectedDeposit.pay_amount != null ? [['Amount sent', `${selectedDeposit.pay_amount} (payment currency)`]] : []),
+            ].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
+          </dl>
+          {selectedDeposit.status === 'pending' ? <div className="app-review-actions">
+            {['binance', 'binance_pay'].includes(selectedDeposit.auto_verify || '') ? <button type="button" className="btn ghost" disabled={busy === selectedDeposit.id} onClick={() => { const deposit = selectedDeposit; setSelectedDeposit(null); void checkOnBinance(deposit); }}>Check Binance</button> : null}
+            <button type="button" className="btn" disabled={busy === selectedDeposit.id} onClick={() => { setReview({ deposit: selectedDeposit, approve: true }); setSelectedDeposit(null); }}>Verify deposit</button>
+            <button type="button" className="btn ghost danger" disabled={busy === selectedDeposit.id} onClick={() => { setReview({ deposit: selectedDeposit, approve: false }); setSelectedDeposit(null); }}>Reject deposit</button>
+          </div> : null}
+        </Modal>
+      ) : null}
       {review ? (
         <ReviewDialog
           review={review}
@@ -472,6 +516,7 @@ function Instant({
   const [offset, setOffset] = useState(0);
   const [busy, setBusy] = useState('');
   const [loading, setLoading] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState<PaymentInvoice | null>(null);
   const money = useMoney();
 
   const load = useCallback(async () => {
@@ -551,7 +596,30 @@ function Instant({
         </div>
       </header>
 
-      <div className="scroll" tabIndex={0} role="region" aria-label="Instant deposits table">
+      <div className="app-list-heading"><span>{total} payments</span><span>ZiniPay</span></div>
+      <ul className="app-record-list deposit-feed" aria-label="Instant deposits" aria-busy={loading}>
+        {(rows ?? []).map(payment => <li key={payment.id}>
+          <MobileRecord title={payment.first_name || payment.username || `User ${payment.tg_user_id}`} subtitle={payment.payment_method || 'ZiniPay'} meta={when(payment.created_at)} amount={money(payment.credit_amount)} status={['created', 'pending'].includes(payment.status) ? 'Unpaid' : payment.status} tone={tone(payment.status) || 'neutral'} icon={<Zap size={20} />} label={`View payment ${payment.reference}`} onOpen={() => setSelectedPayment(payment)} />
+        </li>)}
+        {!rows || !rows.length ? <li className="app-list-empty">{loading ? 'Loading payments…' : 'No instant deposits yet.'}</li> : null}
+      </ul>
+      {selectedPayment ? <Modal title="Payment details" className="record-drawer" onClose={() => setSelectedPayment(null)}>
+        <dl className="record-details">
+          {[
+            ['Customer', selectedPayment.first_name || selectedPayment.username || String(selectedPayment.tg_user_id)],
+            ['Wallet credit', money(selectedPayment.credit_amount)],
+            ['Amount to pay', `৳${selectedPayment.pay_amount.toFixed(2)}`],
+            ['Reference', selectedPayment.reference],
+            ['Transaction ID', selectedPayment.provider_transaction_id || '—'],
+            ['Method', selectedPayment.payment_method || 'ZiniPay'],
+            ['Status', selectedPayment.status],
+            ['Created', when(selectedPayment.created_at)],
+            ['Last error', selectedPayment.last_error || '—'],
+          ].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
+        </dl>
+        {selectedPayment.status === 'pending' ? <button type="button" className="btn" disabled={busy === selectedPayment.reference} onClick={() => { const payment = selectedPayment; setSelectedPayment(null); void check(payment); }}>Check payment</button> : null}
+      </Modal> : null}
+      <div className="scroll desktop-record-scroll" tabIndex={0} role="region" aria-label="Instant deposits table">
         <table className="record-directory deposit-directory">
           <thead>
             <tr>

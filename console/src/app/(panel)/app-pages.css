@@ -1,0 +1,169 @@
+/* The remaining operator screens use the same mobile-first list language.
+   Desktop tables and financial workflows remain unchanged. */
+.app-detail-trigger { flex: 1; min-width: 0; }
+.app-review-actions { display: grid; gap: 10px; margin-top: 20px; }
+.app-review-actions > button { width: 100%; min-height: 44px; }
+.app-duration-copy { display: grid; gap: 5px; flex: 1; min-width: 0; }
+.app-duration-copy strong { font-size: 14px; overflow-wrap: anywhere; }
+.app-duration-copy small { color: var(--muted); font-size: 12px; }
+.app-duration-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--accent-soft); color: var(--accent); flex: 0 0 40px; }
+
+@media (max-width: 760px) {
+  html:has(.console-root), body:has(.console-root),
+  .console-root .console, .console-root .main { background: #fff; }
+  .console-root .main { padding-inline: 18px; }
+  .console-root .main-inner[data-screen] > .panel,
+  .console-root .main-inner[data-screen] .settings-card,
+  .console-root .main-inner[data-screen] .suppliers-container > .panel {
+    border: 0; border-radius: 0; background: transparent; box-shadow: none; overflow: visible;
+  }
+  .console-root .main-inner[data-screen] .panel > header {
+    min-height: 0; padding: 0 0 16px; margin: 0; border: 0; border-radius: 0; background: transparent;
+  }
+  .console-root .main-inner[data-screen] .panel > header h2 { font-size: 15px; line-height: 1.5; }
+  .console-root .main-inner[data-screen] .queue-panel > header { gap: 14px; }
+  .console-root .main-inner[data-screen] .queue-tabs,
+  .console-root .main-inner[data-screen] .segmented {
+    flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; max-width: 100%;
+    background: none; border: 0; border-radius: 0; padding: 0; gap: 7px;
+  }
+  .console-root .main-inner[data-screen] :is(.queue-tabs, .segmented) > button {
+    flex: 0 0 auto; min-height: 40px; border-radius: 22px; padding: 8px 13px;
+    border: 1px solid var(--border); color: var(--muted); background: #fff; font-size: 12px;
+  }
+  .console-root .main-inner[data-screen] :is(.queue-tabs, .segmented) > button.active {
+    color: #fff; background: var(--accent); border-color: var(--accent);
+  }
+  .console-root .main-inner[data-screen] .queue-tabs .count { background: #ffffff24; color: inherit; padding-inline: 3px; }
+  .console-root .main-inner[data-screen] .filters { gap: 10px; margin: 0; }
+  .console-root .main-inner:is([data-screen='deposits'], [data-screen='users']) .filters { display: grid; grid-template-columns: minmax(0, 1fr) 44px; }
+  .console-root .main-inner:is([data-screen='deposits'], [data-screen='users']) .filters input[type='search'] { width: 100%; min-width: 0; min-height: 44px; }
+  .console-root .main-inner:is([data-screen='deposits'], [data-screen='users']) .filters .btn { width: 44px; height: 44px; min-width: 44px; padding: 0; }
+  .console-root .main-inner:is([data-screen='deposits'], [data-screen='users']) .filters .btn > span { display: none; }
+  .console-root .main-inner[data-screen] .panel .scroll.desktop-record-scroll { display: none; }
+  .console-root .main-inner[data-screen] .pager { padding: 16px 0; background: none; gap: 8px; font-size: 12px; }
+  .console-root .main-inner[data-screen] .pager .mini { min-height: 44px; padding-inline: 10px; }
+  .console-root .main-inner[data-screen] .pager:not(:has(button:not(:disabled))) button { display: none; }
+  .console-root .customer-feed .app-record-icon { background: #edf6f5; color: #198476; }
+  .console-root .deposit-feed .app-record-icon { background: #eff2fc; color: #6478b1; }
+  .console-root .app-record-list.validity-feed > li:not(.app-list-empty) { gap: 12px; min-height: 82px; padding: 12px 0; }
+  .console-root .app-record-more:disabled { opacity: .3; }
+  .console-root .main-inner[data-screen='categories'] .category-toolbar > .btn { width: auto; }
+  .console-root .main-inner[data-screen='inventory'] .filters { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .console-root .main-inner[data-screen='validities'] .filters { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .console-root .main-inner[data-screen='validities'] .filters input[type='search'] { width: 100%; }
+  .console-root .main-inner:is([data-screen='inventory'], [data-screen='validities']) .filters > * { width: 100% !important; min-width: 0 !important; }
+
+  /* Settings is a quiet, grouped form, not nested boxes inside boxes. */
+  .console-root .settings-tabs-modern { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 0 0 16px; margin: 0 0 22px; border: 0; border-bottom: 1px solid var(--border); background: none; box-shadow: none; border-radius: 0; }
+  .console-root .settings-tabs-modern .settings-tab-btn { min-width: 0; min-height: 44px; display: flex; justify-content: center; align-items: center; padding: 10px 5px; border-radius: 12px; color: var(--muted); font-size: 12px; background: none; border: 0; box-shadow: none; }
+  .console-root .settings-tabs-modern .settings-tab-btn svg { display: none; }
+  .console-root .settings-tabs-modern .settings-tab-btn.active { background: var(--accent-soft); color: var(--accent); }
+  .console-root .settings-grid-2col, .console-root .settings-sections { display: grid; grid-template-columns: minmax(0, 1fr); gap: 26px; }
+  .console-root .main-inner[data-screen='settings'] .settings-card { margin: 0 0 24px; }
+  .console-root .main-inner[data-screen='settings'] .settings-card > header { display: flex; flex-direction: row; justify-content: space-between; flex-wrap: nowrap; padding: 0 0 14px; border-bottom: 1px solid var(--border); align-items: center; }
+  .console-root .settings-card .field-grid, .console-root .settings-card .panel-body { padding: 18px 0 !important; }
+  .console-root .settings-card .field-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .console-root .service-control-list { padding: 0; }
+  .console-root .service-control-item { padding: 16px 0; border-bottom: 1px solid var(--border); border-radius: 0; background: none; }
+  .console-root .service-control-text h3 { font-size: 14px; }
+  .console-root .service-control-text p { font-size: 12px; line-height: 1.6; max-width: 36ch; }
+  .console-root .settings-card :is(.rows, .panel-subhead) { padding-inline: 0; }
+  .console-root .settings-card .row { padding: 16px 0; border-radius: 0; }
+  .console-root .settings-card .row-actions { flex-wrap: wrap !important; }
+  .console-root .settings-card .btn-card-save { min-width: 64px; min-height: 44px; }
+  .console-root .main-inner[data-screen='settings'] .payment-accounts-panel { border: 0; border-radius: 0; box-shadow: none; }
+  .console-root .main-inner[data-screen='settings'] .payment-accounts-panel > header { flex-direction: row; align-items: center; }
+  .console-root .payment-accounts-panel .payment-account-list-wrap { padding: 0; }
+  .console-root .payment-accounts-panel .payment-method-item { background: none !important; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; box-shadow: none; padding: 16px 0; }
+  .console-root .payment-accounts-panel .payment-method-actions { background: none; border: 0; padding-inline: 0; }
+  .console-root .field > span:first-child { font-size: 12px; font-weight: 650; line-height: 1.6; }
+  .console-root .field :is(input:not([type='checkbox']), textarea, select) { min-height: 46px; background: #fafbfe; }
+  .console-root .hint, .console-root .note { font-size: 12px; line-height: 1.65; }
+
+  /* Light supplier rows keep configuration secondary and stock readable. */
+  .console-root .supplier-configuration { border: 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 0; background: none; border-radius: 0; }
+  .console-root .supplier-configuration > summary { padding: 17px 0; min-height: 50px; font-size: 13px; font-weight: 650; }
+  .console-root .supplier-configuration[open] > .panel { border: 0; padding: 12px 0; }
+  .console-root .supplier-directory .scroll { min-height: 0 !important; overflow: visible; }
+  .console-root .main-inner[data-screen='suppliers'] .panel.supplier-directory .scroll :is(table, tbody) { display: block; min-width: 0; width: 100%; }
+  .console-root .main-inner[data-screen='suppliers'] .panel.supplier-directory .scroll thead { display: none; }
+  .console-root .main-inner[data-screen='suppliers'] .panel.supplier-directory .scroll tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 10px; padding: 16px 0; border-bottom: 1px solid var(--border); }
+  .console-root .main-inner[data-screen='suppliers'] .panel.supplier-directory .scroll td { display: block; min-width: 0; width: auto; height: auto; padding: 0; border: 0; font-size: 12px; white-space: normal; text-align: left; }
+  .console-root .supplier-directory td:nth-child(1) { grid-column: 1; grid-row: 1; }
+  .console-root .supplier-directory td:nth-child(3) { grid-column: 2; grid-row: 1; text-align: right !important; }
+  .console-root .supplier-directory td:nth-child(4)::after { content: ' products'; color: var(--muted); }
+  .console-root .supplier-directory td:last-child { grid-column: 2; grid-row: 2 / 4; align-self: center; }
+  .console-root .supplier-directory td .btn { min-width: 64px; }
+  .console-root .main-inner[data-screen='suppliers'] .panel .scroll table.mobile-records tbody tr { border-radius: 0; background: none; box-shadow: none; border: 0; border-bottom: 1px solid var(--border); padding: 16px 0; }
+  .console-root .main-inner[data-screen='suppliers'] .panel-body { padding-inline: 0 !important; }
+  .console-root .supplier-catalog-filters { padding: 14px 0 !important; background: none !important; }
+  .console-root .supplier-catalog-filters > div { min-width: 0; width: 100%; max-width: 100%; }
+  .console-root .supplier-catalog-filters > div:last-child > .custom-select-container { flex: 1 1 0; width: auto !important; min-width: 0 !important; }
+  .console-root .supplier-import-options > div { flex-wrap: wrap; min-width: 0; max-width: 100%; }
+  .console-root .supplier-import-options .custom-select-container { min-width: 0 !important; max-width: 100%; }
+  .console-root .supplier-import-selection { padding: 12px 0 !important; }
+  .console-root .supplier-import-selection > div { display: flex; flex-wrap: wrap; max-width: 100%; min-width: 0; gap: 8px; }
+  .console-root .supplier-import-selection button { max-width: 100%; min-height: 44px; white-space: normal; }
+  .console-root .main-inner[data-screen='suppliers'] .panel > header > div { min-width: 0; max-width: 100%; }
+
+  /* Emoji library, composer and activity share the same restrained rhythm. */
+  .console-root .main-inner[data-screen='emojis'] .emoji-library-toolbar { padding-inline: 0; }
+  .console-root .main-inner[data-screen='emojis'] .emoji-library .scroll { min-height: 0; }
+  .console-root .main-inner[data-screen='emojis'] .emoji-library tbody tr:not(.empty-row) { margin: 0; padding: 16px 0; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; box-shadow: none; }
+  .console-root .main-inner[data-screen='emojis'] .emoji-library-search { min-height: 46px; border-radius: 12px; background: #fafbfe; }
+  .console-root .main-inner[data-screen='broadcast'] .broadcast-panel { padding: 0; border: 0; background: none; box-shadow: none; }
+  .console-root .main-inner[data-screen='broadcast'] .broadcast-composer-grid { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .console-root .main-inner[data-screen='broadcast'] .broadcast-composer > .panel-body { padding-inline: 0; }
+  .console-root .main-inner[data-screen='broadcast'] .broadcast-composer > header { flex-direction: row; align-items: center; flex-wrap: wrap; }
+  .console-root .main-inner[data-screen='broadcast'] .broadcast-composer > header .actions { margin-left: auto; }
+  .console-root .main-inner[data-screen='broadcast'] .broadcast-composer > header .actions button { min-height: 44px; }
+  .console-root .main-inner[data-screen='broadcast'] .fmt-btn { min-width: 44px; min-height: 44px; }
+  .console-root .main-inner[data-screen='broadcast'] textarea { font-size: 16px !important; min-height: 210px !important; }
+  .console-root .reseller-requests > .reseller-empty { display: none; }
+  .console-root .main-inner[data-screen='activity'] > .panel + .panel { margin-top: 28px; }
+  .console-root .main-inner[data-screen='activity'] > .panel:first-of-type > header { flex-direction: row; align-items: center; justify-content: space-between; flex-wrap: nowrap; }
+  .console-root .main-inner[data-screen='activity'] > .panel:first-of-type > header button { width: auto; min-width: 76px; }
+  .console-root .main-inner[data-screen='activity'] .panel-body { padding: 0; }
+  .console-root .activity-entry { padding: 16px 0 16px 16px; margin: 0; border: 0; border-left: 2px solid var(--accent-soft); border-bottom: 1px solid var(--border); border-radius: 0; background: none; }
+  .console-root .activity-entry strong { font-size: 13px; text-transform: capitalize; }
+  .console-root .activity-entry p { font-size: 12px; margin: 7px 0; color: var(--text-dim); overflow-wrap: anywhere; }
+  .console-root .activity-entry small { font-size: 11px; color: var(--muted); }
+  .console-root .activity-job { gap: 12px; padding: 16px 0; border-radius: 0; background: none; border-bottom: 1px solid var(--border); }
+  .console-root .activity-job > span { min-width: 0; }
+  .console-root .activity-job small { overflow-wrap: anywhere; font-size: 12px; line-height: 1.6; }
+  .console-root .activity-job button { min-width: 60px; flex-shrink: 0; }
+
+  /* Customer detail is a single continuous page with grouped account controls. */
+  .console-root .cust-profile-hero, .console-root .cust-workspace-panel { border: 0; border-radius: 0; box-shadow: none; padding-inline: 0; }
+  .console-root .main-inner[data-screen='users'] .panel.cust-workspace-panel { border: 0; border-radius: 0; box-shadow: none; overflow: visible; }
+  .console-root .main-inner[data-screen='users'] .cust-workspace-panel > header { display: flex; flex-direction: row; justify-content: space-between; flex-wrap: nowrap; padding: 16px 0; border-bottom: 1px solid var(--border); }
+  .console-root .cust-workspace-panel > header > .pill { width: auto; display: inline-flex; min-height: 0; padding: 4px 8px; border: 0; flex-shrink: 0; }
+  .console-root .cust-workspace-panel .desktop-customer-orders { display: none; }
+  .console-root .cust-workspace-panel .customer-order-feed .app-record { min-height: 96px; }
+  .console-root .cust-metrics-grid { gap: 0; border-block: 1px solid var(--border); }
+  .console-root .cust-metric-card { border: 0; border-radius: 0; box-shadow: none; padding: 16px 10px; }
+  .console-root .cust-metric-card:nth-child(odd) { border-right: 1px solid var(--border); }
+  .console-root .cust-workspace-grid { gap: 24px; }
+  .console-root .cust-panel-head { padding: 16px 0; }
+  .console-root .cust-panel-body { padding: 16px 0; }
+  .console-root .cust-order-item { border-radius: 0; box-shadow: none; border: 0; border-bottom: 1px solid var(--border); padding: 16px 0; }
+
+  /* Dashboard keeps its useful metrics but drops the stack of nested boxes. */
+  .console-root .workspace-heading { margin-bottom: 16px; }
+  .console-root .workspace-heading .eyebrow, .console-root .workspace-heading h1, .console-root .workspace-heading .page-description { display: none; }
+  .console-root .workspace-heading > button { margin-left: auto; }
+  .console-root .overview-metrics.overview-essential { gap: 0; border-block: 1px solid var(--border); }
+  .console-root .overview-essential .overview-metric, .console-root .overview-essential .overview-metric:last-child { border: 0; box-shadow: none; border-radius: 0; padding: 18px 12px; }
+  .console-root .overview-essential .overview-metric:nth-child(odd) { border-right: 1px solid var(--border); }
+  .console-root .overview-essential .overview-metric:nth-child(-n+2) { border-bottom: 1px solid var(--border); }
+  .console-root .overview-metric.featured::before { display: none; }
+  .console-root .revenue-panel, .console-root .operations-panel { border: 0; border-radius: 0; box-shadow: none; padding: 16px 0; }
+  .console-root .recent-orders > header { padding-inline: 0 !important; }
+  .console-root .main-inner[data-screen='overview'] .panel .scroll table.overview-orders tr:not(.empty-row) { padding-inline: 0; }
+  .console-root .workspace-shortcuts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .console-root .workspace-shortcuts > button { border: 0; border-bottom: 1px solid var(--border); border-radius: 0; box-shadow: none; padding-inline: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .console-root *, .console-root *::before, .console-root *::after { scroll-behavior: auto !important; }
+}

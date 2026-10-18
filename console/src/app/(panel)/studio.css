@@ -108,6 +108,11 @@ html:has(.console-root), body:has(.console-root) { background: #f5f7fb; }
 .console-root .workspace-shortcuts > button { min-height: 52px; background: #fff; border: 1px solid var(--border); padding: 12px 18px; border-radius: 12px; }
 .console-root .workspace-shortcuts > button:hover { color: var(--accent); border-color: #c3bce9; }
 .mobile-dock { display: none; }
+.console-root .mobile-filter-toggle { display: none; }
+.product-extra-filters { display: flex; flex-wrap: wrap; gap: 10px; }
+.order-customer-input { margin-top: 7px; padding: 7px 9px; background: #f5f7fb; border: 1px solid var(--border); border-radius: 7px; min-width: 0; }
+.order-input-label { display: block; color: var(--muted); font-size: 10px; margin-bottom: 2px; }
+.order-input-value { display: block; font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
 @media (min-width: 761px) {
   .console-root .mobile-header { display: none; }
   .console-root .rail { display: flex !important; }
@@ -129,12 +134,33 @@ html:has(.console-root), body:has(.console-root) { background: #f5f7fb; }
 @media (max-width: 760px) {
   .workspace-chrome { left: 0; }
   .workspace-topbar { display: none; }
-  .console-root .mobile-header { position: static; height: auto; min-height: 62px; padding: calc(8px + env(safe-area-inset-top)) 14px 8px; background: #ffffffed; backdrop-filter: blur(16px); display: flex; gap: 12px; box-shadow: 0 2px 10px #19243804; }
-  .console-root .mobile-brand-title { position: static; transform: none; justify-content: flex-start; max-width: none; min-width: 0; flex: 1; }
-  .console-root .mobile-brand-title .brand-wordmark { font-size: 15px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
-  .mobile-screen-label { font-size: 10px; font-weight: 650; color: var(--muted); max-width: 92px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-  .console-root .hamburger-btn { width: 40px; height: 40px; flex-shrink: 0; background: #f0eefb; color: var(--accent); border: 1px solid #e5e1f6; border-radius: 11px; }
-  .console-root .main { padding: calc(85px + env(safe-area-inset-top)) 16px calc(104px + env(safe-area-inset-bottom)); width: 100%; margin: 0; }
+  .console-root .mobile-header { position: static; height: auto; min-height: 72px; padding: calc(10px + env(safe-area-inset-top)) 18px 10px; background: #ffffffed; backdrop-filter: blur(16px); display: flex; gap: 12px; box-shadow: 0 2px 10px #19243804; }
+  .mobile-app-heading { min-width: 0; flex: 1; }
+  .console-root .mobile-app-heading h1 { margin: 0; font-size: 22px; line-height: 1.25; letter-spacing: -.035em; }
+  .mobile-store-link { display: block; max-width: 100%; border: 0; background: none; padding: 0; color: var(--muted); text-align: left; font-size: 11px; line-height: 1.6; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
+  .console-root .main-inner > .page-head { display: none; }
+  .console-root .hamburger-btn { width: 44px; height: 44px; flex-shrink: 0; background: #f5f6fa; color: var(--text-dim); border: 1px solid var(--border); border-radius: 50%; }
+  .console-root .main { padding: calc(88px + env(safe-area-inset-top)) 12px calc(94px + env(safe-area-inset-bottom)); width: 100%; margin: 0; }
+  .console-root .main-inner { gap: 14px; }
+  .console-root .main-inner[data-screen] .queue-panel > header { padding: 12px; gap: 12px; }
+  .console-root .queue-tabs { width: 100%; display: flex; gap: 4px; padding: 3px; border-radius: 12px; background: var(--surface-2); }
+  .console-root .queue-tabs button { flex: 1; min-height: 42px; padding: 8px; border-radius: 9px; font-size: 12px; justify-content: center; }
+  .console-root .queue-tabs button.active { background: #fff; color: var(--accent); box-shadow: 0 1px 5px #19243810; }
+  .console-root .main-inner[data-screen='orders'] .queue-panel > header > .filters { display: grid; grid-template-columns: minmax(0, 1fr) 44px 44px; gap: 8px; }
+  .console-root .main-inner[data-screen='orders'] .order-date-filter { display: none; grid-column: 1 / -1; }
+  .console-root .main-inner[data-screen='orders'] .mobile-filters-open .order-date-filter { display: block; }
+  .console-root .main-inner[data-screen='orders'] .order-date-filter > .custom-select-container { width: 100% !important; }
+  .console-root .main-inner[data-screen='orders'] .filters input[type='search'] { width: 100%; min-width: 0; }
+  .console-root .main-inner[data-screen='orders'] .filters .btn { width: 44px; height: 44px; padding: 0; }
+  .console-root .main-inner[data-screen='orders'] .filters .btn span { display: none; }
+  .console-root .main-inner[data-screen] .mobile-filter-toggle { display: inline-flex; }
+  .console-root .mobile-filter-toggle.active { color: var(--accent); background: var(--accent-soft); }
+  .console-root .main-inner[data-screen='products'] .product-toolbar .filters { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+  .console-root .main-inner[data-screen='products'] .panel > header.product-toolbar .filters > div:first-child { grid-column: 1 !important; }
+  .console-root .main-inner[data-screen='products'] .product-toolbar .filters > .mobile-filter-toggle { width: auto; }
+  .console-root .main-inner[data-screen='products'] .product-toolbar .filters > .product-extra-filters { display: none; grid-column: 1 / -1; }
+  .console-root .main-inner[data-screen='products'] .product-toolbar.mobile-filters-open .filters > .product-extra-filters { display: flex; flex-wrap: wrap; }
+  .console-root .main-inner[data-screen='products'] .product-toolbar .filters > .muted { grid-column: 1 / -1; }
   .console-root .workspace-heading { align-items: flex-start; gap: 10px; }
   .console-root .workspace-heading .btn { min-height: 40px; padding: 8px 10px; font-size: 11px; }
   .console-root h1 { font-size: 27px; }
@@ -165,20 +191,41 @@ html:has(.console-root), body:has(.console-root) { background: #f5f7fb; }
   .console-root .main-inner[data-screen] .panel .scroll table:is(.orders-directory, .users-directory) tbody { display: block; width: 100%; min-width: 0; }
   .console-root .main-inner[data-screen] .panel .scroll table:is(.orders-directory, .users-directory) thead { display: none; }
   .console-root .main-inner[data-screen] .panel .scroll table:is(.orders-directory, .users-directory) tbody tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 18px 16px; border-bottom: 1px solid var(--border); }
-  .console-root .main-inner[data-screen] .panel .scroll table:is(.orders-directory, .users-directory) tbody td { display: block; width: auto; max-width: none; min-width: 0; padding: 0; border: 0; white-space: normal; text-align: left; }
+  .console-root .main-inner[data-screen] .panel .scroll table:is(.orders-directory, .users-directory) tbody td { display: block; width: auto; max-width: none; min-width: 0; height: auto; padding: 0; border: 0; white-space: normal; text-align: left; }
   .console-root .main-inner[data-screen] .panel .scroll table:is(.orders-directory, .users-directory) td[data-label]::before { content: attr(data-label); display: block; font-size: 9px; font-weight: 650; color: var(--muted); margin-bottom: 5px; letter-spacing: .03em; }
   .console-root .main-inner[data-screen] .panel .scroll table:is(.orders-directory, .users-directory) td:is([data-label='Product'], [data-label='Customer'], [data-label='Actions'], [colspan]) { grid-column: 1 / -1; }
   .console-root .main-inner[data-screen] .panel .scroll table:is(.orders-directory, .users-directory) td:is([data-label='Product'], [data-label='Customer'], [data-label='Actions'])::before { display: none; }
   .console-root .main-inner[data-screen] .panel .scroll table:is(.orders-directory, .users-directory) td[data-label='Actions'] { padding-top: 10px; border-top: 1px solid var(--line); }
   .console-root .main-inner[data-screen] .panel .scroll table:is(.orders-directory, .users-directory) .row-actions { justify-content: flex-start !important; flex-wrap: wrap !important; gap: 8px; }
   .console-root .main-inner[data-screen] .panel .scroll table:is(.orders-directory, .users-directory) .record-link { white-space: normal; overflow-wrap: anywhere; }
+  /* Explicit placement avoids an empty half-row before a full-width product.
+     Table-cell heights must not survive the switch to grid: customer details
+     can wrap to multiple lines and otherwise collide with the buyer below. */
+  .console-root .main-inner[data-screen='orders'] .queue-panel { background: transparent; border: 0; box-shadow: none; overflow: visible; }
+  .console-root .main-inner[data-screen='orders'] .queue-panel > header { background: #fff; border: 1px solid var(--border); border-radius: 16px; margin-bottom: 12px; }
+  .console-root .main-inner[data-screen='orders'] .panel .scroll { overflow: visible; }
+  .console-root .main-inner[data-screen='orders'] .panel .scroll table.orders-directory tbody { display: grid; gap: 12px; }
+  .console-root .main-inner[data-screen='orders'] .panel .scroll .orders-directory tbody tr.order-list-item { grid-template-areas: 'order status' 'product product' 'buyer price' 'actions actions'; gap: 14px 12px; padding: 16px; align-items: start; background: #fff; border: 1px solid var(--border); border-radius: 16px; }
+  .console-root .main-inner[data-screen='orders'] .order-pagination .pager { background: none; border: 0; padding: 12px 4px; }
+  .console-root .main-inner[data-screen='orders'] .order-pagination.single-page .mini { display: none; }
+  .console-root .main-inner[data-screen='orders'] .panel .scroll .orders-directory td[data-label='Order'] { grid-area: order; align-self: center; }
+  .console-root .main-inner[data-screen='orders'] .panel .scroll table.orders-directory td[data-label='Order']::before { display: none; }
+  .console-root .main-inner[data-screen='orders'] .panel .scroll .orders-directory td[data-label='Order'] code { padding: 0; border: 0; background: none; color: var(--muted); }
+  .console-root .main-inner[data-screen='orders'] .panel .scroll .orders-directory td[data-label='Status'] { grid-area: status; text-align: right; }
+  .console-root .main-inner[data-screen='orders'] .panel .scroll table.orders-directory td[data-label='Status']::before { display: none; }
+  .console-root .main-inner[data-screen='orders'] .panel .scroll .orders-directory td[data-label='Product'] { grid-area: product; }
+  .console-root .main-inner[data-screen='orders'] .panel .scroll .orders-directory .record-link { padding: 0 0 4px; font-size: 15px; font-weight: 700; line-height: 1.45; }
+  .console-root .main-inner[data-screen='orders'] .panel .scroll .orders-directory td[data-label='Buyer'] { grid-area: buyer; }
+  .console-root .main-inner[data-screen='orders'] .panel .scroll .orders-directory td[data-label='Price'] { grid-area: price; text-align: right; }
+  .console-root .main-inner[data-screen='orders'] .panel .scroll .orders-directory td[data-label='Actions'] { grid-area: actions; padding-top: 12px; }
+  .console-root .main-inner[data-screen='orders'] .panel .scroll .orders-directory .row-actions .btn { width: 100%; min-height: 44px; }
   /* Recent orders become cards; the full ledger retains its existing mobile layout. */
   .console-root .recent-orders .scroll { overflow: visible; }
   .console-root .main-inner[data-screen='overview'] .panel .scroll table.overview-orders,
   .console-root .main-inner[data-screen='overview'] .panel .scroll table.overview-orders tbody { display: block; width: 100%; min-width: 0; }
   .console-root .main-inner[data-screen='overview'] .panel .scroll table.overview-orders thead { display: none; }
   .console-root .main-inner[data-screen='overview'] .panel .scroll table.overview-orders tr:not(.empty-row) { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; padding: 16px; border-top: 1px solid var(--border); }
-  .console-root .main-inner[data-screen='overview'] .panel .scroll table.overview-orders td { display: block; width: auto; max-width: none; padding: 0 !important; border: 0; min-width: 0; overflow-wrap: anywhere; white-space: normal; text-align: left; }
+  .console-root .main-inner[data-screen='overview'] .panel .scroll table.overview-orders td { display: block; width: auto; max-width: none; height: auto; padding: 0 !important; border: 0; min-width: 0; overflow-wrap: anywhere; white-space: normal; text-align: left; }
   .console-root .main-inner[data-screen='overview'] .panel .scroll table.overview-orders td.name { grid-row: 1; grid-column: 1; display: flex; align-items: center; gap: 8px; }
   .console-root .main-inner[data-screen='overview'] .panel .scroll table.overview-orders td[data-label='Total'] { grid-row: 1; grid-column: 2; text-align: right; }
   .console-root .main-inner[data-screen='overview'] .panel .scroll table.overview-orders td[data-label='Customer'] { grid-row: 2; grid-column: 1 / -1; }
@@ -190,9 +237,14 @@ html:has(.console-root), body:has(.console-root) { background: #f5f7fb; }
   .console-root .workspace-shortcuts > button { min-height: 48px; }
   .mobile-dock { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); position: fixed; z-index: 35; inset: auto 0 0; padding: 7px 8px calc(7px + env(safe-area-inset-bottom)); border-top: 1px solid var(--border); background: #fffffff5; backdrop-filter: blur(18px); box-shadow: 0 -5px 24px #1d2b4406; }
   .mobile-dock button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; min-height: 49px; border-radius: 10px; color: #66738a; font-size: 9px; font-weight: 650; }
-  .mobile-dock button.active { color: var(--accent); background: var(--accent-soft); }
+  .mobile-dock button.active { color: var(--accent); background: transparent; }
+  .mobile-dock button svg { box-sizing: content-box; padding: 5px 15px; border-radius: 20px; }
+  .mobile-dock button.active svg { background: var(--accent-soft); }
   .console-root .drawer-backdrop { z-index: 60; touch-action: auto; }
-  .console-root .drawer-panel { width: min(320px, calc(100vw - 36px)); max-width: none; background: #fff; overscroll-behavior: contain; touch-action: pan-y; padding-bottom: env(safe-area-inset-bottom); }
+  .console-root .drawer-backdrop { align-items: flex-end; }
+  .console-root .drawer-panel { width: 100%; height: min(82dvh, 740px); max-width: none; background: #fff; border-radius: 24px 24px 0 0; transform: translateY(100%); transform-origin: bottom center; overscroll-behavior: contain; touch-action: pan-y; padding-bottom: env(safe-area-inset-bottom); }
+  .console-root .drawer-backdrop.open .drawer-panel { transform: translateY(0); }
+  .console-root .drawer-close { min-width: 44px; min-height: 44px; }
   .console-root .drawer-header { padding: 20px 16px; border-bottom: 1px solid var(--border); }
   .console-root .drawer-header .brand { gap: 10px; padding: 0; }
   .console-root .drawer-nav { display: grid; gap: 22px; padding: 18px 12px; overflow-y: auto; }
@@ -204,7 +256,9 @@ html:has(.console-root), body:has(.console-root) { background: #f5f7fb; }
   .console-root input:not([type='checkbox']):not([type='radio']), .console-root select, .console-root textarea { font-size: 16px; }
   .console-root .btn, .console-root .mini { min-height: 44px; }
   .console-root .filters { gap: 10px; }
-  .console-root .modal { max-height: calc(100dvh - 20px); border-radius: 16px; }
+  .console-root .main-inner[data-screen] .filters input[type='search'] { font-size: 16px; }
+  .console-root .modal-backdrop { padding: 0; align-items: end; }
+  .console-root .modal { width: 100%; max-height: calc(100dvh - 20px); border-radius: 20px 20px 0 0; padding-bottom: env(safe-area-inset-bottom); }
   .console-root .modal > footer { padding-bottom: max(14px, env(safe-area-inset-bottom)); }
   .console-root .gate form { padding: 24px; }
 }

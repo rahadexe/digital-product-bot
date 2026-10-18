@@ -1,0 +1,62 @@
+/* Mobile lists have their own semantic markup. Do not convert table cells into
+   cards: legacy table geometry must never determine a phone layout. */
+.app-record-list, .app-list-heading, .app-select-all { display: none; }
+.app-product-actions { display: grid; gap: 0; }
+.app-product-actions p { color: var(--muted); margin: 0 0 12px; overflow-wrap: anywhere; }
+.app-product-actions button { min-height: 50px; padding: 12px 4px; background: none; border: 0; border-top: 1px solid var(--border); text-align: left; font-size: 14px; color: var(--text); }
+.app-product-actions button.danger { color: var(--danger, #be3449); }
+@media (max-width: 760px) {
+  .console-root .console:has(.main-inner[data-screen='orders'], .main-inner[data-screen='products']) { background: #fff; }
+  .console-root .main:has(.main-inner[data-screen='orders'], .main-inner[data-screen='products']) { background: #fff; padding-inline: 18px; }
+  .console-root .main-inner:is([data-screen='orders'], [data-screen='products']) > .panel { background: none; border: 0; box-shadow: none; overflow: visible; }
+  .console-root .main-inner[data-screen] .panel .scroll.desktop-record-scroll { display: none; }
+  .console-root .main-inner[data-screen='orders'] .queue-panel > header { padding: 0 0 16px; margin: 0; background: none; border: 0; border-radius: 0; }
+  .console-root .main-inner[data-screen='products'] .panel > header.product-toolbar { padding: 0 0 14px; border: 0; background: none; }
+  .console-root .main-inner[data-screen='products'] .product-toolbar .filters > .muted { display: none; }
+  .console-root .main-inner[data-screen='products'] .panel > header.product-toolbar .filters { grid-template-columns: minmax(0, 1fr) 44px; }
+  .console-root .main-inner[data-screen='products'] .panel > header.product-toolbar .mobile-filter-toggle { width: 44px !important; height: 44px; padding: 0; }
+  .console-root .main-inner[data-screen='products'] .mobile-filter-toggle span { display: none; }
+  .console-root .main-inner[data-screen='products'] > .segmented { background: none; padding: 0; gap: 7px; border: 0; box-shadow: none; margin-bottom: 16px !important; }
+  .console-root .main-inner[data-screen='products'] > .segmented button { min-height: 38px; border: 1px solid var(--border); border-radius: 22px; padding: 8px 13px; background: white; color: var(--muted); font-size: 12px; }
+  .console-root .main-inner[data-screen='products'] > .segmented button.active { color: white; background: var(--accent); border-color: var(--accent); }
+  .console-root .main-inner[data-screen='products'] .new-product-action { position: fixed; right: 20px; bottom: calc(90px + env(safe-area-inset-bottom)); width: auto !important; min-height: 48px; padding: 12px 18px; z-index: 36; border-radius: 16px; box-shadow: 0 5px 18px #4f46c733; }
+  .console-root .main:has(.main-inner[data-screen='products']) { padding-bottom: calc(158px + env(safe-area-inset-bottom)); }
+  .console-root .app-list-heading { display: flex; align-items: center; justify-content: space-between; min-height: 44px; color: var(--muted); font-size: 12px; border-bottom: 1px solid var(--border); }
+  .console-root .app-list-heading > span:first-child { color: var(--text); font-weight: 650; }
+  .console-root .app-list-heading > button { min-height: 44px; min-width: 44px; padding: 8px 0 8px 12px; color: var(--accent); background: none; border: 0; font-size: 12px; }
+  .console-root .app-record-list { display: block; list-style: none; padding: 0; margin: 0; }
+  .console-root .app-record-list > li { display: flex; align-items: center; min-width: 0; border-bottom: 1px solid var(--border); background: none; border-radius: 0; }
+  .console-root .app-record-list > li.selected { background: #f5f4ff; }
+  .console-root .app-record { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; width: 100%; min-height: 96px; padding: 17px 0; background: none; border: 0; border-radius: 0; text-align: left; color: var(--text); font-family: inherit; }
+  .console-root .app-record:active { background: #f6f7fb; }
+  .console-root .app-record:focus-visible { outline-offset: -3px; border-radius: 8px; }
+  .console-root .app-record-icon { display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 40px; border-radius: 12px; background: #f0effd; color: var(--accent); font-size: 21px; }
+  .console-root .order-feed .app-record-icon { background: #f1f5fa; color: #6a7b91; }
+  .console-root .app-record-copy { display: grid; gap: 5px; min-width: 0; flex: 1; }
+  .console-root .app-record-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; font-size: 14px; line-height: 1.4; font-weight: 700; letter-spacing: -.015em; }
+  .console-root .app-record-subtitle, .console-root .app-record-meta { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--muted); line-height: 1.4; }
+  .console-root .app-record-meta { font-size: 11px; color: #7a8799; }
+  .console-root .app-record-tail { display: flex; flex-direction: column; align-items: flex-end; gap: 7px; min-width: 0; max-width: 38%; flex: 0 0 auto; }
+  .console-root .app-record-amount { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 14px; font-weight: 750; }
+  .console-root .app-record-status { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; line-height: 1.35; color: var(--muted); text-transform: capitalize; white-space: nowrap; }
+  .console-root .app-record-status::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex: 0 0 5px; }
+  .console-root .app-record-status.good { color: #168062; }
+  .console-root .app-record-status.warn { color: #a36a13; }
+  .console-root .app-record-status.bad { color: #be3449; }
+  .console-root .app-record-chevron { color: #a7b1be; }
+  .console-root .product-feed .app-record-chevron { display: none; }
+  .console-root .app-record-more { display: grid; place-items: center; width: 44px; min-height: 48px; flex: 0 0 44px; margin-right: -10px; background: none; border: 0; color: #7a8799; }
+  .console-root .app-select-all { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 12px; color: var(--muted); }
+  .console-root .app-record-select { display: grid; place-items: center; min-width: 36px; min-height: 48px; margin-left: -8px; }
+  .console-root .app-record-select input, .console-root .app-select-all input { width: 18px; height: 18px; accent-color: var(--accent); }
+  .console-root .app-record-list .app-list-empty { display: block; padding: 48px 16px; text-align: center; font-size: 13px; line-height: 1.6; color: var(--muted); border: 0; }
+  .console-root .main-inner[data-screen='products'] .product-pagination { border: 0 !important; padding: 16px 0 !important; font-size: 12px !important; }
+  .console-root .product-pagination.single-page > div:last-child { display: none !important; }
+  .console-root .main-inner[data-screen='orders'] .order-pagination.single-page { display: none; }
+}
+@media (max-width: 359px) {
+  .console-root .app-record { gap: 9px; }
+  .console-root .product-feed .app-record-icon { display: none; }
+  .console-root .app-record-icon { width: 32px; height: 32px; flex-basis: 32px; border-radius: 10px; }
+  .console-root .app-record-title, .console-root .app-record-amount { font-size: 13px; }
+}

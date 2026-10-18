@@ -9,12 +9,14 @@ import {
   PackageCheck,
   RefreshCw,
   ShoppingBag,
+  SlidersHorizontal,
   Wallet,
   X,
 } from 'lucide-react';
 import { api, type Order, type OrderDetail, type OrderSummary } from '@/lib/api';
 import { useMoney } from '@/lib/currency';
 import { CustomSelect } from './CustomSelect';
+import { MobileRecord } from './MobileRecord';
 import { EmptyRow, Modal, Pager, errorText, tone, useConfirm, useDebounced, when, who, type Say } from './ui';
 
 const PAGE = 50;
@@ -86,6 +88,7 @@ export function Orders({
   const [summary, setSummary] = useState<OrderSummary | null>(null);
   const [offset, setOffset] = useState(0);
   const [search, setSearch] = useState('');
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [openOrderId, setOpenOrderId] = useState<number | null>(initialOrderId);
   const query = useDebounced(search);
   const money = useMoney();
@@ -170,10 +173,12 @@ export function Orders({
             </button>
           </div>
 
-          <div className="filters">
+          <div className={`filters${mobileFiltersOpen ? ' mobile-filters-open' : ''}`}>
+            <div id="order-date-filter" className="order-date-filter">
             <CustomSelect ariaLabel="Order date range" value={timeframe} width={150} minWidth={0}
               onChange={(value) => { setTimeframe(value as Timeframe); setOffset(0); }}
               options={[{ value: 'all', label: 'All time' }, { value: 'today', label: 'Today' }, { value: '7d', label: 'Last 7 days' }, { value: '30d', label: 'Last 30 days' }, { value: 'custom', label: 'Custom dates' }]} />
+            </div>
             <input
               type="search"
               aria-label="Search orders"
@@ -184,6 +189,9 @@ export function Orders({
                 setOffset(0);
               }}
             />
+            <button type="button" className={`btn ghost small mobile-filter-toggle${timeframe !== 'all' ? ' active' : ''}`} aria-label="Order filters" aria-expanded={mobileFiltersOpen} aria-controls="order-date-filter" onClick={() => setMobileFiltersOpen(open => !open)}>
+              <SlidersHorizontal size={18} aria-hidden="true" />
+            </button>
             <button
               type="button"
               className="btn ghost small"
@@ -233,7 +241,29 @@ export function Orders({
         ) : null}
       </div>
 
-        <div className="scroll" tabIndex={0} role="region" aria-label="Orders table" aria-busy={loading}>
+        <div className="app-list-heading"><span>{total} {total === 1 ? 'order' : 'orders'}</span><span>Latest first</span></div>
+        <ul className="app-record-list order-feed" aria-label="Orders" aria-busy={loading}>
+          {(orders ?? []).map(order => {
+            const waiting = order.status === 'completed' && order.fulfillment === 'waiting';
+            const deliveryFailed = !waiting && order.status === 'completed' && order.delivery_status === 'failed';
+            return (
+              <li key={order.id}>
+                <MobileRecord
+                  title={order.product_title}
+                  subtitle={getCustomerDisplayName(order)}
+                  meta={`#${order.id} · ${when(order.created_at)}`}
+                  amount={money(order.price)}
+                  status={waiting ? 'To deliver' : deliveryFailed ? 'Delivery failed' : order.status}
+                  tone={waiting ? 'warn' : deliveryFailed || order.status === 'failed' ? 'bad' : order.status === 'completed' ? 'good' : 'neutral'}
+                  label={`Open order ${order.id}: ${order.product_title}`}
+                  onOpen={() => openOrder(order.id)}
+                />
+              </li>
+            );
+          })}
+          {!orders ? <li className="app-list-empty" role="status">Loading orders…</li> : orders.length === 0 ? <li className="app-list-empty">{query ? 'No matching orders.' : waitingOnly ? 'All paid orders have been sent.' : 'No orders yet.'}</li> : null}
+        </ul>
+        <div className="scroll desktop-record-scroll" tabIndex={0} role="region" aria-label="Orders table" aria-busy={loading}>
           <table className="record-directory orders-directory">
             <thead>
               <tr>
@@ -249,7 +279,7 @@ export function Orders({
               {(orders ?? []).map((order) => {
                 const waiting = order.status === 'completed' && order.fulfillment === 'waiting';
                 return (
-                  <tr key={order.id}>
+                  <tr key={order.id} className="order-list-item">
                     <td data-label="Order">
                       <code style={{ fontSize: '12px' }}>O{order.id}</code>
                     </td>
@@ -266,9 +296,10 @@ export function Orders({
                         {when(order.created_at)}
                       </small>
                       {order.customer_input ? (
-                        <div style={{ marginTop: '3px' }}>
-                          <span className="pill info" style={{ fontSize: '10.5px', padding: '1px 6px', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary, #3b82f6)' }} title={`Customer info: ${order.customer_input}`}>
-                            📝 {order.customer_input}
+                        <div className="order-customer-input">
+                          <span className="order-input-label">Customer details</span>
+                          <span className="order-input-value" title={`Customer info: ${order.customer_input}`}>
+                            {order.customer_input}
                           </span>
                         </div>
                       ) : null}
@@ -329,7 +360,9 @@ export function Orders({
             </tbody>
           </table>
         </div>
-        <Pager total={total} offset={offset} size={PAGE} onChange={setOffset} />
+        <div className={`order-pagination${total <= PAGE && offset === 0 ? ' single-page' : ''}`}>
+          <Pager total={total} offset={offset} size={PAGE} onChange={setOffset} />
+        </div>
       </section>
 
       {/* Exact replica of the target clean modal design */}

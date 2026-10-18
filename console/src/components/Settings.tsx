@@ -17,10 +17,10 @@ const TABS: {
   label: string;
   icon: 'sliders' | 'shield' | 'card' | 'bell';
 }[] = [
-  { key: 'economics', label: 'Economics & Fees', icon: 'sliders' },
-  { key: 'gate', label: 'Force Join Gate', icon: 'shield' },
-  { key: 'payments', label: 'Deposit Methods', icon: 'card' },
-  { key: 'notifications', label: 'Notifications', icon: 'bell' },
+  { key: 'economics', label: 'General', icon: 'sliders' },
+  { key: 'gate', label: 'Channels', icon: 'shield' },
+  { key: 'payments', label: 'Payments', icon: 'card' },
+  { key: 'notifications', label: 'Alerts', icon: 'bell' },
 ];
 
 const MOVED: Record<string, SettingsTab> = {
