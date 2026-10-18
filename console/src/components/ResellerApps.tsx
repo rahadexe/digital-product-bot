@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ExternalLink, Phone, Send, RefreshCw } from 'lucide-react';
 import { api, type ResellerApplication, type ResellerApplicationsSummary } from '@/lib/api';
 import { Modal, Pager, errorText, tone, when, type Say } from './ui';
+import { MobileRecordDetails } from './MobileRecordDetails';
 
 const PAGE = 50;
 
@@ -76,7 +77,27 @@ export function ResellerApps({
             <RefreshCw size={15} aria-hidden="true" />
           </button>
         </header>
-        <div className="scroll">
+        <div className="app-list-heading"><span>{total} requests</span><span>Tap to review</span></div>
+        <ul className="app-record-list reseller-feed" aria-label="Reseller requests">
+          {(rows ?? []).map(app => {
+            const tgHandle = app.telegram_handle.replace(/^@/, '');
+            const channelUrl = app.channel_link.startsWith('http') ? app.channel_link : app.channel_link.startsWith('@') ? `https://t.me/${app.channel_link.slice(1)}` : `https://${app.channel_link}`;
+            return <li key={app.id}>
+              <MobileRecordDetails title={app.full_name} subtitle={`@${tgHandle}`} meta={when(app.created_at)} amount="" status={app.status} tone={tone(app.status) || 'neutral'} icon={<Send size={20} />} label={`Review reseller ${app.full_name}`} fields={[
+                ['Telegram ID', app.tg_user_id], ['Telegram', <a key="tg" href={`https://t.me/${tgHandle}`} target="_blank" rel="noopener noreferrer">@{tgHandle}</a>],
+                ['Phone', app.phone_number], ['Store', <a key="store" href={channelUrl} target="_blank" rel="noopener noreferrer">{app.channel_link}</a>],
+                ['Status', app.status], ['Applied', when(app.created_at)], ['Admin note', app.admin_notes || '—'],
+              ]}>
+                {app.status === 'pending' ? <>
+                  <button type="button" className="btn" disabled={busy === app.id} onClick={() => setReview({ app, approve: true })}>Approve reseller</button>
+                  <button type="button" className="btn ghost danger" disabled={busy === app.id} onClick={() => setReview({ app, approve: false })}>Reject request</button>
+                </> : null}
+              </MobileRecordDetails>
+            </li>;
+          })}
+          {!rows || !rows.length ? <li className="app-list-empty">{!rows ? 'Loading requests…' : 'No reseller requests in this view.'}</li> : null}
+        </ul>
+        <div className="scroll desktop-record-scroll">
           <table className="mobile-records reseller-table">
             <thead>
               <tr>

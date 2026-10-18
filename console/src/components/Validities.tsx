@@ -195,7 +195,19 @@ export function Validities({ say }: { say: Say }) {
           </button>
         </header>
 
-        <div className="scroll">
+        <div className="app-list-heading"><span>{filteredDurations.length} durations</span><span>Subscription lengths</span></div>
+        <ul className="app-record-list validity-feed" aria-label="Validity durations">
+          {filteredDurations.map(label => {
+            const count = (products ?? []).filter(product => product.duration_label?.trim().toLowerCase() === label.toLowerCase()).length;
+            return <li key={label}>
+              <span className="app-duration-icon" aria-hidden="true"><Clock size={20} /></span>
+              <div className="app-duration-copy"><strong>{label}</strong><small>{count} {count === 1 ? 'linked product' : 'linked products'}</small></div>
+              <button type="button" className="app-record-more danger" aria-label={`Delete validity ${label}`} disabled={count > 0} title={count ? 'Remove this duration from linked products first.' : `Delete ${label}`} onClick={() => void handleDelete(label)}><Trash2 size={17} /></button>
+            </li>;
+          })}
+          {!filteredDurations.length ? <li className="app-list-empty">{loading ? 'Loading durations…' : loadError ? <span role="alert">Could not load durations. <button className="btn ghost" onClick={() => void loadData()}>Retry</button></span> : 'No durations match your filters.'}</li> : null}
+        </ul>
+        <div className="scroll desktop-record-scroll">
           <table className="validities-table">
             <thead>
               <tr>

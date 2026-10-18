@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, type Category, type Product } from '@/lib/api';
 import { EmptyRow, FlagRow, Modal, errorText, useConfirm, type Say } from './ui';
 import { EmojiPicker, splitLeadingEmoji } from './EmojiPicker';
+import { MobileRecordDetails } from './MobileRecordDetails';
 
 type CategoryDraft = {
   id: number | null;
@@ -84,6 +85,20 @@ export function Categories({ say }: { say: Say }) {
     }
   }
 
+  function editCategory(cat: Category) {
+    const name = splitLeadingEmoji(cat.name);
+    const customEmojiId = cat.custom_emoji_id || '';
+    setDraft({
+      id: cat.id,
+      name: name.emoji ? name.text : cat.name,
+      icon: customEmojiId ? '' : cat.icon || name.emoji,
+      sort_order: cat.sort_order,
+      is_active: Boolean(cat.is_active),
+      has_validity_filter: Boolean(cat.has_validity_filter),
+      custom_emoji_id: customEmojiId,
+    });
+  }
+
   const [filter, setFilter] = useState<'all' | 'active' | 'hidden'>('all');
 
   const totalCount = categories?.length ?? 0;
@@ -157,8 +172,24 @@ export function Categories({ say }: { say: Say }) {
           </button>
         </header>
 
-        {/* The same scrollable table is used on every screen size. */}
-        <div className="scroll">
+        <div className="app-list-heading"><span>{shown.length} categories</span><span>Tap to manage</span></div>
+        <ul className="app-record-list category-feed" aria-label="Categories">
+          {shown.map(cat => {
+            const count = (products ?? []).filter(product => product.category_id === cat.id).length;
+            return <li key={cat.id}>
+              <MobileRecordDetails title={cat.name} subtitle={`${count} ${count === 1 ? 'product' : 'products'}`} meta={cat.has_validity_filter ? 'Validity filter on' : undefined} amount="" status={cat.is_active ? 'Active' : 'Hidden'} tone={cat.is_active ? 'good' : 'neutral'} icon={cat.icon || Array.from(cat.name)[0]} label={`Manage category ${cat.name}`} fields={[
+                ['Category', cat.name], ['Products', count], ['Status', cat.is_active ? 'Active' : 'Hidden'],
+                ['Sort order', cat.sort_order], ['Validity filter', cat.has_validity_filter ? 'On' : 'Off'],
+              ]}>
+                <button type="button" className="btn" onClick={() => editCategory(cat)}>Edit category</button>
+                <button type="button" className="btn ghost" onClick={() => void toggleActive(cat)}>{cat.is_active ? 'Hide category' : 'Activate category'}</button>
+                <button type="button" className="btn ghost danger" onClick={() => void deleteCat(cat)}>Delete category</button>
+              </MobileRecordDetails>
+            </li>;
+          })}
+          {!categories || !shown.length ? <li className="app-list-empty">{!categories ? 'Loading categories…' : 'No categories match your search.'}</li> : null}
+        </ul>
+        <div className="scroll desktop-record-scroll">
           <table className="category-admin-table">
             <thead>
               <tr>
@@ -242,19 +273,7 @@ export function Categories({ say }: { say: Say }) {
                         <button
                           type="button"
                           className="mini"
-                          onClick={() => {
-                            const name = splitLeadingEmoji(cat.name);
-                            const customEmojiId = cat.custom_emoji_id || '';
-                            setDraft({
-                              id: cat.id,
-                              name: name.emoji ? name.text : cat.name,
-                              icon: customEmojiId ? '' : cat.icon || name.emoji,
-                              sort_order: cat.sort_order,
-                              is_active: Boolean(cat.is_active),
-                              has_validity_filter: Boolean(cat.has_validity_filter),
-                              custom_emoji_id: customEmojiId,
-                            });
-                          }}
+                          onClick={() => editCategory(cat)}
                         >
                           Edit
                         </button>

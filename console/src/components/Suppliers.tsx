@@ -12,6 +12,7 @@ import {
 import { useMoney } from '@/lib/currency';
 import { PageLoading, errorText, useConfirm, type Say } from './ui';
 import { CustomSelect } from './CustomSelect';
+import { MobileRecordDetails } from './MobileRecordDetails';
 
 export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string) => void }) {
   const [status, setStatus] = useState<SupplierStatus | null>(null);
@@ -521,7 +522,7 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                 onClick={() => setViewMode('synced')}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600 }}
               >
-                Synced Store Products ({filteredSynced.length})
+                Imported ({filteredSynced.length})
               </button>
               <button
                 type="button"
@@ -529,7 +530,7 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                 onClick={() => setViewMode('explore')}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600 }}
               >
-                Live Supplier Explorer {remoteCatalog ? `(${remoteCatalog.total})` : ''}
+                Browse catalog {remoteCatalog ? `(${remoteCatalog.total})` : ''}
               </button>
             </div>
           </div>
@@ -553,6 +554,7 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
           <div className="panel-body" style={{ padding: 0 }}>
             {/* Filter & Search Bar */}
             <div
+              className="supplier-catalog-filters"
               style={{
                 padding: '14px 18px',
                 borderBottom: '1px solid var(--border)',
@@ -714,11 +716,24 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                   No supplier products match your search or filters
                 </p>
                 <p style={{ fontSize: '12.5px', marginTop: 4 }}>
-                  Try adjusting search keywords or switch to the &quot;Live Supplier Explorer&quot; tab to import products.
+                  Try another search or open &quot;Browse catalog&quot; to import products.
                 </p>
               </div>
             ) : (
-              <div className="scroll">
+              <>
+              <label className="app-select-all"><input type="checkbox" checked={allVisibleSyncedSelected} onChange={toggleSelectAllVisibleSynced} /> Select page</label>
+              <ul className="app-record-list supplier-product-feed" aria-label="Synced supplier products">
+                {paginatedSynced.map(product => <li key={product.id}>
+                  <label className="app-record-select"><input type="checkbox" aria-label={`Select supplier product ${product.id}`} checked={selectedSyncedIds.includes(product.id)} onChange={event => setSelectedSyncedIds(ids => event.target.checked ? [...ids, product.id] : ids.filter(id => id !== product.id))} /></label>
+                  <MobileRecordDetails title={product.title} subtitle={product.supplier_code === 'safwan_tiger' ? 'Safwan Tiger' : 'Digital Mart'} meta={product.duration_label || undefined} amount={money(product.price)} status={product.is_active ? 'Active' : 'Hidden'} tone={product.is_active ? 'good' : 'neutral'} icon={product.icon || undefined} label={`View supplier product ${product.id}`} fields={[
+                    ['Product', product.title], ['Supplier ID', product.upstream_product_id], ['Category', categories.find(category => category.id === product.category_id)?.name || 'General'],
+                    ['Retail price', money(product.price)], ['Wholesale rate', product.reseller_price != null ? money(product.reseller_price) : '—'], ['Duration', product.duration_label || 'Default'],
+                  ]}>
+                    <button type="button" className="btn" onClick={() => void toggleProductActive(product)}>{product.is_active ? 'Hide product' : 'Activate product'}</button>
+                  </MobileRecordDetails>
+                </li>)}
+              </ul>
+              <div className="scroll desktop-record-scroll">
                 <table className="mobile-records">
                   <thead>
                     <tr>
@@ -803,6 +818,7 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                   </tbody>
                 </table>
               </div>
+              </>
             )}
 
             {/* Synced Pagination footer */}
@@ -854,6 +870,7 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
           <div className="panel-body" style={{ padding: 0 }}>
             {/* Explorer Controls Bar */}
             <div
+              className="supplier-catalog-filters"
               style={{
                 padding: '14px 18px',
                 borderBottom: '1px solid var(--border)',
@@ -922,7 +939,7 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
               </div>
 
               {/* Options */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+              <div className="supplier-import-options" style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted)' }}>Store Category:</span>
                   <CustomSelect
@@ -957,6 +974,7 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
             {/* Bulk Import Bar */}
             {selectedRemoteIds.length > 0 && (
               <div
+                className="supplier-import-selection"
                 style={{
                   padding: '10px 18px',
                   background: 'rgba(34, 197, 94, 0.08)',
@@ -969,7 +987,7 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '13px', fontWeight: 600 }}>
-                  <span>{selectedRemoteIds.length} remote product(s) selected</span>
+                  <span>{selectedRemoteIds.length} selected</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <button
@@ -979,14 +997,14 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                     onClick={handleBulkImportRemote}
                     style={{ display: 'inline-flex', alignItems: 'center', fontWeight: 600 }}
                   >
-                    {remoteImporting ? 'Importing...' : `Import ${selectedRemoteIds.length} Selected to Store`}
+                    {remoteImporting ? 'Importing…' : `Import selected (${selectedRemoteIds.length})`}
                   </button>
                   <button
                     type="button"
                     className="btn small ghost"
                     onClick={() => setSelectedRemoteIds([])}
                   >
-                    Cancel Selection
+                    Clear
                   </button>
                 </div>
               </div>
@@ -1009,7 +1027,21 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                 </p>
               </div>
             ) : (
-              <div className="scroll">
+              <>
+              <label className="app-select-all"><input type="checkbox" checked={allVisibleRemoteSelected} onChange={toggleSelectAllRemote} /> Select results</label>
+              <ul className="app-record-list supplier-product-feed" aria-label="Remote supplier products">
+                {filteredRemote.map(product => <li key={product.id}>
+                  <label className="app-record-select"><input type="checkbox" aria-label={`Select remote product ${product.id}`} checked={selectedRemoteIds.includes(product.id)} onChange={event => setSelectedRemoteIds(ids => event.target.checked ? [...ids, product.id] : ids.filter(id => id !== product.id))} /></label>
+                  <MobileRecordDetails title={product.title} subtitle={product.category_name} meta={product.duration || undefined} amount={`${product.currency_symbol}${product.reseller_price.toFixed(2)}`} status={product.in_store ? product.local_is_active ? 'Active' : 'Hidden' : 'Not imported'} tone={product.in_store && product.local_is_active ? 'good' : 'neutral'} icon={product.icon || undefined} label={`View remote product ${product.id}`} fields={[
+                    ['Product', product.title], ['Supplier ID', product.id], ['Category', product.category_name],
+                    ['Wholesale rate', `${product.currency_symbol}${product.reseller_price.toFixed(2)} ${product.currency}`], ['Duration', product.duration || '—'],
+                    ['Warranty', product.warranty || '—'], ['Description', product.description || '—'],
+                  ]}>
+                    <button type="button" className="btn" disabled={remoteImporting} onClick={() => void handleImportRemoteProduct(product)}>{product.in_store ? 'Re-sync' : 'Import to Store'}</button>
+                  </MobileRecordDetails>
+                </li>)}
+              </ul>
+              <div className="scroll desktop-record-scroll">
                 <table className="mobile-records">
                   <thead>
                     <tr>
@@ -1092,6 +1124,7 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                   </tbody>
                 </table>
               </div>
+              </>
             )}
           </div>
         )}

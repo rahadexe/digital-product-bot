@@ -24,7 +24,7 @@ export function MobileRecord({
         {meta ? <span className="app-record-meta">{meta}</span> : null}
       </span>
       <span className="app-record-tail">
-        <strong className="app-record-amount">{amount}</strong>
+        {amount ? <strong className="app-record-amount">{amount}</strong> : null}
         <span className={`app-record-status ${tone}`}>{status}</span>
         <ChevronRight size={15} className="app-record-chevron" aria-hidden="true" />
       </span>

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { api, type Order, type ResellerKeyInfo, type ResellerStats, type User, type UserSummary } from '@/lib/api';
 import { useMoney } from '@/lib/currency';
+import { MobileRecord } from './MobileRecord';
 import { EmptyRow, Pager, errorText, tone, useConfirm, useDebounced, when, type Say } from './ui';
 
 const PAGE = 50;
@@ -201,7 +202,26 @@ export function Users({
           </div>
         </header>
 
-        <div className="scroll" tabIndex={0} role="region" aria-label="Users table">
+        <div className="app-list-heading"><span>{total} {total === 1 ? 'customer' : 'customers'}</span><span>Wallet balance</span></div>
+        <ul className="app-record-list customer-feed" aria-label="Customers" aria-busy={loading}>
+          {(users ?? []).map(user => (
+            <li key={user.id}>
+              <MobileRecord
+                title={nameOf(user)}
+                subtitle={user.username ? `@${user.username}` : `ID ${user.tg_user_id}`}
+                meta={`Joined ${when(user.created_at)}`}
+                amount={money(user.balance)}
+                status={user.is_banned ? 'Banned' : user.rank === 'Reseller' ? 'Reseller' : 'Active'}
+                tone={user.is_banned ? 'bad' : 'good'}
+                icon={<UserCheck size={20} />}
+                label={`View customer ${nameOf(user)}`}
+                onOpen={() => openProfile(user)}
+              />
+            </li>
+          ))}
+          {!users || !users.length ? <li className="app-list-empty">{loading ? 'Loading customers…' : 'No customers match your search.'}</li> : null}
+        </ul>
+        <div className="scroll desktop-record-scroll" tabIndex={0} role="region" aria-label="Users table">
           <table className="record-directory users-directory">
             <thead>
               <tr>
@@ -650,7 +670,7 @@ function CustomerProfilePage({
 
           <button
             type="button"
-            className={`btn small ${user.is_banned ? 'ghost' : 'danger'} cust-hero-btn`}
+            className={`btn small ghost ${user.is_banned ? '' : 'danger'} cust-hero-btn`}
             onClick={() => void toggleBan()}
           >
             {user.is_banned ? (
@@ -935,7 +955,14 @@ function CustomerProfilePage({
                 <p>No orders placed by this customer yet.</p>
               </div>
             ) : (
-              <div className="cust-orders-scrollable">
+              <>
+              <ul className="app-record-list customer-order-feed" aria-label="Customer orders">
+                {orders.map(order => {
+                  const waiting = order.status === 'completed' && order.fulfillment === 'waiting';
+                  return <li key={order.id}><MobileRecord title={order.product_title || `Order O${order.id}`} subtitle={`O${order.id} · ${when(order.created_at)}`} amount={money(order.price)} status={waiting ? 'To deliver' : order.status} tone={waiting ? 'warn' : tone(order.status) || 'neutral'} label={`Open order O${order.id}`} onOpen={() => { window.location.hash = `orders/${order.id}`; }} /></li>;
+                })}
+              </ul>
+              <div className="cust-orders-scrollable desktop-customer-orders">
                 {orders.map((order) => {
                   const isWaiting = order.status === 'completed' && order.fulfillment === 'waiting';
                   return (
@@ -966,6 +993,7 @@ function CustomerProfilePage({
                   );
                 })}
               </div>
+              </>
             )}
           </div>
         </div>

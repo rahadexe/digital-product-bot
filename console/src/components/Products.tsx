@@ -554,7 +554,7 @@ export function Products({ say }: { say: Say }) {
                   amount={money(product.price)}
                   status={stock}
                   tone={!product.is_active ? 'neutral' : !supplier && product.delivery_type !== 'manual' && !product.stock ? 'warn' : 'good'}
-                  icon={product.icon || product.title.slice(0, 1).toUpperCase()}
+                    icon={product.icon || Array.from(product.title)[0]?.toUpperCase()}
                   label={`Edit product: ${product.title}`}
                   onOpen={() => editProduct(product)}
                 />

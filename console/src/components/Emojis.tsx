@@ -1,10 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, Copy, Lock, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { Check, Copy, Lock, Plus, RefreshCw, Search, Smile, Trash2 } from 'lucide-react';
 import { api, type EmojiLibraryItem, type EmojiLibraryResponse } from '@/lib/api';
 import { errorText, Modal, useConfirm, type Say } from './ui';
 import { invalidateEmojiCache } from './EmojiPicker';
+import { MobileRecordDetails } from './MobileRecordDetails';
 
 export function Emojis({ say }: { say: Say }) {
   const [data, setData] = useState<EmojiLibraryResponse | null>(null);
@@ -167,7 +168,18 @@ export function Emojis({ say }: { say: Say }) {
           </div>
         </header>
 
-        <div className="scroll emoji-library-scroll">
+        <ul className="app-record-list emoji-feed" aria-label="Emojis">
+          {filteredItems.map(item => <li key={`${item.is_system ? 'system' : 'custom'}-${item.emoji_id}`}>
+            <MobileRecordDetails title={item.name} subtitle={item.emoji_id} amount="" status={item.is_system ? 'System' : 'Custom'} tone="neutral" icon={<Smile size={20} />} label={`View emoji ${item.name}`} fields={[
+              ['Name', item.name], ['Emoji ID', item.emoji_id], ['Source', item.is_system ? 'System — protected' : 'Custom'],
+            ]}>
+              <button type="button" className="btn" onClick={() => copyId(item.emoji_id)}>Copy emoji ID</button>
+              {!item.is_system ? <button type="button" className="btn ghost danger" onClick={() => void handleDelete(item)}>Delete emoji</button> : null}
+            </MobileRecordDetails>
+          </li>)}
+          {!filteredItems.length ? <li className="app-list-empty">{loading ? 'Loading emojis…' : loadError ? <span role="alert">Could not load emojis. <button className="btn ghost" onClick={() => void load()}>Retry</button></span> : 'No emojis match your search.'}</li> : null}
+        </ul>
+        <div className="scroll emoji-library-scroll desktop-record-scroll">
           <table className="mobile-records emoji-list">
               <thead>
                 <tr>

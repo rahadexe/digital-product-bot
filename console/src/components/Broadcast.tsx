@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Bold, Check, Code, Copy, Eye, EyeOff, Italic, Link2, RefreshCw, RotateCcw, Send, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { errorText, Modal, useConfirm, when, type Say } from './ui';
+import { MobileRecord } from './MobileRecord';
 
 type Progress = { id: number; success: number; failed: number; pending: number; total: number };
 type RecentBroadcast = {
@@ -250,7 +251,7 @@ export function Broadcast({ say }: { say: Say }) {
         </div>
       </div>
 
-      <form className="panel" onSubmit={send}>
+      <form className="panel broadcast-composer" onSubmit={send}>
         <header>
           <div>
             <h2>New Broadcast</h2>
@@ -529,7 +530,13 @@ export function Broadcast({ say }: { say: Say }) {
             Latest 30 kept · auto-pruned
           </span>
         </header>
-        <div className="scroll">
+        <ul className="app-record-list broadcast-feed" aria-label="Recent broadcasts">
+          {recent.map(item => <li key={item.id}>
+            <MobileRecord title={`Broadcast #${item.id}`} subtitle={item.text.replace(/<[^>]*>/g, '').slice(0, 100)} meta={`${item.success} sent · ${item.failed} failed · ${when(item.created_at)}`} amount="" status={item.pending ? 'Sending' : 'Finished'} tone={item.pending ? 'warn' : item.failed ? 'warn' : 'good'} icon={<Send size={20} />} label={`View broadcast ${item.id}`} onOpen={() => setSelectedBroadcast(item)} />
+          </li>)}
+          {!recent.length ? <li className="app-list-empty">{loadingInfo ? 'Loading broadcasts…' : 'No broadcasts sent yet.'}</li> : null}
+        </ul>
+        <div className="scroll desktop-record-scroll">
           <table>
             <thead>
               <tr>

@@ -16,8 +16,11 @@ test tools, not runtime dependencies. `CHROMIUM_PATH` can select a system browse
 Optional environment variables: `BASE_URL` (default `http://127.0.0.1:4173`),
 `CHROMIUM_PATH`, `ARTIFACT_DIR` (default `/tmp/dpb-admin-design`).
 
-The suite checks 14 screens at six widths (320, 390, 760, 768, 1024 and 1440px),
-populated mobile record cards, drawer focus containment and Escape, tablet resize,
+The suite checks 21 populated screens/subpages at six widths (320, 390, 760,
+768, 1024 and 1440px): **126 layout checks**. It covers every main screen, all
+four Settings tabs, instant deposits, customer detail, supplier configuration
+and the live catalog explorer. Checks include independent mobile lists,
+drawer focus containment and Escape, tablet resize,
 long store/customer names, product form validation and save/retry, dashboard error
 recovery, empty states and narrow-screen sign-in. Screenshots and a JSON report
 are written to `ARTIFACT_DIR`.
@@ -28,3 +31,14 @@ title/price overlap. Product rows open the existing edit form; secondary actions
 are available in a sheet and deletion still requires confirmation. Bulk selection,
 order details with customer input, filter expansion and delivery-failure states
 are covered. Orders/products preview screenshots use multiple synthetic records.
+
+Tap-through checks cover deposit details and approve/reject confirmation,
+instant-payment details, customer profiles, stock editing/removal, category
+editing, protected linked validities, reseller review and broadcast detail.
+Emoji deletion cancellation, synced/remote supplier details and bulk-selection
+controls, plus payment-method and ZiniPay configuration dialogs, are checked
+on a 320px phone as well.
+Cancelling these actions must send **zero write requests**. Five list empty states
+and deposit load-error/retry recovery are tested. Supplier tests include connected
+status, a synced product and a remote catalog product. Full-page audit screenshots,
+mobile viewport previews and the JSON report are generated from the real build.
