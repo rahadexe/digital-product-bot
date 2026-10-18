@@ -32,6 +32,12 @@ long store/customer names, product form validation and save/retry, dashboard err
 recovery, empty states and narrow-screen sign-in. Screenshots and a JSON report
 are written to `ARTIFACT_DIR`.
 
+Supplier checks cover visible Add API / Edit API actions, the correct provider's
+configuration form, password-field clearing after save, catalog-error recovery,
+local search without per-keystroke API calls, and ignoring delayed responses
+from a previously selected supplier. Setup screenshots contain synthetic data
+only and are captured after the key input has been cleared.
+
 Mobile app regressions also verify a single app-bar title, bottom-sheet navigation,
 independent semantic lists (not restyled tables), compact row geometry and no
 title/price overlap. Product rows open the existing edit form; secondary actions

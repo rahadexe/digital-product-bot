@@ -1,6 +1,9 @@
 /* The remaining operator screens use the same mobile-first list language.
    Desktop tables and financial workflows remain unchanged. */
 .app-detail-trigger { flex: 1; min-width: 0; }
+.supplier-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.console-root .supplier-directory > header { justify-content: flex-end; }
+.supplier-configuration { scroll-margin-top: 88px; }
 .app-review-actions { display: grid; gap: 10px; margin-top: 20px; }
 .app-review-actions > button { width: 100%; min-height: 44px; }
 .app-duration-copy { display: grid; gap: 5px; flex: 1; min-width: 0; }
@@ -102,6 +105,8 @@
   .console-root .supplier-directory td:nth-child(4)::after { content: ' products'; color: var(--muted); }
   .console-root .supplier-directory td:last-child { grid-column: 2; grid-row: 2 / 4; align-self: center; }
   .console-root .supplier-directory td .btn { min-width: 64px; }
+  .console-root .supplier-actions { flex-direction: column; align-items: stretch; }
+  .console-root .supplier-actions .btn { min-height: 44px; }
   .console-root .main-inner[data-screen='suppliers'] .panel .scroll table.mobile-records tbody tr { border-radius: 0; background: none; box-shadow: none; border: 0; border-bottom: 1px solid var(--border); padding: 16px 0; }
   .console-root .main-inner[data-screen='suppliers'] .panel-body { padding-inline: 0 !important; }
   .console-root .supplier-catalog-filters { padding: 14px 0 !important; background: none !important; }

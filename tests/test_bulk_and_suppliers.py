@@ -13,6 +13,7 @@ from app.api.admin.suppliers import router as suppliers_router
 def create_test_client():
     services = SimpleNamespace(
         catalog=SimpleNamespace(
+            invalidate=MagicMock(),
             bulk_update_status=AsyncMock(return_value=5),
             bulk_delete_products=AsyncMock(return_value=3),
         ),
@@ -134,3 +135,4 @@ def test_import_supplier_products():
     assert data["success"] is True
     assert data["products_synced"] == 2
     mock_supplier.sync_catalog.assert_awaited_once_with(filter_ids=[41, 42], force_active=True)
+    services.catalog.invalidate.assert_called_once()

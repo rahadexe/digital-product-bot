@@ -173,7 +173,7 @@ class PurchaseService:
                 if upstream_prod_id:
                     if self.suppliers:
                         supplier = self.suppliers.get(supplier_code)
-                    if not supplier and self.upstream_reseller and self.upstream_reseller.is_configured:
+                    if not supplier and supplier_code == "digital_mart" and self.upstream_reseller:
                         supplier = self.upstream_reseller
 
                 if supplier and hasattr(supplier, '_ensure_config'):
@@ -197,6 +197,9 @@ class PurchaseService:
                         # Instant pre-check: ensure our unit_price is not lower than known wholesale rate
                         known_wholesale = float(product.get("reseller_price") or 0.0)
                         supplier_order_qty = 1 if upstream_devices > 1 else quantity
+                        if upstream_devices > 1 and quantity > upstream_devices:
+                            await db.execute("ROLLBACK")
+                            return False, f"Choose up to {upstream_devices} seats per supplier order.", None
                         if known_wholesale > 0 and (known_wholesale * supplier_order_qty) > float(total_price):
                             await db.execute("ROLLBACK")
                             return False, "⚠️ The wholesale price for this product has recently updated. Please re-open the product to purchase at the current price.", None
@@ -256,7 +259,7 @@ class PurchaseService:
                                 for aid in admin_ids:
                                     self.notifier.in_background(self.notifier.send(aid, alert_text))
 
-                            delivered_content = upstream_resp.get("credentials") or upstream_resp.get("delivered_item") or upstream_resp.get("message") or ""
+                            delivered_content = upstream_resp.get("credentials") or upstream_resp.get("delivered_item") or ""
                             source = "upstream_reseller"
                             fulfillment = upstream_resp.get("fulfillment") or ("delivered" if delivered_content else "waiting")
                             if fulfillment == "waiting":
@@ -590,7 +593,9 @@ class PurchaseService:
                 return False, "This product is not linked to any upstream supplier.", None
 
             supplier_code = order.get("supplier_code") or product.get("supplier_code") or "digital_mart"
-            supplier = self.suppliers.get(supplier_code) if self.suppliers else self.upstream_reseller
+            supplier = self.suppliers.get(supplier_code) if self.suppliers else (
+                self.upstream_reseller if supplier_code == "digital_mart" else None
+            )
             if supplier and hasattr(supplier, '_ensure_config'):
                 await supplier._ensure_config()
             if not supplier or not supplier.is_configured:
@@ -600,6 +605,8 @@ class PurchaseService:
             upstream_share_hours = int(product.get("upstream_share_hours") or 24)
             quantity = int(order.get("quantity") or 1)
             supplier_order_qty = 1 if upstream_devices > 1 else quantity
+            if upstream_devices > 1 and quantity > upstream_devices:
+                return False, "Order quantity exceeds the supplier account capacity. Review this order manually.", None
 
             request_key = order.get('request_id') or f"legacy-order-{order['id']}"
             custom_id = 'ord_' + hashlib.sha256(f"{order['tg_user_id']}:{request_key}".encode()).hexdigest()[:32]
@@ -619,7 +626,7 @@ class PurchaseService:
                 return False, f"Supplier error: {err_msg}", None
 
             # Success!
-            delivered_content = upstream_resp.get("credentials") or upstream_resp.get("delivered_item") or upstream_resp.get("message") or ""
+            delivered_content = upstream_resp.get("credentials") or upstream_resp.get("delivered_item") or ""
             supplier_order_id = str(upstream_resp.get("order_id") or "")
             fulfillment = upstream_resp.get("fulfillment") or ("delivered" if delivered_content else "waiting")
 
@@ -642,21 +649,26 @@ class PurchaseService:
                 order_id,
             )
 
-            if upstream_devices > 1 and delivered_content:
+            if upstream_devices > 1 and delivered_content and fulfillment == "delivered":
                 exp_dt = datetime.now(timezone.utc) + timedelta(hours=upstream_share_hours) if upstream_share_hours > 0 else None
                 new_inv_id = await conn.fetchval(
                     """
                     INSERT INTO inventory_items (product_id, content, max_uses, uses, status, expires_at)
-                    VALUES ($1, $2, $3, $4, 'available', $5)
+                    VALUES ($1, $2, $3, 0, 'available', $4)
                     RETURNING id
                     """,
                     order["product_id"],
                     delivered_content,
                     upstream_devices,
-                    quantity,
                     exp_dt,
                 )
                 await conn.execute("UPDATE orders SET inventory_item_id = $1 WHERE id = $2", new_inv_id, order_id)
+                for _ in range(quantity):
+                    await InventoryService.use_seat(conn, new_inv_id, order_id)
+                await conn.execute(
+                    "INSERT INTO order_inventory_allocations(order_id, inventory_item_id, allocated_units) VALUES ($1, $2, $3)",
+                    order_id, new_inv_id, quantity,
+                )
 
             if fulfillment == "delivered":
                 delivered_order = _receipt_fields(updated_row, 0)

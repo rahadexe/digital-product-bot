@@ -65,6 +65,10 @@ class CatalogService:
         self._active_categories: tuple[float, list[dict[str, Any]]] | None = None
         self._products_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
 
+    def invalidate(self) -> None:
+        self._active_categories = None
+        self._products_cache.clear()
+
     @staticmethod
     async def _require_category(conn: asyncpg.Connection, category_id: int | None) -> None:
         if category_id is not None and not await conn.fetchval("SELECT 1 FROM categories WHERE id = $1", category_id):
