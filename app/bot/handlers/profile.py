@@ -1322,7 +1322,7 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
     try:
         show_usd = await services.settings.flag("show_usd_price")
     except Exception:
-        show_usd = True
+        show_usd = False
     back_cb = f"back_to_dep_req_{dep_id_ref}" if dep_id_ref else ("open_deposit" if from_wallet else "open_account")
 
     if not deposits:

@@ -106,8 +106,8 @@ class SettingSpec:
 
 SPECS: dict[str, SettingSpec] = {
     "store_name": SettingSpec("PremiumOne", max_length=64),
-    "currency": SettingSpec("USD", _currency_code, 10),
-    "currency_symbol": SettingSpec("$", max_length=8),
+    "currency": SettingSpec("BDT", _currency_code, 10),
+    "currency_symbol": SettingSpec("৳", max_length=8),
     "usd_rate": SettingSpec("125", _number(0.0001, 1_000_000), 16),
     "validity_presets": SettingSpec("", max_length=2000),
     "support_username": SettingSpec("@rahadhasanrafi", _username, 65),
@@ -245,7 +245,7 @@ class SettingsService:
     async def get(self, key: str) -> str:
         vals = await self.values()
         if key not in vals:
-            return "1" if key == "show_usd_price" else ""
+            return "0" if key == "show_usd_price" else ""
         return vals[key]
 
     async def flag(self, key: str) -> bool:

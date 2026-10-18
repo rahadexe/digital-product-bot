@@ -109,7 +109,7 @@ class PurchaseService:
         waiting_reason = ""
         symbol = await self.settings.get("currency_symbol")
         usd_rate = await self.settings.number('usd_rate')
-        show_usd = True
+        show_usd = False
         is_manual = False
         async with self.db.connect() as db:
             await db.execute("BEGIN")
@@ -562,7 +562,7 @@ class PurchaseService:
             manual_order = _receipt_fields(row, 0)
             manual_order["currency_symbol"] = symbol
             manual_order["usd_rate"] = await self.settings.number("usd_rate")
-            manual_order["show_usd"] = True
+            manual_order["show_usd"] = False
             await self.delivery.enqueue_order(order["tg_user_id"], manual_order, conn=conn)
             await record(conn, "order_delivered_manually", f"Order #{order_id} delivered by the admin")
         return dict(row)
@@ -571,7 +571,7 @@ class PurchaseService:
         """Retry ordering an upstream product from the supplier when balance or error is resolved."""
         symbol = await self.settings.get("currency_symbol")
         usd_rate = await self.settings.number("usd_rate")
-        show_usd = True
+        show_usd = False
 
         async with self.db.transaction() as conn:
             order = await conn.fetchrow("SELECT * FROM orders WHERE id = $1 FOR UPDATE", order_id)

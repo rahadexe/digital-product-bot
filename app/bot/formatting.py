@@ -122,7 +122,7 @@ def configure_pricing(usd_rate: float | None = None, *args, **kwargs) -> None:
 
 def format_dual_price(
     amount: float,
-    symbol: str = "$",
+    symbol: str = "৳",
     usd_rate: float | None = None,
     show_usd: bool | None = None,
     lang: str | None = None,
@@ -145,7 +145,7 @@ def format_dual_price(
         usd = round(amt / rate, 2)
         return f"${usd:g}" if usd == int(usd) else f"${usd:.2f}"
 
-    # In Bengali (or default), show clean single Tk currency (e.g. 44 ৳):
+    # Keep the BDT wallet amount explicit whenever USD conversion is not requested.
     return amt_str
 
 

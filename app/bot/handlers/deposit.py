@@ -161,7 +161,7 @@ def format_deposit_method_card(
             return (
                 f"<b>{escape(method_name or 'Binance')}</b>\n\n"
                 f"{dest_line}"
-                f"মিনিমাম: <b>{min_dep:.2f} $</b>\n\n"
+                f"মিনিমাম: <b>{min_dep:.2f} USDT</b>\n\n"
                 f"{prompt_line}"
             )
         else:
@@ -170,7 +170,7 @@ def format_deposit_method_card(
             return (
                 f"<b>{escape(method_name or 'Binance')}</b>\n\n"
                 f"{dest_line}"
-                f"Minimum: <b>{min_dep:.2f} $</b>\n\n"
+                f"Minimum: <b>{min_dep:.2f} USDT</b>\n\n"
                 f"{prompt_line}"
             )
     else:
@@ -573,10 +573,10 @@ async def render_method_details(
     heading = method_name if is_binance else f"{method_name} · {action}"
     destination_label = "Pay ID" if is_binance else "Number"
     destination = "Open the payment page below." if is_payment_link else f"{destination_label}: <code>{escape(account_info)}</code>"
-    minimum = f"${min_dep:g}" if is_binance else f"৳{min_dep:g}"
+    minimum = f"{min_dep:g} USDT" if is_binance else f"৳{min_dep:g}"
     inst = f"<b>{escape(heading)}</b>\n{destination}\nMinimum: <b>{minimum}</b>"
     if not is_binance and rate > 1:
-        inst += f"\nRate: ৳{rate:g} = $1"
+        inst += f"\nRate: ৳{rate:g} = USD 1"
     if custom_inst:
         inst += f"\n\n{escape(custom_inst)}"
     inst += "\n\nAfter paying, tap Payment Done."
@@ -923,7 +923,7 @@ async def handle_deposit_quick_amount(query: CallbackQuery, state: FSMContext, s
     min_dep = float(data.get("min_deposit") or 1.0)
     is_binance = data.get("is_binance", False) or "binance" in method_name.lower() or data.get("auto_verify") == "binance_pay"
     symbol = await services.settings.get("currency_symbol") or "৳"
-    curr_label = "$" if is_binance else symbol
+    curr_label = "USDT" if is_binance else symbol
     lang = await services.users.get_language(query.from_user.id) if query.from_user else "en"
 
     raw_val = query.data.removeprefix("dep_amt_")
@@ -939,11 +939,11 @@ async def handle_deposit_quick_amount(query: CallbackQuery, state: FSMContext, s
     rate = float(data.get("rate") or 1.0)
     if amount_num < min_dep:
         err_msg = (
-            f"মিনিমাম ডিপোজিট {min_dep:.2f} $:"
+            f"মিনিমাম ডিপোজিট {min_dep:.2f} USDT:"
             if is_binance
             else f"মিনিমাম ডিপোজিট {min_dep:.0f} ৳:"
         ) if lang == "bn" else (
-            f"Minimum deposit is {min_dep:.2f} $:"
+            f"Minimum deposit is {min_dep:.2f} USDT:"
             if is_binance
             else f"Minimum deposit is {min_dep:.0f} ৳:"
         )
@@ -990,14 +990,14 @@ async def handle_deposit_quick_amount(query: CallbackQuery, state: FSMContext, s
             tx_prompt = (
                 f"<b>{escape(method_name)}</b>\n"
                 f"Pay ID: <code>{escape(account_info)}</code>\n"
-                f"পরিমাণ: <b>${amount_num:g}</b>\n\n"
+                f"পরিমাণ: <b>{amount_num:g} USDT</b>\n\n"
                 "পেমেন্টের Order ID নিচে লিখুন:"
             )
         else:
             tx_prompt = (
                 f"<b>{escape(method_name)}</b>\n"
                 f"Pay ID: <code>{escape(account_info)}</code>\n"
-                f"Amount: <b>${amount_num:g}</b>\n\n"
+                f"Amount: <b>{amount_num:g} USDT</b>\n\n"
                 "Enter Order ID below:"
             )
     else:
@@ -1013,14 +1013,14 @@ async def handle_deposit_quick_amount(query: CallbackQuery, state: FSMContext, s
             tx_prompt = (
                 f"<b>{escape(method_name)} {type_display}</b>\n"
                 f"নম্বর: <code>{escape(account_info)}</code>\n"
-                f"পরিমাণ: <b>৳{amount_num:g} (${usd_amount:.2f})</b>\n\n"
+                f"পরিমাণ: <b>৳{amount_num:g} (USD equivalent: ${usd_amount:.2f})</b>\n\n"
                 "পেমেন্টের TrxID নিচে লিখুন:"
             )
         else:
             tx_prompt = (
                 f"<b>{escape(method_name)} {type_display}</b>\n"
                 f"Number: <code>{escape(account_info)}</code>\n"
-                f"Amount: <b>৳{amount_num:g} (${usd_amount:.2f})</b>\n\n"
+                f"Amount: <b>৳{amount_num:g} (USD equivalent: ${usd_amount:.2f})</b>\n\n"
                 "Enter TrxID below:"
             )
 
@@ -1106,8 +1106,8 @@ async def ask_deposit_input(query: CallbackQuery, state: FSMContext, services: S
 
     if is_binance:
         amount_text = (
-            f"Minimum: <b>{min_dep:.2f} $</b>\n\n"
-            f"Enter amount sent in $:"
+            f"Minimum: <b>{min_dep:.2f} USDT</b>\n\n"
+            f"Enter amount sent in USDT:"
         )
     else:
         amount_text = (
@@ -1158,7 +1158,7 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
     account_info = data.get("account_info", "")
     min_dep = float(data.get("min_deposit") or 1.0)
     is_binance = data.get("is_binance", False) or "binance" in method_name.lower() or data.get("auto_verify") == "binance_pay"
-    currency_label = "$" if is_binance else "৳"
+    currency_label = "USDT" if is_binance else "৳"
     lang = await services.users.get_language(message.from_user.id) if message.from_user else "en"
 
     chat = getattr(message, "chat", None)
@@ -1242,13 +1242,13 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
     if amount_num < min_dep:
         if lang == "bn":
             err_msg = (
-                f"মিনিমাম ডিপোজিট {min_dep:.2f} $:"
+                f"মিনিমাম ডিপোজিট {min_dep:.2f} USDT:"
                 if is_binance
                 else f"মিনিমাম ডিপোজিট {min_dep:.0f} ৳:"
             )
         else:
             err_msg = (
-                f"Minimum deposit is {min_dep:.2f} $:"
+                f"Minimum deposit is {min_dep:.2f} USDT:"
                 if is_binance
                 else f"Minimum deposit is {min_dep:.0f} ৳:"
             )
@@ -1292,14 +1292,14 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
             tx_prompt = (
                 f"<b>{escape(method_name)}</b>\n"
                 f"Pay ID: <code>{escape(account_info)}</code>\n"
-                f"পরিমাণ: <b>${amount_num:g}</b>\n\n"
+                f"পরিমাণ: <b>{amount_num:g} USDT</b>\n\n"
                 "পেমেন্টের Order ID নিচে লিখুন:"
             )
         else:
             tx_prompt = (
                 f"<b>{escape(method_name)}</b>\n"
                 f"Pay ID: <code>{escape(account_info)}</code>\n"
-                f"Amount: <b>${amount_num:g}</b>\n\n"
+                f"Amount: <b>{amount_num:g} USDT</b>\n\n"
                 "Enter Order ID below:"
             )
     else:
@@ -1316,14 +1316,14 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
             tx_prompt = (
                 f"<b>{escape(method_name)} {type_display}</b>\n"
                 f"নম্বর: <code>{escape(account_info)}</code>\n"
-                f"পরিমাণ: <b>৳{amount_num:g} (${usd_amount:.2f})</b>\n\n"
+                f"পরিমাণ: <b>৳{amount_num:g} (USD equivalent: ${usd_amount:.2f})</b>\n\n"
                 "পেমেন্টের TrxID নিচে লিখুন:"
             )
         else:
             tx_prompt = (
                 f"<b>{escape(method_name)} {type_display}</b>\n"
                 f"Number: <code>{escape(account_info)}</code>\n"
-                f"Amount: <b>৳{amount_num:g} (${usd_amount:.2f})</b>\n\n"
+                f"Amount: <b>৳{amount_num:g} (USD equivalent: ${usd_amount:.2f})</b>\n\n"
                 "Enter TrxID below:"
             )
 
@@ -1404,14 +1404,14 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                 tx_err_card = (
                     f"<b>{escape(method_name)}</b>\n"
                     f"Pay ID: <code>{escape(account_info)}</code>\n"
-                    f"পরিমাণ: <b>${amount_num:g}</b>\n\n"
+                    f"পরিমাণ: <b>{amount_num:g} USDT</b>\n\n"
                     f"⚠️ <b>{err_msg}</b>"
                 )
             else:
                 tx_err_card = (
                     f"<b>{escape(method_name)}</b>\n"
                     f"Pay ID: <code>{escape(account_info)}</code>\n"
-                    f"Amount: <b>${amount_num:g}</b>\n\n"
+                    f"Amount: <b>{amount_num:g} USDT</b>\n\n"
                     f"⚠️ <b>{err_msg}</b>"
                 )
         else:
@@ -1427,14 +1427,14 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                 tx_err_card = (
                     f"<b>{escape(method_name)} {type_display}</b>\n"
                     f"নম্বর: <code>{escape(account_info)}</code>\n"
-                    f"পরিমাণ: <b>৳{pay_amount:g} (${usd_amount:.2f})</b>\n\n"
+                    f"পরিমাণ: <b>৳{pay_amount:g} (USD equivalent: ${usd_amount:.2f})</b>\n\n"
                     f"⚠️ <b>{err_msg}</b>"
                 )
             else:
                 tx_err_card = (
                     f"<b>{escape(method_name)} {type_display}</b>\n"
                     f"Number: <code>{escape(account_info)}</code>\n"
-                    f"Amount: <b>৳{pay_amount:g} (${usd_amount:.2f})</b>\n\n"
+                    f"Amount: <b>৳{pay_amount:g} (USD equivalent: ${usd_amount:.2f})</b>\n\n"
                     f"⚠️ <b>{err_msg}</b>"
                 )
 
@@ -1553,9 +1553,9 @@ async def execute_deposit_submission(
     if is_binance:
         credit_amount = raw_amount
         actual_pay = raw_amount
-        amt_display = f"${credit_amount:g}"
+        amt_display = f"{credit_amount:g} USDT"
     else:
-        # The ledger is denominated in BDT; USD is only a display conversion.
+        # The ledger is denominated in BDT; USD is only an approximate display conversion.
         credit_amount = pay_amount
         actual_pay = pay_amount
         rate = 1.0
@@ -1954,7 +1954,7 @@ async def claim_binance_payment(
         status_msg = await user_msg.answer(
             f"⏳ <b>Checking payment...</b>\n\n"
             f"Method: <b>Binance</b>\n"
-            f"Amount: <b>{expected_usdt or 0:.2f} $</b>\n"
+            f"Amount: <b>{expected_usdt or 0:.2f} USDT</b>\n"
             f"Order ID: <code>{escape(ref)}</code>"
         )
 
@@ -2021,7 +2021,7 @@ async def claim_binance_payment(
         text = format_deposit_status_card(
             dep_id=dep_id,
             method_name="Binance",
-            amount_str=f"${expected_usdt or 0:g}",
+            amount_str=f"{expected_usdt or 0:g} USDT",
             txid=ref,
             status="pending",
             lang=lang,
@@ -2066,12 +2066,12 @@ async def refresh_deposit_status(query: CallbackQuery, services: Services):
     pay_amt = float(dep.get("pay_amount") or 0.0)
     rate = float(dep.get("rate_to_currency") or 1.0)
     if is_bin:
-        amt_str = f"${amt:g}"
+        amt_str = f"{amt:g} USDT"
     else:
         if pay_amt > 0 and rate > 1.0:
-            amt_str = f"৳{pay_amt:g} (${amt:.2f})"
+            amt_str = f"৳{pay_amt:g} (USD equivalent: ${amt:.2f})"
         else:
-            amt_str = f"${amt:.2f}"
+            amt_str = f"৳{amt:.2f}"
 
     user_balance_str = None
     if status in ("approved", "completed"):
@@ -2153,12 +2153,12 @@ async def back_to_deposit_request(query: CallbackQuery, services: Services):
     pay_amt = float(dep.get("pay_amount") or 0.0)
     rate = float(dep.get("rate_to_currency") or 1.0)
     if is_bin:
-        amt_str = f"${amt:g}"
+        amt_str = f"{amt:g} USDT"
     else:
         if pay_amt > 0 and rate > 1.0:
-            amt_str = f"৳{pay_amt:g} (${amt:.2f})"
+            amt_str = f"৳{pay_amt:g} (USD equivalent: ${amt:.2f})"
         else:
-            amt_str = f"${amt:.2f}"
+            amt_str = f"৳{amt:.2f}"
 
     user_balance_str = None
     if status in ("approved", "completed"):

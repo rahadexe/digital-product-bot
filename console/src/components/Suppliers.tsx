@@ -559,6 +559,7 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
             )}
           </div>
         </header>
+        <p style={{ margin: '0 18px 12px', color: 'var(--muted)' }}>Store retail and wholesale prices and customer balances use BDT. Remote supplier prices show the supplier's source currency; imported USD/USDT wholesale costs are converted to BDT using the Settings exchange rate.</p>
 
         {/* TAB 1: SYNCED STORE PRODUCTS */}
         {viewMode === 'synced' && (
@@ -731,7 +732,7 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                   <label className="app-record-select"><input type="checkbox" aria-label={`Select supplier product ${product.id}`} checked={selectedSyncedIds.includes(product.id)} onChange={event => setSelectedSyncedIds(ids => event.target.checked ? [...ids, product.id] : ids.filter(id => id !== product.id))} /></label>
                   <MobileRecordDetails title={product.title} subtitle={product.supplier_code === 'safwan_tiger' ? 'Safwan Tiger' : 'Digital Mart'} meta={product.duration_label || undefined} amount={money(product.price)} status={product.is_active ? 'Active' : 'Hidden'} tone={product.is_active ? 'good' : 'neutral'} icon={product.icon || undefined} label={`View supplier product ${product.id}`} fields={[
                     ['Product', product.title], ['Supplier ID', product.upstream_product_id], ['Category', categories.find(category => category.id === product.category_id)?.name || 'General'],
-                    ['Retail price', money(product.price)], ['Wholesale rate', product.reseller_price != null ? money(product.reseller_price) : 'Not set'], ['Duration', product.duration_label || 'Default'],
+                    ['Retail price (BDT)', `${money(product.price)} BDT`], ['Wholesale rate (BDT)', product.reseller_price != null ? `${money(product.reseller_price)} BDT` : 'Not set'], ['Duration', product.duration_label || 'Default'],
                   ]}>
                     <button type="button" className="btn" onClick={() => void toggleProductActive(product)}>{product.is_active ? 'Hide product' : 'Activate product'}</button>
                   </MobileRecordDetails>
@@ -753,8 +754,8 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                       <th>Product</th>
                       <th>Supplier</th>
                       <th>Category</th>
-                      <th>Retail Price</th>
-                      <th>Wholesale Rate</th>
+                      <th>Retail Price (BDT)</th>
+                      <th>Wholesale Rate (BDT)</th>
                       <th style={{ textAlign: 'center' }}>Status</th>
                     </tr>
                   </thead>
@@ -1036,9 +1037,9 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
               <ul className="app-record-list supplier-product-feed" aria-label="Remote supplier products">
                 {filteredRemote.map(product => <li key={product.id}>
                   <label className="app-record-select"><input type="checkbox" aria-label={`Select remote product ${product.id}`} checked={selectedRemoteIds.includes(product.id)} onChange={event => setSelectedRemoteIds(ids => event.target.checked ? [...ids, product.id] : ids.filter(id => id !== product.id))} /></label>
-                  <MobileRecordDetails title={product.title} subtitle={product.category_name} meta={product.duration || undefined} amount={`${product.currency_symbol}${product.reseller_price.toFixed(2)}`} status={product.in_store ? product.local_is_active ? 'Active' : 'Hidden' : 'Not imported'} tone={product.in_store && product.local_is_active ? 'good' : 'neutral'} icon={product.icon || undefined} label={`View remote product ${product.id}`} fields={[
+                  <MobileRecordDetails title={product.title} subtitle={product.category_name} meta={product.duration || undefined} amount={`${product.currency_symbol}${product.reseller_price.toFixed(2)} ${product.currency}`} status={product.in_store ? product.local_is_active ? 'Active' : 'Hidden' : 'Not imported'} tone={product.in_store && product.local_is_active ? 'good' : 'neutral'} icon={product.icon || undefined} label={`View remote product ${product.id}`} fields={[
                     ['Product', product.title], ['Supplier ID', product.id], ['Category', product.category_name],
-                    ['Wholesale rate', `${product.currency_symbol}${product.reseller_price.toFixed(2)} ${product.currency}`], ['Duration', product.duration || ''],
+                    ['Source wholesale rate', `${product.currency_symbol}${product.reseller_price.toFixed(2)} ${product.currency}`], ['Duration', product.duration || ''],
                     ['Warranty', product.warranty || ''], ['Description', product.description || ''],
                   ]}>
                     <button type="button" className="btn" disabled={remoteImporting} onClick={() => void handleImportRemoteProduct(product)}>{product.in_store ? 'Re-sync' : 'Import to Store'}</button>
@@ -1060,7 +1061,7 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                       </th>
                       <th>Product Title</th>
                       <th>Category</th>
-                      <th>Wholesale Rate</th>
+                      <th>Source Wholesale Rate</th>
                       <th>Store Status</th>
                       <th style={{ textAlign: 'right' }}>Actions</th>
                     </tr>

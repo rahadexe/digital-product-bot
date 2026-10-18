@@ -160,7 +160,7 @@ async def search_again(query: CallbackQuery, state: FSMContext, services: Servic
 
 
 def _product_button(product: dict, symbol: str, usd_rate: float | None = None,
-                    show_usd: bool = True, callback: str = "prod", lang: str = "en", **kwargs) -> InlineKeyboardButton:
+                    show_usd: bool = False, callback: str = "prod", lang: str = "en", **kwargs) -> InlineKeyboardButton:
     icon = (product.get("icon") or "").strip()
     title = product['title'].strip()
     custom_id = str(product.get("custom_emoji_id") or "").strip()
@@ -230,7 +230,7 @@ def forget_search_origin(tg_user_id: int, product_id: int) -> None:
 async def _results(services: Services, term: str, lang: str = "en") -> tuple[str, InlineKeyboardMarkup]:
     matches = await services.catalog.search(term, limit=RESULTS)
     values = await services.settings.values()
-    symbol = values.get("currency_symbol", "$")
+    symbol = values.get("currency_symbol", "৳")
     usd_rate = float(values.get("usd_rate") or 0) or None
     closing = _closing_row(lang)
 

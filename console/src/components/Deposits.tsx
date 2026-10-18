@@ -220,7 +220,7 @@ function TopUps({
               <MobileRecord
                 title={who(deposit)}
                 subtitle={`${deposit.method_name || 'Deposit'}, D${deposit.id}`}
-                amount={money(deposit.amount)}
+                amount={`${money(deposit.amount)} BDT`}
                 status={flagged ? 'Needs review' : deposit.status}
                 tone={flagged ? 'bad' : tone(deposit.status) || 'neutral'}
                 icon={<Wallet size={20} />}
@@ -263,7 +263,7 @@ function TopUps({
               {(rows ?? []).map((deposit) => {
                 const checkable = deposit.auto_verify === 'binance' || deposit.auto_verify === 'binance_pay';
                 const flagged = deposit.status === 'pending' && Boolean(deposit.admin_note?.startsWith('Needs a look'));
-                const isBinance = deposit.method_name?.toLowerCase().includes('binance');
+                const isBinance = deposit.method_name?.toLowerCase().includes('binance') || ['binance', 'binance_pay'].includes(deposit.auto_verify || '');
                 return (
                   <tr key={deposit.id}>
                     <td data-label="Customer">
@@ -274,7 +274,7 @@ function TopUps({
                           fields={[
                             ['Deposit ID', `D${deposit.id}`],
                             ['Customer', who(deposit)],
-                            ['Amount', money(deposit.amount)],
+                            ['Wallet credit (BDT)', `${money(deposit.amount)} BDT`],
                             ['Method', deposit.method_name || 'Not set'],
                             ['Transaction ID', deposit.transaction_id || 'Not set'],
                             ['Created', when(deposit.created_at)],
@@ -288,7 +288,7 @@ function TopUps({
                       <strong className="money">{money(deposit.amount)}</strong>
                       {deposit.pay_amount != null && deposit.rate_to_currency != null && deposit.rate_to_currency !== 1 ? (
                         <small style={{ display: 'block', color: 'var(--muted)', fontSize: '11px' }}>
-                          pays {deposit.pay_amount.toFixed(2)}
+                          pays {deposit.pay_amount.toFixed(2)} {isBinance ? 'USDT' : 'BDT'}
                         </small>
                       ) : null}
                     </td>
@@ -402,13 +402,13 @@ function TopUps({
           <dl className="record-details">
             {[
               ['Customer', who(selectedDeposit)],
-              ['Wallet credit', money(selectedDeposit.amount)],
+              ['Wallet credit (BDT)', `${money(selectedDeposit.amount)} BDT`],
               ['Method', selectedDeposit.method_name || 'Not set'],
               ['Transaction ID', selectedDeposit.transaction_id || 'Not set'],
               ['Status', selectedDeposit.status],
               ['Created', when(selectedDeposit.created_at)],
               ['Admin note', selectedDeposit.admin_note || ''],
-              ...(selectedDeposit.pay_amount != null ? [['Amount sent', `${selectedDeposit.pay_amount} (payment currency)`]] : []),
+              ...(selectedDeposit.pay_amount != null ? [['Amount sent', `${selectedDeposit.pay_amount} ${selectedDeposit.method_name?.toLowerCase().includes('binance') || ['binance', 'binance_pay'].includes(selectedDeposit.auto_verify || '') ? 'USDT' : 'BDT'}`]] : []),
             ].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
           </dl>
           {selectedDeposit.status === 'pending' ? <div className="app-review-actions">
@@ -598,7 +598,7 @@ function Instant({
       <div className="app-list-heading"><span>{total} payments</span><span>ZiniPay</span></div>
       <ul className="app-record-list deposit-feed" aria-label="Instant deposits" aria-busy={loading}>
         {(rows ?? []).map(payment => <li key={payment.id}>
-          <MobileRecord title={payment.first_name || payment.username || `User ${payment.tg_user_id}`} subtitle={payment.payment_method || 'ZiniPay'} meta={when(payment.created_at)} amount={money(payment.credit_amount)} status={['created', 'pending'].includes(payment.status) ? 'Unpaid' : payment.status} tone={tone(payment.status) || 'neutral'} icon={<Zap size={20} />} label={`View payment ${payment.reference}`} onOpen={() => setSelectedPayment(payment)} />
+          <MobileRecord title={payment.first_name || payment.username || `User ${payment.tg_user_id}`} subtitle={payment.payment_method || 'ZiniPay'} meta={when(payment.created_at)} amount={`${money(payment.credit_amount)} BDT`} status={['created', 'pending'].includes(payment.status) ? 'Unpaid' : payment.status} tone={tone(payment.status) || 'neutral'} icon={<Zap size={20} />} label={`View payment ${payment.reference}`} onOpen={() => setSelectedPayment(payment)} />
         </li>)}
         {!rows || !rows.length ? <li className="app-list-empty">{loading ? 'Loading payments…' : 'No instant deposits yet.'}</li> : null}
       </ul>
@@ -606,8 +606,8 @@ function Instant({
         <dl className="record-details">
           {[
             ['Customer', selectedPayment.first_name || selectedPayment.username || String(selectedPayment.tg_user_id)],
-            ['Wallet credit', money(selectedPayment.credit_amount)],
-            ['Amount to pay', `৳${selectedPayment.pay_amount.toFixed(2)}`],
+            ['Wallet credit (BDT)', `${money(selectedPayment.credit_amount)} BDT`],
+            ['Amount to pay (BDT)', `৳${selectedPayment.pay_amount.toFixed(2)}`],
             ['Reference', selectedPayment.reference],
             ['Transaction ID', selectedPayment.provider_transaction_id || 'Not set'],
             ['Method', selectedPayment.payment_method || 'ZiniPay'],
@@ -623,7 +623,7 @@ function Instant({
           <thead>
             <tr>
               <th scope="col">Customer</th>
-              <th scope="col">Credit</th>
+              <th scope="col">Credit (BDT)</th>
               <th scope="col">Paid with</th>
               <th scope="col">Transaction ID</th>
               <th scope="col">Status</th>
@@ -641,8 +641,8 @@ function Instant({
                         fields={[
                           ['Invoice ID', `#${payment.id}`],
                           ['Customer', who(payment)],
-                          ['Credit amount', money(payment.credit_amount)],
-                          ['Payable amount', `৳${payment.pay_amount.toFixed(2)}`],
+                          ['Credit amount (BDT)', `${money(payment.credit_amount)} BDT`],
+                          ['Payable amount (BDT)', `৳${payment.pay_amount.toFixed(2)}`],
                           ['Method', payment.payment_method || 'ZiniPay'],
                           ['Reference', payment.reference],
                           ['Provider TrxID', payment.provider_transaction_id || 'Not set'],

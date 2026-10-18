@@ -506,7 +506,7 @@ export function PaymentMethods({
                             )}
                           </button>
                           <span className="payment-minimum">
-                            Minimum deposit {isBinance ? `$${method.min_deposit}` : `${symbol}${method.min_deposit}`}
+                            Minimum deposit {isBinance ? `${method.min_deposit} USDT` : `${symbol}${method.min_deposit} BDT`}
                           </span>
                         </div>
                       </div>
@@ -717,7 +717,7 @@ export function PaymentMethods({
                         />
                       </label>
                       <label className="field">
-                        <span>Minimum Deposit ($)</span>
+                        <span>Minimum Deposit (USDT)</span>
                         <div className="pm-input-currency">
                           <input
                             type="text"
@@ -732,7 +732,7 @@ export function PaymentMethods({
                             }
                             required
                           />
-                          <span className="pm-currency-tag">$</span>
+                          <span className="pm-currency-tag">USDT</span>
                         </div>
                       </label>
                     </div>
@@ -888,7 +888,7 @@ export function PaymentMethods({
                       </label>
 
                       <label className="field">
-                        <span>Minimum Deposit (টাকা)</span>
+                        <span>Minimum Deposit (BDT)</span>
                         <input
                           type="number"
                           min="1"
