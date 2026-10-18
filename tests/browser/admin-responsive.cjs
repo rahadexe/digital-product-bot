@@ -535,7 +535,7 @@ const emoji = { id: 1, name: 'Store subscription icon', emoji_id: '0000000000000
     await page.locator('.product-feed .app-record').first().click();
     const editDialog = page.getByRole('dialog', { name: 'Edit product', exact: true });
     await editDialog.waitFor();
-    assert.equal(await editDialog.getByLabel('Regular Price', { exact: true }).inputValue(), '150', 'List opens existing edit form without changing price');
+    assert.equal(await editDialog.getByLabel('Regular Price (BDT)', { exact: true }).inputValue(), '150', 'List opens existing edit form without changing price');
     await page.keyboard.press('Escape');
     await editDialog.waitFor({ state: 'hidden' });
     await page.locator('.product-feed .app-record-more').first().click();
@@ -560,7 +560,7 @@ const emoji = { id: 1, name: 'Store subscription icon', emoji_id: '0000000000000
     assert.ok(formMetrics.footer <= formMetrics.viewport, 'Product actions fit viewport');
     await page.screenshot({ path: `${output}/product-form-mobile.png`, fullPage: true });
     await dialog.getByPlaceholder('e.g. NordVPN').fill('Mobile test product');
-    await dialog.getByLabel('Regular Price', { exact: true }).fill('150');
+    await dialog.getByLabel('Regular Price (BDT)', { exact: true }).fill('150');
     failSave = true;
     await dialog.getByRole('button', { name: 'Add product', exact: true }).click();
     await dialog.getByRole('alert').waitFor();

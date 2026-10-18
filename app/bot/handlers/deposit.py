@@ -189,7 +189,7 @@ def format_deposit_method_card(
                 f"<b>{escape(method_name)} {escape(type_display)}</b>\n\n"
                 f"{dest_line}"
                 f"মিনিমাম: <b>{min_dep:g} ৳</b>\n"
-                f"এক্সচেঞ্জ রেট: <b>{rate:g} টাকা/ডলার</b>\n\n"
+                f"এক্সচেঞ্জ রেট: <b>1 USD = ৳{rate:g} BDT</b>\n\n"
                 f"{prompt_line}"
             )
         else:
@@ -199,7 +199,7 @@ def format_deposit_method_card(
                 f"<b>{escape(method_name)} {escape(type_display)}</b>\n\n"
                 f"{dest_line}"
                 f"Minimum: <b>{min_dep:g} ৳</b>\n"
-                f"Exchange Rate: <b>{rate:g} tk/dollar</b>\n\n"
+                f"Exchange rate: <b>1 USD = ৳{rate:g} BDT</b>\n\n"
                 f"{prompt_line}"
             )
 
@@ -576,7 +576,7 @@ async def render_method_details(
     minimum = f"{min_dep:g} USDT" if is_binance else f"৳{min_dep:g}"
     inst = f"<b>{escape(heading)}</b>\n{destination}\nMinimum: <b>{minimum}</b>"
     if not is_binance and rate > 1:
-        inst += f"\nRate: ৳{rate:g} = USD 1"
+        inst += f"\nRate: 1 USD = ৳{rate:g} BDT"
     if custom_inst:
         inst += f"\n\n{escape(custom_inst)}"
     inst += "\n\nAfter paying, tap Payment Done."

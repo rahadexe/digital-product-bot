@@ -23,8 +23,26 @@ def test_store_currency_defaults_to_bdt():
 
 def test_store_currency_settings_are_locked_to_bdt():
     settings = SettingsService.__new__(SettingsService)
-    assert settings._validate("currency", "USD") == "BDT"
+    assert settings._validate("currency", "BDT") == "BDT"
+    with pytest.raises(ValueError, match="must remain BDT"):
+        settings._validate("currency", "USD")
     assert settings._validate("currency_symbol", "$") == "৳"
+
+
+class LegacyCurrencySettingsDatabase(EmptySettingsDatabase):
+    async def fetch(self, _query):
+        return [
+            {"key": "currency", "value": "USD"},
+            {"key": "currency_symbol", "value": "$"},
+        ]
+
+
+@pytest.mark.asyncio
+async def test_legacy_currency_settings_are_read_as_bdt():
+    settings = SettingsService(LegacyCurrencySettingsDatabase(), SimpleNamespace(admin_tg_id=0))
+    values = await settings.values()
+    assert values["currency"] == "BDT"
+    assert values["currency_symbol"] == "৳"
 
 
 def test_default_price_format_is_bdt():
