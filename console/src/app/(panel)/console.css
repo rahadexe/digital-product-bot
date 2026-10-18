@@ -1058,14 +1058,15 @@ label.mini[aria-disabled='true'] { opacity: 0.45; cursor: not-allowed; }
    No sideways scrolling, and nothing squeezed into a column two words wide. */
 @media (max-width: 760px) {
   .panel > header {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
     gap: 10px;
     padding: 12px 14px;
   }
   .panel > header > div:first-child {
-    width: 100% !important;
-    flex: 1 1 100% !important;
+    min-width: 0;
+    flex: 1 1 auto;
   }
   .panel > header .filters {
     display: flex;
@@ -1088,7 +1089,7 @@ label.mini[aria-disabled='true'] { opacity: 0.45; cursor: not-allowed; }
     right: 0 !important;
   }
   .panel > header .btn {
-    width: 100%;
+    width: auto;
     justify-content: center;
   }
 

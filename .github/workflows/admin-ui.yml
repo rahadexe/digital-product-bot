@@ -1,0 +1,64 @@
+name: Admin UI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'console/**'
+      - 'tests/browser/**'
+      - '.github/workflows/admin-ui.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'console/**'
+      - 'tests/browser/**'
+      - '.github/workflows/admin-ui.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: admin-ui-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mobile-layout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: console/package-lock.json
+      - run: npm --prefix console ci
+      - run: npm --prefix console run build
+      - run: npm --prefix console run typecheck
+      - name: Install isolated browser test tools
+        run: |
+          npm install --prefix "$RUNNER_TEMP/ui-checks" --no-package-lock --no-audit --no-fund @playwright/test@1.64.1
+          "$RUNNER_TEMP/ui-checks/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Test actual production export with synthetic data
+        env:
+          NODE_PATH: ${{ runner.temp }}/ui-checks/node_modules
+          ARTIFACT_DIR: ${{ runner.temp }}/admin-ui-artifacts
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory console/out > "$RUNNER_TEMP/admin-ui-server.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:4173/ > /dev/null; then break; fi
+            sleep 1
+          done
+          node tests/browser/layout-quality.cjs
+          node tests/browser/admin-responsive.cjs
+      - name: Upload synthetic screenshots and results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-ui-artifacts
+          path: ${{ runner.temp }}/admin-ui-artifacts
+          if-no-files-found: ignore
+          retention-days: 7

@@ -6,6 +6,7 @@ import './records.css';
 import './studio.css';
 import './mobile-lists.css';
 import './app-pages.css';
+import './home.css';
 
 // Bundled with the console: no external font request at build time or runtime.
 
