@@ -92,7 +92,7 @@ def get_main_inline_keyboard(
     lang: str = "en",
     currency_symbol: str = "৳",
     usd_rate: float | None = None,
-    show_usd: bool = True,
+    show_usd: bool = False,
 ) -> InlineKeyboardMarkup:
     """
     Six short customer actions; operator rows remain role-specific.
@@ -203,7 +203,7 @@ def get_products_reply_keyboard(
     products: List[Dict[str, Any]],
     currency_symbol: str = "৳",
     usd_rate: float | None = None,
-    show_usd: bool = True,
+    show_usd: bool = False,
     is_reseller: bool = False,
     lang: str = "en",
     show_icons: bool = True,
@@ -823,7 +823,7 @@ def get_products_keyboard(
     back_target: str = "back_to_main",
     is_reseller: bool = False,
     usd_rate: float | None = None,
-    show_usd: bool = True,
+    show_usd: bool = False,
     lang: str = "en",
 ) -> InlineKeyboardMarkup:
     """
@@ -969,7 +969,7 @@ def get_quantity_selector_keyboard(
     is_upstream: bool = False,
     back_target: str = "open_shop",
     usd_rate: float | None = None,
-    show_usd: bool = True,
+    show_usd: bool = False,
     product_link: str = "",
     has_description: bool = False,
     lang: str = "en",
@@ -1132,7 +1132,7 @@ def get_product_detail_keyboard(
     price: float,
     currency_symbol: str = "৳",
     usd_rate: float | None = None,
-    show_usd: bool = True,
+    show_usd: bool = False,
     product_icon_custom_emoji_id: str | None = None,
 ) -> InlineKeyboardMarkup:
     """Fallback simple product keyboard."""
@@ -1221,13 +1221,13 @@ def get_deposit_quick_amount_keyboard(
     if is_binance:
         chips = [
             [
-                InlineKeyboardButton(text="$1", callback_data="dep_amt_1"),
-                InlineKeyboardButton(text="$5", callback_data="dep_amt_5"),
-                InlineKeyboardButton(text="$10", callback_data="dep_amt_10"),
+                InlineKeyboardButton(text="1 USDT", callback_data="dep_amt_1"),
+                InlineKeyboardButton(text="5 USDT", callback_data="dep_amt_5"),
+                InlineKeyboardButton(text="10 USDT", callback_data="dep_amt_10"),
             ],
             [
-                InlineKeyboardButton(text="$20", callback_data="dep_amt_20"),
-                InlineKeyboardButton(text="$50", callback_data="dep_amt_50"),
+                InlineKeyboardButton(text="20 USDT", callback_data="dep_amt_20"),
+                InlineKeyboardButton(text="50 USDT", callback_data="dep_amt_50"),
             ],
         ]
     else:

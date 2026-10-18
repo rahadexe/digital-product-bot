@@ -264,7 +264,7 @@ class NotificationDeliveryTests(unittest.IsolatedAsyncioTestCase):
                 text = await conn.fetchval(
                     "SELECT text FROM outbox WHERE order_id=$1 OR about_order_id=$1", order["order_id"]
                 )
-            self.assertFalse(any("\u0980" <= char <= "\u09ff" for char in text), text)
+            self.assertFalse(any("\u0980" <= char <= "\u09ff" and char != "\u09f3" for char in text), text)
             if delivery_type == "instant":
                 self.assertEqual(text.count("Delivered"), 1)
                 self.assertIn("credentials-test", text)

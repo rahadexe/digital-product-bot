@@ -10,10 +10,10 @@ function loadCurrencySymbol(): Promise<string> {
   if (!symbolRequest) {
     symbolRequest = api
       .settings()
-      .then((settings) => settings.currency_symbol || '$')
+      .then((settings) => settings.currency_symbol || '৳')
       .catch(() => {
         symbolRequest = null;
-        return '$';
+        return '৳';
       });
   }
   return symbolRequest;
@@ -25,7 +25,7 @@ export function resetCurrencySymbol() {
 }
 
 export function useMoney() {
-  const [symbol, setSymbol] = useState('$');
+  const [symbol, setSymbol] = useState('৳');
   useEffect(() => {
     let active = true;
     loadCurrencySymbol().then((value) => {

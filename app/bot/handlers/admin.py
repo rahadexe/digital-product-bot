@@ -293,8 +293,8 @@ async def build_admin_dashboard(services: Services) -> tuple[str, InlineKeyboard
     pending = stats.get("pending_deposits", 0)
 
     get_fn = getattr(services.settings, "get", None)
-    raw_symbol = await get_fn("currency_symbol") if get_fn else "$"
-    symbol = html.escape(raw_symbol or "$")
+    raw_symbol = await get_fn("currency_symbol") if get_fn else "৳"
+    symbol = html.escape(raw_symbol or "৳")
 
     today_orders = 0
     today_rev = 0.0

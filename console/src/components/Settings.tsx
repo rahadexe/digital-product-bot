@@ -121,7 +121,7 @@ export function Settings({
     setBinance(checker);
   }
 
-  const symbol = '$';
+  const symbol = '৳';
 
   const isStoreActive = values.store_paused !== '1';
   const isDepositsActive = values.zinipay_enabled === '1' || values.binance_enabled === '1';
@@ -411,7 +411,7 @@ export function Settings({
                 </label>
 
                 <label className="field wide">
-                  <span>Maximum single deposit limit ($)</span>
+                  <span>Maximum single deposit limit (BDT)</span>
                   <input
                     type="number"
                     min="1"
@@ -424,7 +424,7 @@ export function Settings({
                 </label>
 
                 <label className="field wide">
-                  <span>Bonus per Referral ($)</span>
+                  <span>Bonus per Referral (BDT)</span>
                   <input
                     type="number"
                     step="any"
@@ -438,7 +438,7 @@ export function Settings({
                 </label>
 
                 <label className="field wide">
-                  <span>Exchange Rate (1 USD in BDT)</span>
+                  <span>Exchange Rate (1 USD/USDT in BDT)</span>
                   <input
                     type="number"
                     step="any"

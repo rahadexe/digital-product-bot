@@ -292,7 +292,7 @@ async def test_onchain_method_shows_the_minimum_in_the_currency_the_customer_ent
         "account_type": "crypto",
     })
     assert (await state.get_data())["min_deposit"] == pytest.approx(0.2)
-    assert "Minimum: <b>$0.2</b>" in incoming.answer.await_args.args[0]
+    assert "Minimum: <b>0.2 USDT</b>" in incoming.answer.await_args.args[0]
 
 
 @pytest.mark.asyncio
