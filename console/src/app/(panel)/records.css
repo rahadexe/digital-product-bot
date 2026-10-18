@@ -540,8 +540,8 @@ html:has(.console-root) { scrollbar-gutter: stable; }
 
 /* Reseller requests share one compact table surface at every breakpoint. */
 .console-root .main-inner[data-screen='reseller-apps'] .reseller-requests > header { padding: 10px 14px; gap: 8px; flex-wrap: nowrap; }
-.console-root .main-inner[data-screen='reseller-apps'] .reseller-requests .queue-tabs { min-width: 0; flex: 1 1 auto; overflow-x: auto; white-space: nowrap; }
-.console-root .reseller-refresh { flex-shrink: 0; min-width: 36px; min-height: 36px; }
+.console-root .main-inner[data-screen='reseller-apps'] .reseller-requests > header > .queue-tabs { min-width: 0; flex: 1 1 0%; overflow-x: auto; white-space: nowrap; }
+.console-root .reseller-refresh { flex-shrink: 0; min-width: 44px; min-height: 44px; }
 .console-root .main-inner[data-screen='reseller-apps'] .reseller-requests .scroll { min-height: 0; overflow-x: auto; }
 .console-root .main-inner[data-screen='reseller-apps'] .reseller-table { min-width: 760px; }
 .console-root .main-inner[data-screen='reseller-apps'] .reseller-table thead { display: table-header-group; }
