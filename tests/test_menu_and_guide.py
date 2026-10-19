@@ -69,6 +69,7 @@ class MenuAndGuideTests(unittest.IsolatedAsyncioTestCase):
 
         await self.services.users.sync_profile(ADMIN, first_name="Owner")
         await self.services.users.sync_profile(CUSTOMER, first_name="Rafi", username="rafi")
+        await self.services.users.set_language(CUSTOMER, "en")
         await self.services.settings.update({
             "admin_tg_ids": str(ADMIN),
             "force_join_enabled": "0",
@@ -106,7 +107,7 @@ class MenuAndGuideTests(unittest.IsolatedAsyncioTestCase):
     async def _feed(self, *, text: str | None = None, data: str | None = None,
                     user_id: int = CUSTOMER) -> list[dict]:
         async def capture(inner, body=None, **kwargs):
-            self.sent.append({"text": body if body is not None else kwargs.get("text")})
+            self.sent.append({"text": body if body is not None else kwargs.get("text"), "reply_markup": kwargs.get("reply_markup")})
             return inner
 
         async def capture_alert(inner, body=None, **kwargs):
@@ -303,6 +304,37 @@ class MenuAndGuideTests(unittest.IsolatedAsyncioTestCase):
                         "English guide did not render")
         self.assertTrue(any("How to use the bot" in (r.get("text") or "") for r in replies_bn),
                         "Legacy Bengali guide callback should fall back to English")
+
+    async def test_user_can_switch_language_and_localize_the_bot(self):
+        selector = await self._feed(data="open_language_menu")
+        selector_markup = next((r.get("reply_markup") for r in selector if r.get("reply_markup")), None)
+        self.assertIsNotNone(selector_markup)
+        self.assertEqual(
+            [row[0].callback_data for row in selector_markup.inline_keyboard],
+            ["set_lang_en", "set_lang_bn", "open_account"],
+        )
+
+        replies_bn = await self._feed(data="set_lang_bn")
+        self.assertEqual(await self.services.users.get_language(CUSTOMER), "bn")
+        reply_keyboard_bn = next(
+            (r.get("reply_markup") for r in replies_bn if getattr(r.get("reply_markup"), "keyboard", None)),
+            None,
+        )
+        self.assertIsNotNone(reply_keyboard_bn)
+        labels_bn = [button.text for row in reply_keyboard_bn.keyboard for button in row]
+        self.assertIn("🛍 প্রোডাক্টস", labels_bn)
+        guide_bn = await self._feed(data="open_guide")
+        self.assertTrue(any("বট ব্যবহার" in (r.get("text") or "") for r in guide_bn))
+
+        replies_en = await self._feed(data="set_lang_en")
+        self.assertEqual(await self.services.users.get_language(CUSTOMER), "en")
+        reply_keyboard_en = next(
+            (r.get("reply_markup") for r in replies_en if getattr(r.get("reply_markup"), "keyboard", None)),
+            None,
+        )
+        self.assertIsNotNone(reply_keyboard_en)
+        labels_en = [button.text for row in reply_keyboard_en.keyboard for button in row]
+        self.assertIn("🛍 Products", labels_en)
 
     async def test_support_and_channels_answer(self):
         for label in ("Support", "Channel"):
