@@ -568,8 +568,10 @@ def get_account_keyboard(
         api_label = "এপিআই"
         notifications_label = "নোটিফিকেশন"
         back_label = "ব্যাক"
+    language_label = t("btn_change_language", lang)
 
     rows = [
+        [InlineKeyboardButton(text=language_label, callback_data="open_language_menu")],
         [
             InlineKeyboardButton(text=notifications_label, callback_data="open_notifications_hub"),
         ],
@@ -606,30 +608,18 @@ def get_notification_settings_keyboard(prefs: dict[str, bool], lang: str = "en")
 
 
 def get_language_selection_keyboard(current_lang: str = "en", back_target: str | None = "open_account") -> InlineKeyboardMarkup:
-    """Show English as available and Bengali as coming soon."""
+    """Offer both supported languages and mark the user's current choice."""
+    active_lang = current_lang if current_lang in {"en", "bn"} else "en"
+    en_label = "🇬🇧 English ✓" if active_lang == "en" else "🇬🇧 English"
+    bn_label = "🇧🇩 বাংলা ✓" if active_lang == "bn" else "🇧🇩 বাংলা"
     rows = [
-        [
-            InlineKeyboardButton(
-                text="🇬🇧 English (Active)",
-                callback_data="set_lang_en",
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text="🇧🇩 Bangla (Coming Soon)",
-                callback_data="language_coming_soon",
-            )
-        ],
+        [InlineKeyboardButton(text=en_label, callback_data="set_lang_en")],
+        [InlineKeyboardButton(text=bn_label, callback_data="set_lang_bn")],
     ]
 
-    nav_row = []
     if back_target:
-        back_text = "Back" if current_lang != "bn" else "ব্যাক"
-        nav_row.append(
-            InlineKeyboardButton(text=back_text, callback_data=back_target)
-        )
-    if nav_row:
-        rows.append(nav_row)
+        back_text = t("btn_back", active_lang)
+        rows.append([InlineKeyboardButton(text=back_text, callback_data=back_target)])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 

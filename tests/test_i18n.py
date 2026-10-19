@@ -79,13 +79,24 @@ def test_keyboards_all_languages():
         assert len(kb_cats.keyboard) == 3
         account_kb = get_account_keyboard(lang=lang, is_admin=False)
         assert len(account_kb.inline_keyboard) > 0
+        assert any(
+            btn.callback_data == "open_language_menu"
+            for row in account_kb.inline_keyboard for btn in row
+        )
         assert len(t("select_language_title", lang)) > 0
         assert len(t("select_language_prompt", lang)) > 0
 
 def test_language_selection_keyboard():
-    kb = get_language_selection_keyboard(current_lang="en")
-    codes = [btn.callback_data for row in kb.inline_keyboard for btn in row if btn.callback_data.startswith("set_lang_")]
-    assert codes == ["set_lang_en"]
+    for current_lang, selected_code in (("en", "set_lang_en"), ("bn", "set_lang_bn")):
+        kb = get_language_selection_keyboard(current_lang=current_lang)
+        language_buttons = [
+            btn for row in kb.inline_keyboard for btn in row
+            if btn.callback_data in {"set_lang_en", "set_lang_bn"}
+        ]
+        assert [btn.callback_data for btn in language_buttons] == ["set_lang_en", "set_lang_bn"]
+        selected = [btn for btn in language_buttons if btn.text.endswith("✓")]
+        assert len(selected) == 1
+        assert selected[0].callback_data == selected_code
 
 def test_navigation_texts_include_all_languages():
     # Check English

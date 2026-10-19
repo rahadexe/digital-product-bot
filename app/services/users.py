@@ -16,6 +16,7 @@ from app.bot.icons import (
     ICON_NOTE,
     ICON_ORDERS,
 )
+from app.core.i18n import normalize_language
 from app.core.money import money
 from app.db import Database
 from app.services.audit import record
@@ -33,7 +34,7 @@ class UserService:
         self.notifier = notifier
         self._user_cache: OrderedDict[int, tuple[float, dict[str, Any] | None]] = OrderedDict()
         self._cache_ttl: float = 30.0  # 30s cache for fast in-memory access during menu browsing
-        self._lang_cache: dict[int, str] = {}
+        self._lang_cache: dict[int, tuple[float, str]] = {}
 
     def invalidate_cache(self, tg_user_id: int) -> None:
         self._user_cache.pop(tg_user_id, None)
@@ -71,7 +72,7 @@ class UserService:
             result = dict(row)
             self._user_cache[tg_user_id] = (time.monotonic(), result)
             if result.get("language"):
-                self._lang_cache[tg_user_id] = str(result["language"]).strip().lower()
+                self._lang_cache[tg_user_id] = (time.monotonic(), normalize_language(str(result["language"])))
             if row["is_new"]:
                 cust = f" · @{escape(username)}" if username else ""
                 full_name = escape(" ".join(filter(None, [first_name, last_name])) or "No name")
@@ -172,13 +173,24 @@ class UserService:
         return {"total": row["total"], "earned": row["earned"]}
 
     async def get_language(self, tg_user_id: int) -> str:
-        """Return the fixed language used by the Telegram bot."""
-        return "en"
+        """Return the user's saved language, defaulting safely to English."""
+        now = time.monotonic()
+        cached = self._lang_cache.get(tg_user_id)
+        if cached and now - cached[0] < self._cache_ttl:
+            return cached[1]
+
+        language = normalize_language(await self.get_raw_language(tg_user_id))
+        self._lang_cache[tg_user_id] = (now, language)
+        return language
 
     async def get_raw_language(self, tg_user_id: int) -> str | None:
         """Returns None if user has not yet explicitly selected a language."""
         cached_user = self._user_cache.get(tg_user_id)
-        if cached_user and cached_user[1]:
+        if (
+            cached_user
+            and cached_user[1]
+            and time.monotonic() - cached_user[0] < self._cache_ttl
+        ):
             val = cached_user[1].get("language")
             return val.strip().lower() if val else None
         async with self.db.connect() as conn:
@@ -345,7 +357,7 @@ class UserService:
         async with self.db.transaction() as conn:
             await conn.execute("UPDATE users SET language = $1, updated_at = now() WHERE tg_user_id = $2", clean_lang, tg_user_id)
         self.invalidate_cache(tg_user_id)
-        self._lang_cache[tg_user_id] = clean_lang
+        self._lang_cache[tg_user_id] = (time.monotonic(), clean_lang)
         return clean_lang
 
     async def get_notification_preferences(self, tg_user_id: int) -> dict[str, bool]:

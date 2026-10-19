@@ -74,7 +74,7 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
         services.settings.admin_chat_ids(),
     )
     store_name = values.get("store_name", "Premium Haven")
-    lang = "en"
+    lang = await services.users.get_language(tg_user_id)
 
     text = build_welcome_text(
         paused_notice=paused_notice,
