@@ -52,7 +52,7 @@ class AccountRedesignTests(unittest.TestCase):
         rows_bn = get_language_selection_keyboard(current_lang="bn").inline_keyboard
         self.assertEqual(rows_bn[0][0].text, "🇬🇧 English")
         self.assertEqual(rows_bn[1][0].text, "🇧🇩 বাংলা ✓")
-        self.assertEqual(rows_bn[2][0].text, "ব্যাক")
+        self.assertEqual(rows_bn[2][0].text, "🔙 ব্যাক")
 
     def test_notification_settings_keyboard(self):
         prefs = {"notify_orders": True, "notify_deposits": False, "notify_news": True}
