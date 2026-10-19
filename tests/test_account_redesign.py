@@ -16,49 +16,43 @@ class AccountRedesignTests(unittest.TestCase):
         kb = get_account_keyboard(lang="en", is_reseller=False)
         rows = kb.inline_keyboard
 
-        self.assertEqual(len(rows), 3)
-        self.assertEqual([button.text for button in rows[0]], ["Notifications"])
-        self.assertEqual(
-            [button.callback_data for button in rows[0]],
-            ["open_notifications_hub"],
-        )
-        self.assertEqual([button.text for button in rows[1]], ["API", "Reseller"])
-        self.assertEqual(
-            [button.callback_data for button in rows[1]],
-            ["open_api_hub", "open_reseller"],
-        )
-        self.assertEqual([button.text for button in rows[2]], ["Back"])
-        self.assertEqual(
-            [button.callback_data for button in rows[2]],
-            ["back_to_main"],
-        )
+        self.assertEqual(len(rows), 4)
+        self.assertEqual([button.text for button in rows[0]], ["🌐 Language"])
+        self.assertEqual([button.callback_data for button in rows[0]], ["open_language_menu"])
+        self.assertEqual([button.text for button in rows[1]], ["Notifications"])
+        self.assertEqual([button.callback_data for button in rows[1]], ["open_notifications_hub"])
+        self.assertEqual([button.text for button in rows[2]], ["API", "Reseller"])
+        self.assertEqual([button.callback_data for button in rows[2]], ["open_api_hub", "open_reseller"])
+        self.assertEqual([button.text for button in rows[3]], ["Back"])
+        self.assertEqual([button.callback_data for button in rows[3]], ["back_to_main"])
 
     def test_account_keyboard_reseller_tier(self):
-        kb = get_account_keyboard(lang="en", is_reseller=True)
-        rows = kb.inline_keyboard
-        self.assertEqual(len(rows), 3)
-        self.assertEqual(rows[1][1].text, "Reseller")
-        self.assertEqual(rows[1][1].callback_data, "open_reseller_hub")
+        rows = get_account_keyboard(lang="en", is_reseller=True).inline_keyboard
+        self.assertEqual(len(rows), 4)
+        self.assertEqual(rows[2][1].text, "Reseller")
+        self.assertEqual(rows[2][1].callback_data, "open_reseller_hub")
 
     def test_account_keyboard_structure_bengali(self):
-        kb = get_account_keyboard(lang="bn", is_reseller=False)
-        rows = kb.inline_keyboard
+        rows = get_account_keyboard(lang="bn", is_reseller=False).inline_keyboard
+        self.assertEqual(len(rows), 4)
+        self.assertEqual([button.text for button in rows[0]], ["🌐 ভাষা"])
+        self.assertEqual([button.text for button in rows[1]], ["নোটিফিকেশন"])
+        self.assertEqual([button.text for button in rows[2]], ["এপিআই", "রিসেলার"])
+        self.assertEqual([button.text for button in rows[3]], ["ব্যাক"])
 
-        self.assertEqual(len(rows), 3)
-        self.assertEqual([button.text for button in rows[0]], ["নোটিফিকেশন"])
-        self.assertEqual([button.text for button in rows[1]], ["এপিআই", "রিসেলার"])
-        self.assertEqual([button.text for button in rows[2]], ["ব্যাক"])
+    def test_language_keyboard_marks_current_choice(self):
+        rows_en = get_language_selection_keyboard(current_lang="en").inline_keyboard
+        self.assertEqual(rows_en[0][0].text, "🇬🇧 English ✓")
+        self.assertEqual(rows_en[0][0].callback_data, "set_lang_en")
+        self.assertEqual(rows_en[1][0].text, "🇧🇩 বাংলা")
+        self.assertEqual(rows_en[1][0].callback_data, "set_lang_bn")
+        self.assertEqual(rows_en[2][0].callback_data, "open_account")
+        self.assertEqual(rows_en[2][0].text, "Back")
 
-    def test_language_keyboard_marks_bangla_as_coming_soon(self):
-        kb = get_language_selection_keyboard()
-        rows = kb.inline_keyboard
-
-        self.assertEqual(rows[0][0].text, "🇬🇧 English (Active)")
-        self.assertEqual(rows[0][0].callback_data, "set_lang_en")
-        self.assertEqual(rows[1][0].text, "🇧🇩 Bangla (Coming Soon)")
-        self.assertEqual(rows[1][0].callback_data, "language_coming_soon")
-        self.assertEqual(rows[2][0].callback_data, "open_account")
-        self.assertEqual(rows[2][0].text, "Back")
+        rows_bn = get_language_selection_keyboard(current_lang="bn").inline_keyboard
+        self.assertEqual(rows_bn[0][0].text, "🇬🇧 English")
+        self.assertEqual(rows_bn[1][0].text, "🇧🇩 বাংলা ✓")
+        self.assertEqual(rows_bn[2][0].text, "🔙 ব্যাক")
 
     def test_notification_settings_keyboard(self):
         prefs = {"notify_orders": True, "notify_deposits": False, "notify_news": True}
@@ -212,9 +206,10 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn(duplicate, text)
         self.assertNotIn("Referral", text)
         self.assertNotIn("start=123", text)
-        self.assertEqual([button.text for button in keyboard.inline_keyboard[0]], ["Notifications"])
+        self.assertEqual([button.callback_data for button in keyboard.inline_keyboard[0]], ["open_language_menu"])
+        self.assertEqual([button.text for button in keyboard.inline_keyboard[1]], ["Notifications"])
         self.assertEqual(
-            [button.callback_data for button in keyboard.inline_keyboard[1]],
+            [button.callback_data for button in keyboard.inline_keyboard[2]],
             ["open_api_hub", "open_reseller"],
         )
         self.assertEqual(keyboard.inline_keyboard[-1][0].callback_data, "back_to_main")
@@ -265,10 +260,10 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("Balance", text)
         self.assertNotIn("Orders", text)
         self.assertNotIn("Spent", text)
-        self.assertEqual(keyboard.inline_keyboard[1][1].text, "Reseller")
-        self.assertEqual(keyboard.inline_keyboard[1][1].callback_data, "open_reseller_hub")
+        self.assertEqual(keyboard.inline_keyboard[2][1].text, "Reseller")
+        self.assertEqual(keyboard.inline_keyboard[2][1].callback_data, "open_reseller_hub")
 
-    async def test_language_menu_marks_bangla_coming_soon(self):
+    async def test_language_menu_offers_both_languages(self):
         from types import SimpleNamespace
         from unittest.mock import AsyncMock, patch
 
@@ -276,43 +271,36 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
 
         event = SimpleNamespace(from_user=SimpleNamespace(id=123))
         state = SimpleNamespace(clear=AsyncMock())
+        services = SimpleNamespace(users=SimpleNamespace(get_language=AsyncMock(return_value="bn")))
 
         with patch("app.bot.handlers.profile.respond", new_callable=AsyncMock) as respond:
-            await show_language_menu(event, state, SimpleNamespace())
+            await show_language_menu(event, state, services)
 
         text, keyboard = respond.await_args.args[1:]
-        self.assertNotIn("Current:", text)
-        self.assertEqual("Choose your preferred language:", text)
-        self.assertEqual(keyboard.inline_keyboard[1][0].callback_data, "language_coming_soon")
+        self.assertIn("ভাষা", text)
+        self.assertEqual([row[0].callback_data for row in keyboard.inline_keyboard], [
+            "set_lang_en", "set_lang_bn", "open_account",
+        ])
+        self.assertEqual(keyboard.inline_keyboard[1][0].text, "🇧🇩 বাংলা ✓")
 
-    async def test_bangla_coming_soon_button_explains_availability(self):
+    async def test_language_selection_persists_english_and_bengali(self):
         from types import SimpleNamespace
         from unittest.mock import AsyncMock
 
-        from app.bot.handlers.profile import notify_language_coming_soon
+        from app.bot.handlers.profile import select_bengali_language, select_english_language
 
-        event = SimpleNamespace(answer=AsyncMock())
-        await notify_language_coming_soon(event)
-
-        event.answer.assert_awaited_once_with("বাংলা ভাষা শীঘ্রই যুক্ত করা হচ্ছে! / Bangla language coming soon!", show_alert=True)
-
-    async def test_english_selection_persists_and_returns_to_account(self):
-        from types import SimpleNamespace
-        from unittest.mock import AsyncMock, patch
-
-        from app.bot.handlers.profile import select_english_language
-
-        user = SimpleNamespace(id=123)
-        event = SimpleNamespace(from_user=user)
         state = SimpleNamespace(clear=AsyncMock())
-        set_language = AsyncMock()
+        set_language = AsyncMock(side_effect=lambda _user_id, language: language)
         services = SimpleNamespace(users=SimpleNamespace(set_language=set_language))
 
-        with patch("app.bot.handlers.profile.show_user_profile", new_callable=AsyncMock) as show_profile:
-            await select_english_language(event, state, services)
-
-        set_language.assert_awaited_once_with(123, "en")
-        show_profile.assert_awaited_once_with(event, state, services)
+        for language, handler in (("en", select_english_language), ("bn", select_bengali_language)):
+            with self.subTest(language=language):
+                event = SimpleNamespace(
+                    from_user=SimpleNamespace(id=123), message=None, answer=AsyncMock()
+                )
+                await handler(event, state, services)
+                set_language.assert_awaited_with(123, language)
+                event.answer.assert_awaited()
 
     async def test_reseller_openapi_spec_structure(self):
         from types import SimpleNamespace
@@ -548,6 +536,7 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
         )
         services.notifier = SimpleNamespace(bot_username=AsyncMock(return_value="TestBot"))
         services.users.get = AsyncMock(return_value={"id": 123, "rank": "member", "balance": 500.0})
+        services.users.get_language = AsyncMock(return_value="en")
         from unittest.mock import MagicMock
         from aiogram.types import CallbackQuery, Message, User
         query_buy = MagicMock(spec=CallbackQuery)

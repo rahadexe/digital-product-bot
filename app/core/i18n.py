@@ -70,8 +70,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "select_language_title": "🌐 <b>Language</b>",
         "select_language_prompt": (
             "🌐 <b>Language</b>\n\n"
-            "<b>Current:</b> 🇬🇧 English\n"
-            "Choose a language below."
+            "Choose your preferred language below."
         ),
         "lang_switched_toast": "✅ Language set to English.",
 
@@ -81,6 +80,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "product_manual": "Manual delivery",
         "product_automatic": "Automatic delivery",
         "product_validity": "Validity",
+        "product_warranty": "Warranty",
         "product_price": "Price",
         "product_quantity": "Quantity",
         "product_total": "Total",
@@ -302,8 +302,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "select_language_title": "🌐 <b>ভাষা</b>",
         "select_language_prompt": (
             "🌐 <b>ভাষা</b>\n\n"
-            "<b>বর্তমান:</b> 🇧🇩 বাংলা\n"
-            "নিচে ভাষা বেছে নিন।"
+            "নিচে আপনার পছন্দের ভাষা বেছে নিন।"
         ),
         "lang_switched_toast": "✅ ভাষা সেট: বাংলা",
 
@@ -313,6 +312,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "product_manual": "ম্যানুয়াল ডেলিভারি",
         "product_automatic": "অটো ডেলিভারি",
         "product_validity": "মেয়াদ",
+        "product_warranty": "ওয়ারেন্টি",
         "product_price": "দাম",
         "product_quantity": "পরিমাণ",
         "product_total": "মোট",

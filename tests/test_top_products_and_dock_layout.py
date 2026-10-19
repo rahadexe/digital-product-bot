@@ -375,12 +375,12 @@ def test_account_keyboard_clean_grid():
     assert "open_orders_acc" not in all_callbacks
     assert "open_referral" not in all_callbacks
     assert "open_api_hub" in all_callbacks
-    assert "open_language_menu" not in all_callbacks
+    assert "open_language_menu" in all_callbacks
     assert "open_notifications_hub" in all_callbacks
     assert "back_to_main" in all_callbacks
     assert "open_deposits" not in all_callbacks
     assert "open_reseller" in all_callbacks
-    assert len(kb.inline_keyboard) == 3
+    assert len(kb.inline_keyboard) == 4
 
 
 @pytest.mark.asyncio
@@ -404,6 +404,7 @@ async def test_main_product_click_sets_back_to_main():
     }
     services.catalog.product = AsyncMock(return_value=mock_prod)
     services.users.get = AsyncMock(return_value={"balance": 500.0, "language": "en"})
+    services.users.get_language = AsyncMock(return_value="en")
     services.settings.get = AsyncMock(return_value="৳")
     services.settings.number = AsyncMock(return_value=125.0)
     services.settings.flag = AsyncMock(return_value=False)

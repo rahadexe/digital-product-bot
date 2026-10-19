@@ -32,6 +32,7 @@ def test_profile_actions_stay_direct_even_with_legacy_options(is_reseller, lang)
         share_url="https://t.me/share/url",
     )
     assert [[button.callback_data for button in row] for row in keyboard.inline_keyboard] == [
+        ["open_language_menu"],
         ["open_notifications_hub"],
         ["open_api_hub", "open_reseller_hub" if is_reseller else "open_reseller"],
         ["back_to_main"],

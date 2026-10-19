@@ -85,6 +85,7 @@ async def test_render_main_dashboard_cleans_previous_and_deletes_trigger():
     services.settings.values = AsyncMock(return_value={"store_name": "Store"})
     services.settings.paused_message = AsyncMock(return_value="")
     services.users.get = AsyncMock(return_value={"language": "en"})
+    services.users.get_language = AsyncMock(return_value="en")
     services.catalog.pinned_categories = AsyncMock(return_value=[])
     services.catalog.categories = AsyncMock(return_value=[])
     services.catalog.unpinned_categories = AsyncMock(return_value=[])

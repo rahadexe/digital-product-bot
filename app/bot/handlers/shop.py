@@ -476,7 +476,7 @@ async def product_view(
     duration = escape(duration_label)
     warranty = escape(warranty_label)
 
-    lang = "en"
+    lang = await services.users.get_language(tg_user_id)
     is_manual = product.get("delivery_type") == "manual"
     is_upstream = bool(product.get("upstream_product_id"))
     available = is_manual or is_upstream or stock > 0
@@ -501,7 +501,6 @@ async def product_view(
     unit_price = unit_price_for(product, user)
     total_price = round(unit_price * quantity, 2)
 
-    lang = "en"
     unit_price_str = format_dual_price(unit_price, symbol, usd_rate=usd_rate, lang=lang)
     total_price_str = format_dual_price(total_price, symbol, usd_rate=usd_rate, lang=lang)
 
@@ -509,7 +508,7 @@ async def product_view(
     if duration and duration.lower() not in {"instant", "none", "n/a", ""}:
         text += f"{t('product_validity', lang)}: {duration}\n"
     if warranty and warranty.lower() not in {"instant", "none", "n/a"}:
-        text += f"Warranty: {warranty}\n"
+        text += f"{t('product_warranty', lang)}: {warranty}\n"
     text += f"\n{t('product_price', lang)}: <b>{unit_price_str}</b>"
     if has_reseller_rate:
         text += f" · {t('rank_reseller', lang)}"

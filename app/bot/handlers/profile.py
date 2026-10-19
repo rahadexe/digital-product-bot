@@ -178,29 +178,41 @@ async def show_language_menu(event: Message | CallbackQuery, state: FSMContext, 
     tg_user = event.from_user
     if not tg_user:
         return
-    text = "Choose your preferred language:"
-    back_target = "open_account"
-    user_lang = "en"
-    if getattr(services, "users", None) and hasattr(services.users, "get_language"):
-        user_lang = (await services.users.get_language(tg_user.id)) or "en"
-    kb = get_language_selection_keyboard(current_lang=user_lang, back_target=back_target)
+    user_lang = await services.users.get_language(tg_user.id)
+    text = t("select_language_prompt", user_lang)
+    kb = get_language_selection_keyboard(current_lang=user_lang, back_target="open_account")
     await respond(event, text, kb)
 
 
-@router.callback_query(F.data == "set_lang_en")
-async def select_english_language(event: CallbackQuery, state: FSMContext, services: Services):
+async def _save_language_and_return_to_menu(
+    event: CallbackQuery, state: FSMContext, services: Services, language: str
+) -> None:
     await state.clear()
     tg_user = event.from_user
     if not tg_user:
         return
-    await services.users.set_language(tg_user.id, "en")
-    await show_user_profile(event, state, services)
 
-
-@router.callback_query(F.data == "language_coming_soon")
-async def notify_language_coming_soon(event: CallbackQuery):
+    selected = await services.users.set_language(tg_user.id, language)
     with suppress(TelegramBadRequest):
-        await event.answer("বাংলা ভাষা শীঘ্রই যুক্ত করা হচ্ছে! / Bangla language coming soon!", show_alert=True)
+        await event.answer(t("lang_switched_toast", selected))
+
+    message = event.message
+    if isinstance(message, Message):
+        with suppress(TelegramBadRequest):
+            await message.delete()
+        from app.bot.handlers.start import render_main_dashboard
+
+        await render_main_dashboard(message, services, tg_user.id)
+
+
+@router.callback_query(F.data == "set_lang_en")
+async def select_english_language(event: CallbackQuery, state: FSMContext, services: Services):
+    await _save_language_and_return_to_menu(event, state, services, "en")
+
+
+@router.callback_query(F.data == "set_lang_bn")
+async def select_bengali_language(event: CallbackQuery, state: FSMContext, services: Services):
+    await _save_language_and_return_to_menu(event, state, services, "bn")
 
 
 @router.message(Command("referral"))
@@ -359,7 +371,7 @@ async def show_reseller_hub(event: Message | CallbackQuery, state: FSMContext | 
 
     user = await services.users.get(tg_user.id)
     is_reseller = (user.get("rank") or "").strip().lower() in {"reseller", "reseller partner"} if user else False
-    lang = "en"
+    lang = await services.users.get_language(tg_user.id)
     symbol = await services.settings.get("currency_symbol")
     usd_rate = await services.settings.number("usd_rate")
     handle = ((await services.settings.get("support_username")) or "").lstrip("@")
@@ -515,7 +527,7 @@ async def show_api_hub(event: Message | CallbackQuery, state: FSMContext | None,
 
     user = await services.users.get(tg_user.id)
     is_reseller = (user.get("rank") or "").strip().lower() in {"reseller", "reseller partner"} if user else False
-    lang = "en"
+    lang = await services.users.get_language(tg_user.id)
 
     endpoint_text, docs_rows = reseller_api_links(services.config)
     key = await services.reseller.get_latest_key(tg_user.id)
@@ -543,7 +555,13 @@ async def show_api_hub(event: Message | CallbackQuery, state: FSMContext | None,
         key_display = "None"
         is_connected = False
 
-    tier_label = "Reseller" if is_reseller else "Member"
+    tier_label = ("রিসেলার" if is_reseller else "সদস্য") if lang == "bn" else ("Reseller" if is_reseller else "Member")
+    if lang == "bn":
+        status_line = {
+            "Connected": "সংযুক্ত",
+            "Disabled": "বন্ধ",
+            "Not Generated": "তৈরি করা হয়নি",
+        }.get(status_line, status_line)
 
     if lang != "bn":
         text = (
@@ -1499,7 +1517,7 @@ async def show_price_list(event: Message | CallbackQuery, state: FSMContext | No
         return
 
     user = await services.users.get(tg_user.id)
-    lang = "en"
+    lang = await services.users.get_language(tg_user.id)
     is_reseller = (user.get("rank") or "").strip().lower() == "reseller" if user else False
 
     symbol = await services.settings.get("currency_symbol")

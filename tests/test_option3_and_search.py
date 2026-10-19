@@ -36,7 +36,7 @@ def test_account_keyboard_keeps_profile_actions_direct():
     kb = get_account_keyboard(lang="en")
     callbacks = [btn.callback_data for row in kb.inline_keyboard for btn in row]
     assert "open_referral" not in callbacks
-    assert "open_language_menu" not in callbacks
+    assert "open_language_menu" in callbacks
     assert "open_orders_acc" not in callbacks
     assert "open_deposits" not in callbacks
     assert "open_notifications_hub" in callbacks
