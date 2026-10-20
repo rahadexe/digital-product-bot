@@ -167,7 +167,7 @@ class MenuAndGuideTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(crashed, [], "menu buttons raised instead of answering")
         self.assertEqual(silent, [], "menu buttons answered with nothing at all")
 
-    async def test_six_compact_buttons_exit_the_transaction_reply_step(self):
+    async def test_four_compact_buttons_exit_the_transaction_reply_step(self):
         from app.bot.handlers.deposit import DepositStates
         from app.bot.keyboards import get_persistent_reply_keyboard
 

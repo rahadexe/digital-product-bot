@@ -14,6 +14,7 @@ from app.bot.keyboards import (
     get_categories_keyboard,
     get_categories_reply_keyboard,
     get_main_inline_keyboard,
+    get_more_inline_keyboard,
     get_persistent_reply_keyboard,
     get_product_detail_keyboard,
     get_products_keyboard,
@@ -21,7 +22,7 @@ from app.bot.keyboards import (
 )
 
 
-def test_persistent_reply_keyboard_compact_six_action_layout():
+def test_persistent_reply_keyboard_compact_four_action_layout():
     cats = [
         {"id": 1, "name": "VPN", "icon": "🛡️"},
         {"id": 2, "name": "AI Tools", "icon": "🤖"},
@@ -31,27 +32,21 @@ def test_persistent_reply_keyboard_compact_six_action_layout():
 
     assert kb.is_persistent is False
     assert kb.resize_keyboard is True
-
-    assert len(rows) == 3
     assert [[button.text for button in row] for row in rows] == [
         ["🛍 প্রোডাক্টস", "💰 ওয়ালেট"],
-        ["📦 অর্ডারস", "🎁 রেফারেল"],
-        ["👤 প্রোফাইল", "💬 হেল্প"],
+        ["📦 অর্ডারস", "☰ আরও"],
     ]
 
 
-def test_persistent_reply_keyboard_admin_and_reseller():
-    cats = [
-        {"id": 1, "name": "VPN", "icon": "🛡️"},
-        {"id": 2, "name": "AI Tools", "icon": "🤖"},
+def test_persistent_reply_keyboard_admin_and_reseller_actions_live_under_more():
+    kb = get_persistent_reply_keyboard(is_admin=True, is_reseller=True, lang="en")
+    assert [[button.text for button in row] for row in kb.keyboard] == [
+        ["🛍 Products", "💰 Wallet"], ["📦 Orders", "☰ More"],
     ]
-    kb = get_persistent_reply_keyboard(pinned_categories=cats, is_admin=True, is_reseller=True, lang="en")
-    rows = kb.keyboard
-
-    # Three customer rows; operator tools stay role-restricted.
-    assert len(rows) == 5
-    assert "Reseller Panel" in rows[3][0].text
-    assert "Admin Panel" in rows[4][0].text
+    more = get_more_inline_keyboard(lang="en", is_admin=True, is_reseller=True)
+    callbacks = [button.callback_data for row in more.inline_keyboard for button in row]
+    assert "open_reseller_hub" in callbacks
+    assert "adm_dashboard" in callbacks
 
 
 def test_inline_keyboard_customer_first_bengali():
@@ -62,29 +57,27 @@ def test_inline_keyboard_customer_first_bengali():
     kb = get_main_inline_keyboard(pinned_categories=cats, is_admin=False, is_reseller=False, lang="bn")
     rows = kb.inline_keyboard
 
-    assert len(rows) == 3
+    assert len(rows) == 2
     assert [button.callback_data for button in rows[0]] == ["open_categories", "open_wallet"]
-    assert [button.callback_data for button in rows[1]] == ["open_orders", "open_referral"]
-    assert [button.callback_data for button in rows[2]] == ["open_account", "open_help"]
+    assert [button.callback_data for button in rows[1]] == ["open_orders", "open_more"]
     assert [button.text for row in rows for button in row] == [
-        "🛍 প্রোডাক্টস", "💰 ওয়ালেট", "📦 অর্ডারস", "🎁 রেফারেল", "👤 প্রোফাইল", "💬 হেল্প",
+        "🛍 প্রোডাক্টস", "💰 ওয়ালেট", "📦 অর্ডারস", "☰ আরও",
     ]
 
 
-def test_six_button_grid_with_admin_and_reseller():
+def test_four_button_grid_with_admin_and_reseller_tools_under_more():
     cats = [
         {"id": 10, "name": "Streaming", "icon": "🎬"},
         {"id": 20, "name": "Facebook", "icon": "🌐"},
     ]
     kb = get_main_inline_keyboard(pinned_categories=cats, is_admin=True, is_reseller=True, lang="en")
-    rows = kb.inline_keyboard
-
-    assert len(rows) == 5
-    assert [button.callback_data for button in rows[0]] == ["open_categories", "open_wallet"]
-    assert [button.callback_data for button in rows[1]] == ["open_orders", "open_referral"]
-    assert [button.callback_data for button in rows[2]] == ["open_account", "open_help"]
-    assert rows[3][0].callback_data == "open_reseller_panel"
-    assert rows[4][0].callback_data == "adm_dashboard"
+    assert [[button.callback_data for button in row] for row in kb.inline_keyboard] == [
+        ["open_categories", "open_wallet"], ["open_orders", "open_more"],
+    ]
+    more = get_more_inline_keyboard(lang="en", is_admin=True, is_reseller=True)
+    more_callbacks = [button.callback_data for row in more.inline_keyboard for button in row]
+    assert "open_reseller_hub" in more_callbacks
+    assert "adm_dashboard" in more_callbacks
 
 
 def test_featured_products_do_not_expand_compact_main_menu():
@@ -97,10 +90,9 @@ def test_featured_products_do_not_expand_compact_main_menu():
     kb_bn = get_main_inline_keyboard(pinned_categories=pinned, featured_products=prods, is_admin=False, lang="bn")
     rows = kb_bn.inline_keyboard
 
-    assert len(rows) == 3
+    assert len(rows) == 2
     assert [button.callback_data for button in rows[0]] == ["open_categories", "open_wallet"]
-    assert [button.callback_data for button in rows[1]] == ["open_orders", "open_referral"]
-    assert [button.callback_data for button in rows[2]] == ["open_account", "open_help"]
+    assert [button.callback_data for button in rows[1]] == ["open_orders", "open_more"]
 
 
 def test_product_list_separates_validity_from_legacy_title():
@@ -352,21 +344,20 @@ def test_long_warranty_label_does_not_hide_price_or_exceed_telegram_limit():
     assert len(label) <= 64
 
 
-def test_top_products_dock_bengali_and_admin():
+def test_top_products_dock_bengali_and_admin_tools_under_more():
     prods = [
         {"id": 201, "title": "NordVPN", "duration_label": "1 Month", "price": 80.0, "icon": "🛡️"},
     ]
 
     pinned = [{"id": 8, "name": "Streaming", "icon": "🎬"}]
     kb = get_main_inline_keyboard(pinned_categories=pinned, featured_products=prods, is_admin=True, is_reseller=True, lang="bn")
-    rows = kb.inline_keyboard
-
-    assert len(rows) == 5
-    assert [button.callback_data for button in rows[0]] == ["open_categories", "open_wallet"]
-    assert [button.callback_data for button in rows[1]] == ["open_orders", "open_referral"]
-    assert [button.callback_data for button in rows[2]] == ["open_account", "open_help"]
-    assert rows[3][0].callback_data == "open_reseller_panel"
-    assert rows[4][0].callback_data == "adm_dashboard"
+    assert [[button.callback_data for button in row] for row in kb.inline_keyboard] == [
+        ["open_categories", "open_wallet"], ["open_orders", "open_more"],
+    ]
+    more = get_more_inline_keyboard(lang="bn", is_admin=True, is_reseller=True)
+    more_callbacks = [button.callback_data for row in more.inline_keyboard for button in row]
+    assert "open_reseller_hub" in more_callbacks
+    assert "adm_dashboard" in more_callbacks
 
 
 def test_account_keyboard_clean_grid():

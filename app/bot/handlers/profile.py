@@ -57,6 +57,7 @@ from app.bot.icons import (
 from app.bot.keyboards import (
     get_account_keyboard,
     get_language_selection_keyboard,
+    get_more_inline_keyboard,
     get_notification_settings_keyboard,
 )
 from app.core.i18n import t
@@ -66,6 +67,27 @@ router = Router(name="profile_router")
 
 ORDERS_PAGE_SIZE = 5
 INLINE_CREDENTIAL_LIMIT = 500
+
+
+@router.callback_query(F.data == "open_more")
+async def show_more_menu(event: Message | CallbackQuery, state: FSMContext, services: Services):
+    """Keep secondary account, support, language and operator actions together."""
+    await state.clear()
+    tg_user = event.from_user
+    if not tg_user:
+        return
+
+    user = await services.users.get(tg_user.id) or {}
+    lang = await services.users.get_language(tg_user.id)
+    is_reseller = (user.get("rank") or "").strip().lower() in {"reseller", "reseller partner"}
+    is_admin = tg_user.id in await services.settings.admin_chat_ids()
+    if lang == "bn":
+        text = "<b>আরও অপশন</b>\n\nপ্রোফাইল, রেফারেল, সাহায্য ও সেটিংস।"
+    else:
+        text = "<b>More</b>\n\nProfile, referrals, help and settings."
+
+    keyboard = get_more_inline_keyboard(lang=lang, is_reseller=is_reseller, is_admin=is_admin)
+    await respond(event, text, keyboard)
 
 
 def reseller_api_links(config) -> tuple[str, list[list[InlineKeyboardButton]]]:

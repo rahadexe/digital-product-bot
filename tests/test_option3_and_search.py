@@ -3,11 +3,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 from aiogram.fsm.context import FSMContext
 
-from app.bot.keyboards import get_main_inline_keyboard, get_account_keyboard
+from app.bot.keyboards import get_main_inline_keyboard, get_more_inline_keyboard, get_account_keyboard
 from app.bot.handlers.search import _prompt_keyboard, _closing_row, search_entry, search_products, SearchStates
 
 
-def test_main_inline_keyboard_compact_six_action_layout():
+def test_main_inline_keyboard_compact_four_action_layout():
     cats = [
         {"id": 1, "name": "Facebook", "icon": "📱"},
         {"id": 2, "name": "VPN", "icon": "🛡️"},
@@ -17,19 +17,21 @@ def test_main_inline_keyboard_compact_six_action_layout():
 
     kb = get_main_inline_keyboard(pinned_categories=cats, is_admin=False, lang="en")
     rows = kb.inline_keyboard
-    assert len(rows) == 3
+    assert len(rows) == 2
 
     assert [button.callback_data for button in rows[0]] == ["open_categories", "open_wallet"]
-    assert [button.callback_data for button in rows[1]] == ["open_orders", "open_referral"]
-    assert [button.callback_data for button in rows[2]] == ["open_account", "open_help"]
+    assert [button.callback_data for button in rows[1]] == ["open_orders", "open_more"]
     assert [button.text for row in rows for button in row] == [
-        "🛍 Products", "💰 Wallet", "📦 Orders", "🎁 Refer", "👤 Profile", "💬 Help",
+        "🛍 Products", "💰 Wallet", "📦 Orders", "☰ More",
     ]
 
-    # Admin check
+    # Operator tools stay off the home screen and are available under More.
     kb_admin = get_main_inline_keyboard(pinned_categories=cats, is_admin=True, lang="en")
-    assert len(kb_admin.inline_keyboard) == 4
-    assert kb_admin.inline_keyboard[3][0].callback_data == "adm_dashboard"
+    assert len(kb_admin.inline_keyboard) == 2
+    more = get_more_inline_keyboard(lang="en", is_admin=True, is_reseller=True)
+    more_callbacks = [button.callback_data for row in more.inline_keyboard for button in row]
+    assert "adm_dashboard" in more_callbacks
+    assert "open_reseller_hub" in more_callbacks
 
 
 def test_account_keyboard_keeps_profile_actions_direct():

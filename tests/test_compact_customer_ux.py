@@ -16,7 +16,7 @@ from app.bot.handlers.deposit import (
     process_deposit_txid,
 )
 from app.bot.handlers.navigation import NAVIGATION_TEXTS
-from app.bot.keyboards import get_main_inline_keyboard, get_persistent_reply_keyboard
+from app.bot.keyboards import get_main_inline_keyboard, get_more_inline_keyboard, get_persistent_reply_keyboard
 
 
 def context():
@@ -44,20 +44,29 @@ def services():
     )
 
 
-def test_six_customer_buttons_are_short_and_routable():
+def test_four_primary_buttons_are_short_and_routable():
     reply = get_persistent_reply_keyboard()
     inline = get_main_inline_keyboard()
     labels = [[b.text for b in row] for row in reply.keyboard]
     assert labels == [
         ["🛍 Products", "💰 Wallet"],
-        ["📦 Orders", "🎁 Refer"],
-        ["👤 Profile", "💬 Help"],
+        ["📦 Orders", "☰ More"],
     ]
     assert labels == [[b.text for b in row] for row in inline.inline_keyboard]
     assert [NAVIGATION_TEXTS[b.text] for row in reply.keyboard for b in row] == [
-        "shop", "deposit", "orders", "referral", "account", "help",
+        "shop", "deposit", "orders", "more",
     ]
     assert all(len(b.text) <= 10 for row in reply.keyboard for b in row)
+
+
+def test_more_menu_keeps_secondary_and_operator_actions_available():
+    keyboard = get_more_inline_keyboard(lang="en", is_reseller=True, is_admin=True)
+    buttons = [button for row in keyboard.inline_keyboard for button in row]
+    callbacks = [button.callback_data for button in buttons]
+    assert callbacks == [
+        "open_account", "open_referral", "open_help", "open_language_menu",
+        "open_reseller_hub", "adm_dashboard", "back_to_main",
+    ]
 
 
 @pytest.mark.asyncio

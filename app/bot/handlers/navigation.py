@@ -360,6 +360,8 @@ NAVIGATION_TEXTS.update({
     "💳 My Balance": "deposit", "my balance": "deposit",
     "Balance": "deposit", "balance": "deposit", "BALANCE": "deposit", "💰 Balance": "deposit",
     "💰 আমার ব্যালেন্স": "deposit", "আমার ব্যালেন্স": "deposit",
+    "☰ More": "more", "More": "more", "MORE": "more",
+    "☰ আরও": "more", "আরও": "more",
 })
 
 COMMAND_ACTIONS = {
@@ -452,6 +454,7 @@ async def navigate(text: str, message: Message, state: FSMContext, services: Ser
         "language": "profile.show_language_menu",
         "pricelist": "profile.show_price_list",
         "balance_history": "profile.show_deposit_history",
+        "more": "profile.show_more_menu",
     }
     modules = {"admin": admin, "shop": shop, "profile": profile, "deposit": deposit,
                "help_guide": help_guide, "start": start, "search": search}
