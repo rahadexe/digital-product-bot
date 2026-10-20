@@ -14,7 +14,7 @@ from urllib.parse import urlsplit
 
 from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
-from aiogram.types import CallbackQuery, Chat, Message, ReplyKeyboardMarkup, Update, User
+from aiogram.types import CallbackQuery, Chat, InlineKeyboardMarkup, Message, ReplyKeyboardMarkup, Update, User
 
 from app.bot.app import create_dispatcher
 from app.bot.handlers import admin, deposit, help_guide, navigation, profile, reseller_apply, search, shop, start
@@ -101,10 +101,16 @@ class AdminKeyboard(unittest.IsolatedAsyncioTestCase):
                 return [b.text for row in item['markup'].keyboard for b in row]
         return []
 
-    async def test_the_owner_has_it_as_the_last_full_width_row(self):
+    async def test_admin_action_lives_under_more_not_on_the_home_keyboard(self):
         sent = await self.tap(OWNER, text='/start')
         markup = next(i['markup'] for i in sent if isinstance(i['markup'], ReplyKeyboardMarkup))
-        self.assertEqual([b.text for b in markup.keyboard[-1]], [ADMIN_PANEL_TEXT])
+        self.assertEqual([[b.text for b in row] for row in markup.keyboard], [
+            ["🛍 Products", "💰 Wallet"], ["📦 Orders", "☰ More"],
+        ])
+        more = await self.tap(OWNER, text="☰ More")
+        more_markup = next(i['markup'] for i in more if isinstance(i['markup'], InlineKeyboardMarkup))
+        callbacks = [b.callback_data for row in more_markup.inline_keyboard for b in row]
+        self.assertIn("adm_dashboard", callbacks)
 
     async def test_a_customer_never_sees_it(self):
         self.assertNotIn(ADMIN_PANEL_TEXT, self.reply_buttons(await self.tap(CUSTOMER, text='/start')))
