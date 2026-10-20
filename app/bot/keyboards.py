@@ -81,6 +81,11 @@ def _customer_menu(lang: str = "en", show_icons: bool = True) -> list[tuple[str,
     ]
 
 
+def _admin_panel_label(lang: str = "en", show_icons: bool = True) -> str:
+    label = "অ্যাডমিন প্যানেল" if lang == "bn" else ADMIN_PANEL_TEXT
+    return f"🛡 {label}" if show_icons else label
+
+
 def get_main_inline_keyboard(
     pinned_categories: List[Dict[str, Any]] | None = None,
     featured_products: List[Dict[str, Any]] | None = None,
@@ -92,12 +97,14 @@ def get_main_inline_keyboard(
     usd_rate: float | None = None,
     show_usd: bool = False,
 ) -> InlineKeyboardMarkup:
-    """Four primary customer actions; profile and operator tools live under More."""
+    """Four customer actions, with an admin-only fifth action when authorized."""
     customer_buttons = [
         InlineKeyboardButton(text=label, callback_data=callback)
         for label, callback in _customer_menu(lang)
     ]
     rows = [customer_buttons[i:i + 2] for i in range(0, len(customer_buttons), 2)]
+    if is_admin:
+        rows.append([InlineKeyboardButton(text=_admin_panel_label(lang), callback_data="adm_dashboard")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -110,12 +117,12 @@ def get_more_inline_keyboard(
     if lang == "bn":
         profile_label, referral_label = "👤 প্রোফাইল", "🎁 রেফারেল"
         help_label, language_label = "💬 সাহায্য", "🌐 ভাষা"
-        reseller_label, admin_label = "💼 রিসেলার প্যানেল", "🛡 অ্যাডমিন প্যানেল"
+        reseller_label = "💼 রিসেলার প্যানেল"
         back_label = "🏠 মূল মেনু"
     else:
         profile_label, referral_label = "👤 Profile", "🎁 Referral"
         help_label, language_label = "💬 Help", "🌐 Language"
-        reseller_label, admin_label = "💼 Reseller Panel", "🛡 Admin Panel"
+        reseller_label = "💼 Reseller Panel"
         back_label = "🏠 Main menu"
 
     rows = [
@@ -130,8 +137,6 @@ def get_more_inline_keyboard(
     ]
     if is_reseller:
         rows.append([InlineKeyboardButton(text=reseller_label, callback_data="open_reseller_hub")])
-    if is_admin:
-        rows.append([InlineKeyboardButton(text=admin_label, callback_data="adm_dashboard")])
     rows.append([InlineKeyboardButton(text=back_label, callback_data="back_to_main")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -144,9 +149,11 @@ def get_persistent_reply_keyboard(
     lang: str = "en",
     show_icons: bool = True,
 ) -> ReplyKeyboardMarkup:
-    """Four primary customer actions; operator tools are available under More."""
+    """Four customer actions; admins additionally get a private fifth shortcut."""
     customer_buttons = [KeyboardButton(text=label) for label, _ in _customer_menu(lang, show_icons)]
     rows = [customer_buttons[i:i + 2] for i in range(0, len(customer_buttons), 2)]
+    if is_admin:
+        rows.append([KeyboardButton(text=_admin_panel_label(lang, show_icons))])
     return ReplyKeyboardMarkup(
         keyboard=rows,
         resize_keyboard=True,

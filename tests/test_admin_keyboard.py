@@ -101,22 +101,23 @@ class AdminKeyboard(unittest.IsolatedAsyncioTestCase):
                 return [b.text for row in item['markup'].keyboard for b in row]
         return []
 
-    async def test_admin_action_lives_under_more_not_on_the_home_keyboard(self):
+    async def test_admin_action_is_fifth_home_button_and_not_in_more(self):
         sent = await self.tap(OWNER, text='/start')
         markup = next(i['markup'] for i in sent if isinstance(i['markup'], ReplyKeyboardMarkup))
         self.assertEqual([[b.text for b in row] for row in markup.keyboard], [
-            ["🛍 Products", "💰 Wallet"], ["📦 Orders", "✨ More"],
+            ["🛍 Products", "💰 Wallet"], ["📦 Orders", "✨ More"], ["🛡 Admin Panel"],
         ])
         more = await self.tap(OWNER, text="✨ More")
         more_markup = next(i['markup'] for i in more if isinstance(i['markup'], InlineKeyboardMarkup))
         callbacks = [b.callback_data for row in more_markup.inline_keyboard for b in row]
-        self.assertIn("adm_dashboard", callbacks)
+        self.assertNotIn("adm_dashboard", callbacks)
 
     async def test_a_customer_never_sees_it(self):
-        self.assertNotIn(ADMIN_PANEL_TEXT, self.reply_buttons(await self.tap(CUSTOMER, text='/start')))
+        buttons = self.reply_buttons(await self.tap(CUSTOMER, text='/start'))
+        self.assertFalse(any("Admin Panel" in button for button in buttons), buttons)
 
     async def test_it_opens_the_panel(self):
-        sent = await self.tap(OWNER, text=ADMIN_PANEL_TEXT)
+        sent = await self.tap(OWNER, text="🛡 Admin Panel")
         self.assertTrue(any('Admin Panel' in i['text'] for i in sent), sent)
 
     async def test_a_customer_typing_the_words_gets_nothing(self):
