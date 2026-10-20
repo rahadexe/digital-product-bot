@@ -34,14 +34,14 @@ def test_persistent_reply_keyboard_compact_four_action_layout():
     assert kb.resize_keyboard is True
     assert [[button.text for button in row] for row in rows] == [
         ["🛍 প্রোডাক্টস", "💰 ওয়ালেট"],
-        ["📦 অর্ডারস", "☰ আরও"],
+        ["📦 অর্ডারস", "✨ আরও"],
     ]
 
 
 def test_persistent_reply_keyboard_admin_and_reseller_actions_live_under_more():
     kb = get_persistent_reply_keyboard(is_admin=True, is_reseller=True, lang="en")
     assert [[button.text for button in row] for row in kb.keyboard] == [
-        ["🛍 Products", "💰 Wallet"], ["📦 Orders", "☰ More"],
+        ["🛍 Products", "💰 Wallet"], ["📦 Orders", "✨ More"],
     ]
     more = get_more_inline_keyboard(lang="en", is_admin=True, is_reseller=True)
     callbacks = [button.callback_data for row in more.inline_keyboard for button in row]
@@ -61,7 +61,7 @@ def test_inline_keyboard_customer_first_bengali():
     assert [button.callback_data for button in rows[0]] == ["open_categories", "open_wallet"]
     assert [button.callback_data for button in rows[1]] == ["open_orders", "open_more"]
     assert [button.text for row in rows for button in row] == [
-        "🛍 প্রোডাক্টস", "💰 ওয়ালেট", "📦 অর্ডারস", "☰ আরও",
+        "🛍 প্রোডাক্টস", "💰 ওয়ালেট", "📦 অর্ডারস", "✨ আরও",
     ]
 
 

@@ -360,8 +360,8 @@ NAVIGATION_TEXTS.update({
     "💳 My Balance": "deposit", "my balance": "deposit",
     "Balance": "deposit", "balance": "deposit", "BALANCE": "deposit", "💰 Balance": "deposit",
     "💰 আমার ব্যালেন্স": "deposit", "আমার ব্যালেন্স": "deposit",
-    "☰ More": "more", "More": "more", "MORE": "more",
-    "☰ আরও": "more", "আরও": "more",
+    "✨ More": "more", "☰ More": "more", "More": "more", "MORE": "more",
+    "✨ আরও": "more", "☰ আরও": "more", "আরও": "more",
 })
 
 COMMAND_ACTIONS = {
