@@ -22,7 +22,7 @@ def test_main_inline_keyboard_compact_four_action_layout():
     assert [button.callback_data for button in rows[0]] == ["open_categories", "open_wallet"]
     assert [button.callback_data for button in rows[1]] == ["open_orders", "open_more"]
     assert [button.text for row in rows for button in row] == [
-        "🛍 Products", "💰 Wallet", "📦 Orders", "☰ More",
+        "🛍 Products", "💰 Wallet", "📦 Orders", "✨ More",
     ]
 
     # Operator tools stay off the home screen and are available under More.

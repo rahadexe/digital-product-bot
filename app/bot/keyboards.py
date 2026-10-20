@@ -73,7 +73,7 @@ def _customer_menu(lang: str = "en", show_icons: bool = True) -> list[tuple[str,
         ("🛍", "Products", "প্রোডাক্টস", "open_categories"),
         ("💰", "Wallet", "ওয়ালেট", "open_wallet"),
         ("📦", "Orders", "অর্ডারস", "open_orders"),
-        ("☰", "More", "আরও", "open_more"),
+        ("✨", "More", "আরও", "open_more"),
     ]
     return [
         (f"{icon} {bn if lang == 'bn' else en}" if show_icons else (bn if lang == "bn" else en), callback)
