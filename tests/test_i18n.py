@@ -154,6 +154,9 @@ def test_categories_keyboard_no_duplicate_uncat():
     ]
     for lang in ["en", "bn"]:
         kb = get_categories_keyboard(sample_categories, show_all_option=True, lang=lang)
+        assert [[btn.callback_data for btn in row] for row in kb.inline_keyboard[:3]] == [
+            ["cat_1"], ["cat_2"], ["cat_3"],
+        ]
         callbacks = [btn.callback_data for row in kb.inline_keyboard for btn in row]
         # shop_uncat should not exist anymore
         assert "shop_uncat" not in callbacks

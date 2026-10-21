@@ -166,7 +166,7 @@ def get_categories_reply_keyboard(
     lang: str = "en",
     show_icons: bool = True,
 ) -> ReplyKeyboardMarkup:
-    """Pure Reply Keyboard displaying all active categories in a 2-column grid."""
+    """Pure Reply Keyboard displaying each active category on its own row."""
     rows: List[List[KeyboardButton]] = []
     cat_buttons: List[KeyboardButton] = []
     for c in categories:
@@ -185,8 +185,7 @@ def get_categories_reply_keyboard(
             )
         )
 
-    for i in range(0, len(cat_buttons), 2):
-        rows.append(cat_buttons[i : i + 2])
+    rows.extend([[button] for button in cat_buttons])
 
     back_label = "Back" if lang != "bn" else "ব্যাক"
 
@@ -384,7 +383,7 @@ def get_categories_keyboard(
     lang: str = "en",
     back_target: str | None = None,
 ) -> InlineKeyboardMarkup:
-    """Inline keyboard listing unpinned categories with grid layout and pagination."""
+    """Inline keyboard listing unpinned categories one per row with pagination."""
     buttons = []
     total_categories = len(categories)
     total_pages = max(1, (total_categories + page_size - 1) // page_size) if total_categories > 0 else 1
@@ -408,8 +407,7 @@ def get_categories_keyboard(
             )
         )
 
-    for i in range(0, len(cat_buttons), 2):
-        buttons.append(cat_buttons[i : i + 2])
+    buttons.extend([[button] for button in cat_buttons])
 
     if total_pages > 1:
         prev_text = t("btn_prev", lang) or "Prev"

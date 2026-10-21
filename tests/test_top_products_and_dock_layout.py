@@ -201,6 +201,9 @@ def test_category_buttons_render_only_the_selected_icon_type():
         back_target=None,
     )
 
+    assert [[button.callback_data for button in row] for row in keyboard.inline_keyboard] == [
+        ["cat_1"], ["cat_2"], ["cat_3"],
+    ]
     buttons = [button for row in keyboard.inline_keyboard for button in row]
     assert buttons[0].text == "🎬 Streaming"
     assert buttons[0].icon_custom_emoji_id is None
@@ -218,6 +221,9 @@ def test_category_reply_buttons_use_one_icon_and_leave_empty_icons_blank():
             {"id": 3, "name": "Other", "icon": ""},
         ]
     )
+    assert [[button.text for button in row] for row in keyboard.keyboard] == [
+        ["🎬 Streaming"], ["AI Tools"], ["Other"], ["Back"],
+    ]
     buttons = [button for row in keyboard.keyboard[:-1] for button in row]
 
     assert buttons[0].text == "🎬 Streaming"
