@@ -235,11 +235,11 @@ async def test_product_shortfall_deposit_back_returns_to_product():
 async def test_category_products_pagination_page_size_7():
     from app.bot.handlers.shop import PAGE_SIZE, paginate_products, show_products_list
 
-    assert PAGE_SIZE == 7
+    assert PAGE_SIZE == 12
 
     mock_products = [
         {"id": i, "title": f"Product {i}", "price": 10.0 + i, "is_active": True, "category_id": 1, "stock": 5}
-        for i in range(1, 11)
+        for i in range(1, 16)
     ]
     query = MagicMock(spec=CallbackQuery)
     query.from_user = SimpleNamespace(id=123)
@@ -267,9 +267,9 @@ async def test_category_products_pagination_page_size_7():
 
     assert query.message.edit_text.called
     kb = query.message.edit_text.call_args.kwargs["reply_markup"]
-    # Product buttons on page 1 should be exactly 7
+    # Product buttons on page 1 should be exactly 12
     prod_buttons = [btn for row in kb.inline_keyboard for btn in row if btn.callback_data.startswith("prod_p_")]
-    assert len(prod_buttons) == 7
+    assert len(prod_buttons) == 12
 
     # Test page 2 has remaining 3 products
     query.data = "shop_p_1_2"
