@@ -122,7 +122,6 @@ def get_more_inline_keyboard(
         reseller_label = "💼 রিসেলার হাব"
         api_label = "⚡ এপিআই"
         apply_reseller_label = "💼 রিসেলার আবেদন"
-        back_label = "🏠 মূল মেনু"
     else:
         referral_label = "🎁 Referral"
         help_label = "💬 Help"
@@ -131,7 +130,6 @@ def get_more_inline_keyboard(
         reseller_label = "💼 Reseller Hub"
         api_label = "⚡ Reseller API"
         apply_reseller_label = "💼 Become Reseller"
-        back_label = "🏠 Main menu"
 
     rows = [
         [
@@ -152,7 +150,6 @@ def get_more_inline_keyboard(
         rows.append([
             InlineKeyboardButton(text=apply_reseller_label, callback_data="open_reseller"),
         ])
-    rows.append([InlineKeyboardButton(text=back_label, callback_data="back_to_main")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
