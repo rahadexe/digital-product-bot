@@ -77,7 +77,7 @@ def test_more_menu_keeps_secondary_and_reseller_actions_available():
     callbacks = [button.callback_data for button in buttons]
     assert callbacks == [
         "open_referral", "open_help", "open_notifications_hub", "open_language_menu",
-        "open_reseller_hub", "open_api_hub", "back_to_main",
+        "open_reseller_hub", "open_api_hub",
     ]
 
 
