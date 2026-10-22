@@ -116,12 +116,12 @@ def get_more_inline_keyboard(
     """Secondary actions intentionally kept off the four-button home menu."""
     if lang == "bn":
         profile_label, referral_label = "👤 প্রোফাইল", "🎁 রেফারেল"
-        help_label, language_label = "💬 সাহায্য", "🌐 ভাষা"
+        help_label, language_label = "💬 সাহায্য", "🌐 Language (English)"
         reseller_label = "💼 রিসেলার প্যানেল"
         back_label = "🏠 মূল মেনু"
     else:
         profile_label, referral_label = "👤 Profile", "🎁 Referral"
-        help_label, language_label = "💬 Help", "🌐 Language"
+        help_label, language_label = "💬 Help", "🌐 ভাষা (বাংলা)"
         reseller_label = "💼 Reseller Panel"
         back_label = "🏠 Main menu"
 

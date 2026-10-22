@@ -363,12 +363,18 @@ NAVIGATION_TEXTS.update({
     "✨ More": "more", "☰ More": "more", "More": "more", "MORE": "more",
     "✨ আরও": "more", "☰ আরও": "more", "আরও": "more",
     "🛡 Admin Panel": "admin", "🛡 অ্যাডমিন প্যানেল": "admin", "অ্যাডমিন প্যানেল": "admin",
+    "English": "set_en", "english": "set_en", "EN": "set_en", "en": "set_en",
+    "বাংলা": "set_bn", "bangla": "set_bn", "BN": "set_bn", "bn": "set_bn",
 })
 
 COMMAND_ACTIONS = {
     "/start": "start",
     "/menu": "start",
     "/cancel": "cancel",
+    "/en": "set_en",
+    "/english": "set_en",
+    "/bn": "set_bn",
+    "/bangla": "set_bn",
     "/products": "shop",
     "/shop": "shop",
     "/buy": "shop",
@@ -453,6 +459,8 @@ async def navigate(text: str, message: Message, state: FSMContext, services: Ser
         "guide": "help_guide.show_guide",
         "channel": "help_guide.show_channel_info",
         "language": "profile.show_language_menu",
+        "set_en": "profile.switch_to_en",
+        "set_bn": "profile.switch_to_bn",
         "pricelist": "profile.show_price_list",
         "balance_history": "profile.show_deposit_history",
         "more": "profile.show_more_menu",

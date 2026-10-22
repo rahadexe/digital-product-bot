@@ -124,6 +124,10 @@ def test_navigation_texts_include_all_languages():
     # Check commands
     assert COMMAND_ACTIONS["/language"] == "language"
     assert COMMAND_ACTIONS["/lang"] == "language"
+    assert COMMAND_ACTIONS["/en"] == "set_en"
+    assert COMMAND_ACTIONS["/bn"] == "set_bn"
+    assert NAVIGATION_TEXTS["en"] == "set_en"
+    assert NAVIGATION_TEXTS["bn"] == "set_bn"
 
 def test_history_translations():
     for lang in ["en", "bn"]:

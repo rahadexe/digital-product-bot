@@ -237,6 +237,38 @@ async def select_bengali_language(event: CallbackQuery, state: FSMContext, servi
     await _save_language_and_return_to_menu(event, state, services, "bn")
 
 
+@router.message(Command("en"))
+@router.message(Command("english"))
+@router.message(F.text.casefold().in_({"english", "en"}))
+async def switch_to_en(message: Message, state: FSMContext, services: Services):
+    """Direct 1-step switch to English."""
+    await state.clear()
+    tg_user = message.from_user
+    if not tg_user:
+        return
+    await services.users.set_language(tg_user.id, "en")
+    with suppress(TelegramBadRequest):
+        await message.answer(t("lang_switched_toast", "en"))
+    from app.bot.handlers.start import render_main_dashboard
+    await render_main_dashboard(message, services, tg_user.id)
+
+
+@router.message(Command("bn"))
+@router.message(Command("bangla"))
+@router.message(F.text.casefold().in_({"bangla", "bn", "বাংলা"}))
+async def switch_to_bn(message: Message, state: FSMContext, services: Services):
+    """Direct 1-step switch to Bengali."""
+    await state.clear()
+    tg_user = message.from_user
+    if not tg_user:
+        return
+    await services.users.set_language(tg_user.id, "bn")
+    with suppress(TelegramBadRequest):
+        await message.answer(t("lang_switched_toast", "bn"))
+    from app.bot.handlers.start import render_main_dashboard
+    await render_main_dashboard(message, services, tg_user.id)
+
+
 @router.message(Command("referral"))
 @router.message(Command("refer"))
 @router.message(F.text.in_({
