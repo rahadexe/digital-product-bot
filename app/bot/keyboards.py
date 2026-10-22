@@ -118,8 +118,8 @@ def get_more_inline_keyboard(
     help_label = "💬 Help"
     notif_label = "🔔 Notifications"
     language_label = "🌐 Language"
-    reseller_label = "💼 Reseller Hub" if is_reseller else "💼 Become Reseller"
-    api_label = "⚡ Reseller API" if is_reseller else "⚡ API Docs"
+    reseller_label = "💼 Reseller Hub" if is_reseller else "💼 Reseller"
+    api_label = "⚡ API"
 
     rows = [
         [
