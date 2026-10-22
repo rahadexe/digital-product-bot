@@ -810,12 +810,34 @@ def get_products_keyboard(
     usd_rate: float | None = None,
     show_usd: bool = False,
     lang: str = "en",
+    categories: List[Dict[str, Any]] | None = None,
 ) -> InlineKeyboardMarkup:
     """
     Product rows show the clean name, validity, optional warranty and price.
+    Top rows provide quick category filter chips when categories are supplied.
     Bottom rows provide refresh, pagination and the relevant back navigation.
     """
     buttons = []
+    cat_rows: List[List[InlineKeyboardButton]] = []
+    if categories:
+        top_chips: List[InlineKeyboardButton] = []
+        is_all_active = category_id is None or str(category_id).lower() in ("all", "none")
+        all_name = "All" if lang != "bn" else "সকল"
+        all_label = f"• {all_name} •" if is_all_active else f"🔥 {all_name}"
+        top_chips.append(InlineKeyboardButton(text=all_label, callback_data="shop_p_all_1"))
+
+        for c in categories[:5]:
+            c_id = c.get("id")
+            if not c_id:
+                continue
+            is_active_cat = str(category_id) == str(c_id)
+            name = (c.get("name") or "").strip()
+            icon = (c.get("icon") or "").strip()
+            display_name = f"{icon} {name}".strip() if icon and not name.startswith(icon) else name
+            label = f"• {display_name} •" if is_active_cat else display_name
+            top_chips.append(InlineKeyboardButton(text=label[:18], callback_data=f"cat_{c_id}"))
+
+        cat_rows = [top_chips[i:i + 3] for i in range(0, len(top_chips), 3)]
     if category_id == "uncategorized":
         prefix = "shop_p_uncat_"
     elif category_id:
@@ -940,7 +962,7 @@ def get_products_keyboard(
             buttons.append([
                 InlineKeyboardButton(text=btn_refresh, callback_data=f"{prefix}1"),
             ])
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
+    return InlineKeyboardMarkup(inline_keyboard=cat_rows + buttons)
 
 
 def get_quantity_selector_keyboard(
