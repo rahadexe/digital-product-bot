@@ -205,7 +205,7 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("123", text)
         self.assertIn("Customer", text)
         callbacks = [btn.callback_data for row in keyboard.inline_keyboard for btn in row]
-        self.assertIn("open_language_menu", callbacks)
+        self.assertIn("open_reseller", callbacks)
         self.assertIn("open_notifications_hub", callbacks)
         self.assertIn("open_referral", callbacks)
         self.assertIn("open_help", callbacks)
