@@ -856,6 +856,8 @@ def get_products_keyboard(
         clean_title, duration_label, warranty_label = product_display_labels(p)
         duration_label = _compact_duration(duration_label)
         icon, custom_id = _catalog_icon(p)
+        if not icon and p.get("is_pinned"):
+            icon = "🔥"
         display_title = f"{icon} {clean_title}".strip() if icon else clean_title
 
         if duration_label and duration_label.lower() not in {"instant", "none", "n/a", ""}:

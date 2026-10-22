@@ -21,6 +21,7 @@ from app.bot.formatting import (
     AUTO_DELETE_ENABLED,
     _quiet_delete,
     clean_previous_menu,
+    price,
     remember_menu_message,
     send_operator_html,
 )
@@ -34,6 +35,7 @@ from app.bot.icons import (
 )
 from app.bot.keyboards import (
     get_gate_keyboard,
+    get_main_inline_keyboard,
     get_persistent_reply_keyboard,
 )
 from app.core.i18n import t
@@ -48,18 +50,39 @@ def build_welcome_text(
     balance_str: str = "",
     user_name: str = "",
     store_name: str = "",
+    order_count: int = 0,
 ) -> str:
-    prefix = t("maintenance_notice", lang, icon_warning=ICON_WARNING, notice=escape(paused_notice)) if paused_notice else ""
-    greeting = f"Welcome, {escape(user_name)}" if user_name else "Welcome"
-    if store_name:
-        greeting = f"Welcome to {escape(store_name)}"
+    prefix = t("maintenance_notice", lang, icon_warning=ICON_WARNING, notice=escape(paused_notice)) + "\n\n" if paused_notice else ""
+    name_display = escape(user_name) if user_name else "there"
+    store_title = escape(store_name) if store_name else "Digital Store"
+
     if lang == "bn":
-        greeting = f"স্বাগতম, {escape(user_name)}" if user_name else "স্বাগতম"
-    bal_label = "Balance" if lang != "bn" else "ব্যালেন্স"
-    lines = [f"<b>{greeting}</b>"]
-    if balance_str:
-        lines.append(f"{bal_label}: <code>{balance_str}</code>")
-    lines.append("Choose an option below." if lang != "bn" else "নিচের অপশন বেছে নিন।")
+        lines = [
+            f"👋 <b>স্বাগতম, {name_display}!</b>",
+            f"⚡ <b>{store_title}</b>\n",
+        ]
+        status_items = []
+        if balance_str:
+            status_items.append(f"💳 ব্যালেন্স: <code>{balance_str}</code>")
+        if order_count > 0:
+            status_items.append(f"📦 সম্পন্ন অর্ডার: <b>{order_count}</b>")
+        if status_items:
+            lines.append(" · ".join(status_items) + "\n")
+        lines.append("নিচের অপশন বেছে নিন:")
+    else:
+        lines = [
+            f"👋 <b>Welcome, {name_display}!</b>",
+            f"⚡ <b>{store_title}</b>\n",
+        ]
+        status_items = []
+        if balance_str:
+            status_items.append(f"💳 Balance: <code>{balance_str}</code>")
+        if order_count > 0:
+            status_items.append(f"📦 Orders: <b>{order_count}</b>")
+        if status_items:
+            lines.append(" · ".join(status_items) + "\n")
+        lines.append("Select an action below to explore products or top up:")
+
     return prefix + "\n".join(lines)
 
 
@@ -73,23 +96,47 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
         services.users.get(tg_user_id),
         services.settings.admin_chat_ids(),
     )
-    store_name = values.get("store_name", "Premium Haven")
+    store_name = values.get("store_name", "Premium Haven") if isinstance(values, dict) else "Premium Haven"
     lang = await services.users.get_language(tg_user_id)
+
+    symbol = values.get("currency_symbol", "৳") if isinstance(values, dict) else "৳"
+    usd_rate = float(values.get("usd_rate") or 0.0) if isinstance(values, dict) else 0.0
+    show_usd = str(values.get("show_usd_price", "0")).lower() in ("1", "true", "yes") if isinstance(values, dict) else False
+    user_balance = float(user.get("balance", 0.0)) if user and isinstance(user, dict) else 0.0
+    balance_str = price(symbol, user_balance, usd_rate=usd_rate, show_usd=show_usd, lang=lang) if user_balance > 0 else ""
+    user_name = (user.get("first_name") or getattr(getattr(message, "from_user", None), "first_name", "") or "").strip() if user and isinstance(user, dict) else ""
+
+    order_count = 0
+    if hasattr(services, "purchases") and hasattr(services.purchases, "customer_orders"):
+        try:
+            res = await services.purchases.customer_orders(tg_user_id, limit=1)
+            if isinstance(res, tuple) and len(res) == 2:
+                order_count = int(res[1])
+        except Exception:
+            order_count = 0
 
     text = build_welcome_text(
         paused_notice=paused_notice,
         lang=lang,
+        balance_str=balance_str,
+        user_name=user_name,
         store_name=store_name,
+        order_count=order_count,
     )
 
     is_admin = tg_user_id in admin_ids
-    is_reseller = (user.get("rank") or "").strip().lower() in {"reseller", "reseller partner"} if user else False
+    is_reseller = (user.get("rank") or "").strip().lower() in {"reseller", "reseller partner"} if user and isinstance(user, dict) else False
 
     main_reply_kb = get_persistent_reply_keyboard(
         is_reseller=is_reseller,
         is_admin=is_admin,
         lang=lang,
         show_icons=True,
+    )
+    main_inline_kb = get_main_inline_keyboard(
+        is_reseller=is_reseller,
+        is_admin=is_admin,
+        lang=lang,
     )
 
     chat = getattr(message, "chat", None)
@@ -98,7 +145,7 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
 
     if edit and message:
         try:
-            await message.edit_text(text, reply_markup=None)
+            await message.edit_text(text, reply_markup=main_inline_kb)
             if chat_id and message.message_id:
                 remember_menu_message(chat_id, message.message_id)
             return
