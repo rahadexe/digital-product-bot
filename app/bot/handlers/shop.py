@@ -389,20 +389,9 @@ async def handle_legacy_cat_callbacks(query: CallbackQuery, state: FSMContext, s
 }))
 @router.callback_query(F.data.in_({"open_other_products", "open_premium_products", "open_categories"}))
 async def show_other_products_hub(event: Message | CallbackQuery, state: FSMContext, services: Services):
-    """Dynamic hub for categories."""
+    """Dynamic showcase displaying products directly with category filter chips."""
     await state.clear()
-    tg_user = event.from_user
-    lang = await services.users.get_language(tg_user.id) if tg_user else "en"
-
-    categories = await services.catalog.categories(active_only=True, with_products=False)
-    title = "📂 <b>Select a Category:</b>" if lang != "bn" else "📂 <b>ক্যাটাগরি নির্বাচন করুন:</b>"
-
-    kb = get_categories_keyboard(categories, show_all_option=True, lang=lang, back_target="back_to_main")
-    await respond(
-        event,
-        title,
-        kb,
-    )
+    await show_products_list(event, state, services, category_id=None, back_target="back_to_main")
 
 
 @router.callback_query(F.data.startswith("catpage_"))
@@ -618,7 +607,7 @@ async def show_category_products(query: CallbackQuery, state: FSMContext, servic
         with suppress(TelegramBadRequest):
             await query.answer("Category not found.", show_alert=True)
         return
-    back_target = "open_categories"
+    back_target = "back_to_main"
     await show_category_or_validity(query, state, services, category=cat, back_target=back_target)
 
 
@@ -632,7 +621,7 @@ async def handle_validity_menu_back(query: CallbackQuery, state: FSMContext, ser
     cat = await services.catalog.category(cat_id)
     if not cat:
         return
-    back_target = "open_categories"
+    back_target = "back_to_main"
     await show_category_or_validity(query, state, services, category=cat, back_target=back_target)
 
 
@@ -730,7 +719,7 @@ async def show_products_list(
     elif back_target and back_target.startswith("catval_menu_"):
         effective_back_target = back_target
     else:
-        effective_back_target = "open_categories"
+        effective_back_target = back_target if back_target and back_target != "none" else "back_to_main"
 
     if not products:
         if category_name and duration_label:
@@ -740,10 +729,17 @@ async def show_products_list(
         else:
             header = f"{ICON_SHOP} <b>Available Products:</b>"
         msg = f"{header}\n\n{ICON_SHOP} <b>No products available right now.</b>"
-        effective_back = effective_back_target if effective_back_target != "none" else "open_categories"
+        effective_back = effective_back_target if effective_back_target != "none" else "back_to_main"
         nav_btns = [InlineKeyboardButton(text=t("btn_back", lang), callback_data=effective_back)]
         await respond(event, msg, InlineKeyboardMarkup(inline_keyboard=[nav_btns]))
         return
+
+    categories = None
+    if hasattr(services.catalog, "categories"):
+        try:
+            categories = await services.catalog.categories(active_only=True, with_products=False)
+        except Exception:
+            categories = None
 
     total_pages = max(1, math.ceil(len(products) / PAGE_SIZE))
     page = 1
@@ -759,13 +755,14 @@ async def show_products_list(
         is_reseller=is_reseller,
         usd_rate=usd_rate,
         lang=lang,
+        categories=categories,
     )
     if category_name and duration_label:
         title = f"{category_icon_display}<b>{escape(category_name)} ({escape(duration_label)}):</b>"
     elif category_name:
         title = f"{category_icon_display}<b>{escape(category_name)}:</b>"
     else:
-        title = f"{ICON_SHOP} <b>Available Products:</b>"
+        title = f"{ICON_SHOP} <b>Available Products:</b>" if lang != "bn" else f"{ICON_SHOP} <b>প্রোডাক্টসমূহ:</b>"
 
     await respond(event, title, keyboard)
 
@@ -840,7 +837,7 @@ async def paginate_products(query: CallbackQuery, state: FSMContext, services: S
     if cat and cat.get("has_validity_filter") == 1:
         back_target = f"catval_menu_{cat['id']}"
     else:
-        back_target = "open_categories"
+        back_target = "back_to_main"
 
     if not products:
         header = (
@@ -849,12 +846,19 @@ async def paginate_products(query: CallbackQuery, state: FSMContext, services: S
             else f"{ICON_SHOP} <b>Available Products:</b>"
         )
         msg = f"{header}\n\n{ICON_SHOP} <b>No products available right now.</b>"
-        effective_back = back_target if back_target and back_target != "none" else "open_categories"
+        effective_back = back_target if back_target and back_target != "none" else "back_to_main"
         nav_btns = [InlineKeyboardButton(text=t("btn_back", lang), callback_data=effective_back)]
         if query.message:
             with suppress(TelegramBadRequest):
                 await query.message.edit_text(msg, reply_markup=InlineKeyboardMarkup(inline_keyboard=[nav_btns]))
         return
+
+    categories = None
+    if hasattr(services.catalog, "categories"):
+        try:
+            categories = await services.catalog.categories(active_only=True, with_products=False)
+        except Exception:
+            categories = None
 
     total_pages = max(1, math.ceil(len(products) / PAGE_SIZE))
     page = min(max(requested_page, 1), total_pages)
@@ -870,6 +874,7 @@ async def paginate_products(query: CallbackQuery, state: FSMContext, services: S
         is_reseller=is_reseller,
         usd_rate=usd_rate,
         lang=lang,
+        categories=categories,
     )
     title = (
         f"{category_icon_display}<b>{escape(category_name)}:</b>"

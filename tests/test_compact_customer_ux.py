@@ -81,6 +81,28 @@ def test_more_menu_keeps_secondary_and_reseller_actions_available():
     ]
 
 
+def test_products_keyboard_renders_category_chips_on_top():
+    from app.bot.keyboards import get_products_keyboard
+    products = [
+        {"id": 1, "title": "Canva Pro", "duration_label": "1 Month", "price": 100, "stock": 5},
+    ]
+    categories = [
+        {"id": 10, "name": "Streaming", "icon": "🎬"},
+        {"id": 20, "name": "VPN", "icon": "🛡️"},
+    ]
+    # All products active
+    kb = get_products_keyboard(products=products, categories=categories, category_id=None, lang="en")
+    chip_row = kb.inline_keyboard[0]
+    assert [btn.text for btn in chip_row] == ["• All •", "🎬 Streaming", "🛡️ VPN"]
+    assert [btn.callback_data for btn in chip_row] == ["shop_p_all_1", "cat_10", "cat_20"]
+    assert kb.inline_keyboard[1][0].text.startswith("Canva Pro")
+
+    # Specific category active (VPN)
+    kb_cat = get_products_keyboard(products=products, categories=categories, category_id=20, lang="en")
+    chip_row_cat = kb_cat.inline_keyboard[0]
+    assert [btn.text for btn in chip_row_cat] == ["🔥 All", "🎬 Streaming", "• 🛡️ VPN •"]
+
+
 @pytest.mark.asyncio
 async def test_payment_done_posts_force_reply_without_editing_instructions():
     state = context()
