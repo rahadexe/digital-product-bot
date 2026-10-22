@@ -71,7 +71,7 @@ INLINE_CREDENTIAL_LIMIT = 500
 
 @router.callback_query(F.data == "open_more")
 async def show_more_menu(event: Message | CallbackQuery, state: FSMContext, services: Services):
-    """Keep secondary account, support, language and operator actions together."""
+    """Unified secondary account, support, language and operator actions hub."""
     await state.clear()
     tg_user = event.from_user
     if not tg_user:
@@ -80,11 +80,32 @@ async def show_more_menu(event: Message | CallbackQuery, state: FSMContext, serv
     user = await services.users.get(tg_user.id) or {}
     lang = await services.users.get_language(tg_user.id)
     is_reseller = (user.get("rank") or "").strip().lower() in {"reseller", "reseller partner"}
-    is_admin = tg_user.id in await services.settings.admin_chat_ids()
+    is_admin = False
+    if hasattr(services, "settings") and hasattr(services.settings, "admin_chat_ids"):
+        try:
+            admin_ids = await services.settings.admin_chat_ids()
+            is_admin = tg_user.id in admin_ids
+        except Exception:
+            is_admin = False
+
+    user_name = escape(tg_user.full_name or tg_user.first_name or "Customer")
+
+    status_label = "Reseller Partner" if is_reseller else "Customer"
     if lang == "bn":
-        text = "<b>আরও অপশন</b>\n\nপ্রোফাইল, রেফারেল, সাহায্য ও সেটিংস।"
+        status_label = "রিসেলার পার্টনার" if is_reseller else "কাস্টমার"
+        text = (
+            f"👤 <b>অ্যাকাউন্ট:</b> {user_name}\n"
+            f"🆔 <b>আইডি:</b> <code>{tg_user.id}</code>\n"
+            f"📊 <b>স্ট্যাটাস:</b> {status_label}\n\n"
+            "✨ <b>মোর অপশনস</b> — রেফারেল, নোটিফিকেশন, সাহায্য ও রিসেলার টুলস:"
+        )
     else:
-        text = "<b>More</b>\n\nProfile, referrals, help and settings."
+        text = (
+            f"👤 <b>Account:</b> {user_name}\n"
+            f"🆔 <b>User ID:</b> <code>{tg_user.id}</code>\n"
+            f"📊 <b>Status:</b> {status_label}\n\n"
+            "✨ <b>More Options</b> — Referrals, notifications, help & reseller tools:"
+        )
 
     keyboard = get_more_inline_keyboard(lang=lang, is_reseller=is_reseller, is_admin=is_admin)
     await respond(event, text, keyboard)
