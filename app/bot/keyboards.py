@@ -608,13 +608,13 @@ def get_notification_settings_keyboard(prefs: dict[str, bool], lang: str = "en")
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text=news_btn, callback_data="notif_toggle_notify_news")],
-            [InlineKeyboardButton(text=back_btn, callback_data="open_account")],
+            [InlineKeyboardButton(text=back_btn, callback_data="open_more")],
         ]
     )
 
 
 
-def get_language_selection_keyboard(current_lang: str = "en", back_target: str | None = "open_account") -> InlineKeyboardMarkup:
+def get_language_selection_keyboard(current_lang: str = "en", back_target: str | None = "open_more") -> InlineKeyboardMarkup:
     """Offer both supported languages and mark the user's current choice."""
     active_lang = current_lang if current_lang in {"en", "bn"} else "en"
     en_label = "🇬🇧 English ✓" if active_lang == "en" else "🇬🇧 English"

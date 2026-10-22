@@ -177,36 +177,8 @@ def reseller_api_links(config) -> tuple[str, list[list[InlineKeyboardButton]]]:
 @router.message(F.text.casefold() == "account and refer")
 @router.callback_query(F.data == "open_account")
 async def show_user_profile(event: Message | CallbackQuery, state: FSMContext, services: Services):
-    await state.clear()
-    tg_user = event.from_user
-    if not tg_user:
-        return
-
-    user = await services.users.get(tg_user.id) or {}
-    user_name = escape(tg_user.full_name or tg_user.first_name or "Customer")
-
-    lang = await services.users.get_language(tg_user.id)
-    rank_val = (user.get("rank") or "Standard").strip()
-    is_reseller = rank_val.lower() in {"reseller", "reseller partner"}
-
-    if lang != "bn":
-        text = (
-            "<b>Profile</b>\n"
-            f"{user_name}\n"
-            f"ID: <code>{tg_user.id}</code>"
-        )
-        if is_reseller:
-            text += "\nStatus: Reseller"
-    else:
-        text = (
-            "<b>প্রোফাইল</b>\n"
-            f"{user_name}\n"
-            f"আইডি: <code>{tg_user.id}</code>"
-        )
-        if is_reseller:
-            text += "\nস্ট্যাটাস: রিসেলার"
-    account_kb = get_account_keyboard(lang=lang, is_reseller=is_reseller)
-    await respond(event, text, account_kb)
+    """Unified profile routed into More hub."""
+    await show_more_menu(event, state, services)
 
 
 @router.message(Command("language"))
@@ -219,7 +191,7 @@ async def show_language_menu(event: Message | CallbackQuery, state: FSMContext, 
         return
     user_lang = await services.users.get_language(tg_user.id)
     text = t("select_language_prompt", user_lang)
-    kb = get_language_selection_keyboard(current_lang=user_lang, back_target="open_account")
+    kb = get_language_selection_keyboard(current_lang=user_lang, back_target="open_more")
     await respond(event, text, kb)
 
 
@@ -483,7 +455,7 @@ async def show_reseller_hub(event: Message | CallbackQuery, state: FSMContext | 
         rows.append([InlineKeyboardButton(text=api_btn_text, callback_data="open_api_hub")])
         rows.append([
             InlineKeyboardButton(text=refresh_btn_text, callback_data="open_reseller_hub"),
-            InlineKeyboardButton(text=back_btn_text, callback_data="open_account"),
+            InlineKeyboardButton(text=back_btn_text, callback_data="open_more"),
         ])
     else:
         # Check pending applications
@@ -515,7 +487,7 @@ async def show_reseller_hub(event: Message | CallbackQuery, state: FSMContext | 
             rows.append([InlineKeyboardButton(text=cancel_btn_text, callback_data="reseller_cancel_pending")])
             if handle:
                 rows.append([InlineKeyboardButton(text=contact_btn_text, url=f"https://t.me/{handle}")])
-            rows.append([InlineKeyboardButton(text=back_btn_text, callback_data="open_account")])
+            rows.append([InlineKeyboardButton(text=back_btn_text, callback_data="open_more")])
         else:
             # Fetch up to 3 active products with configured reseller discounts
             async with services.db.connect() as conn:
@@ -566,7 +538,7 @@ async def show_reseller_hub(event: Message | CallbackQuery, state: FSMContext | 
             if handle:
                 prefill = f"Hello, I would like to inquire about becoming a Reseller at {store_name}."
                 rows.append([InlineKeyboardButton(text=contact_btn_text, url=f"https://t.me/{handle}?text={quote(prefill)}")])
-            rows.append([InlineKeyboardButton(text=back_btn_text, callback_data="open_account")])
+            rows.append([InlineKeyboardButton(text=back_btn_text, callback_data="open_more")])
 
     kb = InlineKeyboardMarkup(inline_keyboard=rows)
     await respond(event, text, kb)
@@ -695,7 +667,7 @@ async def show_api_hub(event: Message | CallbackQuery, state: FSMContext | None,
         rows.append([docs_btn])
 
     rows.append([
-        InlineKeyboardButton(text=back_text, callback_data="open_account"),
+        InlineKeyboardButton(text=back_text, callback_data="open_more"),
     ])
     kb = InlineKeyboardMarkup(inline_keyboard=rows)
     await respond(event, text, kb)

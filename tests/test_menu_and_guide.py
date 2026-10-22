@@ -311,7 +311,7 @@ class MenuAndGuideTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(selector_markup)
         self.assertEqual(
             [row[0].callback_data for row in selector_markup.inline_keyboard],
-            ["set_lang_en", "set_lang_bn", "open_account"],
+            ["set_lang_en", "set_lang_bn", "open_more"],
         )
 
         replies_bn = await self._feed(data="set_lang_bn")
