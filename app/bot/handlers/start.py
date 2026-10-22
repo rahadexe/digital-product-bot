@@ -68,7 +68,7 @@ def build_welcome_text(
             status_items.append(f"📦 অর্ডার: <b>{order_count}</b>")
         if status_items:
             lines.append(" · ".join(status_items) + "\n")
-        lines.append("নিচের অপশন বেছে নিন (English করতে /en চাপুন):")
+        lines.append("নিচের অপশন বেছে নিন:")
     else:
         lines = [
             f"⚡ <b>{store_title}</b>",
@@ -81,7 +81,7 @@ def build_welcome_text(
             status_items.append(f"📦 Orders: <b>{order_count}</b>")
         if status_items:
             lines.append(" · ".join(status_items) + "\n")
-        lines.append("Select an action below (tap /bn for বাংলা):")
+        lines.append("Select an action below:")
 
     return prefix + "\n".join(lines)
 
