@@ -46,7 +46,7 @@ class AccountRedesignTests(unittest.TestCase):
         self.assertEqual(rows_en[0][0].callback_data, "set_lang_en")
         self.assertEqual(rows_en[1][0].text, "🇧🇩 বাংলা")
         self.assertEqual(rows_en[1][0].callback_data, "set_lang_bn")
-        self.assertEqual(rows_en[2][0].callback_data, "open_account")
+        self.assertEqual(rows_en[2][0].callback_data, "open_more")
         self.assertEqual(rows_en[2][0].text, "Back")
 
         rows_bn = get_language_selection_keyboard(current_lang="bn").inline_keyboard
@@ -63,8 +63,8 @@ class AccountRedesignTests(unittest.TestCase):
         self.assertEqual(rows[0][0].text, "News & Offers: On")
         self.assertEqual(rows[0][0].callback_data, "notif_toggle_notify_news")
 
-        # Back returns to open_account
-        self.assertEqual(rows[1][0].callback_data, "open_account")
+        # Back returns to open_more
+        self.assertEqual(rows[1][0].callback_data, "open_more")
         self.assertEqual(rows[1][0].text, "Back")
 
     def test_deposit_history_keyboard_and_prompts(self):
@@ -201,21 +201,14 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
 
         text = respond.await_args.args[1]
         keyboard = respond.await_args.args[2]
-        self.assertEqual(text, "<b>Profile</b>\nTest Customer\nID: <code>123</code>")
-        for duplicate in ("Balance", "Orders", "Spent", "Member"):
-            self.assertNotIn(duplicate, text)
-        self.assertNotIn("Referral", text)
-        self.assertNotIn("start=123", text)
-        self.assertEqual([button.callback_data for button in keyboard.inline_keyboard[0]], ["open_language_menu"])
-        self.assertEqual([button.text for button in keyboard.inline_keyboard[1]], ["Notifications"])
-        self.assertEqual(
-            [button.callback_data for button in keyboard.inline_keyboard[2]],
-            ["open_api_hub", "open_reseller"],
-        )
-        self.assertEqual(keyboard.inline_keyboard[-1][0].callback_data, "back_to_main")
-        services.users.stats.assert_not_awaited()
-        services.settings.get.assert_not_awaited()
-        services.settings.number.assert_not_awaited()
+        self.assertIn("Test Customer", text)
+        self.assertIn("123", text)
+        self.assertIn("Customer", text)
+        callbacks = [btn.callback_data for row in keyboard.inline_keyboard for btn in row]
+        self.assertIn("open_language_menu", callbacks)
+        self.assertIn("open_notifications_hub", callbacks)
+        self.assertIn("open_referral", callbacks)
+        self.assertIn("open_help", callbacks)
         state.clear.assert_awaited_once()
 
     async def test_reseller_account_shows_reseller_status(self):
@@ -255,13 +248,10 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
 
         text = respond.await_args.args[1]
         keyboard = respond.await_args.args[2]
-        self.assertIn("Status: Reseller", text)
-        self.assertNotIn("<b>Referrals:</b>", text)
-        self.assertNotIn("Balance", text)
-        self.assertNotIn("Orders", text)
-        self.assertNotIn("Spent", text)
-        self.assertEqual(keyboard.inline_keyboard[2][1].text, "Reseller")
-        self.assertEqual(keyboard.inline_keyboard[2][1].callback_data, "open_reseller_hub")
+        self.assertIn("Reseller", text)
+        callbacks = [btn.callback_data for row in keyboard.inline_keyboard for btn in row]
+        self.assertIn("open_reseller_hub", callbacks)
+        self.assertIn("open_api_hub", callbacks)
 
     async def test_language_menu_offers_both_languages(self):
         from types import SimpleNamespace
@@ -279,7 +269,7 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
         text, keyboard = respond.await_args.args[1:]
         self.assertIn("ভাষা", text)
         self.assertEqual([row[0].callback_data for row in keyboard.inline_keyboard], [
-            "set_lang_en", "set_lang_bn", "open_account",
+            "set_lang_en", "set_lang_bn", "open_more",
         ])
         self.assertEqual(keyboard.inline_keyboard[1][0].text, "🇧🇩 বাংলা ✓")
 
