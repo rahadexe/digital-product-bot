@@ -113,30 +113,45 @@ def get_more_inline_keyboard(
     is_reseller: bool = False,
     is_admin: bool = False,
 ) -> InlineKeyboardMarkup:
-    """Secondary actions intentionally kept off the four-button home menu."""
+    """Consolidated secondary hub bringing profile, notifications, API and tools together."""
     if lang == "bn":
-        profile_label, referral_label = "👤 প্রোফাইল", "🎁 রেফারেল"
-        help_label, language_label = "💬 সাহায্য", "🌐 Language (English)"
-        reseller_label = "💼 রিসেলার প্যানেল"
+        referral_label = "🎁 রেফারেল"
+        help_label = "💬 সাহায্য"
+        notif_label = "🔔 নোটিফিকেশন"
+        language_label = "🌐 Language (English)"
+        reseller_label = "💼 রিসেলার হাব"
+        api_label = "⚡ এপিআই"
+        apply_reseller_label = "💼 রিসেলার আবেদন"
         back_label = "🏠 মূল মেনু"
     else:
-        profile_label, referral_label = "👤 Profile", "🎁 Referral"
-        help_label, language_label = "💬 Help", "🌐 ভাষা (বাংলা)"
-        reseller_label = "💼 Reseller Panel"
+        referral_label = "🎁 Referral"
+        help_label = "💬 Help"
+        notif_label = "🔔 Notifications"
+        language_label = "🌐 ভাষা (বাংলা)"
+        reseller_label = "💼 Reseller Hub"
+        api_label = "⚡ Reseller API"
+        apply_reseller_label = "💼 Become Reseller"
         back_label = "🏠 Main menu"
 
     rows = [
         [
-            InlineKeyboardButton(text=profile_label, callback_data="open_account"),
             InlineKeyboardButton(text=referral_label, callback_data="open_referral"),
+            InlineKeyboardButton(text=help_label, callback_data="open_help"),
         ],
         [
-            InlineKeyboardButton(text=help_label, callback_data="open_help"),
+            InlineKeyboardButton(text=notif_label, callback_data="open_notifications_hub"),
             InlineKeyboardButton(text=language_label, callback_data="open_language_menu"),
         ],
     ]
     if is_reseller:
-        rows.append([InlineKeyboardButton(text=reseller_label, callback_data="open_reseller_hub")])
+        rows.append([
+            InlineKeyboardButton(text=reseller_label, callback_data="open_reseller_hub"),
+            InlineKeyboardButton(text=api_label, callback_data="open_api_hub"),
+        ])
+    else:
+        rows.append([
+            InlineKeyboardButton(text=apply_reseller_label, callback_data="open_reseller"),
+        ])
     rows.append([InlineKeyboardButton(text=back_label, callback_data="back_to_main")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
