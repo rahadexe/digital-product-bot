@@ -90,21 +90,17 @@ async def show_more_menu(event: Message | CallbackQuery, state: FSMContext, serv
 
     user_name = escape(tg_user.full_name or tg_user.first_name or "Customer")
 
-    status_label = "Reseller Partner" if is_reseller else "Customer"
+    status_badge = "Reseller" if is_reseller else "Customer"
     if lang == "bn":
-        status_label = "রিসেলার পার্টনার" if is_reseller else "কাস্টমার"
+        status_badge = "রিসেলার" if is_reseller else "কাস্টমার"
         text = (
-            f"👤 <b>অ্যাকাউন্ট:</b> {user_name}\n"
-            f"🆔 <b>আইডি:</b> <code>{tg_user.id}</code>\n"
-            f"📊 <b>স্ট্যাটাস:</b> {status_label}\n\n"
-            "✨ <b>মোর অপশনস</b> — রেফারেল, নোটিফিকেশন, সাহায্য ও রিসেলার টুলস:"
+            f"👤 <b>{user_name}</b> · <code>{tg_user.id}</code>\n"
+            f"স্ট্যাটাস: <b>{status_badge}</b>"
         )
     else:
         text = (
-            f"👤 <b>Account:</b> {user_name}\n"
-            f"🆔 <b>User ID:</b> <code>{tg_user.id}</code>\n"
-            f"📊 <b>Status:</b> {status_label}\n\n"
-            "✨ <b>More Options</b> — Referrals, notifications, help & reseller tools:"
+            f"👤 <b>{user_name}</b> · <code>{tg_user.id}</code>\n"
+            f"Status: <b>{status_badge}</b>"
         )
 
     keyboard = get_more_inline_keyboard(lang=lang, is_reseller=is_reseller, is_admin=is_admin)

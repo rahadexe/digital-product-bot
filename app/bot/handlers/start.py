@@ -58,21 +58,21 @@ def build_welcome_text(
 
     if lang == "bn":
         lines = [
-            f"👋 <b>স্বাগতম, {name_display}!</b>",
-            f"⚡ <b>{store_title}</b>\n",
+            f"⚡ <b>{store_title}</b>",
+            f"👋 স্বাগতম, <b>{name_display}</b>!\n",
         ]
         status_items = []
         if balance_str:
             status_items.append(f"💳 ব্যালেন্স: <code>{balance_str}</code>")
         if order_count > 0:
-            status_items.append(f"📦 সম্পন্ন অর্ডার: <b>{order_count}</b>")
+            status_items.append(f"📦 অর্ডার: <b>{order_count}</b>")
         if status_items:
             lines.append(" · ".join(status_items) + "\n")
         lines.append("নিচের অপশন বেছে নিন (English করতে /en চাপুন):")
     else:
         lines = [
-            f"👋 <b>Welcome, {name_display}!</b>",
-            f"⚡ <b>{store_title}</b>\n",
+            f"⚡ <b>{store_title}</b>",
+            f"👋 Welcome, <b>{name_display}</b>!\n",
         ]
         status_items = []
         if balance_str:
