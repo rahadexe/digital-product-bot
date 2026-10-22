@@ -361,8 +361,13 @@ NAVIGATION_TEXTS.update({
     "Balance": "deposit", "balance": "deposit", "BALANCE": "deposit", "💰 Balance": "deposit",
     "💰 আমার ব্যালেন্স": "deposit", "আমার ব্যালেন্স": "deposit",
     "✨ More": "more", "☰ More": "more", "More": "more", "MORE": "more",
-    "✨ আরও": "more", "☰ আরও": "more", "আরও": "more",
-    "🛡 Admin Panel": "admin", "🛡 অ্যাডমিন প্যানেল": "admin", "অ্যাডমিন প্যানেল": "admin",
+    "✨ আরও": "more", "✨️ আরও": "more", "☰ আরও": "more", "আরও": "more",
+    "🛍 প্রোডাক্টস": "shop", "🛍️ প্রোডাক্টস": "shop", "প্রোডাক্টস": "shop",
+    "🛍 প্রোডাক্ট": "shop", "🛍️ প্রোডাক্ট": "shop", "প্রোডাক্ট": "shop",
+    "💰 ওয়ালেট": "deposit", "💰️ ওয়ালেট": "deposit", "ওয়ালেট": "deposit",
+    "📦 অর্ডারস": "orders", "📦️ অর্ডারস": "orders", "অর্ডারস": "orders",
+    "📦 অর্ডার": "orders", "📦️ অর্ডার": "orders", "অর্ডার": "orders",
+    "🛡 Admin Panel": "admin", "🛡 অ্যাডমিন প্যানেল": "admin", "🛡️ অ্যাডমিন প্যানেল": "admin", "অ্যাডমিন প্যানেল": "admin",
     "English": "set_en", "english": "set_en", "EN": "set_en", "en": "set_en",
     "বাংলা": "set_bn", "bangla": "set_bn", "BN": "set_bn", "bn": "set_bn",
 })
@@ -397,11 +402,23 @@ COMMAND_ACTIONS = {
 }
 
 
+def _norm(t: str) -> str:
+    return t.replace("\ufe0f", "").strip()
+
+
 def is_navigation(text: str) -> bool:
     if not text:
         return False
     clean = text.strip()
-    return clean in NAVIGATION_TEXTS or clean.upper() in NAVIGATION_TEXTS or clean.startswith("/")
+    norm = _norm(clean)
+    norm_upper = _norm(clean.upper())
+    return (
+        clean in NAVIGATION_TEXTS
+        or clean.upper() in NAVIGATION_TEXTS
+        or norm in NAVIGATION_TEXTS
+        or norm_upper in NAVIGATION_TEXTS
+        or clean.startswith("/")
+    )
 
 
 async def navigate(text: str, message: Message, state: FSMContext, services: Services) -> None:
@@ -411,6 +428,7 @@ async def navigate(text: str, message: Message, state: FSMContext, services: Ser
 
     current_state = await state.get_state()
     clean = (text or "").strip()
+    norm = _norm(clean)
 
     # If customer is in deposit flow and presses Back or Cancel, return directly to payment options menu
     if clean in {"🔙 Back", "🔙 ব্যাক", "Back", "ব্যাক", "Cancel", "বাতিল", "❌ Cancel", "❌ বাতিল", "back", "cancel"}:
@@ -423,6 +441,8 @@ async def navigate(text: str, message: Message, state: FSMContext, services: Ser
     action = (
         NAVIGATION_TEXTS.get(clean)
         or NAVIGATION_TEXTS.get(clean.upper())
+        or NAVIGATION_TEXTS.get(norm)
+        or NAVIGATION_TEXTS.get(norm.upper())
         or COMMAND_ACTIONS.get(clean.split()[0].split("@")[0], "start")
     )
     if action == "cancel":
@@ -487,7 +507,7 @@ async def navigate(text: str, message: Message, state: FSMContext, services: Ser
     await start.render_main_dashboard(message, services, message.from_user.id)
 
 
-@router.message(F.text.func(lambda text: bool(text and (text.strip() in NAVIGATION_TEXTS or text.strip().upper() in NAVIGATION_TEXTS))))
+@router.message(F.text.func(is_navigation))
 async def handle_navigation_message(message: Message, state: FSMContext, services: Services):
     text = (message.text or "").strip()
     await navigate(text, message, state, services)

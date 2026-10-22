@@ -62,7 +62,7 @@ async def _clear_banner(message: Message, seconds: int) -> None:
     with suppress(Exception):
         await message.delete()
 
-PAGE_SIZE = 7
+PAGE_SIZE = 12
 
 
 class ShopQuantityStates(StatesGroup):
