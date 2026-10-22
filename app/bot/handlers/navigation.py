@@ -362,6 +362,7 @@ NAVIGATION_TEXTS.update({
     "💰 আমার ব্যালেন্স": "deposit", "আমার ব্যালেন্স": "deposit",
     "✨ More": "more", "☰ More": "more", "More": "more", "MORE": "more",
     "✨ আরও": "more", "☰ আরও": "more", "আরও": "more",
+    "🛡 Admin Panel": "admin", "🛡 অ্যাডমিন প্যানেল": "admin", "অ্যাডমিন প্যানেল": "admin",
 })
 
 COMMAND_ACTIONS = {

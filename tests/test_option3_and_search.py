@@ -25,12 +25,13 @@ def test_main_inline_keyboard_compact_four_action_layout():
         "🛍 Products", "💰 Wallet", "📦 Orders", "✨ More",
     ]
 
-    # Operator tools stay off the home screen and are available under More.
+    # Admin panel is the role-only fifth home action; reseller stays under More.
     kb_admin = get_main_inline_keyboard(pinned_categories=cats, is_admin=True, lang="en")
-    assert len(kb_admin.inline_keyboard) == 2
+    assert len(kb_admin.inline_keyboard) == 3
+    assert kb_admin.inline_keyboard[-1][0].callback_data == "adm_dashboard"
     more = get_more_inline_keyboard(lang="en", is_admin=True, is_reseller=True)
     more_callbacks = [button.callback_data for row in more.inline_keyboard for button in row]
-    assert "adm_dashboard" in more_callbacks
+    assert "adm_dashboard" not in more_callbacks
     assert "open_reseller_hub" in more_callbacks
 
 

@@ -59,13 +59,25 @@ def test_four_primary_buttons_are_short_and_routable():
     assert all(len(b.text) <= 10 for row in reply.keyboard for b in row)
 
 
-def test_more_menu_keeps_secondary_and_operator_actions_available():
+def test_admin_panel_is_a_fifth_admin_only_home_action():
+    customer_reply = get_persistent_reply_keyboard()
+    customer_inline = get_main_inline_keyboard()
+    assert len(customer_reply.keyboard) == 2
+    assert len(customer_inline.inline_keyboard) == 2
+
+    admin_reply = get_persistent_reply_keyboard(is_admin=True)
+    admin_inline = get_main_inline_keyboard(is_admin=True)
+    assert admin_reply.keyboard[-1][0].text == "🛡 Admin Panel"
+    assert admin_inline.inline_keyboard[-1][0].callback_data == "adm_dashboard"
+
+
+def test_more_menu_keeps_secondary_and_reseller_actions_available():
     keyboard = get_more_inline_keyboard(lang="en", is_reseller=True, is_admin=True)
     buttons = [button for row in keyboard.inline_keyboard for button in row]
     callbacks = [button.callback_data for button in buttons]
     assert callbacks == [
         "open_account", "open_referral", "open_help", "open_language_menu",
-        "open_reseller_hub", "adm_dashboard", "back_to_main",
+        "open_reseller_hub", "back_to_main",
     ]
 
 
