@@ -113,39 +113,31 @@ def get_more_inline_keyboard(
     is_reseller: bool = False,
     is_admin: bool = False,
 ) -> InlineKeyboardMarkup:
-    """Consolidated secondary hub: clean 100% English 2x2 grid."""
+    """Consolidated secondary hub: Referral, Help, Notifications, Language, API, and Reseller."""
     referral_label = "🎁 Referral"
     help_label = "💬 Help"
     notif_label = "🔔 Notifications"
-    reseller_label = "💼 Reseller Hub"
-    api_label = "⚡ Reseller API"
-    apply_reseller_label = "💼 Become Reseller"
+    language_label = "🌐 Language"
+    reseller_label = "💼 Reseller Hub" if is_reseller else "💼 Become Reseller"
+    api_label = "⚡ Reseller API" if is_reseller else "⚡ API Docs"
 
-    if is_reseller:
-        rows = [
-            [
-                InlineKeyboardButton(text=referral_label, callback_data="open_referral"),
-                InlineKeyboardButton(text=help_label, callback_data="open_help"),
-            ],
-            [
-                InlineKeyboardButton(text=reseller_label, callback_data="open_reseller_hub"),
-                InlineKeyboardButton(text=api_label, callback_data="open_api_hub"),
-            ],
-            [
-                InlineKeyboardButton(text=notif_label, callback_data="open_notifications_hub"),
-            ],
-        ]
-    else:
-        rows = [
-            [
-                InlineKeyboardButton(text=referral_label, callback_data="open_referral"),
-                InlineKeyboardButton(text=help_label, callback_data="open_help"),
-            ],
-            [
-                InlineKeyboardButton(text=notif_label, callback_data="open_notifications_hub"),
-                InlineKeyboardButton(text=apply_reseller_label, callback_data="open_reseller"),
-            ],
-        ]
+    rows = [
+        [
+            InlineKeyboardButton(text=referral_label, callback_data="open_referral"),
+            InlineKeyboardButton(text=help_label, callback_data="open_help"),
+        ],
+        [
+            InlineKeyboardButton(text=notif_label, callback_data="open_notifications_hub"),
+            InlineKeyboardButton(text=language_label, callback_data="open_language_menu"),
+        ],
+        [
+            InlineKeyboardButton(text=api_label, callback_data="open_api_hub"),
+            InlineKeyboardButton(
+                text=reseller_label,
+                callback_data="open_reseller_hub" if is_reseller else "open_reseller"
+            ),
+        ],
+    ]
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
