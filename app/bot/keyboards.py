@@ -131,19 +131,19 @@ def get_more_inline_keyboard(
 
     rows = [
         [
-            InlineKeyboardButton(text=referral_label, callback_data="open_referral"),
             InlineKeyboardButton(text=help_label, callback_data="open_help"),
+            InlineKeyboardButton(text=referral_label, callback_data="open_referral"),
         ],
         [
-            InlineKeyboardButton(text=notif_label, callback_data="open_notifications_hub"),
-            InlineKeyboardButton(text=language_label, callback_data="open_language_menu"),
-        ],
-        [
-            InlineKeyboardButton(text=api_label, callback_data="open_api_hub"),
             InlineKeyboardButton(
                 text=reseller_label,
                 callback_data="open_reseller_hub" if is_reseller else "open_reseller"
             ),
+            InlineKeyboardButton(text=api_label, callback_data="open_api_hub"),
+        ],
+        [
+            InlineKeyboardButton(text=notif_label, callback_data="open_notifications_hub"),
+            InlineKeyboardButton(text=language_label, callback_data="open_language_menu"),
         ],
     ]
     return InlineKeyboardMarkup(inline_keyboard=rows)
