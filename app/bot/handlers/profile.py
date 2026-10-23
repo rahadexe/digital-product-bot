@@ -1390,9 +1390,7 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
     back_cb = f"back_to_dep_req_{dep_id_ref}" if dep_id_ref else ("open_deposit" if from_wallet else "open_account")
 
     if not deposits:
-        title = t("balance_history_title", lang, icon_stats=ICON_STATS)
-        empty_msg = t("balance_history_empty", lang)
-        text = f"{title}\n\n{empty_msg}"
+        text = t("balance_history_empty", lang)
         buttons = [
             [
                 InlineKeyboardButton(text=t("btn_back", lang), callback_data=back_cb),
