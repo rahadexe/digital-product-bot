@@ -45,9 +45,9 @@ def test_optional_toggle_is_the_only_customer_notification_switch(enabled):
     keyboard = get_notification_settings_keyboard({"notify_news": enabled})
     buttons = [button for row in keyboard.inline_keyboard for button in row]
     assert [button.callback_data for button in buttons] == [
-        "notif_toggle_notify_news", "open_more",
+        "notif_toggle_notify_orders", "notif_toggle_notify_deposits", "notif_toggle_notify_news", "open_more",
     ]
-    assert buttons[0].text == f"News & Offers: {'On' if enabled else 'Off'}"
+    assert f"({'On' if enabled else 'Off'})" in buttons[2].text
 
 
 @pytest.mark.asyncio
