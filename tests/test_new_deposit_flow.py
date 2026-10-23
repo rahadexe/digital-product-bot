@@ -43,7 +43,7 @@ async def test_wallet_shows_balance_and_inline_payment_actions():
 
     text = message.answer.call_args.args[0]
     keyboard = message.answer.call_args.kwargs["reply_markup"]
-    assert text.startswith("<b>Balance:</b>")
+    assert "<b>Balance:</b>" in text
     assert "Choose a payment method." in text
     assert "💰" not in text
     assert "45" in text

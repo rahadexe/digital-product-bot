@@ -346,12 +346,12 @@ async def show_deposit_methods(event: Message | CallbackQuery, state: FSMContext
     if pending:
         if lang == "bn":
             text = (
-                f"<b>ব্যালেন্স:</b> <code>{balance_display}</code>\n"
+                f"💳 <b>ব্যালেন্স:</b> <code>{balance_display}</code>\n"
                 f"⏳ ডিপোজিট {format_deposit_id(pending['id'])} যাচাই হচ্ছে। যাচাই শেষ হলে ব্যালেন্স যোগ হবে।"
             )
         else:
             text = (
-                f"<b>Balance:</b> <code>{balance_display}</code>\n"
+                f"💳 <b>Balance:</b> <code>{balance_display}</code>\n"
                 f"Top-up {format_deposit_id(pending['id'])} is being verified. Do not pay again."
             )
         keyboard = get_deposit_methods_keyboard([], instant_label=None, show_history=True, lang=lang, back_target=back_target)
@@ -362,14 +362,14 @@ async def show_deposit_methods(event: Message | CallbackQuery, state: FSMContext
                 if displayed_methods or instant
                 else "এই মুহূর্তে কোনো পেমেন্ট মেথড চালু নেই।"
             )
-            text = f"<b>ব্যালেন্স:</b> <code>{balance_display}</code>\n\n{prompt}"
+            text = f"💳 <b>ব্যালেন্স:</b> <code>{balance_display}</code>\n\n{prompt}"
         else:
             prompt = (
                 "Choose a payment method."
                 if displayed_methods or instant
                 else "No payment methods are available right now."
             )
-            text = f"<b>Balance:</b> <code>{balance_display}</code>\n\n{prompt}"
+            text = f"💳 <b>Balance:</b> <code>{balance_display}</code>\n\n{prompt}"
         keyboard = get_deposit_methods_keyboard(
             displayed_methods,
             instant_label=instant["label"] if instant else None,
