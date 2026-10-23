@@ -762,6 +762,9 @@ def get_help_faq_keyboard(
                     )
                 ])
 
+    back_label = "Back" if lang != "bn" else "ব্যাক"
+    rows.append([InlineKeyboardButton(text=back_label, callback_data="open_more")])
+
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 

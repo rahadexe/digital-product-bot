@@ -607,7 +607,7 @@ async def show_category_products(query: CallbackQuery, state: FSMContext, servic
         with suppress(TelegramBadRequest):
             await query.answer("Category not found.", show_alert=True)
         return
-    back_target = "back_to_main"
+    back_target = "shop_p_all_1"
     await show_category_or_validity(query, state, services, category=cat, back_target=back_target)
 
 
@@ -621,7 +621,7 @@ async def handle_validity_menu_back(query: CallbackQuery, state: FSMContext, ser
     cat = await services.catalog.category(cat_id)
     if not cat:
         return
-    back_target = "back_to_main"
+    back_target = "shop_p_all_1"
     await show_category_or_validity(query, state, services, category=cat, back_target=back_target)
 
 
