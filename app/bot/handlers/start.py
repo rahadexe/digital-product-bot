@@ -72,43 +72,50 @@ def build_welcome_text(
     date_str = now.strftime("%A, %d %B %Y")
     time_str = now.strftime("%I:%M:%S %p").lstrip("0")
 
-    tagline_escaped = f"\n<i>{escape(tagline)}</i>" if tagline else ""
-    store_header = f"⚡ <b>{store_title}</b>{tagline_escaped}\n\n" if (not has_banner and store_title) else ""
-
     if lang == "bn":
-        blocks = [
-            f"{store_header}স্বাগতম, <b>{name_display}</b>! 🤝",
-            f"তারিখ: {date_str}\nসময়: {time_str}",
-            (
-                "<b>অ্যাকাউন্ট বিবরণ:</b>\n"
-                f"ইউজার আইডি: <code>{user_id_display}</code>\n"
-                f"ইউজারনেম: {clean_username}\n"
-                f"বর্তমান ব্যালেন্স: <code>{bal_display}</code>"
-            ),
+        account_lines = [
+            f"ইউজার আইডি: <code>{user_id_display}</code>",
+            f"ইউজারনেম: {clean_username}",
+            f"বর্তমান ব্যালেন্স: <code>{bal_display}</code>",
         ]
+        if order_count > 0:
+            account_lines.append(f"অর্ডার সংখ্যা: <b>{order_count}টি</b>")
+
+        stats_lines = []
         if total_users > 0:
-            blocks.append(
-                "<b>বট পরিসংখ্যান:</b>\n"
-                f"মোট ইউজার: {total_users:,}"
-            )
+            stats_lines.append(f"মোট গ্রাহক: <b>{total_users:,}</b>")
+        stats_lines.append("সার্ভিস: <b>২৪/৭ অটোমেটেড</b>")
+
+        blocks = [
+            f"⚡ <b>{store_title}</b>",
+            f"স্বাগতম, <b>{name_display}</b>! 🤝",
+            f"তারিখ: {date_str}\nসময়: {time_str}",
+            "<b>অ্যাকাউন্ট বিবরণ:</b>\n" + "\n".join(account_lines),
+            "<b>প্ল্যাটফর্ম পরিসংখ্যান:</b>\n" + "\n".join(stats_lines),
+        ]
         if clean_support:
             blocks.append(f"সাপোর্ট: {clean_support}")
     else:
-        blocks = [
-            f"{store_header}Welcome, <b>{name_display}</b>! 🤝",
-            f"Date: {date_str}\nTime: {time_str}",
-            (
-                "<b>Account Information:</b>\n"
-                f"User ID: <code>{user_id_display}</code>\n"
-                f"Username: {clean_username}\n"
-                f"Current Balance: <code>{bal_display}</code>"
-            ),
+        account_lines = [
+            f"User ID: <code>{user_id_display}</code>",
+            f"Username: {clean_username}",
+            f"Current Balance: <code>{bal_display}</code>",
         ]
+        if order_count > 0:
+            account_lines.append(f"Orders Completed: <b>{order_count}</b>")
+
+        stats_lines = []
         if total_users > 0:
-            blocks.append(
-                "<b>Bot Statistics:</b>\n"
-                f"Total Users: {total_users:,}"
-            )
+            stats_lines.append(f"Total Users: <b>{total_users:,}</b>")
+        stats_lines.append("Service: <b>24/7 Automated</b>")
+
+        blocks = [
+            f"⚡ <b>{store_title}</b>",
+            f"Welcome, <b>{name_display}</b>! 🤝",
+            f"Date: {date_str}\nTime: {time_str}",
+            "<b>Account Information:</b>\n" + "\n".join(account_lines),
+            "<b>Bot Statistics:</b>\n" + "\n".join(stats_lines),
+        ]
         if clean_support:
             blocks.append(f"Support: {clean_support}")
 

@@ -94,12 +94,13 @@ async def test_admin_set_banner_and_welcome_tagline():
     await admin.adm_set_banner(msg_clear, services)
     services.settings.update.assert_awaited_with({"welcome_banner_file_id": ""})
 
-    # 3. /setwelcome custom tagline
-    msg_welcome = SimpleNamespace(
+    # 3. Interactive photo upload via FSM state
+    state = SimpleNamespace(clear=AsyncMock())
+    msg_photo_upload = SimpleNamespace(
         from_user=SimpleNamespace(id=1),
-        text="/setwelcome 🔥 24/7 Fast Automated Digital Store",
+        photo=[photo_obj],
         reply=AsyncMock(),
     )
-    await admin.adm_set_welcome(msg_welcome, services)
-    services.settings.update.assert_awaited_with({"welcome_tagline": "🔥 24/7 Fast Automated Digital Store"})
-    assert "updated" in msg_welcome.reply.call_args[0][0].lower()
+    await admin.adm_receive_banner_photo(msg_photo_upload, state, services)
+    services.settings.update.assert_awaited_with({"welcome_banner_file_id": "AgACAgIAAxkBAAI..."})
+    state.clear.assert_awaited_once()
