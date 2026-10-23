@@ -574,16 +574,37 @@ async def render_method_details(
     lang = await services.users.get_language(user_id) if user_id else "en"
 
     _, action = get_account_type_labels(account_type)
-    heading = method_name if is_binance else f"{method_name} · {action}"
+    heading = method_name if is_binance else f"{method_name} {action}"
     destination_label = "Pay ID" if is_binance else "Number"
     destination = "Open the payment page below." if is_payment_link else f"{destination_label}: <code>{escape(account_info)}</code>"
     minimum = f"{min_dep:g} USDT" if is_binance else f"৳{min_dep:g}"
-    inst = f"<b>{escape(heading)}</b>\n{destination}\nMinimum: <b>{minimum}</b>"
+
+    lines = [
+        f"<b>{escape(heading)}</b>",
+        "",
+        destination,
+        "",
+        f"Minimum: <b>{minimum}</b>",
+    ]
     if not is_binance and rate > 1:
-        inst += f"\nRate: 1 USD = ৳{rate:g} BDT"
+        lines.append(f"Rate: 1 USD = ৳{rate:g} BDT")
     if custom_inst:
-        inst += f"\n\n{escape(custom_inst)}"
-    inst += "\n\nAfter paying, tap Payment Done."
+        lines.extend(["", escape(custom_inst)])
+
+    if lang == "bn":
+        steps = [
+            f"1. উপরের নম্বরে {action} করুন" if not is_binance else "1. উপরের Pay ID-তে USDT পাঠান",
+            "2. এসএমএস থেকে TrxID কপি করুন" if not is_binance else "2. Binance থেকে Order ID / TrxID কপি করুন",
+            "3. নিচের বাটনে চাপ দিয়ে TrxID পাঠান",
+        ]
+    else:
+        steps = [
+            f"1. {action} to the number above" if not is_binance else "1. Send USDT to the Pay ID above",
+            "2. Copy the TrxID from your SMS / statement" if not is_binance else "2. Copy the Order ID / TrxID from Binance",
+            "3. After paying, tap Payment Done.",
+        ]
+    lines.extend(["", "\n".join(steps)])
+    inst = "\n".join(lines)
     keyboard = get_manual_deposit_invoice_keyboard(
         account_info, lang=lang, method_id=method["id"], is_binance=is_binance,
     )
