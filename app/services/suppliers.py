@@ -13,6 +13,7 @@ import httpx
 
 from app.core.config import Settings
 from app.db import Database
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 logger = logging.getLogger("app.services.suppliers")
 
@@ -356,9 +357,13 @@ class DigitalMartClient(BaseSupplier):
         threshold = 50.0
         if self.settings:
             try:
+                if hasattr(self.settings, "flag") and not await self.settings.flag("upstream_low_balance_notify"):
+                    return False
                 threshold = float(await self.settings.get("upstream_low_balance_alert"))
             except Exception:
                 threshold = 50.0
+        if threshold <= 0:
+            return False
         if balance < threshold and notifier:
             admin_ids = await self.settings.admin_chat_ids()
             msg = (
@@ -366,8 +371,11 @@ class DigitalMartClient(BaseSupplier):
                 f"<code>৳{balance:.2f} BDT</code>\n"
                 "Top up the supplier wallet to keep orders running."
             )
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔕 Turn Off Alert", callback_data="mute_sup_digital_mart")]
+            ])
             for aid in admin_ids:
-                notifier.in_background(notifier.send(aid, msg))
+                notifier.in_background(notifier.send(aid, msg, keyboard=kb))
             return True
         return False
 
@@ -567,9 +575,13 @@ class SafwanTigerClient(BaseSupplier):
         threshold = 5.0
         if self.settings:
             try:
+                if hasattr(self.settings, "flag") and not await self.settings.flag("safwan_tiger_low_balance_notify"):
+                    return False
                 threshold = float(await self.settings.get("safwan_tiger_low_balance_alert") or 5.0)
             except Exception:
                 threshold = 5.0
+        if threshold <= 0:
+            return False
         if balance < threshold and notifier:
             admin_ids = await self.settings.admin_chat_ids()
             msg = (
@@ -577,8 +589,11 @@ class SafwanTigerClient(BaseSupplier):
                 f"<code>${balance:.2f} USDT</code>\n"
                 "Top up the supplier wallet to keep orders running."
             )
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔕 Turn Off Alert", callback_data="mute_sup_safwan_tiger")]
+            ])
             for aid in admin_ids:
-                notifier.in_background(notifier.send(aid, msg))
+                notifier.in_background(notifier.send(aid, msg, keyboard=kb))
             return True
         return False
 

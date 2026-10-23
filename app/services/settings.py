@@ -152,12 +152,14 @@ SPECS: dict[str, SettingSpec] = {
     "upstream_markup_percent": SettingSpec("15.0", _number(0, 500), 16),
     "upstream_auto_sync": SettingSpec("1", _flag, 1),
     "upstream_low_balance_alert": SettingSpec("50.0", _number(0, 100000), 16),
+    "upstream_low_balance_notify": SettingSpec("1", _flag, 1),
     # Upstream Safwan Tiger Shop provider settings
     "safwan_tiger_url": SettingSpec("https://safwantigershopbot-production.up.railway.app/api", max_length=256),
     "safwan_tiger_key": SettingSpec("", secret=True),
     "safwan_tiger_markup_percent": SettingSpec("15.0", _number(0, 500), 16),
     "safwan_tiger_auto_sync": SettingSpec("0", _flag, 1),
     "safwan_tiger_low_balance_alert": SettingSpec("5.0", _number(0, 100000), 16),
+    "safwan_tiger_low_balance_notify": SettingSpec("1", _flag, 1),
     # Resilient supplier fallback: queue order as waiting rather than rolling back when supplier is out of balance
     "supplier_fallback_to_waiting": SettingSpec("1", _flag, 1),
     "binance_pay_rate": SettingSpec("125", _number(0.0001, 1_000_000), 16),
