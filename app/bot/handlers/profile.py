@@ -90,10 +90,95 @@ async def show_more_menu(event: Message | CallbackQuery, state: FSMContext, serv
         except Exception:
             is_admin = False
 
-    if lang == "bn":
-        text = "✨ <b>আরও অপশন</b>\nটুলস ও সেটিংস নির্বাচন করুন:"
+    user_name = escape(tg_user.first_name or "there")
+    user_id = tg_user.id
+
+    symbol = "৳"
+    usd_rate = 125.0
+    show_usd = False
+    if hasattr(services, "settings"):
+        try:
+            sym_val = await services.settings.get("currency_symbol")
+            symbol = (sym_val or "৳").strip()
+            usd_rate = await services.settings.number("usd_rate")
+            show_usd = await services.settings.flag("show_usd_price")
+        except Exception:
+            pass
+
+    user_balance = float(user.get("balance", 0.0)) if user else 0.0
+    if lang == "en" and show_usd and usd_rate and usd_rate > 0:
+        usd = round(user_balance / usd_rate, 2)
+        balance_str = f"${usd:g}" if usd == int(usd) else f"${usd:.2f}"
     else:
-        text = "✨ <b>More Options</b>\nSelect an option to manage tools and settings:"
+        balance_str = f"{symbol}{user_balance:g}" if user_balance == int(user_balance) else f"{symbol}{user_balance:.2f}"
+
+    total_invited = 0
+    total_earned = 0.0
+    if hasattr(services, "db") and services.db:
+        try:
+            async with services.db.connect() as conn:
+                row = await conn.fetchrow(
+                    """
+                    SELECT
+                        COUNT(*) AS total_invited,
+                        COALESCE(SUM(amount), 0) AS total_earned
+                    FROM referral_rewards
+                    WHERE referrer_tg_id = $1
+                    """,
+                    tg_user.id,
+                )
+                if row:
+                    total_invited = int(row["total_invited"] or 0)
+                    total_earned = float(row["total_earned"] or 0.0)
+        except Exception:
+            pass
+
+    if lang == "en" and show_usd and usd_rate and usd_rate > 0:
+        usd_earned = round(total_earned / usd_rate, 2)
+        earned_str = f"${usd_earned:g}" if usd_earned == int(usd_earned) else f"${usd_earned:.2f}"
+    else:
+        earned_str = f"{symbol}{total_earned:g}" if total_earned == int(total_earned) else f"{symbol}{total_earned:.2f}"
+
+    bot_user = ""
+    if hasattr(services, "notifier") and hasattr(services.notifier, "bot_username"):
+        try:
+            bot_user = await services.notifier.bot_username()
+        except Exception:
+            bot_user = ""
+    ref_link = f"https://t.me/{bot_user}?start={tg_user.id}" if bot_user else ""
+
+    if lang == "bn":
+        lines = [
+            "✨ <b>আরও অপশন</b>",
+            "",
+            f"ইউজার: <b>{user_name}</b>",
+            f"আইডি: <code>{user_id}</code>",
+            f"💰 ব্যালেন্স: <code>{balance_str}</code>",
+            f"🎁 ইনভাইট: <b>{total_invited}টি</b> (আয়: <code>{earned_str}</code>)",
+        ]
+        if ref_link:
+            lines.extend([
+                "",
+                "🔗 রেফারেল লিংক:",
+                f"<code>{ref_link}</code>",
+            ])
+        text = "\n".join(lines)
+    else:
+        lines = [
+            "✨ <b>More Options</b>",
+            "",
+            f"User: <b>{user_name}</b>",
+            f"ID: <code>{user_id}</code>",
+            f"💰 Balance: <code>{balance_str}</code>",
+            f"🎁 Invites: <b>{total_invited}</b> (Earned: <code>{earned_str}</code>)",
+        ]
+        if ref_link:
+            lines.extend([
+                "",
+                "🔗 Referral Link:",
+                f"<code>{ref_link}</code>",
+            ])
+        text = "\n".join(lines)
 
     keyboard = get_more_inline_keyboard(lang=lang, is_reseller=is_reseller, is_admin=is_admin)
     await respond(event, text, keyboard)
