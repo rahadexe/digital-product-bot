@@ -90,8 +90,10 @@ async def show_more_menu(event: Message | CallbackQuery, state: FSMContext, serv
         except Exception:
             is_admin = False
 
-    user_name = escape(tg_user.first_name or "there")
-    user_id = tg_user.id
+    user_name = escape(getattr(tg_user, "first_name", None) or "there")
+    user_id = getattr(tg_user, "id", 0)
+    raw_username = getattr(tg_user, "username", None)
+    clean_username = f"@{raw_username.lstrip('@')}" if raw_username else "N/A"
 
     symbol = "৳"
     usd_rate = 125.0
@@ -149,12 +151,13 @@ async def show_more_menu(event: Message | CallbackQuery, state: FSMContext, serv
 
     if lang == "bn":
         lines = [
-            "✨ <b>আরও অপশন</b>",
-            "",
             f"ইউজার: <b>{user_name}</b>",
             f"আইডি: <code>{user_id}</code>",
+            f"ইউজারনেম: {clean_username}",
+            "",
             f"💰 ব্যালেন্স: <code>{balance_str}</code>",
-            f"🎁 ইনভাইট: <b>{total_invited}টি</b> (আয়: <code>{earned_str}</code>)",
+            f"🎁 ইনভাইট: <b>{total_invited}</b>",
+            f"💵 আয়: <code>{earned_str}</code>",
         ]
         if ref_link:
             lines.extend([
@@ -165,12 +168,13 @@ async def show_more_menu(event: Message | CallbackQuery, state: FSMContext, serv
         text = "\n".join(lines)
     else:
         lines = [
-            "✨ <b>More Options</b>",
-            "",
             f"User: <b>{user_name}</b>",
             f"ID: <code>{user_id}</code>",
+            f"Username: {clean_username}",
+            "",
             f"💰 Balance: <code>{balance_str}</code>",
-            f"🎁 Invites: <b>{total_invited}</b> (Earned: <code>{earned_str}</code>)",
+            f"🎁 Invites: <b>{total_invited}</b>",
+            f"💵 Earned: <code>{earned_str}</code>",
         ]
         if ref_link:
             lines.extend([
@@ -407,7 +411,6 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
             else "Referral rewards are currently paused."
         )
         text = (
-            "<b>Refer & Earn</b>\n\n"
             f"{reward_line}\n\n"
             f"Successful invites: <code>{total_invited}</code>\n"
             f"Earned: <code>{earned_display}</code>\n\n"
