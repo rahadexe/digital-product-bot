@@ -1019,9 +1019,7 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
     usd_rate = await services.settings.number("usd_rate")
 
     if not orders:
-        empty_title = "<b>Orders</b>" if lang != "bn" else "<b>অর্ডার</b>"
-        empty_desc = "No orders yet.\nBrowse products to get started." if lang != "bn" else "এখনো কোনো অর্ডার নেই।\nশুরু করতে প্রোডাক্ট ব্রাউজ করুন।"
-        text = f"{empty_title}\n\n{empty_desc}"
+        text = "📦 No orders yet." if lang != "bn" else "📦 এখনো কোনো অর্ডার নেই।"
         empty_back_text = "Back" if lang != "bn" else "ব্যাক"
         empty_nav = [
             InlineKeyboardButton(text=empty_back_text, callback_data=back_target),
