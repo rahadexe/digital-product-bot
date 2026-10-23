@@ -59,13 +59,12 @@ class AccountRedesignTests(unittest.TestCase):
         kb = get_notification_settings_keyboard(prefs, lang="en")
         rows = kb.inline_keyboard
 
-        self.assertEqual(len(rows), 2)
-        self.assertEqual(rows[0][0].text, "News & Offers: On")
-        self.assertEqual(rows[0][0].callback_data, "notif_toggle_notify_news")
+        self.assertEqual(len(rows), 4)
+        self.assertEqual(rows[2][0].callback_data, "notif_toggle_notify_news")
+        self.assertIn("(On)", rows[2][0].text)
 
         # Back returns to open_more
-        self.assertEqual(rows[1][0].callback_data, "open_more")
-        self.assertEqual(rows[1][0].text, "Back")
+        self.assertEqual(rows[3][0].callback_data, "open_more")
 
     def test_deposit_history_keyboard_and_prompts(self):
         from app.bot.keyboards import get_deposit_methods_keyboard

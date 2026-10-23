@@ -405,16 +405,16 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
 
     if lang != "bn":
         reward_line = (
-            f"Earn <b>{reward_display}</b> per new friend.\n"
+            f"🎁 Earn <b>{reward_display}</b> per new friend.\n"
             "They must start the bot and complete any required channel check."
             if reward_enabled and reward_amount > 0
-            else "Referral rewards are currently paused."
+            else "🎁 Referral rewards are currently paused."
         )
         text = (
             f"{reward_line}\n\n"
-            f"Successful invites: <code>{total_invited}</code>\n"
-            f"Earned: <code>{earned_display}</code>\n\n"
-            "Your link:\n"
+            f"👥 Successful invites: <code>{total_invited}</code>\n"
+            f"💵 Earned: <code>{earned_display}</code>\n\n"
+            "🔗 Your referral link:\n"
             f"<code>{ref_link}</code>"
         )
         copy_label = "Copy Link"
@@ -422,12 +422,17 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
         back_label = "Back"
         share_msg = quote(f"Join {store_name}")
     else:
-        reward_line = f"বোনাস: <code>{reward_display}</code> (প্রতি রেফার)\n" if reward_enabled and reward_amount > 0 else f"বোনাস: <code>0 {symbol}</code> (প্রতি রেফার)\n"
+        reward_line = (
+            f"🎁 বোনাস: <b>{reward_display}</b> (প্রতি রেফারে)\n"
+            "নতুন ইউজারকে বটে জয়েন করে চ্যানেল চেক সম্পন্ন করতে হবে।"
+            if reward_enabled and reward_amount > 0
+            else "🎁 রেফারেল বোনাস বর্তমানে বন্ধ আছে।"
+        )
         text = (
-            f"মোট ইনভাইট: <code>{total_invited}</code>\n"
-            f"মোট আয়: <code>{earned_display}</code>\n"
-            f"{reward_line}\n"
-            "আপনার রেফারেল লিংক:\n"
+            f"{reward_line}\n\n"
+            f"👥 মোট ইনভাইট: <code>{total_invited}</code>\n"
+            f"💵 মোট আয়: <code>{earned_display}</code>\n\n"
+            "🔗 আপনার রেফারেল লিংক:\n"
             f"<code>{ref_link}</code>"
         )
         copy_label = "লিংক কপি করুন"
@@ -778,17 +783,9 @@ async def show_notifications_hub(event: Message | CallbackQuery, state: FSMConte
     prefs = await services.users.get_notification_preferences(tg_user.id)
 
     if lang != "bn":
-        text = (
-            "<b>Notifications</b>\n\n"
-            "Payment results and order deliveries are always sent.\n"
-            "News, offers and restock alerts are optional."
-        )
+        text = "Notification settings:"
     else:
-        text = (
-            "<b>নোটিফিকেশন</b>\n\n"
-            "পেমেন্টের ফলাফল ও অর্ডার ডেলিভারি সবসময় পাঠানো হয়।\n"
-            "খবর, অফার ও রিস্টক নোটিশ চালু বা বন্ধ করতে পারেন।"
-        )
+        text = "নোটিফিকেশন সেটিংস:"
 
     kb = get_notification_settings_keyboard(prefs, lang=lang)
     await respond(event, text, kb)
@@ -800,7 +797,20 @@ async def handle_notification_toggle(query: CallbackQuery, services: Services):
     if not tg_user:
         return
 
+    lang = "en"
+    if hasattr(services, "users") and hasattr(services.users, "get_language"):
+        try:
+            lang = await services.users.get_language(tg_user.id)
+        except Exception:
+            lang = "en"
+
     key = query.data.removeprefix("notif_toggle_")
+    if key in ("notify_orders", "notify_deposits"):
+        msg = "Order and payment notifications stay on." if lang != "bn" else "অর্ডার ও পেমেন্ট নোটিফিকেশন সবসময় চালু থাকে।"
+        with suppress(TelegramBadRequest):
+            await query.answer(msg)
+        return
+
     if key != "notify_news":
         with suppress(TelegramBadRequest):
             await query.answer("Payment results and order deliveries stay on.")
