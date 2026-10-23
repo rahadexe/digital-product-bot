@@ -51,7 +51,7 @@ async def test_wallet_shows_balance_and_inline_payment_actions():
     assert "Manual:" not in text
     assert isinstance(keyboard, InlineKeyboardMarkup)
     labels = [button.text for row in keyboard.inline_keyboard for button in row]
-    assert labels == ["bKash", "Binance", "History"]
+    assert labels == ["bKash", "Binance", "📜 History"]
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     assert callbacks == ["dep_method_1", "dep_method_2", "open_deposits"]
 
@@ -85,7 +85,7 @@ async def test_wallet_with_pending_deposit_keeps_history_and_hides_new_payment_m
     assert "💰" in text
     assert "Top-up D20 is being verified" in text
     assert [button.text for row in keyboard.inline_keyboard for button in row] == [
-        "History",
+        "📜 History",
     ]
     assert keyboard.inline_keyboard[0][0].callback_data == "open_deposits"
 

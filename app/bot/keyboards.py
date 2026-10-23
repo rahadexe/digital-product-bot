@@ -1215,7 +1215,7 @@ def get_deposit_methods_keyboard(
             ])
 
     if show_history:
-        history_text = "History" if lang != "bn" else "📊 ডিপোজিট হিস্ট্রি"
+        history_text = "📜 History" if lang != "bn" else "📜 ডিপোজিট হিস্ট্রি"
         buttons.append([
             InlineKeyboardButton(
                 text=history_text,
