@@ -165,6 +165,9 @@ SPECS: dict[str, SettingSpec] = {
     "binance_pay_rate": SettingSpec("125", _number(0.0001, 1_000_000), 16),
     "binance_pay_min": SettingSpec("1", _number(0.01, 1_000_000_000), 16),
     "binance_pay_instructions": SettingSpec("", max_length=1000),
+    # Home welcome banner and tagline customizations (hosted on Telegram's CDN)
+    "welcome_banner_file_id": SettingSpec("", max_length=256),
+    "welcome_tagline": SettingSpec("", max_length=256),
 }
 
 
