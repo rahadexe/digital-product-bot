@@ -1044,31 +1044,8 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
         page = min(page, total_pages)
         badge = f" ({total})" if total > 0 else ""
         header = f"<b>Orders{badge}</b>" if lang != "bn" else f"<b>অর্ডার{badge}</b>"
-
-        summaries = []
-        for o in orders:
-            price_val = o["price"]
-            p_str = format_dual_price(price_val, symbol, usd_rate=usd_rate, lang=lang)
-            is_completed = o["status"] == "completed" and o.get("fulfillment") != "waiting"
-            is_waiting = o.get("fulfillment") == "waiting" or o["status"] in {"pending", "processing", "waiting"}
-            st_text = ("Delivered" if is_completed else ("Preparing" if is_waiting else "Cancelled")) if lang != "bn" else ("ডেলিভার্ড" if is_completed else ("প্রস্তুত হচ্ছে" if is_waiting else "বাতিল"))
-            st_emoji = "✅" if is_completed else ("⏳" if is_waiting else "❌")
-            o_id = format_order_id(o["id"])
-            p_title = escape(o["product_title"].strip())
-
-            if lang == "bn":
-                summaries.append(
-                    f"{st_emoji} <b>{p_title}</b>\n"
-                    f"আইডি: <code>{o_id}</code> | মূল্য: <code>{p_str}</code> | স্ট্যাটাস: <b>{st_text}</b>"
-                )
-            else:
-                summaries.append(
-                    f"{st_emoji} <b>{p_title}</b>\n"
-                    f"ID: <code>{o_id}</code> | Price: <code>{p_str}</code> | Status: <b>{st_text}</b>"
-                )
-
-        instruction = "Tap an order below to view credentials & warranty:" if lang != "bn" else "ক্রেডেনশিয়াল ও বিস্তারিত দেখতে নিচের অর্ডারে চাপুন:"
-        text = f"{header}\n\n" + "\n\n".join(summaries) + f"\n\n<i>{instruction}</i>"
+        instruction = "Tap an order below to view credentials & details:" if lang != "bn" else "ক্রেডেনশিয়াল ও বিস্তারিত দেখতে নিচের অর্ডারে চাপুন:"
+        text = f"{header}\n\n<i>{instruction}</i>"
 
         buttons = []
         for order in orders:
@@ -1078,19 +1055,23 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
             is_waiting = order.get("fulfillment") == "waiting" or order["status"] in {"pending", "processing", "waiting"}
             if is_completed:
                 status_emoji = "✅"
+                status_label = "Delivered" if lang != "bn" else "ডেলিভার্ড"
             elif is_waiting:
                 status_emoji = "⏳"
+                status_label = "Preparing" if lang != "bn" else "প্রস্তুত হচ্ছে"
             else:
                 status_emoji = "❌"
+                status_label = "Cancelled" if lang != "bn" else "বাতিল"
 
-            # User request: order IDs are not displayed at the front; just status emoji + title + price
-            max_title_len = max(10, 56 - len(price_str) - 6)
+            # Full-width button with product, price, status and action arrow
+            suffix = f" · {price_str} · {status_label} ❯"
+            max_title_len = max(8, 64 - len(suffix))
             prod_title = order['product_title'].strip()
             if len(prod_title) > max_title_len:
                 title_short = prod_title[: max_title_len - 1].rstrip() + "…"
             else:
                 title_short = prod_title
-            label = f"{status_emoji} {title_short} · {price_str}"
+            label = f"{status_emoji} {title_short}{suffix}"
             cb_data = f"vord_{order['id']}_{page}_1" if from_acc else f"vord_{order['id']}_{page}"
             buttons.append([
                 InlineKeyboardButton(
