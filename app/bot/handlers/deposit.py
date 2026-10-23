@@ -333,11 +333,15 @@ async def show_deposit_methods(event: Message | CallbackQuery, state: FSMContext
     displayed_methods = list(all_methods)
 
     lang = await services.users.get_language(user.id)
-    symbol = await services.settings.get("currency_symbol")
+    symbol = (await services.settings.get("currency_symbol") or "৳").strip()
     usd_rate = await services.settings.number("usd_rate")
     user_balance = float(user_data.get("balance", 0.0)) if user_data else 0.0
     show_usd = await services.settings.flag("show_usd_price")
-    balance_display = price(symbol, user_balance, usd_rate=usd_rate, show_usd=show_usd, lang=lang)
+    if lang == "en" and show_usd and usd_rate and usd_rate > 0:
+        usd = round(user_balance / usd_rate, 2)
+        balance_display = f"${usd:g}" if usd == int(usd) else f"${usd:.2f}"
+    else:
+        balance_display = f"{symbol}{user_balance:g}" if user_balance == int(user_balance) else f"{symbol}{user_balance:.2f}"
 
     if pending:
         if lang == "bn":

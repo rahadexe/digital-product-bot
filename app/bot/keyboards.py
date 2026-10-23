@@ -1199,8 +1199,8 @@ def get_deposit_methods_keyboard(
             )
         )
 
-    for i in range(0, len(method_btns), 2):
-        buttons.append(method_btns[i : i + 2])
+    for btn in method_btns:
+        buttons.append([btn])
 
     if instant_label:
         inst_text = str(instant_label).strip()
