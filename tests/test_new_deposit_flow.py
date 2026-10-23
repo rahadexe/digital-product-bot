@@ -146,7 +146,7 @@ async def test_render_method_details_flow():
     assert message.answer.call_count == 1
     call = message.answer.call_args_list[0]
     text = call[0][0]
-    assert "bKash Send Money" in text
+    assert "bKash (Send Money)" in text
     assert "01700000000" in text
     assert "Minimum: <b>৳50</b>" in text
     assert "Rate: 1 USD = ৳125 BDT" in text
@@ -485,7 +485,7 @@ async def test_exchange_rate_and_dollar_conversion_flow():
     # Screen 1: Method details
     await render_method_details(message, state, services, method)
     screen1_text = message.answer.call_args_list[0][0][0]
-    assert "bKash Send Money" in screen1_text
+    assert "bKash (Send Money)" in screen1_text
     assert "Number: <code>01700000000</code>" in screen1_text
     assert "Minimum: <b>৳50</b>" in screen1_text
     assert "Rate: 1 USD = ৳234 BDT" in screen1_text
