@@ -1020,21 +1020,7 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
 
     if not orders:
         text = "📦 No orders yet." if lang != "bn" else "📦 এখনো কোনো অর্ডার নেই।"
-        empty_back_text = "Back" if lang != "bn" else "ব্যাক"
-        empty_nav = [
-            InlineKeyboardButton(text=empty_back_text, callback_data=back_target),
-        ]
-        keyboard = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(
-                        text="Browse Products" if lang != "bn" else "প্রোডাক্ট ব্রাউজ করুন",
-                        callback_data="open_categories",
-                    ),
-                ],
-                empty_nav,
-            ]
-        )
+        keyboard = None
     else:
         total_pages = max(1, math.ceil(total / ORDERS_PAGE_SIZE)) if total > 0 else 1
         page = min(page, total_pages)
