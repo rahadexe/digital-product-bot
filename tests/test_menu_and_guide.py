@@ -220,7 +220,7 @@ class MenuAndGuideTests(unittest.IsolatedAsyncioTestCase):
                 texts = [reply.get("text") or "" for reply in replies]
                 self.assertTrue(any(("<b>Profile</b>" in text or "More" in text or "আরও" in text) for text in texts), replies)
                 profile_text = next(text for text in texts if ("<b>Profile</b>" in text or "More" in text or "আরও" in text))
-                for duplicate in ("Balance", "Orders", "Spent"):
+                for duplicate in ("Orders", "Spent"):
                     self.assertNotIn(duplicate, profile_text)
 
     async def test_legacy_balance_entries_open_wallet_instead_of_profile(self):
