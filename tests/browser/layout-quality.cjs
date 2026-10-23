@@ -153,9 +153,15 @@ const baseline = process.env.CAPTURE_BASELINE === '1';
       for (const text of ['sample18169@example.test', `${'longcustomer'.repeat(12)}@example.test`, 'Name: Sample Customer\nEmail: sample@example.test\nPlan: 12 months']) {
         customerInput = text;
         await page.goto(`${baseURL}/#orders/1001`);
-        await page.reload();
-        await page.getByRole('button', { name: 'Copy customer info', exact: true }).waitFor();
-        const button = page.getByRole('button', { name: 'Copy customer info', exact: true });
+        const copyBtn = page.getByRole('button', { name: 'Copy customer info', exact: true });
+        try {
+          await copyBtn.waitFor({ state: 'visible', timeout: 5000 });
+        } catch {
+          await page.goto(`${baseURL}/`);
+          await page.goto(`${baseURL}/#orders/1001`);
+          await copyBtn.waitFor({ state: 'visible', timeout: 15000 });
+        }
+        const button = copyBtn;
         const row = await button.boundingBox();
         const parent = await page.locator('.order-detail-customer').boundingBox();
         assert.ok(row.width >= parent.width - 2, 'Customer input uses the entire row');

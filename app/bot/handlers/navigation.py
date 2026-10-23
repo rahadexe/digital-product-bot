@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
@@ -406,17 +407,27 @@ def _norm(t: str) -> str:
     return t.replace("\ufe0f", "").strip()
 
 
+def _strip_emojis(text: str) -> str:
+    return re.sub(
+        r"[\U00010000-\U0010FFFF\u2600-\u27BF\u2300-\u23FF\u2B50\u200D\uFE0E\uFE0F]+",
+        "",
+        text,
+    ).strip()
+
+
 def is_navigation(text: str) -> bool:
     if not text:
         return False
     clean = text.strip()
     norm = _norm(clean)
-    norm_upper = _norm(clean.upper())
+    stripped = _strip_emojis(clean)
     return (
         clean in NAVIGATION_TEXTS
         or clean.upper() in NAVIGATION_TEXTS
         or norm in NAVIGATION_TEXTS
-        or norm_upper in NAVIGATION_TEXTS
+        or norm.upper() in NAVIGATION_TEXTS
+        or stripped in NAVIGATION_TEXTS
+        or stripped.upper() in NAVIGATION_TEXTS
         or clean.startswith("/")
     )
 
@@ -429,6 +440,7 @@ async def navigate(text: str, message: Message, state: FSMContext, services: Ser
     current_state = await state.get_state()
     clean = (text or "").strip()
     norm = _norm(clean)
+    stripped = _strip_emojis(clean)
 
     # If customer is in deposit flow and presses Back or Cancel, return directly to payment options menu
     if clean in {"🔙 Back", "🔙 ব্যাক", "Back", "ব্যাক", "Cancel", "বাতিল", "❌ Cancel", "❌ বাতিল", "back", "cancel"}:
@@ -443,6 +455,8 @@ async def navigate(text: str, message: Message, state: FSMContext, services: Ser
         or NAVIGATION_TEXTS.get(clean.upper())
         or NAVIGATION_TEXTS.get(norm)
         or NAVIGATION_TEXTS.get(norm.upper())
+        or NAVIGATION_TEXTS.get(stripped)
+        or NAVIGATION_TEXTS.get(stripped.upper())
         or COMMAND_ACTIONS.get(clean.split()[0].split("@")[0], "start")
     )
     if action == "cancel":
