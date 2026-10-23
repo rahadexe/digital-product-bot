@@ -1043,7 +1043,32 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
         total_pages = max(1, math.ceil(total / ORDERS_PAGE_SIZE)) if total > 0 else 1
         page = min(page, total_pages)
         badge = f" ({total})" if total > 0 else ""
-        text = f"<b>Orders{badge}</b>" if lang != "bn" else f"<b>অর্ডার{badge}</b>"
+        header = f"<b>Orders{badge}</b>" if lang != "bn" else f"<b>অর্ডার{badge}</b>"
+
+        summaries = []
+        for o in orders:
+            price_val = o["price"]
+            p_str = format_dual_price(price_val, symbol, usd_rate=usd_rate, lang=lang)
+            is_completed = o["status"] == "completed" and o.get("fulfillment") != "waiting"
+            is_waiting = o.get("fulfillment") == "waiting" or o["status"] in {"pending", "processing", "waiting"}
+            st_text = ("Delivered" if is_completed else ("Preparing" if is_waiting else "Cancelled")) if lang != "bn" else ("ডেলিভার্ড" if is_completed else ("প্রস্তুত হচ্ছে" if is_waiting else "বাতিল"))
+            st_emoji = "✅" if is_completed else ("⏳" if is_waiting else "❌")
+            o_id = format_order_id(o["id"])
+            p_title = escape(o["product_title"].strip())
+
+            if lang == "bn":
+                summaries.append(
+                    f"{st_emoji} <b>{p_title}</b>\n"
+                    f"আইডি: <code>{o_id}</code> | মূল্য: <code>{p_str}</code> | স্ট্যাটাস: <b>{st_text}</b>"
+                )
+            else:
+                summaries.append(
+                    f"{st_emoji} <b>{p_title}</b>\n"
+                    f"ID: <code>{o_id}</code> | Price: <code>{p_str}</code> | Status: <b>{st_text}</b>"
+                )
+
+        instruction = "Tap an order below to view credentials & warranty:" if lang != "bn" else "ক্রেডেনশিয়াল ও বিস্তারিত দেখতে নিচের অর্ডারে চাপুন:"
+        text = f"{header}\n\n" + "\n\n".join(summaries) + f"\n\n<i>{instruction}</i>"
 
         buttons = []
         for order in orders:
@@ -1075,6 +1100,7 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
             ])
 
         refresh_btn_text = t("btn_refresh", lang) or "Refresh"
+        back_btn_text = "Back" if lang != "bn" else "ব্যাক"
         if total_pages > 1:
             if page == 1:
                 nav_row = [
@@ -1097,7 +1123,7 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
             buttons.append(nav_row)
             buttons.append([
                 InlineKeyboardButton(
-                    text="Back",
+                    text=back_btn_text,
                     callback_data=back_target,
                 )
             ])
@@ -1106,7 +1132,7 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
             buttons.append([
                 InlineKeyboardButton(text=refresh_btn_text, callback_data=f"{page_prefix}1"),
                 InlineKeyboardButton(
-                    text="Back",
+                    text=back_btn_text,
                     callback_data=back_target,
                 ),
             ])
