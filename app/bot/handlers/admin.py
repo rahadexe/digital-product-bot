@@ -46,6 +46,11 @@ class AdminProductStates(StatesGroup):
     waiting_for_stock = State()
 
 
+class AdminSettingsStates(StatesGroup):
+    waiting_for_banner = State()
+    waiting_for_tagline = State()
+
+
 async def _is_admin(user_id: int, services: Services) -> bool:
     admin_ids = await services.settings.admin_chat_ids()
     return user_id in admin_ids
@@ -609,21 +614,36 @@ async def build_admin_settings_view(services: Services) -> tuple[str, InlineKeyb
     currency = values.get("currency_symbol", "৳")
     support = values.get("support_username", "None")
     is_paused = values.get("store_paused") == "1"
+    banner_file_id = (values.get("welcome_banner_file_id") or "").strip()
+    tagline = (values.get("welcome_tagline") or "").strip()
     status_str = "Paused" if is_paused else "Active"
+    banner_str = "Configured (Telegram CDN)" if banner_file_id else "None (Text Only)"
+    tagline_str = f"\"{html.escape(tagline)}\"" if tagline else "None (Default)"
     text = (
         "⚙️ <b>Store Settings</b>\n\n"
         f"• <b>Store Name:</b> {html.escape(store_name)}\n"
         f"• <b>Status:</b> <code>{status_str}</code>\n"
         f"• <b>Currency:</b> <code>{html.escape(currency)}</code>\n"
-        f"• <b>Support:</b> <code>{html.escape(support)}</code>\n\n"
-        "<i>Use the Web Admin Console for full configuration.</i>"
+        f"• <b>Support:</b> <code>{html.escape(support)}</code>\n"
+        f"• <b>Welcome Banner:</b> <code>{banner_str}</code>\n"
+        f"• <b>Welcome Tagline:</b> {tagline_str}\n\n"
+        "<i>Tap an option below to update directly:</i>"
     )
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+    rows = [
         [
-            InlineKeyboardButton(text="Back", callback_data="adm_dashboard"),
-            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger"),
+            InlineKeyboardButton(text="🖼️ Set Banner", callback_data="adm_prompt_banner"),
+            InlineKeyboardButton(text="📝 Set Tagline", callback_data="adm_prompt_tagline"),
         ],
+    ]
+    if banner_file_id:
+        rows.append([
+            InlineKeyboardButton(text="🗑️ Remove Banner", callback_data="adm_clear_banner", style="danger"),
+        ])
+    rows.append([
+        InlineKeyboardButton(text="Back", callback_data="adm_dashboard"),
+        InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger"),
     ])
+    keyboard = InlineKeyboardMarkup(inline_keyboard=rows)
     return text, keyboard
 
 
@@ -638,6 +658,118 @@ async def adm_cb_start_settings(query: CallbackQuery, state: FSMContext, service
     if query.message:
         with suppress(TelegramBadRequest):
             await query.message.edit_text(text, reply_markup=keyboard)
+
+
+@router.callback_query(F.data == "adm_prompt_banner")
+async def adm_cb_prompt_banner(query: CallbackQuery, state: FSMContext, services: Services):
+    if await _deny(query, services):
+        return
+    await state.set_state(AdminSettingsStates.waiting_for_banner)
+    with suppress(TelegramBadRequest):
+        await query.answer()
+    if query.message:
+        await state.update_data(panel_msg_id=query.message.message_id)
+        with suppress(TelegramBadRequest):
+            await query.message.edit_text(
+                "🖼️ <b>Upload Welcome Banner</b>\n\n"
+                "Please send or forward any photo now.\n\n"
+                "The photo will be saved and served directly from Telegram's cloud CDN.\n\n"
+                "<i>Tap Cancel below to abort.</i>",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(text="Cancel", callback_data="adm_cancel_settings", style="danger")
+                ]])
+            )
+
+
+@router.callback_query(F.data == "adm_prompt_tagline")
+async def adm_cb_prompt_tagline(query: CallbackQuery, state: FSMContext, services: Services):
+    if await _deny(query, services):
+        return
+    await state.set_state(AdminSettingsStates.waiting_for_tagline)
+    with suppress(TelegramBadRequest):
+        await query.answer()
+    if query.message:
+        await state.update_data(panel_msg_id=query.message.message_id)
+        with suppress(TelegramBadRequest):
+            await query.message.edit_text(
+                "📝 <b>Set Welcome Tagline</b>\n\n"
+                "Type your custom store tagline or greeting below and send it:\n\n"
+                "<i>Example:</i> <code>⚡ 24/7 Automated Digital Delivery</code>\n\n"
+                "<i>Tap Cancel below to abort.</i>",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(text="Cancel", callback_data="adm_cancel_settings", style="danger")
+                ]])
+            )
+
+
+@router.callback_query(F.data == "adm_clear_banner")
+async def adm_cb_clear_banner(query: CallbackQuery, services: Services):
+    if await _deny(query, services):
+        return
+    await services.settings.update({"welcome_banner_file_id": ""})
+    with suppress(TelegramBadRequest):
+        await query.answer("✅ Welcome banner removed.", show_alert=True)
+    text, keyboard = await build_admin_settings_view(services)
+    if query.message:
+        with suppress(TelegramBadRequest):
+            await query.message.edit_text(text, reply_markup=keyboard)
+
+
+@router.callback_query(F.data == "adm_cancel_settings")
+async def adm_cb_cancel_settings(query: CallbackQuery, state: FSMContext, services: Services):
+    if await _deny(query, services):
+        return
+    await state.clear()
+    text, keyboard = await build_admin_settings_view(services)
+    with suppress(TelegramBadRequest):
+        await query.answer("Cancelled")
+    if query.message:
+        with suppress(TelegramBadRequest):
+            await query.message.edit_text(text, reply_markup=keyboard)
+
+
+@router.message(AdminSettingsStates.waiting_for_banner, F.photo)
+async def adm_receive_banner_photo(message: Message, state: FSMContext, services: Services):
+    if not message.from_user or not await _is_admin(message.from_user.id, services):
+        return
+    photo = message.photo[-1]
+    file_id = photo.file_id
+    await services.settings.update({"welcome_banner_file_id": file_id})
+    await state.clear()
+    await message.reply(
+        "✅ <b>Welcome banner saved successfully!</b>\n\n"
+        "<i>Image is now served directly from Telegram's cloud CDN.</i>",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="⚙️ Return to Settings", callback_data="adm_start_settings"),
+            InlineKeyboardButton(text="🏠 Admin Panel", callback_data="adm_dashboard"),
+        ]])
+    )
+
+
+@router.message(AdminSettingsStates.waiting_for_banner)
+async def adm_invalid_banner_input(message: Message):
+    await message.reply(
+        "❌ Please send a <b>photo</b> image file, or tap Cancel below.",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="Cancel", callback_data="adm_cancel_settings", style="danger")
+        ]])
+    )
+
+
+@router.message(AdminSettingsStates.waiting_for_tagline, F.text)
+async def adm_receive_tagline_text(message: Message, state: FSMContext, services: Services):
+    if not message.from_user or not await _is_admin(message.from_user.id, services):
+        return
+    tagline = (message.text or "").strip()
+    await services.settings.update({"welcome_tagline": tagline})
+    await state.clear()
+    await message.reply(
+        f"✅ <b>Welcome tagline updated:</b>\n\n<i>{html.escape(tagline)}</i>",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="⚙️ Return to Settings", callback_data="adm_start_settings"),
+            InlineKeyboardButton(text="🏠 Admin Panel", callback_data="adm_dashboard"),
+        ]])
+    )
 
 
 @router.callback_query(F.data == "adm_start_find")
