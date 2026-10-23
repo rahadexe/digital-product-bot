@@ -59,6 +59,7 @@ from app.bot.keyboards import (
     get_language_selection_keyboard,
     get_more_inline_keyboard,
     get_notification_settings_keyboard,
+    product_display_labels,
 )
 from app.core.i18n import t
 from app.services import Services
@@ -1043,9 +1044,7 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
         total_pages = max(1, math.ceil(total / ORDERS_PAGE_SIZE)) if total > 0 else 1
         page = min(page, total_pages)
         badge = f" ({total})" if total > 0 else ""
-        header = f"<b>Orders{badge}</b>" if lang != "bn" else f"<b>অর্ডার{badge}</b>"
-        instruction = "Tap an order below to view credentials & details:" if lang != "bn" else "ক্রেডেনশিয়াল ও বিস্তারিত দেখতে নিচের অর্ডারে চাপুন:"
-        text = f"{header}\n\n<i>{instruction}</i>"
+        text = f"<b>Orders{badge}</b>" if lang != "bn" else f"<b>অর্ডার{badge}</b>"
 
         buttons = []
         for order in orders:
@@ -1055,23 +1054,39 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
             is_waiting = order.get("fulfillment") == "waiting" or order["status"] in {"pending", "processing", "waiting"}
             if is_completed:
                 status_emoji = "✅"
-                status_label = "Delivered" if lang != "bn" else "ডেলিভার্ড"
             elif is_waiting:
                 status_emoji = "⏳"
-                status_label = "Preparing" if lang != "bn" else "প্রস্তুত হচ্ছে"
             else:
                 status_emoji = "❌"
-                status_label = "Cancelled" if lang != "bn" else "বাতিল"
 
-            # Full-width button with product, price, status and action arrow
-            suffix = f" · {price_str} · {status_label} ❯"
-            max_title_len = max(8, 64 - len(suffix))
+            # Clean product title and extract validity / duration
             prod_title = order['product_title'].strip()
-            if len(prod_title) > max_title_len:
-                title_short = prod_title[: max_title_len - 1].rstrip() + "…"
-            else:
-                title_short = prod_title
-            label = f"{status_emoji} {title_short}{suffix}"
+            clean_title, duration, _ = product_display_labels({"title": prod_title})
+            if not duration and order.get("product_id") and hasattr(services, "catalog") and hasattr(services.catalog, "product"):
+                try:
+                    p_data = await services.catalog.product(order["product_id"])
+                    if p_data and p_data.get("duration_label"):
+                        duration = p_data["duration_label"].strip()
+                except Exception:
+                    pass
+
+            # Format: [ <Icon> <Name> · <Validity> · <Price> ]
+            elements = [clean_title]
+            if duration and duration.lower() not in {"none", "n/a", "instant"}:
+                elements.append(duration)
+            elements.append(price_str)
+
+            body = " · ".join(elements)
+            label = f"{status_emoji} {body}"
+
+            if len(label) > 64:
+                overhead = len(label) - len(clean_title)
+                max_clean_len = max(6, 64 - overhead - 1)
+                clean_title = clean_title[:max_clean_len].rstrip() + "…"
+                elements[0] = clean_title
+                label = f"{status_emoji} " + " · ".join(elements)
+                label = label[:64]
+
             cb_data = f"vord_{order['id']}_{page}_1" if from_acc else f"vord_{order['id']}_{page}"
             buttons.append([
                 InlineKeyboardButton(

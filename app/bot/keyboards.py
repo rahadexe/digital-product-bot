@@ -17,7 +17,7 @@ from app.core.i18n import t
 
 ADMIN_PANEL_TEXT = "Admin Panel"
 _TRAILING_VALIDITY = re.compile(
-    r"(?:[\s|·\-–—(]+)(\d+\s*(?:days?|weeks?|months?|years?|hours?))(?:\s+validity)?\)?$",
+    r"(?:[\s|·\-–—(]+)(\d+\s*(?:days?|weeks?|months?|years?|hours?|mo|m|yr|y|d))(?:\s+validity)?\)?$",
     re.IGNORECASE,
 )
 _TRAILING_WARRANTY = re.compile(
