@@ -83,6 +83,20 @@ export function AdminNotifications({ say, values, setValues, setSaved, flip, con
         />
 
         <FlagRow
+          label="Safwan Tiger low balance"
+          hint="Alert when supplier wallet balance drops below threshold."
+          on={isOn('safwan_tiger_low_balance_notify', '1')}
+          onChange={(next) => void confirmAndFlip('safwan_tiger_low_balance_notify', next, 'Safwan Tiger low balance alert')}
+        />
+
+        <FlagRow
+          label="Digital Mart low balance"
+          hint="Alert when supplier wallet balance drops below threshold."
+          on={isOn('upstream_low_balance_notify', '1')}
+          onChange={(next) => void confirmAndFlip('upstream_low_balance_notify', next, 'Digital Mart low balance alert')}
+        />
+
+        <FlagRow
           label="Restocks"
           on={isOn('notify_admin_restock', '1')}
           onChange={(next) => void confirmAndFlip('notify_admin_restock', next, 'Stock Restock Alerts')}
