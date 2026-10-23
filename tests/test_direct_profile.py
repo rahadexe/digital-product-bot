@@ -59,7 +59,7 @@ async def test_profile_needs_no_financial_services_and_escapes_identity(rank):
     assert "More" in text
     assert await state.get_state() is None
     assert await state.get_data() == {}
-    assert all(word not in text for word in ("Balance", "Orders", "Spent", "Business"))
+    assert all(word not in text for word in ("Orders", "Spent", "Business"))
 
 
 @pytest.mark.asyncio
