@@ -51,15 +51,18 @@ def build_welcome_text(
     user_name: str = "",
     store_name: str = "",
     order_count: int = 0,
+    tagline: str = "",
 ) -> str:
     prefix = t("maintenance_notice", lang, icon_warning=ICON_WARNING, notice=escape(paused_notice)) + "\n\n" if paused_notice else ""
-    name_display = escape(user_name) if user_name else "there"
+    name_display = escape(user_name) if user_name else ""
     store_title = escape(store_name) if store_name else "Digital Store"
+    tagline_escaped = f"\n<i>{escape(tagline)}</i>" if tagline else ""
 
     if lang == "bn":
+        greeting = f"👋 স্বাগতম, <b>{name_display}</b>!" if name_display else "👋 স্বাগতম!"
         lines = [
-            f"⚡ <b>{store_title}</b>",
-            f"👋 স্বাগতম, <b>{name_display}</b>!\n",
+            f"⚡ <b>{store_title}</b>{tagline_escaped}",
+            greeting,
         ]
         status_items = []
         if balance_str:
@@ -67,12 +70,12 @@ def build_welcome_text(
         if order_count > 0:
             status_items.append(f"📦 অর্ডার: <b>{order_count}</b>")
         if status_items:
-            lines.append(" · ".join(status_items) + "\n")
-        lines.append("নিচের অপশন বেছে নিন:")
+            lines.append(" · ".join(status_items))
     else:
+        greeting = f"👋 Welcome, <b>{name_display}</b>!" if name_display else "👋 Welcome!"
         lines = [
-            f"⚡ <b>{store_title}</b>",
-            f"👋 Welcome, <b>{name_display}</b>!\n",
+            f"⚡ <b>{store_title}</b>{tagline_escaped}",
+            greeting,
         ]
         status_items = []
         if balance_str:
@@ -80,10 +83,9 @@ def build_welcome_text(
         if order_count > 0:
             status_items.append(f"📦 Orders: <b>{order_count}</b>")
         if status_items:
-            lines.append(" · ".join(status_items) + "\n")
-        lines.append("Select an action below:")
+            lines.append(" · ".join(status_items))
 
-    return prefix + "\n".join(lines)
+    return prefix + "\n\n".join(lines)
 
 
 router = Router(name="start_router")
@@ -105,6 +107,8 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
     user_balance = float(user.get("balance", 0.0)) if user and isinstance(user, dict) else 0.0
     balance_str = price(symbol, user_balance, usd_rate=usd_rate, show_usd=show_usd, lang=lang) if user_balance > 0 else ""
     user_name = (user.get("first_name") or getattr(getattr(message, "from_user", None), "first_name", "") or "").strip() if user and isinstance(user, dict) else ""
+    banner_file_id = (values.get("welcome_banner_file_id") or "").strip() if isinstance(values, dict) else ""
+    tagline = (values.get("welcome_tagline") or "").strip() if isinstance(values, dict) else ""
 
     order_count = 0
     if hasattr(services, "purchases") and hasattr(services.purchases, "customer_orders"):
@@ -122,6 +126,7 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
         user_name=user_name,
         store_name=store_name,
         order_count=order_count,
+        tagline=tagline,
     )
 
     is_admin = tg_user_id in admin_ids
@@ -144,22 +149,46 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
     bot = getattr(message, "bot", None)
 
     if edit and message:
-        try:
-            await message.edit_text(text, reply_markup=main_inline_kb)
-            if chat_id and message.message_id:
-                remember_menu_message(chat_id, message.message_id)
-            return
-        except TelegramBadRequest as exc:
-            if "message is not modified" in str(exc).lower():
+        if getattr(message, "photo", None) and banner_file_id:
+            try:
+                await message.edit_caption(caption=text, reply_markup=main_inline_kb)
+                if chat_id and message.message_id:
+                    remember_menu_message(chat_id, message.message_id)
                 return
-            if AUTO_DELETE_ENABLED:
-                with suppress(TelegramBadRequest):
-                    await message.delete()
+            except TelegramBadRequest as exc:
+                if "message is not modified" in str(exc).lower():
+                    return
+        elif not banner_file_id and not getattr(message, "photo", None):
+            try:
+                await message.edit_text(text, reply_markup=main_inline_kb)
+                if chat_id and message.message_id:
+                    remember_menu_message(chat_id, message.message_id)
+                return
+            except TelegramBadRequest as exc:
+                if "message is not modified" in str(exc).lower():
+                    return
+
+        if AUTO_DELETE_ENABLED:
+            with suppress(TelegramBadRequest):
+                await message.delete()
 
     if chat_id and bot:
         clean_previous_menu(bot, chat_id)
 
-    sent = await send_operator_html(message.answer, text, reply_markup=main_reply_kb)
+    sent = None
+    if banner_file_id and hasattr(message, "answer_photo"):
+        try:
+            sent = await message.answer_photo(
+                photo=banner_file_id,
+                caption=text,
+                reply_markup=main_reply_kb,
+            )
+        except Exception as exc:
+            logger.warning("Could not send banner photo: %s", exc)
+            sent = await send_operator_html(message.answer, text, reply_markup=main_reply_kb)
+    else:
+        sent = await send_operator_html(message.answer, text, reply_markup=main_reply_kb)
+
     if sent and chat_id:
         remember_menu_message(chat_id, sent.message_id)
 

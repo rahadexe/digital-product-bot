@@ -56,3 +56,50 @@ async def test_admin_dashboard_groups_existing_controls_into_consistent_rows():
     assert keyboard.inline_keyboard[1][0].text == "Deposits (1)"
     assert keyboard.inline_keyboard[1][1].text == "Orders (2)"
     assert keyboard.inline_keyboard[2][1].text == "Reseller Apps (3)"
+
+
+@pytest.mark.asyncio
+async def test_admin_set_banner_and_welcome_tagline():
+    services = SimpleNamespace(
+        settings=SimpleNamespace(
+            admin_chat_ids=AsyncMock(return_value=[1]),
+            update=AsyncMock(),
+            get=AsyncMock(return_value=""),
+        )
+    )
+
+    # 1. /setbanner with photo
+    photo_obj = SimpleNamespace(file_id="AgACAgIAAxkBAAI...")
+    msg_with_photo = SimpleNamespace(
+        from_user=SimpleNamespace(id=1),
+        text="/setbanner",
+        caption=None,
+        photo=[photo_obj],
+        reply_to_message=None,
+        reply=AsyncMock(),
+    )
+    await admin.adm_set_banner(msg_with_photo, services)
+    services.settings.update.assert_awaited_with({"welcome_banner_file_id": "AgACAgIAAxkBAAI..."})
+    assert "saved" in msg_with_photo.reply.call_args[0][0].lower()
+
+    # 2. /setbanner clear
+    msg_clear = SimpleNamespace(
+        from_user=SimpleNamespace(id=1),
+        text="/setbanner clear",
+        caption=None,
+        photo=None,
+        reply_to_message=None,
+        reply=AsyncMock(),
+    )
+    await admin.adm_set_banner(msg_clear, services)
+    services.settings.update.assert_awaited_with({"welcome_banner_file_id": ""})
+
+    # 3. /setwelcome custom tagline
+    msg_welcome = SimpleNamespace(
+        from_user=SimpleNamespace(id=1),
+        text="/setwelcome 🔥 24/7 Fast Automated Digital Store",
+        reply=AsyncMock(),
+    )
+    await admin.adm_set_welcome(msg_welcome, services)
+    services.settings.update.assert_awaited_with({"welcome_tagline": "🔥 24/7 Fast Automated Digital Store"})
+    assert "updated" in msg_welcome.reply.call_args[0][0].lower()

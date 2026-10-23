@@ -2633,3 +2633,77 @@ async def adm_unmute_supplier_alert(query: CallbackQuery, services: Services):
     orig_text = (query.message.text or query.message.caption or "").split("\n\n<i>🔕")[0]
     with suppress(TelegramBadRequest):
         await query.message.edit_text(orig_text, reply_markup=mute_kb)
+
+
+@router.message(Command("setbanner", "banner"))
+@router.message(F.photo, F.caption.func(lambda c: bool(c and ("/setbanner" in c.lower() or "/banner" in c.lower()))))
+async def adm_set_banner(message: Message, services: Services):
+    if not message.from_user or not await _is_admin(message.from_user.id, services):
+        return
+
+    text = (message.text or message.caption or "").strip()
+    parts = text.split()
+    arg = parts[1].lower() if len(parts) > 1 else ""
+
+    if arg in {"clear", "off", "remove", "delete"}:
+        await services.settings.update({"welcome_banner_file_id": ""})
+        await message.reply("✅ Welcome banner removed. Home screen will show clean text.")
+        return
+
+    photo = None
+    if message.photo:
+        photo = message.photo[-1]
+    elif message.reply_to_message and message.reply_to_message.photo:
+        photo = message.reply_to_message.photo[-1]
+
+    if photo:
+        file_id = photo.file_id
+        await services.settings.update({"welcome_banner_file_id": file_id})
+        await message.reply(
+            f"✅ <b>Welcome banner saved!</b>\n\n"
+            f"<b>Telegram File ID:</b>\n<code>{file_id}</code>\n\n"
+            f"<i>Served directly from Telegram's cloud CDN with zero server bandwidth.</i>"
+        )
+        return
+
+    curr_banner = await services.settings.get("welcome_banner_file_id")
+    status_text = f"<code>{curr_banner[:24]}...</code>" if curr_banner else "<i>None (Clean Text Mode)</i>"
+    await message.reply(
+        f"🖼️ <b>Home Banner Configuration</b>\n\n"
+        f"<b>Current Banner:</b> {status_text}\n\n"
+        f"<b>How to set a banner:</b>\n"
+        f"1. Send or forward any photo with <code>/setbanner</code> in the caption.\n"
+        f"2. Or reply to any photo in this chat with <code>/setbanner</code>.\n\n"
+        f"<b>To remove banner:</b>\n"
+        f"Send <code>/setbanner clear</code>"
+    )
+
+
+@router.message(Command("setwelcome", "settagline"))
+async def adm_set_welcome(message: Message, services: Services):
+    if not message.from_user or not await _is_admin(message.from_user.id, services):
+        return
+
+    parts = (message.text or "").split(maxsplit=1)
+    if len(parts) < 2:
+        curr_tagline = await services.settings.get("welcome_tagline")
+        status_text = f"<i>{html.escape(curr_tagline)}</i>" if curr_tagline else "<i>None (Default)</i>"
+        await message.reply(
+            f"📝 <b>Custom Welcome Tagline</b>\n\n"
+            f"<b>Current Tagline:</b> {status_text}\n\n"
+            f"<b>Usage:</b>\n"
+            f"<code>/setwelcome &lt;your tagline&gt;</code>\n\n"
+            f"<b>Examples:</b>\n"
+            f"• <code>/setwelcome ⚡ 24/7 Automated Digital Delivery</code>\n"
+            f"• <code>/setwelcome 🔥 Instant Delivery · Best Rates</code>\n\n"
+            f"<b>To reset:</b> <code>/setwelcome clear</code>"
+        )
+        return
+
+    new_val = parts[1].strip()
+    if new_val.lower() in {"clear", "off", "reset", "default"}:
+        await services.settings.update({"welcome_tagline": ""})
+        await message.reply("✅ Welcome tagline reset to default.")
+    else:
+        await services.settings.update({"welcome_tagline": new_val})
+        await message.reply(f"✅ Welcome tagline updated:\n\n<i>{html.escape(new_val)}</i>")
