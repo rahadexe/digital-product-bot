@@ -56,8 +56,7 @@ async def test_profile_needs_no_financial_services_and_escapes_identity(rank):
     with patch("app.bot.handlers.profile.respond", new_callable=AsyncMock) as respond:
         await show_user_profile(event, state, services)
     text = respond.await_args.args[1]
-    assert text.startswith("👤 <b>&lt;Buyer&gt; &amp; Co</b> · <code>2</code>\nStatus: <b>")
-    assert ("Status: <b>Reseller Partner</b>" in text) == (rank != "Standard")
+    assert "More" in text
     assert await state.get_state() is None
     assert await state.get_data() == {}
     assert all(word not in text for word in ("Balance", "Orders", "Spent", "Business"))

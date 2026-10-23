@@ -90,20 +90,10 @@ async def show_more_menu(event: Message | CallbackQuery, state: FSMContext, serv
         except Exception:
             is_admin = False
 
-    user_name = escape(getattr(tg_user, "full_name", None) or getattr(tg_user, "first_name", None) or "Customer")
-
     if lang == "bn":
-        status_badge = "রিসেলার পার্টনার" if is_reseller else "কাস্টমার"
-        text = (
-            f"👤 <b>{user_name}</b> · <code>{tg_user.id}</code>\n"
-            f"স্ট্যাটাস: <b>{status_badge}</b>"
-        )
+        text = "✨ <b>আরও</b>"
     else:
-        status_badge = "Reseller Partner" if is_reseller else "Customer"
-        text = (
-            f"👤 <b>{user_name}</b> · <code>{tg_user.id}</code>\n"
-            f"Status: <b>{status_badge}</b>"
-        )
+        text = "✨ <b>More</b>"
 
     keyboard = get_more_inline_keyboard(lang=lang, is_reseller=is_reseller, is_admin=is_admin)
     await respond(event, text, keyboard)
