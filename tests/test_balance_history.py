@@ -61,7 +61,7 @@ class BalanceHistoryUITests(unittest.IsolatedAsyncioTestCase):
 
         query.message.edit_text.assert_called_once()
         text_arg, kwargs = query.message.edit_text.call_args[0][0], query.message.edit_text.call_args[1]
-        self.assertIn("Top-up History", text_arg)
+        self.assertIn("Deposit History", text_arg)
         self.assertNotIn("TRX101", text_arg)
         self.assertNotIn("TRX102", text_arg)
 
