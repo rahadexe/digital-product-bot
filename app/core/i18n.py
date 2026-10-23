@@ -194,10 +194,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         # Balance / Deposit History & Details
         "balance_history_title": "<b>Top-up History</b>",
         "balance_history_hint": "",
-        "balance_history_empty": (
-            "No top-ups yet.\n"
-            "Choose a payment method in Wallet to get started."
-        ),
+        "balance_history_empty": "📜 No top-ups yet.",
         "balance_history_page": "<b>Top-up History</b>",
         "deposit_not_found": "Top-up not found. Open Wallet to check History.",
         "deposit_detail_title": "<b>Top-up {id}</b>",
@@ -423,10 +420,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         # Balance / Deposit History & Details
         "balance_history_title": "<b>টপ-আপ হিস্ট্রি</b>",
         "balance_history_hint": "",
-        "balance_history_empty": (
-            "💳 কোনো লেনদেন নেই\n"
-            "⚡ ব্যালেন্স যোগ করুন"
-        ),
+        "balance_history_empty": "📜 এখনো কোনো ডিপোজিট নেই।",
         "balance_history_page": "<b>টপ-আপ হিস্ট্রি</b>",
         "deposit_not_found": "ডিপোজিট রেকর্ড পাওয়া যায়নি।",
         "deposit_detail_title": "<b>ডিপোজিট {id}</b>",
