@@ -358,14 +358,14 @@ async def show_deposit_methods(event: Message | CallbackQuery, state: FSMContext
     else:
         if lang == "bn":
             prompt = (
-                "ব্যালেন্স যোগ করুন:"
+                "ব্যালেন্স যোগ করতে পেমেন্ট মেথড বাছুন:"
                 if displayed_methods or instant
                 else "এই মুহূর্তে কোনো পেমেন্ট মেথড চালু নেই।"
             )
             text = f"💰 <b>ব্যালেন্স:</b> <code>{balance_display}</code>\n\n{prompt}"
         else:
             prompt = (
-                "Add Balance:"
+                "Choose a payment method to add balance:"
                 if displayed_methods or instant
                 else "No payment methods are available right now."
             )

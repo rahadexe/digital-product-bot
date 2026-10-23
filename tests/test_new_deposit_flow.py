@@ -44,7 +44,7 @@ async def test_wallet_shows_balance_and_inline_payment_actions():
     text = message.answer.call_args.args[0]
     keyboard = message.answer.call_args.kwargs["reply_markup"]
     assert "<b>Balance:</b>" in text
-    assert "Add Balance:" in text
+    assert "Choose a payment method to add balance:" in text
     assert "💰" in text
     assert "45" in text
     assert "User:" not in text
