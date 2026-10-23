@@ -91,9 +91,9 @@ async def show_more_menu(event: Message | CallbackQuery, state: FSMContext, serv
             is_admin = False
 
     if lang == "bn":
-        text = "✨ <b>আরও</b>"
+        text = "✨ <b>আরও অপশন</b>\nটুলস ও সেটিংস নির্বাচন করুন:"
     else:
-        text = "✨ <b>More</b>"
+        text = "✨ <b>More Options</b>\nSelect an option to manage tools and settings:"
 
     keyboard = get_more_inline_keyboard(lang=lang, is_reseller=is_reseller, is_admin=is_admin)
     await respond(event, text, keyboard)
