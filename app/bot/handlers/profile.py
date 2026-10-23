@@ -209,7 +209,13 @@ async def _save_language_and_return_to_menu(
     with suppress(TelegramBadRequest):
         await event.answer(t("lang_switched_toast", selected))
 
-    await show_more_menu(event, state, services)
+    message = event.message
+    if isinstance(message, Message):
+        with suppress(TelegramBadRequest):
+            await message.delete()
+        from app.bot.handlers.start import render_main_dashboard
+
+        await render_main_dashboard(message, services, tg_user.id)
 
 
 @router.callback_query(F.data == "set_lang_en")

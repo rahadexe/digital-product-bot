@@ -25,6 +25,7 @@ EMOJI_ICONS = "⚡💳📦🎁🛍️👤⏱️💡🧑‍💻💬📢🎬🔙"
                 ["Referrals"],
                 ["Support"],
                 ["Updates"],
+                ["Back"],
             ],
         ),
         (
@@ -36,6 +37,7 @@ EMOJI_ICONS = "⚡💳📦🎁🛍️👤⏱️💡🧑‍💻💬📢🎬🔙"
                 ["রেফারেল থেকে কীভাবে আয় করবেন?"],
                 ["টেকনিক্যাল সাপোর্ট"],
                 ["আপডেট চ্যানেল"],
+                ["ব্যাক"],
             ],
         ),
     ],
@@ -51,8 +53,8 @@ def test_help_keyboard_uses_text_only_stacked_topics(lang, expected_rows):
     assert all(not any(icon in button.text for icon in EMOJI_ICONS)
                for row in keyboard.inline_keyboard for button in row)
     # Direct clickable URL buttons
-    assert keyboard.inline_keyboard[-2][0].url == "https://t.me/support_team"
-    assert keyboard.inline_keyboard[-1][0].url == "https://t.me/news"
+    assert keyboard.inline_keyboard[-3][0].url == "https://t.me/support_team"
+    assert keyboard.inline_keyboard[-2][0].url == "https://t.me/news"
 
 
 def test_help_keyboard_omits_unconfigured_support_and_channels():
@@ -64,7 +66,7 @@ def test_help_keyboard_omits_unconfigured_support_and_channels():
     labels = [button.text for row in keyboard.inline_keyboard for button in row]
     assert "Support" not in labels
     assert "Updates" not in labels
-    assert len(labels) == 4
+    assert len(labels) == 5
 
 
 def test_faq_answers_have_no_decorative_icons():
