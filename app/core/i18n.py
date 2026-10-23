@@ -192,10 +192,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "order_credentials": "Delivered Credentials",
 
         # Balance / Deposit History & Details
-        "balance_history_title": "<b>Top-up History</b>",
+        "balance_history_title": "<b>Deposit History</b>",
         "balance_history_hint": "",
-        "balance_history_empty": "📜 No top-ups yet.",
-        "balance_history_page": "<b>Top-up History</b>",
+        "balance_history_empty": "📜 No deposits yet.",
+        "balance_history_page": "<b>Deposit History</b>",
         "deposit_not_found": "Top-up not found. Open Wallet to check History.",
         "deposit_detail_title": "<b>Top-up {id}</b>",
         "status_approved_msg": "Payment verified. Your balance is updated.",
@@ -418,10 +418,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "order_credentials": "ডেলিভারিকৃত ক্রেডেনশিয়াল",
 
         # Balance / Deposit History & Details
-        "balance_history_title": "<b>টপ-আপ হিস্ট্রি</b>",
+        "balance_history_title": "<b>ডিপোজিট হিস্ট্রি</b>",
         "balance_history_hint": "",
         "balance_history_empty": "📜 এখনো কোনো ডিপোজিট নেই।",
-        "balance_history_page": "<b>টপ-আপ হিস্ট্রি</b>",
+        "balance_history_page": "<b>ডিপোজিট হিস্ট্রি</b>",
         "deposit_not_found": "ডিপোজিট রেকর্ড পাওয়া যায়নি।",
         "deposit_detail_title": "<b>ডিপোজিট {id}</b>",
         "status_approved_msg": "পেমেন্ট যাচাই হয়েছে। ব্যালেন্স যোগ হয়েছে।",

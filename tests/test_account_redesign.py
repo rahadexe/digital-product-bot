@@ -131,7 +131,7 @@ class AccountRedesignTests(unittest.TestCase):
 
         # Check title and hint
         title_en = t("balance_history_title", "en", icon_stats="📊")
-        self.assertEqual(title_en, "<b>Top-up History</b>")
+        self.assertEqual(title_en, "<b>Deposit History</b>")
         self.assertEqual(t("balance_history_hint", "en"), "")
 
         # Check btn_deposit
