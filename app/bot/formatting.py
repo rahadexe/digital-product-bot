@@ -71,8 +71,18 @@ def clean_previous_menu(bot: Any, chat_id: int, current_msg_id: int | None = Non
                 asyncio.create_task(_quiet_delete(bot, chat_id, mid))
 
 
-async def respond(event: Message | CallbackQuery, text: str, keyboard: InlineKeyboardMarkup | ReplyKeyboardMarkup | None = None) -> None:
-    """Replace the message behind a pressed button, or reply to a typed message or command."""
+async def respond(
+    event: Message | CallbackQuery,
+    text: str,
+    keyboard: InlineKeyboardMarkup | ReplyKeyboardMarkup | None = None,
+    *,
+    new_message: bool = False,
+) -> None:
+    """Replace the message behind a pressed button, or reply to a typed message or command.
+
+    If new_message=True on a CallbackQuery, cleanly deletes the origin message and sends a fresh
+    message so the Telegram client viewport naturally snaps to it without scroll collapse.
+    """
     if isinstance(event, CallbackQuery):
         msg = getattr(event, "message", None)
         chat = getattr(msg, "chat", None)
@@ -87,11 +97,13 @@ async def respond(event: Message | CallbackQuery, text: str, keyboard: InlineKey
 
         async def replace() -> None:
             if event.message:
-                if isinstance(keyboard, ReplyKeyboardMarkup):
-                    if AUTO_DELETE_ENABLED:
-                        with suppress(TelegramBadRequest):
-                            await event.message.delete()
-                    await event.message.answer(text, reply_markup=keyboard)
+                if isinstance(keyboard, ReplyKeyboardMarkup) or new_message:
+                    with suppress(TelegramBadRequest):
+                        await event.message.delete()
+                    sent = await event.message.answer(text, reply_markup=keyboard)
+                    sent_id = getattr(sent, "message_id", None)
+                    if sent_id is not None and chat_id:
+                        remember_menu_message(chat_id, int(sent_id))
                 else:
                     with suppress(TelegramBadRequest):
                         await event.message.edit_text(text, reply_markup=keyboard)

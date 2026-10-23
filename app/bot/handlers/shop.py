@@ -953,7 +953,15 @@ async def show_product(query: CallbackQuery, state: FSMContext, services: Servic
             await query.answer("Product not found or currently unavailable.", show_alert=True)
         return
     text, keyboard = await product_view(services, product, query.from_user.id, quantity=1, back_target=back_target)
-    await respond(query, text, keyboard)
+    is_from_tall_catalog = bool(
+        back_target and (
+            back_target.startswith("shop_p_")
+            or back_target.startswith("catval_menu_")
+            or back_target == "open_categories"
+            or category_back
+        )
+    )
+    await respond(query, text, keyboard, new_message=is_from_tall_catalog)
 
 
 @router.callback_query(F.data.startswith("prod_desc_"))
