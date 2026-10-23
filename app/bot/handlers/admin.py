@@ -48,7 +48,6 @@ class AdminProductStates(StatesGroup):
 
 class AdminSettingsStates(StatesGroup):
     waiting_for_banner = State()
-    waiting_for_tagline = State()
 
 
 async def _is_admin(user_id: int, services: Services) -> bool:
@@ -615,24 +614,23 @@ async def build_admin_settings_view(services: Services) -> tuple[str, InlineKeyb
     support = values.get("support_username", "None")
     is_paused = values.get("store_paused") == "1"
     banner_file_id = (values.get("welcome_banner_file_id") or "").strip()
-    tagline = (values.get("welcome_tagline") or "").strip()
     status_str = "Paused" if is_paused else "Active"
-    banner_str = "Configured (Telegram CDN)" if banner_file_id else "None (Text Only)"
-    tagline_str = f"\"{html.escape(tagline)}\"" if tagline else "None (Default)"
+    banner_str = "Active (Telegram CDN)" if banner_file_id else "None (Clean Text)"
     text = (
         "⚙️ <b>Store Settings</b>\n\n"
         f"• <b>Store Name:</b> {html.escape(store_name)}\n"
         f"• <b>Status:</b> <code>{status_str}</code>\n"
         f"• <b>Currency:</b> <code>{html.escape(currency)}</code>\n"
         f"• <b>Support:</b> <code>{html.escape(support)}</code>\n"
-        f"• <b>Welcome Banner:</b> <code>{banner_str}</code>\n"
-        f"• <b>Welcome Tagline:</b> {tagline_str}\n\n"
-        "<i>Tap an option below to update directly:</i>"
+        f"• <b>Home Banner:</b> <code>{banner_str}</code>\n\n"
+        "<i>Use the button below to update your home welcome banner:</i>"
     )
     rows = [
         [
-            InlineKeyboardButton(text="🖼️ Set Banner", callback_data="adm_prompt_banner"),
-            InlineKeyboardButton(text="📝 Set Tagline", callback_data="adm_prompt_tagline"),
+            InlineKeyboardButton(
+                text="🖼️ Set Banner" if not banner_file_id else "🖼️ Change Banner",
+                callback_data="adm_prompt_banner"
+            ),
         ],
     ]
     if banner_file_id:
@@ -674,27 +672,6 @@ async def adm_cb_prompt_banner(query: CallbackQuery, state: FSMContext, services
                 "🖼️ <b>Upload Welcome Banner</b>\n\n"
                 "Please send or forward any photo now.\n\n"
                 "The photo will be saved and served directly from Telegram's cloud CDN.\n\n"
-                "<i>Tap Cancel below to abort.</i>",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-                    InlineKeyboardButton(text="Cancel", callback_data="adm_cancel_settings", style="danger")
-                ]])
-            )
-
-
-@router.callback_query(F.data == "adm_prompt_tagline")
-async def adm_cb_prompt_tagline(query: CallbackQuery, state: FSMContext, services: Services):
-    if await _deny(query, services):
-        return
-    await state.set_state(AdminSettingsStates.waiting_for_tagline)
-    with suppress(TelegramBadRequest):
-        await query.answer()
-    if query.message:
-        await state.update_data(panel_msg_id=query.message.message_id)
-        with suppress(TelegramBadRequest):
-            await query.message.edit_text(
-                "📝 <b>Set Welcome Tagline</b>\n\n"
-                "Type your custom store tagline or greeting below and send it:\n\n"
-                "<i>Example:</i> <code>⚡ 24/7 Automated Digital Delivery</code>\n\n"
                 "<i>Tap Cancel below to abort.</i>",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
                     InlineKeyboardButton(text="Cancel", callback_data="adm_cancel_settings", style="danger")
@@ -752,22 +729,6 @@ async def adm_invalid_banner_input(message: Message):
         "❌ Please send a <b>photo</b> image file, or tap Cancel below.",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(text="Cancel", callback_data="adm_cancel_settings", style="danger")
-        ]])
-    )
-
-
-@router.message(AdminSettingsStates.waiting_for_tagline, F.text)
-async def adm_receive_tagline_text(message: Message, state: FSMContext, services: Services):
-    if not message.from_user or not await _is_admin(message.from_user.id, services):
-        return
-    tagline = (message.text or "").strip()
-    await services.settings.update({"welcome_tagline": tagline})
-    await state.clear()
-    await message.reply(
-        f"✅ <b>Welcome tagline updated:</b>\n\n<i>{html.escape(tagline)}</i>",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text="⚙️ Return to Settings", callback_data="adm_start_settings"),
-            InlineKeyboardButton(text="🏠 Admin Panel", callback_data="adm_dashboard"),
         ]])
     )
 
@@ -2809,33 +2770,3 @@ async def adm_set_banner(message: Message, services: Services):
         f"<b>To remove banner:</b>\n"
         f"Send <code>/setbanner clear</code>"
     )
-
-
-@router.message(Command("setwelcome", "settagline"))
-async def adm_set_welcome(message: Message, services: Services):
-    if not message.from_user or not await _is_admin(message.from_user.id, services):
-        return
-
-    parts = (message.text or "").split(maxsplit=1)
-    if len(parts) < 2:
-        curr_tagline = await services.settings.get("welcome_tagline")
-        status_text = f"<i>{html.escape(curr_tagline)}</i>" if curr_tagline else "<i>None (Default)</i>"
-        await message.reply(
-            f"📝 <b>Custom Welcome Tagline</b>\n\n"
-            f"<b>Current Tagline:</b> {status_text}\n\n"
-            f"<b>Usage:</b>\n"
-            f"<code>/setwelcome &lt;your tagline&gt;</code>\n\n"
-            f"<b>Examples:</b>\n"
-            f"• <code>/setwelcome ⚡ 24/7 Automated Digital Delivery</code>\n"
-            f"• <code>/setwelcome 🔥 Instant Delivery · Best Rates</code>\n\n"
-            f"<b>To reset:</b> <code>/setwelcome clear</code>"
-        )
-        return
-
-    new_val = parts[1].strip()
-    if new_val.lower() in {"clear", "off", "reset", "default"}:
-        await services.settings.update({"welcome_tagline": ""})
-        await message.reply("✅ Welcome tagline reset to default.")
-    else:
-        await services.settings.update({"welcome_tagline": new_val})
-        await message.reply(f"✅ Welcome tagline updated:\n\n<i>{html.escape(new_val)}</i>")
