@@ -109,11 +109,15 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
     store_name = values.get("store_name", "Premium Haven") if isinstance(values, dict) else "Premium Haven"
     lang = await services.users.get_language(tg_user_id)
 
-    symbol = values.get("currency_symbol", "৳") if isinstance(values, dict) else "৳"
+    symbol = (values.get("currency_symbol") or "৳").strip() if isinstance(values, dict) else "৳"
     usd_rate = float(values.get("usd_rate") or 0.0) if isinstance(values, dict) else 0.0
     show_usd = str(values.get("show_usd_price", "0")).lower() in ("1", "true", "yes") if isinstance(values, dict) else False
     user_balance = float(user.get("balance", 0.0)) if user and isinstance(user, dict) else 0.0
-    balance_str = price(symbol, user_balance, usd_rate=usd_rate, show_usd=show_usd, lang=lang) if user_balance > 0 else f"{symbol}0.00"
+    if lang == "en" and show_usd and usd_rate and usd_rate > 0:
+        usd = round(user_balance / usd_rate, 2)
+        balance_str = f"${usd:g}" if usd == int(usd) else f"${usd:.2f}"
+    else:
+        balance_str = f"{symbol}{user_balance:g}" if user_balance == int(user_balance) else f"{symbol}{user_balance:.2f}"
     user_name = (user.get("first_name") or getattr(getattr(message, "from_user", None), "first_name", "") or "").strip() if user and isinstance(user, dict) else ""
     banner_file_id = (values.get("welcome_banner_file_id") or "").strip() if isinstance(values, dict) else ""
     tagline = (values.get("welcome_tagline") or "").strip() if isinstance(values, dict) else ""

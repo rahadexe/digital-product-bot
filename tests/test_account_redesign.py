@@ -103,14 +103,15 @@ class AccountRedesignTests(unittest.TestCase):
         self.assertEqual(
             [[button.text for button in row] for row in methods_kb.inline_keyboard],
             [
-                ["bKash", "Nagad"],
+                ["bKash"],
+                ["Nagad"],
                 ["Binance Pay"],
                 ["Jinpay Checkout"],
                 ["History"],
             ],
         )
         self.assertEqual(
-            methods_kb.inline_keyboard[1][0].icon_custom_emoji_id,
+            methods_kb.inline_keyboard[2][0].icon_custom_emoji_id,
             "5796345694969140339",
         )
 
