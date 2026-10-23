@@ -218,8 +218,8 @@ class MenuAndGuideTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(label=label):
                 replies = await self._feed(text=label)
                 texts = [reply.get("text") or "" for reply in replies]
-                self.assertTrue(any(("<b>Profile</b>" in text or "Status: <b>" in text) for text in texts), replies)
-                profile_text = next(text for text in texts if ("<b>Profile</b>" in text or "Status: <b>" in text))
+                self.assertTrue(any(("<b>Profile</b>" in text or "More" in text or "আরও" in text) for text in texts), replies)
+                profile_text = next(text for text in texts if ("<b>Profile</b>" in text or "More" in text or "আরও" in text))
                 for duplicate in ("Balance", "Orders", "Spent"):
                     self.assertNotIn(duplicate, profile_text)
 

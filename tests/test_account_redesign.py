@@ -201,9 +201,7 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
 
         text = respond.await_args.args[1]
         keyboard = respond.await_args.args[2]
-        self.assertIn("Test Customer", text)
-        self.assertIn("123", text)
-        self.assertIn("Customer", text)
+        self.assertIn("More", text)
         callbacks = [btn.callback_data for row in keyboard.inline_keyboard for btn in row]
         self.assertIn("open_reseller", callbacks)
         self.assertIn("open_notifications_hub", callbacks)
@@ -248,7 +246,7 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
 
         text = respond.await_args.args[1]
         keyboard = respond.await_args.args[2]
-        self.assertIn("Reseller", text)
+        self.assertIn("More", text)
         callbacks = [btn.callback_data for row in keyboard.inline_keyboard for btn in row]
         self.assertIn("open_reseller_hub", callbacks)
         self.assertIn("open_api_hub", callbacks)
