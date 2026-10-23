@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import datetime
 import logging
 from contextlib import suppress
 from html import escape
@@ -52,40 +53,66 @@ def build_welcome_text(
     store_name: str = "",
     order_count: int = 0,
     tagline: str = "",
+    user_id: int | str = "",
+    username: str = "",
+    total_users: int = 0,
+    support_username: str = "",
+    has_banner: bool = False,
 ) -> str:
     prefix = t("maintenance_notice", lang, icon_warning=ICON_WARNING, notice=escape(paused_notice)) + "\n\n" if paused_notice else ""
-    name_display = escape(user_name) if user_name else ""
+    name_display = escape(user_name) if user_name else "there"
     store_title = escape(store_name) if store_name else "Digital Store"
+    user_id_display = str(user_id) if user_id else ""
+    clean_username = f"@{username.lstrip('@')}" if username else "None"
+    clean_support = f"@{support_username.lstrip('@')}" if support_username else "@support"
+    bal_display = balance_str if balance_str else "৳0.00"
+
+    bdt = datetime.timezone(datetime.timedelta(hours=6))
+    now = datetime.datetime.now(bdt)
+    date_str = now.strftime("%A, %d %B %Y")
+    time_str = now.strftime("%I:%M:%S %p").lstrip("0")
+
     tagline_escaped = f"\n<i>{escape(tagline)}</i>" if tagline else ""
+    store_header = f"⚡ <b>{store_title}</b>{tagline_escaped}\n\n" if (not has_banner and store_title) else ""
 
     if lang == "bn":
-        greeting = f"👋 স্বাগতম, <b>{name_display}</b>!" if name_display else "👋 স্বাগতম!"
-        lines = [
-            f"⚡ <b>{store_title}</b>{tagline_escaped}",
-            greeting,
+        blocks = [
+            f"{store_header}স্বাগতম, <b>{name_display}</b>! 🤝",
+            f"তারিখ: {date_str}\nসময়: {time_str}",
+            (
+                "<b>অ্যাকাউন্ট বিবরণ:</b>\n"
+                f"ইউজার আইডি: <code>{user_id_display}</code>\n"
+                f"ইউজারনেম: {clean_username}\n"
+                f"বর্তমান ব্যালেন্স: <code>{bal_display}</code>"
+            ),
         ]
-        status_items = []
-        if balance_str:
-            status_items.append(f"💳 ব্যালেন্স: <code>{balance_str}</code>")
-        if order_count > 0:
-            status_items.append(f"📦 অর্ডার: <b>{order_count}</b>")
-        if status_items:
-            lines.append(" · ".join(status_items))
+        if total_users > 0:
+            blocks.append(
+                "<b>বট পরিসংখ্যান:</b>\n"
+                f"মোট ইউজার: {total_users:,}"
+            )
+        if clean_support:
+            blocks.append(f"সাপোর্ট: {clean_support}")
     else:
-        greeting = f"👋 Welcome, <b>{name_display}</b>!" if name_display else "👋 Welcome!"
-        lines = [
-            f"⚡ <b>{store_title}</b>{tagline_escaped}",
-            greeting,
+        blocks = [
+            f"{store_header}Welcome, <b>{name_display}</b>! 🤝",
+            f"Date: {date_str}\nTime: {time_str}",
+            (
+                "<b>Account Information:</b>\n"
+                f"User ID: <code>{user_id_display}</code>\n"
+                f"Username: {clean_username}\n"
+                f"Current Balance: <code>{bal_display}</code>"
+            ),
         ]
-        status_items = []
-        if balance_str:
-            status_items.append(f"💳 Balance: <code>{balance_str}</code>")
-        if order_count > 0:
-            status_items.append(f"📦 Orders: <b>{order_count}</b>")
-        if status_items:
-            lines.append(" · ".join(status_items))
+        if total_users > 0:
+            blocks.append(
+                "<b>Bot Statistics:</b>\n"
+                f"Total Users: {total_users:,}"
+            )
+        if clean_support:
+            blocks.append(f"Support: {clean_support}")
 
-    return prefix + "\n\n".join(lines)
+    return prefix + "\n\n".join(b for b in blocks if b)
 
 
 router = Router(name="start_router")
@@ -105,10 +132,16 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
     usd_rate = float(values.get("usd_rate") or 0.0) if isinstance(values, dict) else 0.0
     show_usd = str(values.get("show_usd_price", "0")).lower() in ("1", "true", "yes") if isinstance(values, dict) else False
     user_balance = float(user.get("balance", 0.0)) if user and isinstance(user, dict) else 0.0
-    balance_str = price(symbol, user_balance, usd_rate=usd_rate, show_usd=show_usd, lang=lang) if user_balance > 0 else ""
+    balance_str = price(symbol, user_balance, usd_rate=usd_rate, show_usd=show_usd, lang=lang) if user_balance > 0 else f"{symbol}0.00"
     user_name = (user.get("first_name") or getattr(getattr(message, "from_user", None), "first_name", "") or "").strip() if user and isinstance(user, dict) else ""
     banner_file_id = (values.get("welcome_banner_file_id") or "").strip() if isinstance(values, dict) else ""
     tagline = (values.get("welcome_tagline") or "").strip() if isinstance(values, dict) else ""
+    support_username = (values.get("support_username") or "").strip() if isinstance(values, dict) else ""
+    username = (
+        getattr(getattr(message, "from_user", None), "username", "")
+        or (user.get("username") if isinstance(user, dict) else "")
+        or ""
+    ).strip()
 
     order_count = 0
     if hasattr(services, "purchases") and hasattr(services.purchases, "customer_orders"):
@@ -119,6 +152,15 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
         except Exception:
             order_count = 0
 
+    total_users = 0
+    if hasattr(services, "dashboard") and hasattr(services.dashboard, "stats"):
+        try:
+            stats = await services.dashboard.stats()
+            if isinstance(stats, dict):
+                total_users = int(stats.get("total_users") or 0)
+        except Exception:
+            total_users = 0
+
     text = build_welcome_text(
         paused_notice=paused_notice,
         lang=lang,
@@ -127,6 +169,11 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
         store_name=store_name,
         order_count=order_count,
         tagline=tagline,
+        user_id=tg_user_id,
+        username=username,
+        total_users=total_users,
+        support_username=support_username,
+        has_banner=bool(banner_file_id),
     )
 
     is_admin = tg_user_id in admin_ids
