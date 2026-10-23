@@ -118,14 +118,14 @@ def get_more_inline_keyboard(
         referral_label = "🎁 রেফারেল"
         help_label = "💬 সাহায্য"
         notif_label = "🔔 নোটিফিকেশন"
-        language_label = "🌐 Language (English)"
+        language_label = "🌐 ভাষা"
         reseller_label = "💼 রিসেলার হাব" if is_reseller else "💼 রিসেলার"
         api_label = "⚡ এপিআই"
     else:
         referral_label = "🎁 Referral"
         help_label = "💬 Help"
         notif_label = "🔔 Notifications"
-        language_label = "🌐 ভাষা (বাংলা)"
+        language_label = "🌐 Language"
         reseller_label = "💼 Reseller Hub" if is_reseller else "💼 Reseller"
         api_label = "⚡ API"
 
