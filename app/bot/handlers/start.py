@@ -61,65 +61,39 @@ def build_welcome_text(
 ) -> str:
     prefix = t("maintenance_notice", lang, icon_warning=ICON_WARNING, notice=escape(paused_notice)) + "\n\n" if paused_notice else ""
     name_display = escape(user_name) if user_name else "there"
-    store_title = escape(store_name) if store_name else "Digital Store"
+    store_title = escape(store_name) if store_name else "BM DIGITAL"
     user_id_display = str(user_id) if user_id else ""
-    clean_username = f"@{username.lstrip('@')}" if username else "None"
     clean_support = f"@{support_username.lstrip('@')}" if support_username else "@support"
     bal_display = balance_str if balance_str else "৳0.00"
 
-    bdt = datetime.timezone(datetime.timedelta(hours=6))
-    now = datetime.datetime.now(bdt)
-    date_str = now.strftime("%A, %d %B %Y")
-    time_str = now.strftime("%I:%M:%S %p").lstrip("0")
-
     if lang == "bn":
-        account_lines = [
-            f"ইউজার আইডি: <code>{user_id_display}</code>",
-            f"ইউজারনেম: {clean_username}",
-            f"বর্তমান ব্যালেন্স: <code>{bal_display}</code>",
-        ]
-        if order_count > 0:
-            account_lines.append(f"অর্ডার সংখ্যা: <b>{order_count}টি</b>")
-
-        stats_lines = []
-        if total_users > 0:
-            stats_lines.append(f"মোট গ্রাহক: <b>{total_users:,}</b>")
-        stats_lines.append("সার্ভিস: <b>২৪/৭ অটোমেটেড</b>")
-
-        blocks = [
+        order_line = f"📦 অর্ডার: <b>{order_count}টি</b>" if order_count > 0 else "📦 অর্ডার: <b>০টি</b>"
+        lines = [
             f"⚡ <b>{store_title}</b>",
             f"স্বাগতম, <b>{name_display}</b>! 🤝",
-            f"তারিখ: {date_str}\nসময়: {time_str}",
-            "<b>অ্যাকাউন্ট বিবরণ:</b>\n" + "\n".join(account_lines),
-            "<b>প্ল্যাটফর্ম পরিসংখ্যান:</b>\n" + "\n".join(stats_lines),
+            "",
+            f"🆔 আইডি: <code>{user_id_display}</code>",
+            f"💳 ওয়ালেট: <code>{bal_display}</code>",
+            order_line,
+            "",
+            f"💬 সাপোর্ট: {clean_support}",
         ]
-        if clean_support:
-            blocks.append(f"সাপোর্ট: {clean_support}")
     else:
-        account_lines = [
-            f"User ID: <code>{user_id_display}</code>",
-            f"Username: {clean_username}",
-            f"Current Balance: <code>{bal_display}</code>",
-        ]
-        if order_count > 0:
-            account_lines.append(f"Orders Completed: <b>{order_count}</b>")
-
-        stats_lines = []
-        if total_users > 0:
-            stats_lines.append(f"Total Users: <b>{total_users:,}</b>")
-        stats_lines.append("Service: <b>24/7 Automated</b>")
-
-        blocks = [
+        order_line = f"📦 Orders: <b>{order_count}</b>" if order_count > 0 else "📦 Orders: <b>0</b>"
+        lines = [
             f"⚡ <b>{store_title}</b>",
             f"Welcome, <b>{name_display}</b>! 🤝",
-            f"Date: {date_str}\nTime: {time_str}",
-            "<b>Account Information:</b>\n" + "\n".join(account_lines),
-            "<b>Bot Statistics:</b>\n" + "\n".join(stats_lines),
+            "",
+            f"🆔 ID: <code>{user_id_display}</code>",
+            f"💳 Wallet: <code>{bal_display}</code>",
+            order_line,
+            "",
+            f"💬 Support: {clean_support}",
         ]
-        if clean_support:
-            blocks.append(f"Support: {clean_support}")
 
-    return prefix + "\n\n".join(b for b in blocks if b)
+    # Filter empty lines if user_id_display is missing
+    clean_lines = [line for line in lines if not line.startswith("🆔 ID: <code></code>") and not line.startswith("🆔 আইডি: <code></code>")]
+    return prefix + "\n".join(clean_lines)
 
 
 router = Router(name="start_router")
