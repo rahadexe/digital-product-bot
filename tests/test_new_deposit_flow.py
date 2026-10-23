@@ -45,7 +45,7 @@ async def test_wallet_shows_balance_and_inline_payment_actions():
     keyboard = message.answer.call_args.kwargs["reply_markup"]
     assert "<b>Balance:</b>" in text
     assert "Choose a payment method." in text
-    assert "💰" not in text
+    assert "💰" in text
     assert "45" in text
     assert "User:" not in text
     assert "Manual:" not in text
@@ -82,7 +82,7 @@ async def test_wallet_with_pending_deposit_keeps_history_and_hides_new_payment_m
     text = message.answer.call_args.args[0]
     keyboard = message.answer.call_args.kwargs["reply_markup"]
     assert "<b>Balance:</b>" in text
-    assert "💰" not in text
+    assert "💰" in text
     assert "Top-up D20 is being verified" in text
     assert [button.text for row in keyboard.inline_keyboard for button in row] == [
         "History",
