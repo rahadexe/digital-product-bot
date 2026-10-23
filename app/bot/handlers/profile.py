@@ -1078,6 +1078,8 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
 
         refresh_btn_text = t("btn_refresh", lang) or "Refresh"
         back_btn_text = "Back" if lang != "bn" else "ব্যাক"
+        include_back = bool(back_target and back_target != "back_to_main")
+
         if total_pages > 1:
             if page == 1:
                 nav_row = [
@@ -1098,21 +1100,24 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
                     InlineKeyboardButton(text="Next" if lang != "bn" else "পরবর্তী", callback_data=f"{page_prefix}{page + 1}"),
                 ]
             buttons.append(nav_row)
-            buttons.append([
-                InlineKeyboardButton(
-                    text=back_btn_text,
-                    callback_data=back_target,
-                )
-            ])
+            if include_back:
+                buttons.append([
+                    InlineKeyboardButton(
+                        text=back_btn_text,
+                        callback_data=back_target,
+                    )
+                ])
         else:
-            # 1 Page only: Refresh and Back side-by-side
-            buttons.append([
-                InlineKeyboardButton(text=refresh_btn_text, callback_data=f"{page_prefix}1"),
-                InlineKeyboardButton(
-                    text=back_btn_text,
-                    callback_data=back_target,
-                ),
-            ])
+            # 1 Page only: Refresh only (or include Back if navigating from account sub-menu)
+            bottom_row = [InlineKeyboardButton(text=refresh_btn_text, callback_data=f"{page_prefix}1")]
+            if include_back:
+                bottom_row.append(
+                    InlineKeyboardButton(
+                        text=back_btn_text,
+                        callback_data=back_target,
+                    )
+                )
+            buttons.append(bottom_row)
 
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 

@@ -217,7 +217,7 @@ class OrderHistoryUITests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("•", text_arg)
         all_texts = [btn.text for r in kb.inline_keyboard for btn in r]
         self.assertTrue(any("Refresh" in t or "🔄" in t for t in all_texts))
-        self.assertTrue(any("Back" in t for t in all_texts))
+        self.assertFalse(any("Back" in t for t in all_texts))
         self.assertFalse(any("Close" in t for t in all_texts))
 
     async def test_view_order_detail_preserves_page_and_shows_status(self):
