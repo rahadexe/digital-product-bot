@@ -287,3 +287,33 @@ async def test_supplier_balance_notice_is_short_english_without_decorative_symbo
     assert len(text.splitlines()) == 3
     assert "Top up" in text and "balance is low" in text
     assert not any(symbol in text for symbol in ("•", "⚠", "—", "ব্যা"))
+    # The message carries an inline button to mute alerts directly
+    kb = notifier.send.call_args.kwargs.get("keyboard")
+    assert kb is not None
+    assert "Turn Off Alert" in kb.inline_keyboard[0][0].text
+    assert kb.inline_keyboard[0][0].callback_data == f"mute_sup_{code}"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("code", ["digital_mart", "safwan_tiger"])
+async def test_supplier_balance_notice_disabled_when_flag_off_or_zero_threshold(code):
+    # Test flag off
+    settings = SimpleNamespace(
+        get=AsyncMock(return_value="10"),
+        flag=AsyncMock(return_value=False),
+        admin_chat_ids=AsyncMock(return_value=[123]),
+    )
+    client = provider(code, settings=settings)
+    client.get_balance = AsyncMock(return_value={"ok": True, "balance": 2})
+    notifier = SimpleNamespace(send=AsyncMock())
+    assert not await client.check_low_balance(notifier)
+
+    # Test threshold zero
+    settings_zero = SimpleNamespace(
+        get=AsyncMock(return_value="0"),
+        flag=AsyncMock(return_value=True),
+        admin_chat_ids=AsyncMock(return_value=[123]),
+    )
+    client_zero = provider(code, settings=settings_zero)
+    client_zero.get_balance = AsyncMock(return_value={"ok": True, "balance": 0})
+    assert not await client_zero.check_low_balance(notifier)

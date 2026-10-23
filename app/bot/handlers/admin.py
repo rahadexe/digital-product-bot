@@ -2592,3 +2592,44 @@ async def adm_reject_reseller_cb(query: CallbackQuery, services: Services):
         text, kb = _format_reseller_app_card(updated)
         with suppress(TelegramBadRequest):
             await query.message.edit_text("<b>Rejected by Admin</b>\n\n" + text, reply_markup=kb)
+
+
+@router.callback_query(F.data.startswith("mute_sup_"))
+async def adm_mute_supplier_alert(query: CallbackQuery, services: Services):
+    if await _deny(query, services):
+        return
+    sup_code = query.data.removeprefix("mute_sup_")
+    key = "safwan_tiger_low_balance_notify" if sup_code == "safwan_tiger" else "upstream_low_balance_notify"
+    sup_name = "Safwan Tiger" if sup_code == "safwan_tiger" else "Digital Mart"
+
+    await services.settings.update({key: "0"})
+    with suppress(TelegramBadRequest):
+        await query.answer(f"✅ {sup_name} balance alerts turned off.", show_alert=True)
+
+    unmute_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔔 Turn On Alert", callback_data=f"unmute_sup_{sup_code}")]
+    ])
+    orig_text = query.message.text or query.message.caption or ""
+    new_text = f"{orig_text}\n\n<i>🔕 Low balance alert has been turned off by admin.</i>"
+    with suppress(TelegramBadRequest):
+        await query.message.edit_text(new_text, reply_markup=unmute_kb)
+
+
+@router.callback_query(F.data.startswith("unmute_sup_"))
+async def adm_unmute_supplier_alert(query: CallbackQuery, services: Services):
+    if await _deny(query, services):
+        return
+    sup_code = query.data.removeprefix("unmute_sup_")
+    key = "safwan_tiger_low_balance_notify" if sup_code == "safwan_tiger" else "upstream_low_balance_notify"
+    sup_name = "Safwan Tiger" if sup_code == "safwan_tiger" else "Digital Mart"
+
+    await services.settings.update({key: "1"})
+    with suppress(TelegramBadRequest):
+        await query.answer(f"✅ {sup_name} balance alerts enabled.", show_alert=True)
+
+    mute_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔕 Turn Off Alert", callback_data=f"mute_sup_{sup_code}")]
+    ])
+    orig_text = (query.message.text or query.message.caption or "").split("\n\n<i>🔕")[0]
+    with suppress(TelegramBadRequest):
+        await query.message.edit_text(orig_text, reply_markup=mute_kb)
