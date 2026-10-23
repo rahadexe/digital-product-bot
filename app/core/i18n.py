@@ -67,11 +67,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "btn_keep": "Keep Payment",
 
         # Language Selection
-        "select_language_title": "🌐 <b>Language</b>",
-        "select_language_prompt": (
-            "🌐 <b>Language</b>\n\n"
-            "Choose your preferred language below."
-        ),
+        "select_language_title": "Language",
+        "select_language_prompt": "Select language:",
         "lang_switched_toast": "✅ Language set to English.",
 
         # Compact product card
@@ -299,11 +296,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "btn_keep": "🔙 রাখুন",
 
         # Language Selection
-        "select_language_title": "🌐 <b>ভাষা</b>",
-        "select_language_prompt": (
-            "🌐 <b>ভাষা</b>\n\n"
-            "নিচে আপনার পছন্দের ভাষা বেছে নিন।"
-        ),
+        "select_language_title": "ভাষা",
+        "select_language_prompt": "ভাষা নির্বাচন করুন:",
         "lang_switched_toast": "✅ ভাষা সেট: বাংলা",
 
         # Compact product card
