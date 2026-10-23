@@ -1335,11 +1335,11 @@ def get_manual_deposit_invoice_keyboard(
     elif destination:
         copy_label = "Copy ID" if is_binance else "Copy Number"
         buttons.append([InlineKeyboardButton(
-            text=copy_label if lang != "bn" else "নম্বর কপি",
+            text=f"📋 {copy_label}" if lang != "bn" else ("📋 আইডি কপি" if is_binance else "📋 নম্বর কপি"),
             copy_text=CopyTextButton(text=destination[:256]),
         )])
-    paid_text = "Payment Done" if lang != "bn" else "পেমেন্ট করেছি"
-    back_text = "Back" if lang != "bn" else "ফিরে যান"
+    paid_text = "✅ Payment Done" if lang != "bn" else "✅ পেমেন্ট করেছি"
+    back_text = "🔙 Back" if lang != "bn" else "🔙 ফিরে যান"
     buttons.append([
         InlineKeyboardButton(text=paid_text, callback_data=f"dep_paid_{method_id}" if method_id else "dep_paid"),
         InlineKeyboardButton(text=back_text, callback_data="dep_methods"),
