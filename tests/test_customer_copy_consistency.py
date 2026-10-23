@@ -45,7 +45,7 @@ def test_optional_toggle_is_the_only_customer_notification_switch(enabled):
     keyboard = get_notification_settings_keyboard({"notify_news": enabled})
     buttons = [button for row in keyboard.inline_keyboard for button in row]
     assert [button.callback_data for button in buttons] == [
-        "notif_toggle_notify_news", "open_account",
+        "notif_toggle_notify_news", "open_more",
     ]
     assert buttons[0].text == f"News & Offers: {'On' if enabled else 'Off'}"
 
