@@ -93,14 +93,14 @@ def test_products_keyboard_renders_category_chips_on_top():
     # All products active
     kb = get_products_keyboard(products=products, categories=categories, category_id=None, lang="en")
     chip_row = kb.inline_keyboard[0]
-    assert [btn.text for btn in chip_row] == ["• All •", "🎬 Streaming", "🛡️ VPN"]
+    assert [btn.text for btn in chip_row] == ["✅ All", "🎬 Streaming", "🛡️ VPN"]
     assert [btn.callback_data for btn in chip_row] == ["shop_p_all_1", "cat_10", "cat_20"]
     assert kb.inline_keyboard[1][0].text.startswith("Canva Pro")
 
     # Specific category active (VPN)
     kb_cat = get_products_keyboard(products=products, categories=categories, category_id=20, lang="en")
     chip_row_cat = kb_cat.inline_keyboard[0]
-    assert [btn.text for btn in chip_row_cat] == ["🔥 All", "🎬 Streaming", "• 🛡️ VPN •"]
+    assert [btn.text for btn in chip_row_cat] == ["All", "🎬 Streaming", "✅ VPN"]
 
 
 @pytest.mark.asyncio
