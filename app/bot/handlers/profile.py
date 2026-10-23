@@ -78,8 +78,9 @@ async def show_more_menu(event: Message | CallbackQuery, state: FSMContext, serv
     if not tg_user:
         return
 
-    user = await services.users.get(tg_user.id) or {}
-    lang = await services.users.get_language(tg_user.id)
+    user = (await services.users.get(tg_user.id)) if hasattr(services.users, "get") else {}
+    user = user or {}
+    lang = (await services.users.get_language(tg_user.id)) if hasattr(services.users, "get_language") else "en"
     is_reseller = (user.get("rank") or "").strip().lower() in {"reseller", "reseller partner"}
     is_admin = False
     if hasattr(services, "settings") and hasattr(services.settings, "admin_chat_ids"):
@@ -89,7 +90,7 @@ async def show_more_menu(event: Message | CallbackQuery, state: FSMContext, serv
         except Exception:
             is_admin = False
 
-    user_name = escape(tg_user.full_name or tg_user.first_name or "Customer")
+    user_name = escape(getattr(tg_user, "full_name", None) or getattr(tg_user, "first_name", None) or "Customer")
 
     if lang == "bn":
         status_badge = "রিসেলার পার্টনার" if is_reseller else "কাস্টমার"
@@ -208,13 +209,7 @@ async def _save_language_and_return_to_menu(
     with suppress(TelegramBadRequest):
         await event.answer(t("lang_switched_toast", selected))
 
-    message = event.message
-    if isinstance(message, Message):
-        with suppress(TelegramBadRequest):
-            await message.delete()
-        from app.bot.handlers.start import render_main_dashboard
-
-        await render_main_dashboard(message, services, tg_user.id)
+    await show_more_menu(event, state, services)
 
 
 @router.callback_query(F.data == "set_lang_en")
@@ -353,7 +348,7 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
         )
         copy_label = "লিংক কপি করুন"
         share_label = "শেয়ার"
-        back_label = "Back"
+        back_label = "Back" if lang != "bn" else "ব্যাক"
         share_msg = quote(f"{store_name}-এ জয়েন করুন")
 
     buttons: list[list[InlineKeyboardButton]] = [
@@ -370,7 +365,7 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
         [
             InlineKeyboardButton(
                 text=back_label,
-                callback_data="back_to_main",
+                callback_data="open_more",
             ),
         ],
     ]
@@ -1026,8 +1021,9 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
         empty_title = "<b>Orders</b>" if lang != "bn" else "<b>অর্ডার</b>"
         empty_desc = "No orders yet.\nBrowse products to get started." if lang != "bn" else "এখনো কোনো অর্ডার নেই।\nশুরু করতে প্রোডাক্ট ব্রাউজ করুন।"
         text = f"{empty_title}\n\n{empty_desc}"
+        empty_back_text = "Back" if lang != "bn" else "ব্যাক"
         empty_nav = [
-            InlineKeyboardButton(text="Back", callback_data=back_target),
+            InlineKeyboardButton(text=empty_back_text, callback_data=back_target),
         ]
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
