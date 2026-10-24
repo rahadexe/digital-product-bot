@@ -322,7 +322,7 @@ class MenuAndGuideTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIsNotNone(reply_keyboard_bn)
         labels_bn = [button.text for row in reply_keyboard_bn.keyboard for button in row]
-        self.assertIn("🛍 প্রোডাক্টস", labels_bn)
+        self.assertIn("🛍 কেনাকাটা", labels_bn)
         guide_bn = await self._feed(data="open_guide")
         self.assertTrue(any("বট ব্যবহার" in (r.get("text") or "") for r in guide_bn))
 

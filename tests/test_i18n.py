@@ -112,6 +112,8 @@ def test_navigation_texts_include_all_languages():
     assert NAVIGATION_TEXTS["💳 Wallet"] == "deposit"
     assert NAVIGATION_TEXTS["🛍️ Shop"] == "other_products"
     assert NAVIGATION_TEXTS["Shop"] == "other_products"
+    assert NAVIGATION_TEXTS["🛍 Shop"] == "other_products"
+    assert NAVIGATION_TEXTS["🛍 কেনাকাটা"] == "other_products"
     assert NAVIGATION_TEXTS["📦 Orders"] == "orders"
     assert NAVIGATION_TEXTS["🎧 Support"] == "support"
     # Check Bengali
