@@ -146,6 +146,8 @@ SPECS: dict[str, SettingSpec] = {
     "binance_coin": SettingSpec("USDT", _currency_code, 10),
     "binance_pay_id": SettingSpec("12345678", max_length=64),
     "binance_pay_name": SettingSpec("", max_length=100),
+    # SMS / Statement Webhook secret for instant 1-step TrxID deposits
+    "sms_webhook_secret": SettingSpec("", secret=True),
     # Upstream Digital Mart Reseller provider settings
     "upstream_reseller_url": SettingSpec("https://dmb.bmdigital.bd/api/v1/reseller", max_length=256),
     "upstream_reseller_key": SettingSpec("", secret=True),
