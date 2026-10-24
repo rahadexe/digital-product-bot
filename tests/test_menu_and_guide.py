@@ -167,7 +167,7 @@ class MenuAndGuideTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(crashed, [], "menu buttons raised instead of answering")
         self.assertEqual(silent, [], "menu buttons answered with nothing at all")
 
-    async def test_four_compact_buttons_exit_the_transaction_reply_step(self):
+    async def test_all_six_home_buttons_exit_the_transaction_reply_step(self):
         from app.bot.handlers.deposit import DepositStates
         from app.bot.keyboards import get_persistent_reply_keyboard
 
@@ -322,7 +322,7 @@ class MenuAndGuideTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIsNotNone(reply_keyboard_bn)
         labels_bn = [button.text for row in reply_keyboard_bn.keyboard for button in row]
-        self.assertIn("🛍 প্রোডাক্টস", labels_bn)
+        self.assertIn("🛍 কেনাকাটা", labels_bn)
         guide_bn = await self._feed(data="open_guide")
         self.assertTrue(any("বট ব্যবহার" in (r.get("text") or "") for r in guide_bn))
 
@@ -334,7 +334,7 @@ class MenuAndGuideTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIsNotNone(reply_keyboard_en)
         labels_en = [button.text for row in reply_keyboard_en.keyboard for button in row]
-        self.assertIn("🛍 Products", labels_en)
+        self.assertIn("🛍 Shop", labels_en)
 
     async def test_support_and_channels_answer(self):
         for label in ("Support", "Channel"):

@@ -201,17 +201,17 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
 
         text = respond.await_args.args[1]
         keyboard = respond.await_args.args[2]
-        self.assertTrue("👤" in text or "ID:" in text or "More" in text)
+        self.assertIn("<b>Profile</b>", text)
+        self.assertIn("Test Customer", text)
+        self.assertIn("Telegram ID: <code>123</code>", text)
+        self.assertIn("@test_user", text)
+        self.assertNotIn("Balance:", text)
+        self.assertNotIn("Invites:", text)
         callbacks = [btn.callback_data for row in keyboard.inline_keyboard for btn in row]
-        self.assertIn("open_reseller", callbacks)
-        self.assertIn("open_api_hub", callbacks)
-        self.assertIn("open_notifications_hub", callbacks)
-        self.assertIn("open_language_menu", callbacks)
-        self.assertNotIn("open_referral", callbacks)
-        self.assertNotIn("open_help", callbacks)
+        self.assertEqual(callbacks, ["open_more"])
         state.clear.assert_awaited_once()
 
-    async def test_reseller_account_shows_reseller_status(self):
+    async def test_reseller_profile_has_back_to_more(self):
         from types import SimpleNamespace
         from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -248,10 +248,35 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
 
         text = respond.await_args.args[1]
         keyboard = respond.await_args.args[2]
-        self.assertTrue("👤" in text or "ID:" in text or "More" in text)
+        self.assertIn("<b>Profile</b>", text)
+        self.assertIn("Reseller User", text)
+        self.assertIn("Telegram ID: <code>123</code>", text)
         callbacks = [btn.callback_data for row in keyboard.inline_keyboard for btn in row]
-        self.assertIn("open_reseller_hub", callbacks)
-        self.assertIn("open_api_hub", callbacks)
+        self.assertEqual(callbacks, ["open_more"])
+
+    async def test_more_menu_has_profile_settings_and_role_tools(self):
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock, patch
+
+        from app.bot.handlers.profile import show_more_menu
+
+        event = SimpleNamespace(from_user=SimpleNamespace(id=123))
+        state = SimpleNamespace(clear=AsyncMock())
+        services = SimpleNamespace(users=SimpleNamespace(
+            get=AsyncMock(return_value={"rank": "reseller partner"}),
+            get_language=AsyncMock(return_value="en"),
+        ))
+        with patch("app.bot.handlers.profile.respond", new_callable=AsyncMock) as respond:
+            await show_more_menu(event, state, services)
+
+        text, keyboard = respond.await_args.args[1:]
+        self.assertIn("<b>More</b>", text)
+        self.assertNotIn("Balance:", text)
+        callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
+        self.assertEqual(callbacks, [
+            "open_account", "open_language_menu", "open_notifications_hub",
+            "open_api_hub", "open_reseller_hub", "back_to_main",
+        ])
 
     async def test_language_menu_offers_both_languages(self):
         from types import SimpleNamespace
