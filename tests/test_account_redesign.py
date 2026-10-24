@@ -204,9 +204,11 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue("👤" in text or "ID:" in text or "More" in text)
         callbacks = [btn.callback_data for row in keyboard.inline_keyboard for btn in row]
         self.assertIn("open_reseller", callbacks)
+        self.assertIn("open_api_hub", callbacks)
         self.assertIn("open_notifications_hub", callbacks)
-        self.assertIn("open_referral", callbacks)
-        self.assertIn("open_help", callbacks)
+        self.assertIn("open_language_menu", callbacks)
+        self.assertNotIn("open_referral", callbacks)
+        self.assertNotIn("open_help", callbacks)
         state.clear.assert_awaited_once()
 
     async def test_reseller_account_shows_reseller_status(self):
