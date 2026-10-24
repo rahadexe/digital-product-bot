@@ -159,6 +159,12 @@ async def show_more_menu(event: Message | CallbackQuery, state: FSMContext, serv
             f"🎁 ইনভাইট: <b>{total_invited}</b>",
             f"💵 আয়: <code>{earned_str}</code>",
         ]
+        if ref_link:
+            lines.extend([
+                "",
+                "🔗 রেফারেল লিংক:",
+                f"<code>{ref_link}</code>",
+            ])
         text = "\n".join(lines)
     else:
         lines = [
@@ -170,6 +176,12 @@ async def show_more_menu(event: Message | CallbackQuery, state: FSMContext, serv
             f"🎁 Invites: <b>{total_invited}</b>",
             f"💵 Earned: <code>{earned_str}</code>",
         ]
+        if ref_link:
+            lines.extend([
+                "",
+                "🔗 Referral Link:",
+                f"<code>{ref_link}</code>",
+            ])
         text = "\n".join(lines)
 
     keyboard = get_more_inline_keyboard(lang=lang, is_reseller=is_reseller, is_admin=is_admin)
