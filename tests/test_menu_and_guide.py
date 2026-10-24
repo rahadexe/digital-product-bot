@@ -334,7 +334,7 @@ class MenuAndGuideTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIsNotNone(reply_keyboard_en)
         labels_en = [button.text for row in reply_keyboard_en.keyboard for button in row]
-        self.assertIn("🛍 Products", labels_en)
+        self.assertIn("🛍 Shop", labels_en)
 
     async def test_support_and_channels_answer(self):
         for label in ("Support", "Channel"):
