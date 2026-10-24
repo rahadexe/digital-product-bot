@@ -55,7 +55,6 @@ from app.bot.icons import (
     Icons,
 )
 from app.bot.keyboards import (
-    get_account_keyboard,
     get_language_selection_keyboard,
     get_more_inline_keyboard,
     get_notification_settings_keyboard,
@@ -72,7 +71,7 @@ INLINE_CREDENTIAL_LIMIT = 500
 
 @router.callback_query(F.data == "open_more")
 async def show_more_menu(event: Message | CallbackQuery, state: FSMContext, services: Services):
-    """Unified secondary account, support, language and operator actions hub."""
+    """Show secondary account options without repeating wallet or referral details."""
     await state.clear()
     tg_user = event.from_user
     if not tg_user:
@@ -80,111 +79,19 @@ async def show_more_menu(event: Message | CallbackQuery, state: FSMContext, serv
 
     user = (await services.users.get(tg_user.id)) if hasattr(services.users, "get") else {}
     user = user or {}
-    lang = (await services.users.get_language(tg_user.id)) if hasattr(services.users, "get_language") else "en"
+    lang = (
+        await services.users.get_language(tg_user.id)
+        if hasattr(services.users, "get_language")
+        else "en"
+    )
     is_reseller = (user.get("rank") or "").strip().lower() in {"reseller", "reseller partner"}
-    is_admin = False
-    if hasattr(services, "settings") and hasattr(services.settings, "admin_chat_ids"):
-        try:
-            admin_ids = await services.settings.admin_chat_ids()
-            is_admin = tg_user.id in admin_ids
-        except Exception:
-            is_admin = False
-
-    user_name = escape(getattr(tg_user, "first_name", None) or "there")
-    user_id = getattr(tg_user, "id", 0)
-    raw_username = getattr(tg_user, "username", None)
-    clean_username = f"@{raw_username.lstrip('@')}" if raw_username else "N/A"
-
-    symbol = "৳"
-    usd_rate = 125.0
-    show_usd = False
-    if hasattr(services, "settings"):
-        try:
-            sym_val = await services.settings.get("currency_symbol")
-            symbol = (sym_val or "৳").strip()
-            usd_rate = await services.settings.number("usd_rate")
-            show_usd = await services.settings.flag("show_usd_price")
-        except Exception:
-            pass
-
-    user_balance = float(user.get("balance", 0.0)) if user else 0.0
-    if lang == "en" and show_usd and usd_rate and usd_rate > 0:
-        usd = round(user_balance / usd_rate, 2)
-        balance_str = f"${usd:g}" if usd == int(usd) else f"${usd:.2f}"
-    else:
-        balance_str = f"{symbol}{user_balance:g}" if user_balance == int(user_balance) else f"{symbol}{user_balance:.2f}"
-
-    total_invited = 0
-    total_earned = 0.0
-    if hasattr(services, "db") and services.db:
-        try:
-            async with services.db.connect() as conn:
-                row = await conn.fetchrow(
-                    """
-                    SELECT
-                        COUNT(*) AS total_invited,
-                        COALESCE(SUM(amount), 0) AS total_earned
-                    FROM referral_rewards
-                    WHERE referrer_tg_id = $1
-                    """,
-                    tg_user.id,
-                )
-                if row:
-                    total_invited = int(row["total_invited"] or 0)
-                    total_earned = float(row["total_earned"] or 0.0)
-        except Exception:
-            pass
-
-    if lang == "en" and show_usd and usd_rate and usd_rate > 0:
-        usd_earned = round(total_earned / usd_rate, 2)
-        earned_str = f"${usd_earned:g}" if usd_earned == int(usd_earned) else f"${usd_earned:.2f}"
-    else:
-        earned_str = f"{symbol}{total_earned:g}" if total_earned == int(total_earned) else f"{symbol}{total_earned:.2f}"
-
-    bot_user = ""
-    if hasattr(services, "notifier") and hasattr(services.notifier, "bot_username"):
-        try:
-            bot_user = await services.notifier.bot_username()
-        except Exception:
-            bot_user = ""
-    ref_link = f"https://t.me/{bot_user}?start={tg_user.id}" if bot_user else ""
 
     if lang == "bn":
-        lines = [
-            f"👤 <b>{user_name}</b>",
-            f"আইডি: <code>{user_id}</code>",
-            f"ইউজারনেম: {clean_username}",
-            "",
-            f"💰 ব্যালেন্স: <code>{balance_str}</code>",
-            f"🎁 ইনভাইট: <b>{total_invited}</b>",
-            f"💵 আয়: <code>{earned_str}</code>",
-        ]
-        if ref_link:
-            lines.extend([
-                "",
-                "🔗 রেফারেল লিংক:",
-                f"<code>{ref_link}</code>",
-            ])
-        text = "\n".join(lines)
+        text = "✨ <b>আরও</b>\n\nপ্রোফাইল, ভাষা, নোটিফিকেশন ও অন্যান্য সুবিধা বেছে নিন।"
     else:
-        lines = [
-            f"👤 <b>{user_name}</b>",
-            f"ID: <code>{user_id}</code>",
-            f"Username: {clean_username}",
-            "",
-            f"💰 Balance: <code>{balance_str}</code>",
-            f"🎁 Invites: <b>{total_invited}</b>",
-            f"💵 Earned: <code>{earned_str}</code>",
-        ]
-        if ref_link:
-            lines.extend([
-                "",
-                "🔗 Referral Link:",
-                f"<code>{ref_link}</code>",
-            ])
-        text = "\n".join(lines)
+        text = "✨ <b>More</b>\n\nProfile, language, notifications, and other services."
 
-    keyboard = get_more_inline_keyboard(lang=lang, is_reseller=is_reseller, is_admin=is_admin)
+    keyboard = get_more_inline_keyboard(lang=lang, is_reseller=is_reseller)
     await respond(event, text, keyboard)
 
 
@@ -258,8 +165,51 @@ def reseller_api_links(config) -> tuple[str, list[list[InlineKeyboardButton]]]:
 @router.message(F.text.casefold() == "account and refer")
 @router.callback_query(F.data == "open_account")
 async def show_user_profile(event: Message | CallbackQuery, state: FSMContext, services: Services):
-    """Unified profile routed into More hub."""
-    await show_more_menu(event, state, services)
+    """Show basic Telegram identity details from the More hub."""
+    await state.clear()
+    tg_user = event.from_user
+    if not tg_user:
+        return
+
+    lang = (
+        await services.users.get_language(tg_user.id)
+        if hasattr(services.users, "get_language")
+        else "en"
+    )
+    name = escape(
+        getattr(tg_user, "full_name", None)
+        or getattr(tg_user, "first_name", None)
+        or "User"
+    )
+    user_id = getattr(tg_user, "id", 0)
+    raw_username = getattr(tg_user, "username", None)
+    username = (
+        f"@{raw_username.lstrip('@')}"
+        if raw_username
+        else ("সেট করা নেই" if lang == "bn" else "Not set")
+    )
+
+    if lang == "bn":
+        text = (
+            f"👤 <b>প্রোফাইল</b>\n\n"
+            f"নাম: <b>{name}</b>\n"
+            f"টেলিগ্রাম আইডি: <code>{user_id}</code>\n"
+            f"ইউজারনেম: <code>{username}</code>"
+        )
+        back_label = "🔙 ফিরে যান"
+    else:
+        text = (
+            f"👤 <b>Profile</b>\n\n"
+            f"Name: <b>{name}</b>\n"
+            f"Telegram ID: <code>{user_id}</code>\n"
+            f"Username: <code>{username}</code>"
+        )
+        back_label = "🔙 Back"
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text=back_label, callback_data="open_more")]]
+    )
+    await respond(event, text, keyboard)
 
 
 @router.message(Command("language"))

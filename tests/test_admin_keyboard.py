@@ -101,11 +101,12 @@ class AdminKeyboard(unittest.IsolatedAsyncioTestCase):
                 return [b.text for row in item['markup'].keyboard for b in row]
         return []
 
-    async def test_admin_action_is_fifth_home_button_and_not_in_more(self):
+    async def test_admin_action_stays_on_separate_row_and_out_of_more(self):
         sent = await self.tap(OWNER, text='/start')
         markup = next(i['markup'] for i in sent if isinstance(i['markup'], ReplyKeyboardMarkup))
         self.assertEqual([[b.text for b in row] for row in markup.keyboard], [
-            ["🛍 Products", "👤 Profile"], ["💰 Wallet", "💬 Support"], ["🛡 Admin Panel"],
+            ["🛍 Shop", "💰 Wallet"], ["📦 Orders", "🎁 Referral"],
+            ["💬 Support", "✨ More"], ["🛡 Admin Panel"],
         ])
         more = await self.tap(OWNER, text="✨ More")
         more_markup = next(i['markup'] for i in more if isinstance(i['markup'], InlineKeyboardMarkup))

@@ -67,9 +67,9 @@ def test_language_specific_currency_formatting():
 def test_keyboards_all_languages():
     for lang in ["en", "bn"]:
         main_kb = get_main_inline_keyboard(lang=lang, is_admin=False)
-        assert len(main_kb.inline_keyboard) == 2
+        assert len(main_kb.inline_keyboard) == 3
         admin_kb = get_main_inline_keyboard(lang=lang, is_admin=True)
-        assert len(admin_kb.inline_keyboard) == 3
+        assert len(admin_kb.inline_keyboard) == 4
         admin_callbacks = [btn.callback_data for row in admin_kb.inline_keyboard for btn in row]
         assert "adm_dashboard" in admin_callbacks
         more_kb = get_more_inline_keyboard(lang=lang, is_admin=True, is_reseller=True)
@@ -77,14 +77,14 @@ def test_keyboards_all_languages():
         assert "adm_dashboard" not in more_callbacks
         assert "open_reseller_hub" in more_callbacks
         kb = get_persistent_reply_keyboard(is_reseller=False, is_admin=False, lang=lang)
-        assert len(kb.keyboard) == 2
+        assert len(kb.keyboard) == 3
         assert kb.is_persistent is False
         assert kb.resize_keyboard is True
         kb_admin = get_persistent_reply_keyboard(is_reseller=False, is_admin=True, lang=lang)
-        assert len(kb_admin.keyboard) == 3
+        assert len(kb_admin.keyboard) == 4
         assert kb_admin.keyboard[-1][0].text == ("🛡 অ্যাডমিন প্যানেল" if lang == "bn" else "🛡 Admin Panel")
         kb_cats = get_persistent_reply_keyboard(pinned_categories=[{"name": "VPN", "icon": "🛡️"}], lang=lang)
-        assert len(kb_cats.keyboard) == 2
+        assert len(kb_cats.keyboard) == 3
         account_kb = get_account_keyboard(lang=lang, is_admin=False)
         assert len(account_kb.inline_keyboard) > 0
         assert any(

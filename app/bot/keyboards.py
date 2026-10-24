@@ -68,12 +68,14 @@ def _catalog_button_name(name: str, icon: str, custom_id: str) -> str:
 
 
 def _customer_menu(lang: str = "en", show_icons: bool = True) -> list[tuple[str, str]]:
-    """Keep the four primary customer actions aligned across keyboard types (2x2 grid)."""
+    """Six customer actions ordered for a compact 2-column home menu."""
     items = [
-        ("🛍", "Products", "প্রোডাক্টস", "open_categories"),
-        ("👤", "Profile", "প্রোফাইল", "open_account"),
+        ("🛍", "Shop", "কেনাকাটা", "open_categories"),
         ("💰", "Wallet", "ওয়ালেট", "open_wallet"),
+        ("📦", "Orders", "অর্ডারস", "open_orders"),
+        ("🎁", "Referral", "রেফারেল", "open_referral"),
         ("💬", "Support", "সাপোর্ট", "open_help"),
+        ("✨", "More", "আরও", "open_more"),
     ]
     return [
         (f"{icon} {bn if lang == 'bn' else en}" if show_icons else (bn if lang == "bn" else en), callback)
@@ -97,13 +99,13 @@ def get_main_inline_keyboard(
     usd_rate: float | None = None,
     show_usd: bool = False,
 ) -> InlineKeyboardMarkup:
-    """2x2 customer actions, with an admin-only action when authorized."""
+    """2x3 customer actions, with an admin-only action when authorized."""
     menu = _customer_menu(lang)
     customer_buttons = [
         InlineKeyboardButton(text=label, callback_data=callback)
         for label, callback in menu
     ]
-    rows = [customer_buttons[:2], customer_buttons[2:]]
+    rows = [customer_buttons[i:i + 2] for i in range(0, len(customer_buttons), 2)]
     if is_admin:
         rows.append([InlineKeyboardButton(text=_admin_panel_label(lang), callback_data="adm_dashboard")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
@@ -114,32 +116,41 @@ def get_more_inline_keyboard(
     is_reseller: bool = False,
     is_admin: bool = False,
 ) -> InlineKeyboardMarkup:
-    """Consolidated secondary hub: Reseller, API, Notifications, and Language."""
+    """Secondary hub for profile, preferences, and less-frequent services."""
     if lang == "bn":
+        profile_label = "👤 প্রোফাইল"
         notif_label = "🔔 নোটিফিকেশন"
         language_label = "🌐 ভাষা"
         reseller_label = "💼 রিসেলার হাব" if is_reseller else "💼 রিসেলার"
         api_label = "⚡ এপিআই"
+        back_label = "🔙 ফিরে যান"
     else:
+        profile_label = "👤 Profile"
         notif_label = "🔔 Notifications"
         language_label = "🌐 Language"
         reseller_label = "💼 Reseller Hub" if is_reseller else "💼 Reseller"
         api_label = "⚡ API"
+        back_label = "🔙 Back"
 
-    rows = [
-        [
-            InlineKeyboardButton(
-                text=reseller_label,
-                callback_data="open_reseller_hub" if is_reseller else "open_reseller"
-            ),
-            InlineKeyboardButton(text=api_label, callback_data="open_api_hub"),
-        ],
-        [
-            InlineKeyboardButton(text=notif_label, callback_data="open_notifications_hub"),
-            InlineKeyboardButton(text=language_label, callback_data="open_language_menu"),
-        ],
-    ]
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text=profile_label, callback_data="open_account"),
+                InlineKeyboardButton(text=language_label, callback_data="open_language_menu"),
+            ],
+            [
+                InlineKeyboardButton(text=notif_label, callback_data="open_notifications_hub"),
+                InlineKeyboardButton(text=api_label, callback_data="open_api_hub"),
+            ],
+            [
+                InlineKeyboardButton(
+                    text=reseller_label,
+                    callback_data="open_reseller_hub" if is_reseller else "open_reseller",
+                ),
+                InlineKeyboardButton(text=back_label, callback_data="back_to_main"),
+            ],
+        ]
+    )
 
 
 def get_persistent_reply_keyboard(
@@ -150,10 +161,10 @@ def get_persistent_reply_keyboard(
     lang: str = "en",
     show_icons: bool = True,
 ) -> ReplyKeyboardMarkup:
-    """2x2 customer actions; admins additionally get a private shortcut."""
+    """2x3 customer actions; admins additionally get a private shortcut."""
     menu = _customer_menu(lang, show_icons)
     customer_buttons = [KeyboardButton(text=label) for label, _ in menu]
-    rows = [customer_buttons[:2], customer_buttons[2:]]
+    rows = [customer_buttons[i:i + 2] for i in range(0, len(customer_buttons), 2)]
     if is_admin:
         rows.append([KeyboardButton(text=_admin_panel_label(lang, show_icons))])
     return ReplyKeyboardMarkup(
