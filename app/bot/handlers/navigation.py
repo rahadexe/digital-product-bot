@@ -363,6 +363,8 @@ NAVIGATION_TEXTS.update({
     "💰 আমার ব্যালেন্স": "deposit", "আমার ব্যালেন্স": "deposit",
     "✨ More": "more", "☰ More": "more", "More": "more", "MORE": "more",
     "✨ আরও": "more", "✨️ আরও": "more", "☰ আরও": "more", "আরও": "more",
+    "💬 Support": "support", "💬️ Support": "support", "Support": "support", "SUPPORT": "support",
+    "💬 সাপোর্ট": "support", "💬️ সাপোর্ট": "support", "সাপোর্ট": "support",
     "🛍 প্রোডাক্টস": "shop", "🛍️ প্রোডাক্টস": "shop", "প্রোডাক্টস": "shop",
     "🛍 প্রোডাক্ট": "shop", "🛍️ প্রোডাক্ট": "shop", "প্রোডাক্ট": "shop",
     "💰 ওয়ালেট": "deposit", "💰️ ওয়ালেট": "deposit", "ওয়ালেট": "deposit",
