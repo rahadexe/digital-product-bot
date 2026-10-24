@@ -73,8 +73,8 @@ def _customer_menu(lang: str = "en", show_icons: bool = True) -> list[tuple[str,
         ("🛍", "Products", "প্রোডাক্টস", "open_categories"),
         ("💰", "Wallet", "ওয়ালেট", "open_wallet"),
         ("📦", "Orders", "অর্ডারস", "open_orders"),
-        ("🎁", "Referral", "রেফারেল", "open_referral"),
         ("💬", "Support", "সাপোর্ট", "open_help"),
+        ("🎁", "Referral", "রেফারেল", "open_referral"),
         ("✨", "More", "আরও", "open_more"),
     ]
     return [
@@ -116,27 +116,19 @@ def get_more_inline_keyboard(
     is_reseller: bool = False,
     is_admin: bool = False,
 ) -> InlineKeyboardMarkup:
-    """Consolidated secondary hub: Referral, Help, Notifications, Language, API, and Reseller."""
+    """Consolidated secondary hub: Reseller, API, Notifications, and Language."""
     if lang == "bn":
-        referral_label = "🎁 রেফারেল"
-        help_label = "💬 সাহায্য"
         notif_label = "🔔 নোটিফিকেশন"
         language_label = "🌐 ভাষা"
         reseller_label = "💼 রিসেলার হাব" if is_reseller else "💼 রিসেলার"
         api_label = "⚡ এপিআই"
     else:
-        referral_label = "🎁 Referral"
-        help_label = "💬 Help"
         notif_label = "🔔 Notifications"
         language_label = "🌐 Language"
         reseller_label = "💼 Reseller Hub" if is_reseller else "💼 Reseller"
         api_label = "⚡ API"
 
     rows = [
-        [
-            InlineKeyboardButton(text=help_label, callback_data="open_help"),
-            InlineKeyboardButton(text=referral_label, callback_data="open_referral"),
-        ],
         [
             InlineKeyboardButton(
                 text=reseller_label,

@@ -50,11 +50,11 @@ def test_four_primary_buttons_are_short_and_routable():
     labels = [[b.text for b in row] for row in reply.keyboard]
     assert labels == [
         ["🛍 Products", "💰 Wallet", "📦 Orders"],
-        ["🎁 Referral", "💬 Support", "✨ More"],
+        ["💬 Support", "🎁 Referral", "✨ More"],
     ]
     assert labels == [[b.text for b in row] for row in inline.inline_keyboard]
     assert [NAVIGATION_TEXTS[b.text] for row in reply.keyboard for b in row] == [
-        "shop", "deposit", "orders", "referral", "support", "more",
+        "shop", "deposit", "orders", "support", "referral", "more",
     ]
     assert all(len(b.text) <= 12 for row in reply.keyboard for b in row)
 
@@ -76,7 +76,6 @@ def test_more_menu_keeps_secondary_and_reseller_actions_available():
     buttons = [button for row in keyboard.inline_keyboard for button in row]
     callbacks = [button.callback_data for button in buttons]
     assert callbacks == [
-        "open_help", "open_referral",
         "open_reseller_hub", "open_api_hub",
         "open_notifications_hub", "open_language_menu",
     ]
