@@ -208,10 +208,10 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("Balance:", text)
         self.assertNotIn("Invites:", text)
         callbacks = [btn.callback_data for row in keyboard.inline_keyboard for btn in row]
-        self.assertEqual(callbacks, ["open_more"])
+        self.assertEqual(callbacks, ["back_to_main"])
         state.clear.assert_awaited_once()
 
-    async def test_reseller_profile_has_back_to_more(self):
+    async def test_reseller_profile_returns_to_main(self):
         from types import SimpleNamespace
         from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -252,9 +252,9 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Reseller User", text)
         self.assertIn("Telegram ID: <code>123</code>", text)
         callbacks = [btn.callback_data for row in keyboard.inline_keyboard for btn in row]
-        self.assertEqual(callbacks, ["open_more"])
+        self.assertEqual(callbacks, ["back_to_main"])
 
-    async def test_more_menu_has_profile_settings_and_role_tools(self):
+    async def test_more_menu_has_only_settings_and_role_tools(self):
         from types import SimpleNamespace
         from unittest.mock import AsyncMock, patch
 
@@ -272,11 +272,13 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
         text, keyboard = respond.await_args.args[1:]
         self.assertIn("<b>More</b>", text)
         self.assertNotIn("Balance:", text)
+        self.assertNotIn("Profile", text)
         callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
         self.assertEqual(callbacks, [
-            "open_account", "open_language_menu", "open_notifications_hub",
-            "open_api_hub", "open_reseller_hub", "back_to_main",
+            "open_language_menu", "open_notifications_hub",
+            "open_api_hub", "open_reseller_hub",
         ])
+        self.assertEqual([len(row) for row in keyboard.inline_keyboard], [2, 2])
 
     async def test_language_menu_offers_both_languages(self):
         from types import SimpleNamespace
@@ -399,7 +401,8 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("https://t.me/test_bot?start=999", text)
 
         button_texts = [btn.text for row in kb.inline_keyboard for btn in row]
-        self.assertEqual(button_texts, ["Copy Link", "Share", "Back"])
+        self.assertEqual(button_texts, ["Copy Link", "Share"])
+        self.assertTrue(all(btn.callback_data is None for row in kb.inline_keyboard for btn in row))
 
     async def test_orders_history_clean_header_and_no_order_id_in_buttons(self):
         from types import SimpleNamespace

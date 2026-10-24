@@ -87,9 +87,9 @@ async def show_more_menu(event: Message | CallbackQuery, state: FSMContext, serv
     is_reseller = (user.get("rank") or "").strip().lower() in {"reseller", "reseller partner"}
 
     if lang == "bn":
-        text = "✨ <b>আরও</b>\n\nপ্রোফাইল, ভাষা, নোটিফিকেশন ও অন্যান্য সুবিধা বেছে নিন।"
+        text = "✨ <b>আরও</b>\n\nভাষা, নোটিফিকেশন, এপিআই ও রিসেলার সুবিধা।"
     else:
-        text = "✨ <b>More</b>\n\nProfile, language, notifications, and other services."
+        text = "✨ <b>More</b>\n\nLanguage, notifications, API, and reseller options."
 
     keyboard = get_more_inline_keyboard(lang=lang, is_reseller=is_reseller)
     await respond(event, text, keyboard)
@@ -165,7 +165,7 @@ def reseller_api_links(config) -> tuple[str, list[list[InlineKeyboardButton]]]:
 @router.message(F.text.casefold() == "account and refer")
 @router.callback_query(F.data == "open_account")
 async def show_user_profile(event: Message | CallbackQuery, state: FSMContext, services: Services):
-    """Show basic Telegram identity details from the More hub."""
+    """Show basic Telegram identity details for legacy profile commands."""
     await state.clear()
     tg_user = event.from_user
     if not tg_user:
@@ -196,7 +196,7 @@ async def show_user_profile(event: Message | CallbackQuery, state: FSMContext, s
             f"টেলিগ্রাম আইডি: <code>{user_id}</code>\n"
             f"ইউজারনেম: <code>{username}</code>"
         )
-        back_label = "🔙 ফিরে যান"
+        back_label = "🏠 মেইন মেনু"
     else:
         text = (
             f"👤 <b>Profile</b>\n\n"
@@ -204,10 +204,10 @@ async def show_user_profile(event: Message | CallbackQuery, state: FSMContext, s
             f"Telegram ID: <code>{user_id}</code>\n"
             f"Username: <code>{username}</code>"
         )
-        back_label = "🔙 Back"
+        back_label = "🏠 Main Menu"
 
     keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text=back_label, callback_data="open_more")]]
+        inline_keyboard=[[InlineKeyboardButton(text=back_label, callback_data="back_to_main")]]
     )
     await respond(event, text, keyboard)
 
@@ -369,7 +369,6 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
         )
         copy_label = "Copy Link"
         share_label = "Share"
-        back_label = "Back"
         share_msg = quote(f"Join {store_name}")
     else:
         reward_line = (
@@ -387,7 +386,6 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
         )
         copy_label = "লিংক কপি করুন"
         share_label = "শেয়ার"
-        back_label = "Back" if lang != "bn" else "ব্যাক"
         share_msg = quote(f"{store_name}-এ জয়েন করুন")
 
     buttons: list[list[InlineKeyboardButton]] = [
@@ -399,12 +397,6 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
             InlineKeyboardButton(
                 text=share_label,
                 url=f"https://t.me/share/url?url={quote(ref_link, safe='')}&text={share_msg}",
-            ),
-        ],
-        [
-            InlineKeyboardButton(
-                text=back_label,
-                callback_data="open_more",
             ),
         ],
     ]
