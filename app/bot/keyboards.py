@@ -68,14 +68,12 @@ def _catalog_button_name(name: str, icon: str, custom_id: str) -> str:
 
 
 def _customer_menu(lang: str = "en", show_icons: bool = True) -> list[tuple[str, str]]:
-    """Keep the six primary customer actions aligned across keyboard types."""
+    """Keep the four primary customer actions aligned across keyboard types (2x2 grid)."""
     items = [
         ("🛍", "Products", "প্রোডাক্টস", "open_categories"),
+        ("👤", "Profile", "প্রোফাইল", "open_account"),
         ("💰", "Wallet", "ওয়ালেট", "open_wallet"),
-        ("📦", "Orders", "অর্ডারস", "open_orders"),
         ("💬", "Support", "সাপোর্ট", "open_help"),
-        ("🎁", "Referral", "রেফারেল", "open_referral"),
-        ("✨", "More", "আরও", "open_more"),
     ]
     return [
         (f"{icon} {bn if lang == 'bn' else en}" if show_icons else (bn if lang == "bn" else en), callback)
@@ -99,13 +97,13 @@ def get_main_inline_keyboard(
     usd_rate: float | None = None,
     show_usd: bool = False,
 ) -> InlineKeyboardMarkup:
-    """3+3 customer actions, with an admin-only action when authorized."""
+    """2x2 customer actions, with an admin-only action when authorized."""
     menu = _customer_menu(lang)
     customer_buttons = [
         InlineKeyboardButton(text=label, callback_data=callback)
         for label, callback in menu
     ]
-    rows = [customer_buttons[:3], customer_buttons[3:]]
+    rows = [customer_buttons[:2], customer_buttons[2:]]
     if is_admin:
         rows.append([InlineKeyboardButton(text=_admin_panel_label(lang), callback_data="adm_dashboard")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
@@ -152,10 +150,10 @@ def get_persistent_reply_keyboard(
     lang: str = "en",
     show_icons: bool = True,
 ) -> ReplyKeyboardMarkup:
-    """3+3 customer actions; admins additionally get a private shortcut."""
+    """2x2 customer actions; admins additionally get a private shortcut."""
     menu = _customer_menu(lang, show_icons)
     customer_buttons = [KeyboardButton(text=label) for label, _ in menu]
-    rows = [customer_buttons[:3], customer_buttons[3:]]
+    rows = [customer_buttons[:2], customer_buttons[2:]]
     if is_admin:
         rows.append([KeyboardButton(text=_admin_panel_label(lang, show_icons))])
     return ReplyKeyboardMarkup(
