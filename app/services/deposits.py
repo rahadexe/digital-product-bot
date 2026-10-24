@@ -513,6 +513,66 @@ class DepositService:
             )
             return dict(row) if row else None
 
+    async def record_received_transaction(
+        self,
+        transaction_id: str,
+        amount: float,
+        provider: str = "bKash",
+        sender_number: str = "",
+        raw_message: str = "",
+    ) -> dict[str, Any] | None:
+        """Store an incoming payment statement received via SMS forwarder or statement webhook."""
+        clean_tx = str(transaction_id).strip()
+        amt = money(amount, positive=True)
+        async with self.db.connect() as conn:
+            row = await conn.fetchrow(
+                """
+                INSERT INTO received_transactions (transaction_id, amount, provider, sender_number, raw_message, status)
+                VALUES ($1, $2, $3, $4, $5, 'unused')
+                ON CONFLICT (lower(btrim(transaction_id))) DO NOTHING
+                RETURNING *
+                """,
+                clean_tx,
+                amt,
+                provider,
+                sender_number,
+                raw_message,
+            )
+            return dict(row) if row else None
+
+    async def get_unused_received_transaction(self, transaction_id: str) -> dict[str, Any] | None:
+        """Retrieve an unconsumed payment statement for this transaction ID."""
+        clean_tx = str(transaction_id).strip()
+        async with self.db.connect() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT * FROM received_transactions
+                WHERE lower(btrim(transaction_id)) = lower(btrim($1)) AND status = 'unused'
+                LIMIT 1
+                """,
+                clean_tx,
+            )
+            return dict(row) if row else None
+
+    async def claim_received_transaction(
+        self, transaction_id: str, tg_user_id: int, deposit_id: int
+    ) -> bool:
+        """Atomically lock and mark a received statement as used."""
+        clean_tx = str(transaction_id).strip()
+        async with self.db.connect() as conn:
+            updated = await conn.fetchval(
+                """
+                UPDATE received_transactions
+                SET status = 'used', used_by_tg_id = $1, used_at = now(), deposit_id = $2
+                WHERE lower(btrim(transaction_id)) = lower(btrim($3)) AND status = 'unused'
+                RETURNING id
+                """,
+                tg_user_id,
+                deposit_id,
+                clean_tx,
+            )
+            return bool(updated)
+
     async def list(self, status: str | None = None, limit: int = 50, offset: int = 0, search: str | None = None) -> tuple[list[dict[str, Any]], int, dict[str, Any]]:
         where_clauses: list[str] = []
         params: list[Any] = []

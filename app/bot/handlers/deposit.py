@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import math
 import re
@@ -1487,8 +1488,15 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         asyncio.create_task(_delete_user_message(message))
     await state.update_data(manual_txid=clean_tx)
     if data.get("reference_first") and not (data.get("pay_amount") or amount_num):
-        # Do not invent an amount or weaken gateway verification. The configured
-        # provider needs the amount as well as the reference, so retain the ID.
+        # 1. Check if an incoming statement was already captured via SMS forwarder or statement webhook
+        received_tx = await _get_unused_statement(services, clean_tx)
+        if received_tx:
+            auto_amt = float(received_tx["amount"])
+            await state.update_data(manual_amount=auto_amt, pay_amount=auto_amt)
+            await execute_deposit_submission(message, state, services)
+            return
+
+        # 2. Safe fallback: prompt for the amount if statement has not arrived yet
         await state.set_state(DepositStates.waiting_for_amount)
         unit = "USDT" if is_binance else "BDT"
         example = max(float(data.get("min_deposit") or 1.0), 1.0 if is_binance else 50.0)
@@ -1545,6 +1553,29 @@ async def cancel_deposit_callback(query: CallbackQuery, state: FSMContext, servi
         await show_deposit_methods(query.message, state, services)
     else:
         await show_deposit_methods(query, state, services)
+
+
+async def _get_unused_statement(services: Services, clean_tx: str) -> dict[str, Any] | None:
+    if not hasattr(services, "deposits") or not hasattr(services.deposits, "get_unused_received_transaction"):
+        return None
+    fn = getattr(services.deposits, "get_unused_received_transaction")
+    if not callable(fn):
+        return None
+    res = fn(clean_tx)
+    if inspect.isawaitable(res):
+        res = await res
+    return res if isinstance(res, dict) else None
+
+
+async def _claim_statement(services: Services, clean_tx: str, user_id: int, dep_id: int) -> None:
+    if not hasattr(services, "deposits") or not hasattr(services.deposits, "claim_received_transaction"):
+        return
+    fn = getattr(services.deposits, "claim_received_transaction")
+    if not callable(fn):
+        return
+    res = fn(clean_tx, user_id, dep_id)
+    if inspect.isawaitable(res):
+        await res
 
 
 async def _safe_edit_or_answer(status_msg: Message, user_msg: Message, text: str, reply_markup=None):
@@ -1708,6 +1739,56 @@ async def execute_deposit_submission(
     if is_binance:
         await claim_binance_payment(user_msg, state, services, method_id, clean_tx, expected_usdt=credit_amount, status_msg=status_msg)
         return
+
+    # 3.5 Statement / SMS Sync Instant Approval Flow
+    received_tx = await _get_unused_statement(services, clean_tx)
+    if received_tx:
+        auto_amt = float(received_tx["amount"])
+        credit_amount = auto_amt
+        actual_pay = auto_amt
+        amt_display = f"৳{actual_pay:g}"
+
+        try:
+            dep_id = await services.deposits.create_request(
+                tg_user_id=user_id,
+                method_id=method_id,
+                amount=credit_amount,
+                transaction_id=clean_tx,
+                pay_amount=actual_pay,
+                quoted_rate=1.0,
+                admin_note="Auto-verified via Instant Statement Sync",
+                notify_admin=True,
+            )
+            ok, err, details = await services.deposits.approve(
+                dep_id,
+                admin_note="Auto-verified via Instant Statement Sync",
+                notify_customer=False,
+            )
+            if ok:
+                await _claim_statement(services, clean_tx, user_id, dep_id)
+                await services.deposits.clear_verification_failures(user_id)
+                await state.clear()
+                user = await services.users.get(user_id)
+                user_balance = float(user.get("balance", 0.0)) if user else 0.0
+                keyboard = get_deposit_status_keyboard(dep_id=dep_id, status="approved", lang=lang)
+                success_txt = (
+                    f"✅ <b>ডিপোজিট সফল হয়েছে!</b>\n"
+                    f"মেথড: <b>{escape(method_name)}</b> (<code>{amt_display}</code>)\n"
+                    f"বর্তমান ব্যালেন্স: <code>৳{user_balance:.2f}</code>"
+                ) if lang == "bn" else (
+                    f"✅ <b>Deposit Successful!</b>\n"
+                    f"Method: <b>{escape(method_name)}</b> (<code>{amt_display}</code>)\n"
+                    f"Current Balance: <code>৳{user_balance:.2f}</code>"
+                )
+                await _safe_edit_or_answer(status_msg, user_msg, success_txt, reply_markup=keyboard)
+                return
+        except DuplicateTransactionError:
+            lang = await services.users.get_language(user_id)
+            text = "❌ এই TrxID আগেই ব্যবহার করা হয়েছে।" if lang == "bn" else "❌ This TrxID has already been used. Send a new one."
+            await _retry_payment_input(status_msg, user_msg, state, text)
+            return
+        except Exception as exc:
+            logger.warning("Statement sync claim error: %s", exc)
 
     # 4. ZiniPay Flow
     method_data = await services.deposits.get_method(method_id) if method_id else None
