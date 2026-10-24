@@ -151,7 +151,7 @@ async def show_more_menu(event: Message | CallbackQuery, state: FSMContext, serv
 
     if lang == "bn":
         lines = [
-            f"ইউজার: <b>{user_name}</b>",
+            f"👤 <b>{user_name}</b>",
             f"আইডি: <code>{user_id}</code>",
             f"ইউজারনেম: {clean_username}",
             "",
@@ -168,7 +168,7 @@ async def show_more_menu(event: Message | CallbackQuery, state: FSMContext, serv
         text = "\n".join(lines)
     else:
         lines = [
-            f"User: <b>{user_name}</b>",
+            f"👤 <b>{user_name}</b>",
             f"ID: <code>{user_id}</code>",
             f"Username: {clean_username}",
             "",
