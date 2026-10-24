@@ -68,11 +68,12 @@ def _catalog_button_name(name: str, icon: str, custom_id: str) -> str:
 
 
 def _customer_menu(lang: str = "en", show_icons: bool = True) -> list[tuple[str, str]]:
-    """Keep the five primary customer actions aligned across keyboard types."""
+    """Keep the six primary customer actions aligned across keyboard types."""
     items = [
         ("🛍", "Products", "প্রোডাক্টস", "open_categories"),
         ("💰", "Wallet", "ওয়ালেট", "open_wallet"),
         ("📦", "Orders", "অর্ডারস", "open_orders"),
+        ("🎁", "Referral", "রেফারেল", "open_referral"),
         ("💬", "Support", "সাপোর্ট", "open_help"),
         ("✨", "More", "আরও", "open_more"),
     ]
@@ -98,7 +99,7 @@ def get_main_inline_keyboard(
     usd_rate: float | None = None,
     show_usd: bool = False,
 ) -> InlineKeyboardMarkup:
-    """3+2 customer actions, with an admin-only action when authorized."""
+    """3+3 customer actions, with an admin-only action when authorized."""
     menu = _customer_menu(lang)
     customer_buttons = [
         InlineKeyboardButton(text=label, callback_data=callback)
@@ -159,7 +160,7 @@ def get_persistent_reply_keyboard(
     lang: str = "en",
     show_icons: bool = True,
 ) -> ReplyKeyboardMarkup:
-    """3+2 customer actions; admins additionally get a private shortcut."""
+    """3+3 customer actions; admins additionally get a private shortcut."""
     menu = _customer_menu(lang, show_icons)
     customer_buttons = [KeyboardButton(text=label) for label, _ in menu]
     rows = [customer_buttons[:3], customer_buttons[3:]]
