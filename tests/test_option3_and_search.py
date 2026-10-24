@@ -20,9 +20,9 @@ def test_main_inline_keyboard_compact_four_action_layout():
     assert len(rows) == 2
 
     assert [button.callback_data for button in rows[0]] == ["open_categories", "open_wallet", "open_orders"]
-    assert [button.callback_data for button in rows[1]] == ["open_help", "open_more"]
+    assert [button.callback_data for button in rows[1]] == ["open_referral", "open_help", "open_more"]
     assert [button.text for row in rows for button in row] == [
-        "🛍 Products", "💰 Wallet", "📦 Orders", "💬 Support", "✨ More",
+        "🛍 Products", "💰 Wallet", "📦 Orders", "🎁 Referral", "💬 Support", "✨ More",
     ]
 
     # Admin panel is the role-only fifth home action; reseller stays under More.
