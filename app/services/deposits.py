@@ -457,7 +457,8 @@ class DepositService:
             f"<b>Customer:</b> {customer}\n"
             f"<b>Customer ID:</b> <code>{tg_user_id}</code>\n"
             f"<b>Method:</b> {escape(quote['method_name'])}\n"
-            f"<b>Amount:</b> <code>{quote['amount']:.2f} {symbol}</code>{payable}\n"
+            f"<b>Wallet credit:</b> <code>${quote['amount']:.2f}</code>\n"
+            f"{payable}\n"
             f"<b>TrxID:</b> <code>{escape(transaction_id)}</code>"
             f"{note_line}",
             event="deposit",
