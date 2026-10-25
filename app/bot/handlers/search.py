@@ -176,6 +176,7 @@ def _product_button(product: dict, symbol: str, usd_rate: float | None = None,
         text=label[:64],
         callback_data=f"{callback}_{product['id']}",
         icon_custom_emoji_id=custom_id if custom_id.isdigit() else None,
+        style="success",
     )
 
 

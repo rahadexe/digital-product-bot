@@ -934,6 +934,7 @@ def get_products_keyboard(
         btn_kwargs: dict[str, Any] = {
             "text": btn_text[:64],
             "callback_data": f"prod_p_{p['id']}_{page}_{cat_key}",
+            "style": "success",
         }
         if custom_id:
             btn_kwargs["icon_custom_emoji_id"] = custom_id
