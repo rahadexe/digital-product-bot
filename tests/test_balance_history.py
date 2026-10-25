@@ -23,7 +23,7 @@ class BalanceHistoryUITests(unittest.IsolatedAsyncioTestCase):
             {
                 "id": 101,
                 "method_name": "bKash Personal",
-                "amount": 100.0,
+                "amount": 0.8,
                 "status": "approved",
                 "transaction_id": "TRX101",
                 "admin_note": None,
@@ -33,7 +33,7 @@ class BalanceHistoryUITests(unittest.IsolatedAsyncioTestCase):
             {
                 "id": 102,
                 "method_name": "Nagad",
-                "amount": 50.0,
+                "amount": 0.4,
                 "status": "pending",
                 "transaction_id": "TRX102",
                 "admin_note": None,
@@ -89,7 +89,7 @@ class BalanceHistoryUITests(unittest.IsolatedAsyncioTestCase):
         services.deposits.get_for_customer = AsyncMock(return_value={
             "id": 101,
             "method_name": "bKash Personal",
-            "amount": 100.0,
+            "amount": 0.8,
             "status": "rejected",
             "transaction_id": "BLX998877",
             "admin_note": "Transaction could not be verified.",
@@ -141,7 +141,7 @@ class BalanceHistoryUITests(unittest.IsolatedAsyncioTestCase):
         services.deposits.get_for_customer = AsyncMock(return_value={
             "id": 102,
             "method_name": "Nagad",
-            "amount": 50.0,
+            "amount": 0.4,
             "status": "approved",
             "transaction_id": "NG12345",
             "admin_note": None,
