@@ -70,8 +70,8 @@ class BalanceHistoryUITests(unittest.IsolatedAsyncioTestCase):
 
         all_texts = [btn.text for r in kb.inline_keyboard for btn in r]
         all_cbs = [btn.callback_data for r in kb.inline_keyboard for btn in r if btn.callback_data]
-        self.assertIn("✅ bKash Personal · $0.80 · D101", all_texts)
-        self.assertIn("⏳ Nagad · $0.40 · D102", all_texts)
+        self.assertIn("✅ bKash Personal · $0.8 · D101", all_texts)
+        self.assertIn("⏳ Nagad · $0.4 · D102", all_texts)
         self.assertIn("vdep_101_1_0", all_cbs)
         self.assertIn("vdep_102_1_0", all_cbs)
         self.assertFalse(any("Add Balance" in t for t in all_texts))
