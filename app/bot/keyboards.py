@@ -1075,34 +1075,38 @@ def get_quantity_selector_keyboard(
             )
         ])
 
-    # Row 3: Description and shareable link
+    # Description and shareable link
     extras = []
     if has_description:
-        desc_btn_text = "Details" if lang != "bn" else "📝 বিবরণ"
+        desc_btn_text = "Details" if lang != "bn" else "বিবরণ"
         extras.append(
             InlineKeyboardButton(
                 text=desc_btn_text,
                 callback_data=f"prod_desc_{product_id}",
             )
         )
+
+    copy_btn = None
     if product_link:
-        copy_btn_text = "📋 Copy Link" if lang != "bn" else "📋 লিংক কপি"
-        extras.append(
-            InlineKeyboardButton(
-                text=copy_btn_text,
-                copy_text=CopyTextButton(text=product_link[:256]),
-            )
+        copy_btn_text = "Copy Link" if lang != "bn" else "লিংক কপি"
+        copy_btn = InlineKeyboardButton(
+            text=copy_btn_text,
+            copy_text=CopyTextButton(text=product_link[:256]),
         )
+
+    # Back to catalog / product list
+    effective_back = back_target if back_target and back_target != "close_menu" else "open_categories"
+    back_btn_text = "Back" if lang != "bn" else t("btn_back", lang)
+    back_btn = InlineKeyboardButton(text=back_btn_text, callback_data=effective_back)
+
     if extras:
         buttons.append(extras)
 
-    # Row 4: Back & Main Menu
-    # Row 4: Back to catalog / product list
-    effective_back = back_target if back_target and back_target != "close_menu" else "open_categories"
-    back_btn_text = "🔙 Back" if lang != "bn" else t("btn_back", lang)
-    buttons.append([
-        InlineKeyboardButton(text=back_btn_text, callback_data=effective_back),
-    ])
+    if copy_btn:
+        buttons.append([copy_btn, back_btn])
+    else:
+        buttons.append([back_btn])
+
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
