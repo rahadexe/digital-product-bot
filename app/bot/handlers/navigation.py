@@ -492,7 +492,7 @@ async def navigate(text: str, message: Message, state: FSMContext, services: Ser
         "search": "search.prompt_search",
         "shop": "shop.show_shop_entry",
         "deposit": "deposit.show_deposit_methods",
-        "account": "profile.show_user_profile",
+        "account": "deposit.show_deposit_methods",
         "orders": "profile.show_order_history",
         "support": "help_guide.show_support_info",
         "help": "help_guide.show_help_faq_hub",

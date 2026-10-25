@@ -11,7 +11,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from app.bot.handlers.deposit import DepositStates, MethodTextFilter
 from app.bot.handlers.help_guide import FAQ_ITEMS, GUIDE_TEXTS
 from app.bot.handlers.navigation import is_navigation, navigate
-from app.bot.handlers.profile import show_user_profile
+from app.bot.handlers.profile import open_wallet_from_legacy_account
 from app.bot.keyboards import get_account_keyboard
 
 
@@ -41,25 +41,16 @@ def test_profile_actions_stay_direct_even_with_legacy_options(is_reseller, lang)
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("rank", ["Standard", "reseller", "Reseller Partner"])
-async def test_profile_needs_no_financial_services_and_escapes_identity(rank):
+async def test_legacy_profile_entry_redirects_to_wallet_without_identity_details():
     state = context()
     await state.set_state(DepositStates.waiting_for_txid)
-    await state.set_data({"manual_txid": "OLD_REFERENCE"})
-    event = SimpleNamespace(
-        from_user=SimpleNamespace(id=2, full_name="<Buyer> & Co", first_name="Buyer"),
-    )
-    services = SimpleNamespace(users=SimpleNamespace(
-        get=AsyncMock(return_value={"rank": rank}),
-        get_language=AsyncMock(return_value="en"),
-    ))
-    with patch("app.bot.handlers.profile.respond", new_callable=AsyncMock) as respond:
-        await show_user_profile(event, state, services)
-    text = respond.await_args.args[1]
-    assert "👤" in text or "ID:" in text
+    event = SimpleNamespace(from_user=SimpleNamespace(id=2, full_name="<Buyer> & Co"))
+    services = SimpleNamespace()
+    with patch("app.bot.handlers.deposit.show_deposit_methods", new_callable=AsyncMock) as show_wallet:
+        await open_wallet_from_legacy_account(event, state, services)
+    show_wallet.assert_awaited_once_with(event, state, services)
     assert await state.get_state() is None
     assert await state.get_data() == {}
-    assert all(word not in text for word in ("Orders", "Spent", "Business"))
 
 
 @pytest.mark.asyncio
@@ -73,9 +64,9 @@ async def test_profile_and_legacy_labels_leave_payment_prompts(label):
     message = SimpleNamespace(from_user=SimpleNamespace(id=2))
     services = SimpleNamespace()
     assert is_navigation(label)
-    with patch("app.bot.handlers.profile.show_user_profile", new_callable=AsyncMock) as show:
+    with patch("app.bot.handlers.deposit.show_deposit_methods", new_callable=AsyncMock) as show_wallet:
         await navigate(label, message, state, services)
-    show.assert_awaited_once_with(message, state, services)
+    show_wallet.assert_awaited_once_with(message, state, services)
     assert await state.get_state() is None
 
 
