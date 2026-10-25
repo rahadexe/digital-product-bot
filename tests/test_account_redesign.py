@@ -406,7 +406,7 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
         text = query.message.edit_text.call_args[0][0]
         kb = query.message.edit_text.call_args[1]["reply_markup"]
 
-        self.assertIn("<b>Order:</b> <code>O789</code>", text)
+        self.assertIn("<b>Order:</b> <code>#789</code>", text)
         self.assertIn("Status: Delivered ✅", text)
         self.assertIn("Telegram Premium 3 Months", text)
         self.assertIn("<code>user:pass</code>", text)
