@@ -160,101 +160,23 @@ class DepositPickerRoutingTests(unittest.IsolatedAsyncioTestCase):
 
 
 class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
-    async def test_message_entry_uses_inline_keyboard_and_short_profile(self):
+    async def test_legacy_account_callback_redirects_to_wallet(self):
         from types import SimpleNamespace
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, patch
 
-        from app.bot.handlers.profile import show_user_profile
+        from app.bot.handlers.profile import open_wallet_from_legacy_account
 
-        db_connection = MagicMock()
-        db_connection.fetchrow = AsyncMock(
-            return_value={"total_invited": 3, "total_earned": 12.5}
-        )
-        db_context = MagicMock()
-        db_context.__aenter__ = AsyncMock(return_value=db_connection)
-        db_context.__aexit__ = AsyncMock(return_value=False)
-        user = SimpleNamespace(
-            id=123,
-            full_name="Test Customer",
-            first_name="Test",
-            username="test_user",
-        )
-        event = SimpleNamespace(from_user=user)
+        event = SimpleNamespace(from_user=SimpleNamespace(id=123))
         state = SimpleNamespace(clear=AsyncMock())
-        services = SimpleNamespace(
-            users=SimpleNamespace(
-                get=AsyncMock(return_value={"rank": "Standard", "balance": 25}),
-                get_language=AsyncMock(return_value="en"),
-                stats=AsyncMock(return_value={"order_count": 2, "total_spent": 50}),
-            ),
-            settings=SimpleNamespace(
-                get=AsyncMock(return_value="৳"),
-                number=AsyncMock(return_value=125),
-                flag=AsyncMock(return_value=False),
-            ),
-            db=SimpleNamespace(connect=MagicMock(return_value=db_context)),
-            notifier=SimpleNamespace(bot_username=AsyncMock(return_value="sample_bot")),
-        )
+        services = SimpleNamespace()
 
-        with patch("app.bot.handlers.profile.respond", new_callable=AsyncMock) as respond:
-            await show_user_profile(event, state, services)
+        with patch("app.bot.handlers.deposit.show_deposit_methods", new_callable=AsyncMock) as show_wallet:
+            await open_wallet_from_legacy_account(event, state, services)
 
-        text = respond.await_args.args[1]
-        keyboard = respond.await_args.args[2]
-        self.assertIn("<b>Profile</b>", text)
-        self.assertIn("Test Customer", text)
-        self.assertIn("Telegram ID: <code>123</code>", text)
-        self.assertIn("@test_user", text)
-        self.assertNotIn("Balance:", text)
-        self.assertNotIn("Invites:", text)
-        callbacks = [btn.callback_data for row in keyboard.inline_keyboard for btn in row]
-        self.assertEqual(callbacks, ["open_more"])
+        show_wallet.assert_awaited_once_with(event, state, services)
         state.clear.assert_awaited_once()
 
-    async def test_reseller_profile_has_back_to_more(self):
-        from types import SimpleNamespace
-        from unittest.mock import AsyncMock, MagicMock, patch
-
-        from app.bot.handlers.profile import show_user_profile
-
-        db_connection = MagicMock()
-        db_connection.fetchrow = AsyncMock(
-            return_value={"total_invited": 0, "total_earned": 0}
-        )
-        db_context = MagicMock()
-        db_context.__aenter__ = AsyncMock(return_value=db_connection)
-        db_context.__aexit__ = AsyncMock(return_value=False)
-        event = SimpleNamespace(
-            from_user=SimpleNamespace(id=123, full_name="Reseller User", first_name="Reseller")
-        )
-        state = SimpleNamespace(clear=AsyncMock())
-        services = SimpleNamespace(
-            users=SimpleNamespace(
-                get=AsyncMock(return_value={"rank": "reseller partner", "balance": 25}),
-                get_language=AsyncMock(return_value="en"),
-                stats=AsyncMock(return_value={"order_count": 5, "total_spent": 50}),
-            ),
-            settings=SimpleNamespace(
-                get=AsyncMock(return_value="৳"),
-                number=AsyncMock(return_value=125),
-                flag=AsyncMock(return_value=False),
-            ),
-            db=SimpleNamespace(connect=MagicMock(return_value=db_context)),
-            notifier=SimpleNamespace(bot_username=AsyncMock(return_value="sample_bot")),
-        )
-
-        with patch("app.bot.handlers.profile.respond", new_callable=AsyncMock) as respond:
-            await show_user_profile(event, state, services)
-
-        text = respond.await_args.args[1]
-        keyboard = respond.await_args.args[2]
-        self.assertIn("<b>Profile</b>", text)
-        self.assertIn("Reseller User", text)
-        self.assertIn("Telegram ID: <code>123</code>", text)
-        callbacks = [btn.callback_data for row in keyboard.inline_keyboard for btn in row]
-        self.assertEqual(callbacks, ["open_more"])
-
-    async def test_more_menu_has_profile_settings_and_role_tools(self):
+    async def test_more_menu_has_only_settings_and_role_tools(self):
         from types import SimpleNamespace
         from unittest.mock import AsyncMock, patch
 
@@ -272,11 +194,13 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
         text, keyboard = respond.await_args.args[1:]
         self.assertIn("<b>More</b>", text)
         self.assertNotIn("Balance:", text)
+        self.assertNotIn("Profile", text)
         callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
         self.assertEqual(callbacks, [
-            "open_account", "open_language_menu", "open_notifications_hub",
-            "open_api_hub", "open_reseller_hub", "back_to_main",
+            "open_language_menu", "open_notifications_hub",
+            "open_api_hub", "open_reseller_hub",
         ])
+        self.assertEqual([len(row) for row in keyboard.inline_keyboard], [2, 2])
 
     async def test_language_menu_offers_both_languages(self):
         from types import SimpleNamespace
@@ -399,7 +323,8 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("https://t.me/test_bot?start=999", text)
 
         button_texts = [btn.text for row in kb.inline_keyboard for btn in row]
-        self.assertEqual(button_texts, ["Copy Link", "Share", "Back"])
+        self.assertEqual(button_texts, ["Copy Link", "Share"])
+        self.assertTrue(all(btn.callback_data is None for row in kb.inline_keyboard for btn in row))
 
     async def test_orders_history_clean_header_and_no_order_id_in_buttons(self):
         from types import SimpleNamespace

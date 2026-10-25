@@ -87,9 +87,9 @@ async def show_more_menu(event: Message | CallbackQuery, state: FSMContext, serv
     is_reseller = (user.get("rank") or "").strip().lower() in {"reseller", "reseller partner"}
 
     if lang == "bn":
-        text = "✨ <b>আরও</b>\n\nপ্রোফাইল, ভাষা, নোটিফিকেশন ও অন্যান্য সুবিধা বেছে নিন।"
+        text = "✨ <b>আরও</b>\n\nভাষা, নোটিফিকেশন, এপিআই ও রিসেলার সুবিধা।"
     else:
-        text = "✨ <b>More</b>\n\nProfile, language, notifications, and other services."
+        text = "✨ <b>More</b>\n\nLanguage, notifications, API, and reseller options."
 
     keyboard = get_more_inline_keyboard(lang=lang, is_reseller=is_reseller)
     await respond(event, text, keyboard)
@@ -164,53 +164,12 @@ def reseller_api_links(config) -> tuple[str, list[list[InlineKeyboardButton]]]:
 @router.message(F.text.casefold() == "account & refer")
 @router.message(F.text.casefold() == "account and refer")
 @router.callback_query(F.data == "open_account")
-async def show_user_profile(event: Message | CallbackQuery, state: FSMContext, services: Services):
-    """Show basic Telegram identity details from the More hub."""
+async def open_wallet_from_legacy_account(event: Message | CallbackQuery, state: FSMContext, services: Services):
+    """Route old account/profile buttons to the wallet instead of showing identity details."""
     await state.clear()
-    tg_user = event.from_user
-    if not tg_user:
-        return
+    from app.bot.handlers.deposit import show_deposit_methods
 
-    lang = (
-        await services.users.get_language(tg_user.id)
-        if hasattr(services.users, "get_language")
-        else "en"
-    )
-    name = escape(
-        getattr(tg_user, "full_name", None)
-        or getattr(tg_user, "first_name", None)
-        or "User"
-    )
-    user_id = getattr(tg_user, "id", 0)
-    raw_username = getattr(tg_user, "username", None)
-    username = (
-        f"@{raw_username.lstrip('@')}"
-        if raw_username
-        else ("সেট করা নেই" if lang == "bn" else "Not set")
-    )
-
-    if lang == "bn":
-        text = (
-            f"👤 <b>প্রোফাইল</b>\n\n"
-            f"নাম: <b>{name}</b>\n"
-            f"টেলিগ্রাম আইডি: <code>{user_id}</code>\n"
-            f"ইউজারনেম: <code>{username}</code>"
-        )
-        back_label = "🔙 ফিরে যান"
-    else:
-        text = (
-            f"👤 <b>Profile</b>\n\n"
-            f"Name: <b>{name}</b>\n"
-            f"Telegram ID: <code>{user_id}</code>\n"
-            f"Username: <code>{username}</code>"
-        )
-        back_label = "🔙 Back"
-
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text=back_label, callback_data="open_more")]]
-    )
-    await respond(event, text, keyboard)
-
+    await show_deposit_methods(event, state, services)
 
 @router.message(Command("language"))
 @router.message(Command("lang"))
@@ -369,7 +328,6 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
         )
         copy_label = "Copy Link"
         share_label = "Share"
-        back_label = "Back"
         share_msg = quote(f"Join {store_name}")
     else:
         reward_line = (
@@ -387,7 +345,6 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
         )
         copy_label = "লিংক কপি করুন"
         share_label = "শেয়ার"
-        back_label = "Back" if lang != "bn" else "ব্যাক"
         share_msg = quote(f"{store_name}-এ জয়েন করুন")
 
     buttons: list[list[InlineKeyboardButton]] = [
@@ -399,12 +356,6 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
             InlineKeyboardButton(
                 text=share_label,
                 url=f"https://t.me/share/url?url={quote(ref_link, safe='')}&text={share_msg}",
-            ),
-        ],
-        [
-            InlineKeyboardButton(
-                text=back_label,
-                callback_data="open_more",
             ),
         ],
     ]

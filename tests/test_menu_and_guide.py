@@ -213,15 +213,17 @@ class MenuAndGuideTests(unittest.IsolatedAsyncioTestCase):
         context = self.dp.fsm.get_context(self.bot, chat_id=CUSTOMER, user_id=CUSTOMER)
         self.assertIsNone(await context.get_state())
 
-    async def test_profile_and_legacy_account_buttons_open_the_same_clean_screen(self):
+    async def test_profile_and_legacy_account_buttons_open_wallet_without_identity_screen(self):
         for label in ("👤 Profile", "Profile", "/profile", "👤 Account", "Account", "/account"):
             with self.subTest(label=label):
                 replies = await self._feed(text=label)
                 texts = [reply.get("text") or "" for reply in replies]
-                self.assertTrue(any(("<b>Profile</b>" in text or "More" in text or "আরও" in text or "👤" in text or "ID:" in text or "আইডি:" in text) for text in texts), replies)
-                profile_text = next(text for text in texts if ("<b>Profile</b>" in text or "More" in text or "আরও" in text or "👤" in text or "ID:" in text or "আইডি:" in text))
-                for duplicate in ("Orders", "Spent"):
-                    self.assertNotIn(duplicate, profile_text)
+                self.assertTrue(any("<b>Balance:</b>" in text for text in texts), replies)
+                self.assertFalse(any(
+                    marker in text
+                    for text in texts
+                    for marker in ("<b>Profile</b>", "Telegram ID:", "Username:")
+                ), replies)
 
     async def test_legacy_balance_entries_open_wallet_instead_of_profile(self):
         for label in ("/balance", "Balance", "My Balance", "💰 My Balance"):

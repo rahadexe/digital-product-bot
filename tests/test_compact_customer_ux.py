@@ -74,21 +74,23 @@ def test_admin_panel_is_a_separate_admin_only_home_row():
     assert admin_inline.inline_keyboard[-1][0].callback_data == "adm_dashboard"
 
 
-def test_more_menu_keeps_secondary_and_reseller_actions_available():
+def test_more_menu_is_compact_and_keeps_secondary_and_reseller_actions_available():
     keyboard = get_more_inline_keyboard(lang="en", is_reseller=True, is_admin=True)
     buttons = [button for row in keyboard.inline_keyboard for button in row]
     callbacks = [button.callback_data for button in buttons]
     assert callbacks == [
-        "open_account", "open_language_menu",
-        "open_notifications_hub", "open_api_hub",
-        "open_reseller_hub", "back_to_main",
+        "open_language_menu", "open_notifications_hub",
+        "open_api_hub", "open_reseller_hub",
+    ]
+    assert [[button.text for button in row] for row in keyboard.inline_keyboard] == [
+        ["🌐 Language", "🔔 Notifications"],
+        ["⚡ API", "💼 Reseller Hub"],
     ]
 
     bengali = get_more_inline_keyboard(lang="bn", is_reseller=False)
     assert [[button.text for button in row] for row in bengali.inline_keyboard] == [
-        ["👤 প্রোফাইল", "🌐 ভাষা"],
-        ["🔔 নোটিফিকেশন", "⚡ এপিআই"],
-        ["💼 রিসেলার", "🔙 ফিরে যান"],
+        ["🌐 ভাষা", "🔔 নোটিফিকেশন"],
+        ["⚡ এপিআই", "💼 রিসেলার"],
     ]
 
 
