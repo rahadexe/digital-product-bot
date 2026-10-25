@@ -29,7 +29,7 @@ def test_store_currency_settings_are_locked_to_usd():
     assert settings._validate("binance_pay_rate", "1") == "1"
     with pytest.raises(ValueError, match="must remain USD"):
         settings._validate("currency", "BDT")
-    with pytest.raises(ValueError, match="must remain $"):
+    with pytest.raises(ValueError, match=r"must remain \$"):
         settings._validate("currency_symbol", "৳")
     with pytest.raises(ValueError, match="must remain 1"):
         settings._validate("binance_pay_rate", "125")
