@@ -144,9 +144,9 @@ class UserService:
             self.notifier.in_background(
                 self.notifier.send(
                     referrer_id,
-                    f"<b>Referral reward</b>\n"
-                    f"{joined_name} joined through your link.\n"
-                    f"<code>+{reward_str}</code> added to your wallet.",
+                    f"🎁 <b>Referral reward</b>\n"
+                    f"<blockquote><b>{joined_name}</b> joined through your link.\n"
+                    f"Added: <code>+{reward_str}</code> to your wallet.</blockquote>",
                 )
             )
         return {"referrer_id": referrer_id, "amount": reward_amount}
@@ -319,9 +319,9 @@ class UserService:
         await self.notifier.send(
             tg_user_id,
             f"{header}\n"
-            f"{action_type}: <code>{abs(delta):.2f} {symbol}</code>\n"
+            f"<blockquote>{action_type}: <code>{abs(delta):.2f} {symbol}</code>\n"
             f"Balance: <code>{balance:.2f} {symbol}</code>\n"
-            f"Reason: {escape(reason or 'Admin adjustment')}",
+            f"Reason: {escape(reason or 'Admin adjustment')}</blockquote>",
         )
 
     async def set_banned(self, tg_user_id: int, banned: bool | None = None) -> bool:

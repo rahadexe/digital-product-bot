@@ -24,24 +24,24 @@ LEASE_SECONDS = 120
 
 
 def waiting_notice(order: dict[str, Any], lang: str = "en") -> str:
-    order_id = order.get('order_id', order.get('id'))
+    order_id = int(order.get('order_id', order.get('id')) or 0)
     title = escape(str(order.get('product_title', 'Purchase')))
     if lang == "bn":
         return (
-            f"⏳ <b>অর্ডার প্রসেসিং · {format_order_id(order_id)}</b>\n\n"
-            f"<b>প্রোডাক্ট:</b> {title}\n\n"
-            "পেমেন্ট গৃহীত হয়েছে। ডেলিভারি প্রস্তুত হলে এখানে বিবরণ পাঠানো হবে।"
+            f"⏳ <b>Preparing delivery · {format_order_id(order_id)}</b>\n"
+            f"<blockquote><b>{title}</b>\n"
+            "Payment received. প্রস্তুতি চলছে, শীঘ্রই পাঠানো হবে।</blockquote>"
         )
     return (
-        f"⏳ <b>Preparing delivery · {format_order_id(order_id)}</b>\n\n"
-        f"<b>Product:</b> {title}\n\n"
-        "Payment received. Delivery details will arrive here once ready."
+        f"⏳ <b>Preparing delivery · {format_order_id(order_id)}</b>\n"
+        f"<blockquote><b>{title}</b>\n"
+        "Payment received. Details will arrive here shortly.</blockquote>"
     )
 
 
 
 def receipt(order: dict[str, Any], lang: str = "en") -> str:
-    order_id = order.get('order_id', order.get('id'))
+    order_id = int(order.get('order_id', order.get('id')) or 0)
     title = escape(str(order.get('product_title', 'Purchase')))
     price_val = order.get('price', 0)
     symbol = order.get('currency_symbol', '৳')
@@ -52,17 +52,16 @@ def receipt(order: dict[str, Any], lang: str = "en") -> str:
     raw_content = str(order.get('delivered_item', '')).strip()
     if lang == "bn":
         lines = [
-            f"✅ <b>অর্ডার সফল · {format_order_id(order_id)}</b>\n",
-            f"<b>প্রোডাক্ট:</b> {title}",
-            f"<b>মূল্য:</b> <code>{price_str}</code>",
-            "<b>স্ট্যাটাস:</b> ডেলিভার্ড\n",
+            f"✅ <b>Delivered · {format_order_id(order_id)}</b>",
+            f"<blockquote><b>{title}</b>",
+            f"Paid: <code>{price_str}</code></blockquote>\n",
             "<b>ডেলিভারি বিবরণ:</b>",
         ]
     else:
         lines = [
-            f"✅ <b>Delivered · {format_order_id(order_id)}</b>\n",
-            f"<b>Product:</b> {title}",
-            f"Paid: <code>{price_str}</code>",
+            f"✅ <b>Delivered · {format_order_id(order_id)}</b>",
+            f"<blockquote><b>{title}</b>",
+            f"Paid: <code>{price_str}</code></blockquote>\n",
             "<b>Delivery:</b>",
         ]
 

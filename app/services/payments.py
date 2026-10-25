@@ -666,8 +666,8 @@ class PaymentService:
                 pay_amt = float(row_dict.get("pay_amount") or credit)
                 updated_text = (
                     f"<b>Payment verified{ref_suffix}</b>\n"
-                    f"Paid: <code>{pay_amt:.2f} {LOCAL_CURRENCY}</code>\n"
-                    "Your wallet has been updated."
+                    f"<blockquote>Paid: <code>{pay_amt:.2f} {LOCAL_CURRENCY}</code>\n"
+                    "Your wallet has been updated.</blockquote>"
                 )
                 kb = InlineKeyboardMarkup(
                     inline_keyboard=[[
