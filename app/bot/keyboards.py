@@ -1023,14 +1023,13 @@ def get_quantity_selector_keyboard(
 
     # Interactive stepper [-]  [ Qty ]  [+] (shown whenever stock > 1 or quantity > 1)
     if (is_manual or is_upstream or max_stock > 1) or quantity > 1:
-        qty_label = f"Qty: {quantity}" if lang != "bn" else f"পরিমাণ: {quantity}"
         row1 = [
             InlineKeyboardButton(
                 text="➖",
                 callback_data=f"qty_set_{product_id}_{dec_qty}",
             ),
             InlineKeyboardButton(
-                text=qty_label,
+                text=f"{quantity}",
                 callback_data="noop",
             ),
             InlineKeyboardButton(
@@ -1076,22 +1075,34 @@ def get_quantity_selector_keyboard(
             )
         ])
 
-    # Details and Navigation
+    # Row 3: Description and shareable link
+    extras = []
     if has_description:
-        desc_btn_text = "Details" if lang != "bn" else "বিবরণ"
-        buttons.append([
+        desc_btn_text = "Details" if lang != "bn" else "📝 বিবরণ"
+        extras.append(
             InlineKeyboardButton(
                 text=desc_btn_text,
                 callback_data=f"prod_desc_{product_id}",
             )
-        ])
+        )
+    if product_link:
+        copy_btn_text = "📋 Copy Link" if lang != "bn" else "📋 লিংক কপি"
+        extras.append(
+            InlineKeyboardButton(
+                text=copy_btn_text,
+                copy_text=CopyTextButton(text=product_link[:256]),
+            )
+        )
+    if extras:
+        buttons.append(extras)
 
+    # Row 4: Back & Main Menu
+    # Row 4: Back to catalog / product list
     effective_back = back_target if back_target and back_target != "close_menu" else "open_categories"
-    back_btn_text = "🔙 Back" if lang != "bn" else "🔙 ব্যাক"
+    back_btn_text = "🔙 Back" if lang != "bn" else t("btn_back", lang)
     buttons.append([
         InlineKeyboardButton(text=back_btn_text, callback_data=effective_back),
     ])
-
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
