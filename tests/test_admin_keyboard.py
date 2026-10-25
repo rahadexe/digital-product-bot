@@ -106,9 +106,9 @@ class AdminKeyboard(unittest.IsolatedAsyncioTestCase):
         markup = next(i['markup'] for i in sent if isinstance(i['markup'], ReplyKeyboardMarkup))
         self.assertEqual([[b.text for b in row] for row in markup.keyboard], [
             ["🛍 Shop", "💰 Wallet"], ["📦 Orders", "🎁 Referral"],
-            ["💬 Support", "✨ More"], ["🛡 Admin Panel"],
+            ["💬 Support", "⚙️ Settings"], ["🛡 Admin Panel"],
         ])
-        more = await self.tap(OWNER, text="✨ More")
+        more = await self.tap(OWNER, text="⚙️ Settings")
         more_markup = next(i['markup'] for i in more if isinstance(i['markup'], InlineKeyboardMarkup))
         callbacks = [b.callback_data for row in more_markup.inline_keyboard for b in row]
         self.assertNotIn("adm_dashboard", callbacks)

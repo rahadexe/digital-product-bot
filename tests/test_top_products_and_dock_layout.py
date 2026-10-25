@@ -35,7 +35,7 @@ def test_persistent_reply_keyboard_six_action_layout():
     assert [[button.text for button in row] for row in rows] == [
         ["🛍 কেনাকাটা", "💰 ওয়ালেট"],
         ["📦 অর্ডারস", "🎁 রেফারেল"],
-        ["💬 সাপোর্ট", "✨ আরও"],
+        ["💬 সাপোর্ট", "⚙️ সেটিংস"],
     ]
 
 
@@ -43,7 +43,7 @@ def test_admin_gets_separate_reply_row_and_reseller_stays_under_more():
     kb = get_persistent_reply_keyboard(is_admin=True, is_reseller=True, lang="en")
     assert [[button.text for button in row] for row in kb.keyboard] == [
         ["🛍 Shop", "💰 Wallet"], ["📦 Orders", "🎁 Referral"],
-        ["💬 Support", "✨ More"], ["🛡 Admin Panel"],
+        ["💬 Support", "⚙️ Settings"], ["🛡 Admin Panel"],
     ]
     more = get_more_inline_keyboard(lang="en", is_admin=True, is_reseller=True)
     callbacks = [button.callback_data for row in more.inline_keyboard for button in row]
@@ -64,7 +64,7 @@ def test_inline_keyboard_customer_first_bengali():
     assert [button.callback_data for button in rows[1]] == ["open_orders", "open_referral"]
     assert [button.callback_data for button in rows[2]] == ["open_help", "open_more"]
     assert [button.text for row in rows for button in row] == [
-        "🛍 কেনাকাটা", "💰 ওয়ালেট", "📦 অর্ডারস", "🎁 রেফারেল", "💬 সাপোর্ট", "✨ আরও",
+        "🛍 কেনাকাটা", "💰 ওয়ালেট", "📦 অর্ডারস", "🎁 রেফারেল", "💬 সাপোর্ট", "⚙️ সেটিংস",
     ]
 
 
