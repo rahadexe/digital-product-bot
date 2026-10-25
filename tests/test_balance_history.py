@@ -252,8 +252,7 @@ class OrderHistoryUITests(unittest.IsolatedAsyncioTestCase):
         services.purchases.order_for_customer.assert_called_once_with(12345, 501)
         query.message.edit_text.assert_called_once()
         text_arg, kwargs = query.message.edit_text.call_args[0][0], query.message.edit_text.call_args[1]
-        self.assertIn("O501", text_arg)
-        self.assertNotIn("#501", text_arg)
+        self.assertIn("#501", text_arg)
         self.assertIn("Delivered", text_arg)
         self.assertIn("nitro-token-xyz", text_arg)
 

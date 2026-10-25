@@ -27,9 +27,9 @@ def test_wallet_confirmation_is_short_and_keeps_financial_reference():
     assert len(text.splitlines()) == 4
 
 
-def test_refund_keeps_reference_and_escapes_product_title():
+def test_refund_keeps_reference_and_escaped_product_title():
     text = order_refunded(9, "VPN <private> & pro", 150, "৳")
-    assert "Refunded · O9" in text
+    assert "Refunded · #9" in text
     assert "&lt;private&gt; &amp;" in text
     assert "150" in text and "returned to your wallet" in text
 
