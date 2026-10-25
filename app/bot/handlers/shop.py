@@ -493,15 +493,25 @@ async def product_view(
     unit_price_str = format_dual_price(unit_price, symbol, usd_rate=usd_rate, lang=lang)
     total_price_str = format_dual_price(total_price, symbol, usd_rate=usd_rate, lang=lang)
 
-    text = f"{prod_icon_display + ' ' if prod_icon_display else ''}<b>{clean_title}</b>\n"
+    info_lines = []
     if duration and duration.lower() not in {"instant", "none", "n/a", ""}:
-        text += f"{t('product_validity', lang)}: {duration}\n"
+        info_lines.append(f"{t('product_validity', lang)}: <b>{duration}</b>")
     if warranty and warranty.lower() not in {"instant", "none", "n/a"}:
-        text += f"{t('product_warranty', lang)}: {warranty}\n"
-    text += f"\n{t('product_price', lang)}: <b>{unit_price_str}</b>"
+        info_lines.append(f"{t('product_warranty', lang)}: <b>{warranty}</b>")
+
+    price_line = f"{t('product_price', lang)}: <b>{unit_price_str}</b>"
     if has_reseller_rate:
-        text += f" · {t('rank_reseller', lang)}"
-    text += f"\n{stock_text}"
+        price_line += f" · {t('rank_reseller', lang)}"
+    info_lines.append(price_line)
+
+    if quantity > 1:
+        info_lines.append(f"{t('product_quantity', lang)}: <b>{quantity}</b> · {t('product_total', lang)}: <b>{total_price_str}</b>")
+
+    stock_label = "Stock" if lang != "bn" else "স্টক"
+    info_lines.append(f"{stock_label}: <b>{stock_text}</b>")
+
+    header = f"{prod_icon_display + ' ' if prod_icon_display else ''}<b>{clean_title}</b>"
+    text = f"{header}\n\n" + "\n".join(info_lines)
 
     # The description lives behind its own button rather than in the card, so a
     # long one does not push the price and the quantity controls off the screen.
@@ -512,8 +522,6 @@ async def product_view(
         and not is_redundant_description(product["title"], desc)
     )
 
-    if quantity > 1:
-        text += f"\n{t('product_quantity', lang)}: {quantity} · {t('product_total', lang)}: <b>{total_price_str}</b>"
     if balance < total_price and available:
         short = round(total_price - balance, 2)
         short_str = format_dual_price(short, symbol, usd_rate=usd_rate, lang=lang)
