@@ -75,7 +75,7 @@ def _customer_menu(lang: str = "en", show_icons: bool = True) -> list[tuple[str,
         ("📦", "Orders", "অর্ডারস", "open_orders"),
         ("🎁", "Referral", "রেফারেল", "open_referral"),
         ("💬", "Support", "সাপোর্ট", "open_help"),
-        ("✨", "More", "আরও", "open_more"),
+        ("⚙️", "Settings", "সেটিংস", "open_more"),
     ]
     return [
         (f"{icon} {bn if lang == 'bn' else en}" if show_icons else (bn if lang == "bn" else en), callback)
@@ -143,6 +143,9 @@ def get_more_inline_keyboard(
             ],
         ]
     )
+
+
+get_settings_inline_keyboard = get_more_inline_keyboard
 
 
 def get_persistent_reply_keyboard(

@@ -192,7 +192,7 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
             await show_more_menu(event, state, services)
 
         text, keyboard = respond.await_args.args[1:]
-        self.assertIn("<b>More</b>", text)
+        self.assertIn("<b>Settings</b>", text)
         self.assertNotIn("Balance:", text)
         self.assertNotIn("Profile", text)
         callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]

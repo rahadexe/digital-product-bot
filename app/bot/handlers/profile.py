@@ -70,6 +70,7 @@ INLINE_CREDENTIAL_LIMIT = 500
 
 
 @router.callback_query(F.data == "open_more")
+@router.callback_query(F.data == "open_settings")
 async def show_more_menu(event: Message | CallbackQuery, state: FSMContext, services: Services):
     """Show secondary account options without repeating wallet or referral details."""
     await state.clear()
@@ -87,12 +88,15 @@ async def show_more_menu(event: Message | CallbackQuery, state: FSMContext, serv
     is_reseller = (user.get("rank") or "").strip().lower() in {"reseller", "reseller partner"}
 
     if lang == "bn":
-        text = "✨ <b>আরও</b>\n\nভাষা, নোটিফিকেশন, এপিআই ও রিসেলার সুবিধা।"
+        text = "⚙️ <b>সেটিংস</b>\n\nভাষা, নোটিফিকেশন, এপিআই ও রিসেলার সুবিধা।"
     else:
-        text = "✨ <b>More</b>\n\nLanguage, notifications, API, and reseller options."
+        text = "⚙️ <b>Settings</b>\n\nLanguage, notifications, API, and reseller options."
 
     keyboard = get_more_inline_keyboard(lang=lang, is_reseller=is_reseller)
     await respond(event, text, keyboard)
+
+
+show_settings_menu = show_more_menu
 
 
 def reseller_api_links(config) -> tuple[str, list[list[InlineKeyboardButton]]]:
@@ -154,9 +158,6 @@ def reseller_api_links(config) -> tuple[str, list[list[InlineKeyboardButton]]]:
     "👤 Account & Refer",
     "👤 ACCOUNT & REFER",
     "ACCOUNT & REFER",
-    "Settings",
-    "settings",
-    "⚙️ Settings",
 }))
 @router.message(F.text.casefold() == "my profile")
 @router.message(F.text.casefold() == "profile")
