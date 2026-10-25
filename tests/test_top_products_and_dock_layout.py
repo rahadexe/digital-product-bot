@@ -272,6 +272,8 @@ def test_product_buttons_render_basic_or_custom_icon_without_duplicate_title_emo
     assert buttons[1].icon_custom_emoji_id == "5796345694969140339"
     assert buttons[2].text == "Prime · 100 ৳"
     assert buttons[2].icon_custom_emoji_id is None
+    assert [button.style for button in buttons] == ["success"] * 3
+    assert all(button.style is None for button in keyboard.inline_keyboard[-1])
 
 
 def test_search_product_button_does_not_add_fallback_and_preserves_custom_icon():
