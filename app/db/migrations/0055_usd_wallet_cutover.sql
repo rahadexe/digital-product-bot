@@ -63,8 +63,7 @@ BEGIN
      WHERE u.balance <> latest.balance_after;
 
     UPDATE products SET price = GREATEST(ROUND(price / fx, 4), 0.0001),
-                        reseller_price = CASE WHEN reseller_price IS NULL THEN NULL ELSE ROUND(reseller_price / fx, 4) END,
-                        supplier_price = CASE WHEN supplier_price IS NULL THEN NULL ELSE ROUND(supplier_price / fx, 4) END;
+                        reseller_price = CASE WHEN reseller_price IS NULL THEN NULL ELSE ROUND(reseller_price / fx, 4) END;
     UPDATE orders SET price = ROUND(price / fx, 4),
                       unit_price = CASE WHEN unit_price IS NULL THEN NULL ELSE GREATEST(ROUND(unit_price / fx, 4), 0.0001) END,
                       referral_bonus = ROUND(referral_bonus / fx, 4);
