@@ -11,9 +11,9 @@ def wallet_updated(amount: float, balance: float, symbol: str, deposit_id: int) 
     total = format_dual_price(balance, symbol=symbol, show_usd=False, lang="en")
     return (
         "<b>Wallet updated</b>\n"
-        f"Added: <code>{added}</code>\n"
+        f"<blockquote>Added: <code>{added}</code>\n"
         f"Balance: <code>{total}</code>\n"
-        f"Ref: <code>{format_deposit_id(deposit_id)}</code>"
+        f"Ref: <code>{format_deposit_id(deposit_id)}</code></blockquote>"
     )
 
 
@@ -21,6 +21,6 @@ def order_refunded(order_id: int, title: str, amount: float, symbol: str) -> str
     value = format_dual_price(amount, symbol=symbol, show_usd=False, lang="en")
     return (
         f"<b>Refunded · {format_order_id(order_id)}</b>\n"
-        f"{escape(title)}\n"
-        f"<code>{value}</code> returned to your wallet."
+        f"<blockquote><b>{escape(title)}</b>\n"
+        f"<code>{value}</code> returned to your wallet.</blockquote>"
     )
