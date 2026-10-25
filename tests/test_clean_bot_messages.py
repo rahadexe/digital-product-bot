@@ -47,7 +47,7 @@ async def test_wallet_shows_balance_and_direct_deposit_options(pending, show_usd
 
 def test_delivery_receipt_keeps_reference_amount_and_escaped_credentials():
     text = receipt({"order_id": 42, "product_title": "A & B", "price": 180, "show_usd": False, "delivered_item": "email@example.com\np<a&ss"})
-    assert "Delivered · #42" in text
+    assert "Delivered · ORD-42" in text
     assert "Paid:" in text and "180" in text
     assert "A &amp; B" in text
     assert "<code>email@example.com</code>" in text
@@ -56,7 +56,7 @@ def test_delivery_receipt_keeps_reference_amount_and_escaped_credentials():
 
 def test_waiting_notice_does_not_claim_delivery():
     text = waiting_notice({"order_id": 42, "product_title": "A & B"})
-    assert "Preparing delivery · #42" in text
+    assert "Preparing delivery · ORD-42" in text
     assert "Payment received" in text
     assert "Delivered" not in text
 
