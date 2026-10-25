@@ -1023,13 +1023,14 @@ def get_quantity_selector_keyboard(
 
     # Interactive stepper [-]  [ Qty ]  [+] (shown whenever stock > 1 or quantity > 1)
     if (is_manual or is_upstream or max_stock > 1) or quantity > 1:
+        qty_label = f"Qty: {quantity}" if lang != "bn" else f"পরিমাণ: {quantity}"
         row1 = [
             InlineKeyboardButton(
                 text="➖",
                 callback_data=f"qty_set_{product_id}_{dec_qty}",
             ),
             InlineKeyboardButton(
-                text=f"{quantity}",
+                text=qty_label,
                 callback_data="noop",
             ),
             InlineKeyboardButton(
@@ -1075,37 +1076,21 @@ def get_quantity_selector_keyboard(
             )
         ])
 
-    # Description and shareable link
-    extras = []
+    # Details and Navigation
     if has_description:
         desc_btn_text = "Details" if lang != "bn" else "বিবরণ"
-        extras.append(
+        buttons.append([
             InlineKeyboardButton(
                 text=desc_btn_text,
                 callback_data=f"prod_desc_{product_id}",
             )
-        )
+        ])
 
-    copy_btn = None
-    if product_link:
-        copy_btn_text = "Copy Link" if lang != "bn" else "লিংক কপি"
-        copy_btn = InlineKeyboardButton(
-            text=copy_btn_text,
-            copy_text=CopyTextButton(text=product_link[:256]),
-        )
-
-    # Back to catalog / product list
     effective_back = back_target if back_target and back_target != "close_menu" else "open_categories"
-    back_btn_text = "Back" if lang != "bn" else t("btn_back", lang)
-    back_btn = InlineKeyboardButton(text=back_btn_text, callback_data=effective_back)
-
-    if extras:
-        buttons.append(extras)
-
-    if copy_btn:
-        buttons.append([copy_btn, back_btn])
-    else:
-        buttons.append([back_btn])
+    back_btn_text = "🔙 Back" if lang != "bn" else "🔙 ব্যাক"
+    buttons.append([
+        InlineKeyboardButton(text=back_btn_text, callback_data=effective_back),
+    ])
 
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
