@@ -418,6 +418,7 @@ async def test_deposit_refresh_callback():
     services = MagicMock()
     services.users.get_language = AsyncMock(return_value="en")
     services.settings.get = AsyncMock(return_value="৳")
+    services.settings.number = AsyncMock(return_value=125.0)
     services.deposits.get_for_customer = AsyncMock(return_value={
         "id": 42,
         "method_name": "bKash",
