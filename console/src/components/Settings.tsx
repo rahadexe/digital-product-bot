@@ -234,7 +234,7 @@ export function Settings({
     setSavingLimits(true);
     try {
       const depositLimitNum = Math.max(1, parseFloat(values.max_deposit_limit || '500') || 500);
-      const referralNum = Math.max(0, parseFloat(values.referral_reward_amount || '0.10') || 0);
+      const referralNum = Math.max(0, parseFloat(values.referral_reward_amount || '0.024') || 0);
       const usdRateNum = Math.max(0.0001, parseFloat(values.usd_rate || '125') || 125);
       const payload: Record<string, string> = {
         store_name: values.store_name?.trim() || 'Premium Haven',
@@ -411,12 +411,12 @@ export function Settings({
                 </label>
 
                 <label className="field wide">
-                  <span>Maximum single deposit limit (BDT)</span>
+                  <span>Maximum single wallet credit (USD)</span>
                   <input
                     type="number"
                     min="1"
-                    placeholder="500"
-                    value={values.max_deposit_limit ?? '500'}
+                    placeholder="400"
+                    value={values.max_deposit_limit ?? '400'}
                     onChange={(e) =>
                       setValues((cur) => ({ ...cur, max_deposit_limit: e.target.value }))
                     }
@@ -424,13 +424,13 @@ export function Settings({
                 </label>
 
                 <label className="field wide">
-                  <span>Bonus per Referral (BDT)</span>
+                  <span>Bonus per Referral (USD)</span>
                   <input
                     type="number"
                     step="any"
                     min="0"
-                    placeholder="0.10"
-                    value={values.referral_reward_amount ?? '0.10'}
+                    placeholder="0.024"
+                    value={values.referral_reward_amount ?? '0.024'}
                     onChange={(e) =>
                       setValues((cur) => ({ ...cur, referral_reward_amount: e.target.value }))
                     }

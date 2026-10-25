@@ -48,8 +48,9 @@ async def test_concurrent_import_is_idempotent_and_preserves_customizations(admi
         assert await conn.fetchval("SELECT COUNT(*) FROM categories") == 1
     assert len(await services.catalog.products()) == 1
     assert len(await services.catalog.categories()) == 1
-    wholesale = 200 if code == "digital_mart" else 250
-    assert float(row["price"]) == round(wholesale * (1 + markup / 100), 2)
+    wholesale_usd = 200 / 125 if code == "digital_mart" else 2
+    expected_price = round(wholesale_usd * (1 + markup / 100), 2)
+    assert float(row["price"]) == expected_price
     assert row["duration_label"] == "7 days"
     if code == "safwan_tiger":
         assert row["warranty_label"] == "7 days"

@@ -892,7 +892,7 @@ function CustomerProfilePage({
             {/* Form Inputs */}
             <div className="cust-form-grid">
               <div className="field">
-                <label htmlFor="adjust-amount">Amount (৳)</label>
+                <label htmlFor="adjust-amount">Amount ($)</label>
                 <input
                   id="adjust-amount"
                   type="number"

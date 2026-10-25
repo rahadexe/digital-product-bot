@@ -231,7 +231,7 @@ def forget_search_origin(tg_user_id: int, product_id: int) -> None:
 async def _results(services: Services, term: str, lang: str = "en") -> tuple[str, InlineKeyboardMarkup]:
     matches = await services.catalog.search(term, limit=RESULTS)
     values = await services.settings.values()
-    symbol = values.get("currency_symbol", "৳")
+    symbol = values.get("currency_symbol", "$")
     usd_rate = float(values.get("usd_rate") or 0) or None
     closing = _closing_row(lang)
 

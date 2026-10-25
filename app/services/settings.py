@@ -106,17 +106,17 @@ class SettingSpec:
 
 SPECS: dict[str, SettingSpec] = {
     "store_name": SettingSpec("PremiumOne", max_length=64),
-    "currency": SettingSpec("BDT", _currency_code, 10),
-    "currency_symbol": SettingSpec("৳", max_length=8),
+    "currency": SettingSpec("USD", _currency_code, 10),
+    "currency_symbol": SettingSpec("$", max_length=8),
     "usd_rate": SettingSpec("125", _number(0.0001, 1_000_000), 16),
     "validity_presets": SettingSpec("", max_length=2000),
     "support_username": SettingSpec("@rahadhasanrafi", _username, 65),
     "referral_enabled": SettingSpec("1", _flag, 1),
-    "referral_reward_amount": SettingSpec("3.0", _number(0, 100), 16),
+    "referral_reward_amount": SettingSpec("0.024", _number(0, 100), 16),
     "force_join_enabled": SettingSpec("0", _flag, 1),
     "store_paused": SettingSpec("0", _flag, 1),
     "maintenance_message": SettingSpec("Store maintenance is in progress. Please try again soon.", max_length=240),
-    "max_deposit_limit": SettingSpec("50000", _number(1, 1_000_000_000), 16),
+    "max_deposit_limit": SettingSpec("400", _number(1, 1_000_000_000), 16),
     "admin_tg_id": SettingSpec("0", _telegram_id, 20),
     "admin_tg_ids": SettingSpec("", _telegram_ids, 1000),
     "notify_admin_orders": SettingSpec("0", _flag, 1),
@@ -164,7 +164,7 @@ SPECS: dict[str, SettingSpec] = {
     "safwan_tiger_low_balance_notify": SettingSpec("1", _flag, 1),
     # Resilient supplier fallback: queue order as waiting rather than rolling back when supplier is out of balance
     "supplier_fallback_to_waiting": SettingSpec("1", _flag, 1),
-    "binance_pay_rate": SettingSpec("125", _number(0.0001, 1_000_000), 16),
+    "binance_pay_rate": SettingSpec("1", _number(0.0001, 1_000_000), 16),
     "binance_pay_min": SettingSpec("1", _number(0.01, 1_000_000_000), 16),
     "binance_pay_instructions": SettingSpec("", max_length=1000),
     # Home welcome banner and tagline customizations (hosted on Telegram's CDN)
@@ -195,15 +195,10 @@ class SettingsService:
         if len(raw) > spec.max_length:
             raise ValueError(f"is longer than {spec.max_length} characters")
         value = spec.parse(raw)
-        fixed = {'currency': 'BDT', 'currency_symbol': '৳', 'zinipay_rate': '1'}
-        if key in fixed:
-            if key == 'zinipay_rate':
-                if float(value) != 1:
-                    raise ValueError('must remain 1 for the BDT wallet')
-            elif value != fixed[key]:
-                raise ValueError(f'must remain {fixed[key]} for the BDT wallet')
-            return fixed[key]
-        return value
+        fixed = {"currency": "USD", "currency_symbol": "$", "zinipay_rate": "1", "binance_pay_rate": "1"}
+        if key in fixed and value != fixed[key]:
+            raise ValueError(f"must remain {fixed[key]}")
+        return fixed.get(key, value)
 
     async def values(self) -> dict[str, str]:
         """Every declared setting: the stored value when it is valid, otherwise the default."""

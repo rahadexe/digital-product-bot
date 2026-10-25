@@ -16,38 +16,45 @@ class EmptySettingsDatabase:
         return []
 
 
-def test_store_currency_defaults_to_bdt():
-    assert SPECS["currency"].default == "BDT"
-    assert SPECS["currency_symbol"].default == "৳"
+def test_store_currency_defaults_to_usd():
+    assert SPECS["currency"].default == "USD"
+    assert SPECS["currency_symbol"].default == "$"
+    assert SPECS["binance_pay_rate"].default == "1"
 
 
-def test_store_currency_settings_are_locked_to_bdt():
+def test_store_currency_settings_are_locked_to_usd():
     settings = SettingsService.__new__(SettingsService)
-    assert settings._validate("currency", "BDT") == "BDT"
-    with pytest.raises(ValueError, match="must remain BDT"):
-        settings._validate("currency", "USD")
-    with pytest.raises(ValueError, match="must remain ৳"):
-        settings._validate("currency_symbol", "$")
+    assert settings._validate("currency", "USD") == "USD"
+    assert settings._validate("currency_symbol", "$") == "$"
+    assert settings._validate("binance_pay_rate", "1") == "1"
+    with pytest.raises(ValueError, match="must remain USD"):
+        settings._validate("currency", "BDT")
+    with pytest.raises(ValueError, match="must remain $"):
+        settings._validate("currency_symbol", "৳")
+    with pytest.raises(ValueError, match="must remain 1"):
+        settings._validate("binance_pay_rate", "125")
 
 
 class LegacyCurrencySettingsDatabase(EmptySettingsDatabase):
     async def fetch(self, _query):
         return [
-            {"key": "currency", "value": "USD"},
-            {"key": "currency_symbol", "value": "$"},
+            {"key": "currency", "value": "BDT"},
+            {"key": "currency_symbol", "value": "৳"},
         ]
 
 
 @pytest.mark.asyncio
-async def test_legacy_currency_settings_are_read_as_bdt():
+async def test_legacy_currency_settings_are_read_as_usd():
     settings = SettingsService(LegacyCurrencySettingsDatabase(), SimpleNamespace(admin_tg_id=0))
     values = await settings.values()
-    assert values["currency"] == "BDT"
-    assert values["currency_symbol"] == "৳"
+    assert values["currency"] == "USD"
+    assert values["currency_symbol"] == "$"
 
 
-def test_default_price_format_is_bdt():
-    assert format_dual_price(125) == "125 ৳"
+def test_default_price_format_is_usd_and_bangla_shows_equivalent():
+    assert format_dual_price(125) == "$125"
+    assert format_dual_price(0.8, usd_rate=125, lang="bn") == "৳100 (≈$0.8)"
+    assert format_dual_price(0.8, lang="en") == "$0.8"
 
 
 @pytest.mark.asyncio

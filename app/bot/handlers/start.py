@@ -19,6 +19,7 @@ from aiogram.types import (
 )
 
 from app.bot.formatting import (
+    format_dual_price,
     AUTO_DELETE_ENABLED,
     _quiet_delete,
     clean_previous_menu,
@@ -64,7 +65,7 @@ def build_welcome_text(
     store_title = escape(store_name) if store_name else "BM DIGITAL"
     user_id_display = str(user_id) if user_id else ""
     clean_support = f"@{support_username.lstrip('@')}" if support_username else "@support"
-    bal_display = balance_str if balance_str else "৳0.00"
+    bal_display = balance_str if balance_str else "$0.00"
 
     if lang == "bn":
         order_line = f"অর্ডার: <b>{order_count}টি</b>" if order_count > 0 else "অর্ডার: <b>০টি</b>"
@@ -109,15 +110,9 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
     store_name = values.get("store_name", "Premium Haven") if isinstance(values, dict) else "Premium Haven"
     lang = await services.users.get_language(tg_user_id)
 
-    symbol = (values.get("currency_symbol") or "৳").strip() if isinstance(values, dict) else "৳"
-    usd_rate = float(values.get("usd_rate") or 0.0) if isinstance(values, dict) else 0.0
-    show_usd = str(values.get("show_usd_price", "0")).lower() in ("1", "true", "yes") if isinstance(values, dict) else False
+    usd_rate = float(values.get("usd_rate") or 125) if isinstance(values, dict) else 125.0
     user_balance = float(user.get("balance", 0.0)) if user and isinstance(user, dict) else 0.0
-    if lang == "en" and show_usd and usd_rate and usd_rate > 0:
-        usd = round(user_balance / usd_rate, 2)
-        balance_str = f"${usd:g}" if usd == int(usd) else f"${usd:.2f}"
-    else:
-        balance_str = f"{symbol}{user_balance:g}" if user_balance == int(user_balance) else f"{symbol}{user_balance:.2f}"
+    balance_str = format_dual_price(user_balance, usd_rate=usd_rate, lang=lang)
     user_name = (user.get("first_name") or getattr(getattr(message, "from_user", None), "first_name", "") or "").strip() if user and isinstance(user, dict) else ""
     banner_file_id = (values.get("welcome_banner_file_id") or "").strip() if isinstance(values, dict) else ""
     tagline = (values.get("welcome_tagline") or "").strip() if isinstance(values, dict) else ""

@@ -361,13 +361,12 @@ class BinanceDepositService:
             )
         if not method:
             raise InvalidInputError("Payment method is no longer available.")
-        rate = float(method["rate_to_currency"] or 1) or 1
         min_dep = float(method["min_deposit"])
         if expected_usdt is not None:
             paid = money(expected_usdt, positive=True)
-            base_amount = money(paid / rate if method.get("auto_verify") == PROVIDER else paid * rate, positive=True)
+            base_amount = paid  # USDT credits USD wallet 1:1.
         else:
-            base_amount = money(min_dep if method.get("auto_verify") == PROVIDER else min_dep * rate, positive=True)
+            base_amount = money(min_dep, positive=True)
 
         key, secret = await self.get_credentials_for_method(method_id)
         has_keys = bool(key and secret)
@@ -378,7 +377,7 @@ class BinanceDepositService:
                 return {"deposit_id": None, "checked": True, "credited": False, **refused}
 
         deposit_id = await self.deposits.create_request(tg_user_id, method_id, base_amount, reference,
-                                                        quoted_rate=rate, notify_admin=False)
+                                                        quoted_rate=1.0, notify_admin=False)
         if has_keys:
             async with self.db.transaction() as conn:
                 await conn.execute(
@@ -577,14 +576,12 @@ class BinanceDepositService:
         notify_customer: bool = True,
     ) -> dict[str, Any]:
         """The payment decides the amount, and its own id is what the deposit is filed under."""
-        rate = float(deposit["rate_to_currency"] or 1) or 1
-        # Multiply by exchange rate if rate >= 1 (e.g. 125 BDT per USDT), else divide
-        credit = money(received * rate if deposit.get('auto_verify') == PAY_PROVIDER else received / rate)
+        credit = money(received)  # Binance USDT and wallet USD are 1:1.
         limit = await self.settings.number("max_deposit_limit")
         if credit > limit:
             return await self._flag(deposit, f"{received:g} {coin} is above the single deposit limit")
         minimum = money(deposit.get("min_deposit") or 0)
-        if (received if deposit.get('auto_verify') == PAY_PROVIDER else credit) < minimum:
+        if credit < minimum:
             return await self._flag(deposit, f"{received:g} {coin} is below this method's smallest top-up")
         if abs(credit - money(deposit["amount"])) > 0.01 or transaction_id.lower() != str(deposit["transaction_id"]).lower():
             try:

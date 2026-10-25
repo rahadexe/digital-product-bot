@@ -67,13 +67,12 @@ class PendingDepositError(InvalidInputError):
 
 
 def is_binance_pay_method(method: Any) -> bool:
-    """Pay/manual crypto rates are BDT per coin; legacy on-chain rates are inverse."""
-    return method.get("auto_verify") != "binance" and (
-        method.get("auto_verify") == "binance_pay"
+    """USD wallet and Binance USDT are credited 1:1 for every crypto deposit method."""
+    return (
+        method.get("auto_verify") in {"binance", "binance_pay"}
         or method.get("account_type") == "crypto"
         or "binance" in (method.get("name") or "").lower()
     )
-
 
 class DepositService:
     CACHE_SECONDS = 60.0
@@ -260,15 +259,17 @@ class DepositService:
     # --- Requests ---
     async def _quote(self, method: Any, amount: float, values: dict[str, str] | None = None) -> dict[str, Any]:
         values = values if values is not None else await self.settings.values()
-        symbol = values["currency_symbol"]
-        limit = float(values["max_deposit_limit"])
-        rate = float(method["rate_to_currency"])
-        is_pay = is_binance_pay_method(method)
-        minimum = method["min_deposit"] * rate if is_pay else method["min_deposit"]
-        if amount < minimum:
-            raise InvalidInputError(f"The minimum deposit for this method is {symbol}{minimum:.2f}.")
-        if amount > limit:
-            raise InvalidInputError(f"The maximum single deposit is {symbol}{limit:.2f}. Contact support for larger payments.")
+        rate = 1.0 if is_binance_pay_method(method) else float(values.get("usd_rate") or 125)
+        is_crypto = is_binance_pay_method(method)
+        pay_amount = round(amount if is_crypto else amount * rate, 4)
+        minimum = float(method["min_deposit"] or 0.0)
+        paid_for_minimum = amount if is_crypto else pay_amount
+        if paid_for_minimum < minimum:
+            currency = "USDT" if is_crypto else "BDT"
+            raise InvalidInputError(f"The minimum payment for this method is {currency}{minimum:.2f}.")
+        limit = float(values.get("max_deposit_limit") or 0.0)
+        if limit and amount > limit:
+            raise InvalidInputError(f"The maximum wallet credit is ${limit:.2f}. Contact support for larger payments.")
         return {
             "method_id": method["id"],
             "method_name": method["name"],
@@ -277,8 +278,8 @@ class DepositService:
             "instructions": method["instructions"] or "",
             "amount": amount,
             "rate": rate,
-            "pay_amount": round(amount / rate if is_pay else amount * rate, 4),
-            "paid_currency": values.get("binance_coin", "USDT") if is_pay or method.get("auto_verify") == "binance" else "BDT",
+            "pay_amount": pay_amount,
+            "paid_currency": values.get("binance_coin", "USDT") if is_crypto else "BDT",
         }
 
     async def quote(self, method_id: int, amount: Any) -> dict[str, Any]:
@@ -324,18 +325,20 @@ class DepositService:
                     raise InvalidInputError("Payment method is no longer available.")
                 if pay_amount is not None:
                     actual_pay_amount = money(pay_amount, positive=True)
+                    is_crypto = is_binance_pay_method(method)
+                    rate = 1.0 if is_crypto else float(values.get("usd_rate") or 125)
                     actual_amount = amount
-                    rate = float(quoted_rate if quoted_rate is not None else (method["rate_to_currency"] or 1.0))
+                    expected_amount = round(actual_pay_amount if is_crypto else actual_pay_amount / rate, 4)
+                    if abs(expected_amount - actual_amount) > 0.0001:
+                        raise InvalidInputError("The payment amount and USD wallet credit do not match the current rate.")
                     min_dep = float(method["min_deposit"] or 0.0)
-                    is_pay = is_binance_pay_method(method)
-                    minimum_amount = actual_amount if method.get("auto_verify") == "binance" else actual_pay_amount
-                    if minimum_amount < min_dep:
-                        curr_sym = "$" if is_pay else values.get("currency_symbol", "৳")
-                        raise InvalidInputError(f"The minimum deposit for this method is {curr_sym}{min_dep:g}.")
+                    minimum_paid = actual_amount if is_crypto else actual_pay_amount
+                    if minimum_paid < min_dep:
+                        curr = "USDT" if is_crypto else "BDT"
+                        raise InvalidInputError(f"The minimum payment for this method is {curr}{min_dep:g}.")
                     limit = float(values.get("max_deposit_limit") or 0.0)
                     if limit and actual_amount > limit:
-                        curr_sym = values.get("currency_symbol", "৳")
-                        raise InvalidInputError(f"The maximum single deposit is {curr_sym}{limit:g}. Contact support for larger payments.")
+                        raise InvalidInputError(f"The maximum wallet credit is ${limit:g}. Contact support for larger payments.")
                     quote = {
                         "method_id": method["id"],
                         "method_name": method["name"],
@@ -345,7 +348,7 @@ class DepositService:
                         "amount": actual_amount,
                         "rate": rate,
                         "pay_amount": actual_pay_amount,
-                        "paid_currency": values.get("binance_coin", "USDT") if is_pay or method.get("auto_verify") == "binance" else "BDT",
+                        "paid_currency": values.get("binance_coin", "USDT") if is_crypto else "BDT",
                     }
                 else:
                     quote = await self._quote(method, amount, values)
@@ -422,9 +425,8 @@ class DepositService:
         transaction_id: str,
         admin_note: str = "",
     ) -> None:
-        symbol = escape(await self.settings.get("currency_symbol"))
         customer = f"@{escape(username)}" if username else "No username"
-        payable = f"\n<b>Customer pays:</b> {quote['pay_amount']:.2f} (rate {quote['rate']:g})" if quote["rate"] != 1 else ""
+        payable = f"\n<b>Customer pays:</b> {quote['pay_amount']:.2f} {quote['paid_currency']} (wallet credit ${quote['amount']:.2f})"
         note_line = f"\n⚠️ <b>Note:</b> <i>{escape(admin_note)}</i>" if admin_note else ""
 
         # Reviewing a deposit is the most time-critical thing an operator does:

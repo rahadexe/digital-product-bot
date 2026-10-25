@@ -19,6 +19,7 @@ from aiogram.types import CallbackQuery, ForceReply, InlineKeyboardButton, Inlin
 
 from app.bot.deposit_input import parse_deposit_amount, payment_instruction_note
 from app.bot.formatting import (
+    format_dual_price,
     callback_int,
     get_last_menu_message,
     price,
@@ -334,15 +335,9 @@ async def show_deposit_methods(event: Message | CallbackQuery, state: FSMContext
     displayed_methods = list(all_methods)
 
     lang = await services.users.get_language(user.id)
-    symbol = (await services.settings.get("currency_symbol") or "৳").strip()
     usd_rate = await services.settings.number("usd_rate")
     user_balance = float(user_data.get("balance", 0.0)) if user_data else 0.0
-    show_usd = await services.settings.flag("show_usd_price")
-    if lang == "en" and show_usd and usd_rate and usd_rate > 0:
-        usd = round(user_balance / usd_rate, 2)
-        balance_display = f"${usd:g}" if usd == int(usd) else f"${usd:.2f}"
-    else:
-        balance_display = f"{symbol}{user_balance:g}" if user_balance == int(user_balance) else f"{symbol}{user_balance:.2f}"
+    balance_display = format_dual_price(user_balance, usd_rate=usd_rate, lang=lang)
 
     if pending:
         if lang == "bn":
@@ -516,15 +511,6 @@ async def render_method_details(
     await state.set_state(DepositStates.method_selected)
 
     symbol = "৳"
-    if hasattr(services, "settings") and hasattr(services.settings, "get"):
-        try:
-            val = services.settings.get("currency_symbol")
-            if asyncio.iscoroutine(val) or hasattr(val, "__await__"):
-                symbol = (await val) or "৳"
-            elif isinstance(val, str):
-                symbol = val or "৳"
-        except Exception:
-            symbol = "৳"
 
     usd_rate = 125.0
     if hasattr(services, "settings") and hasattr(services.settings, "number"):
@@ -547,18 +533,11 @@ async def render_method_details(
     custom_inst = payment_instruction_note(str(method.get("instructions") or "").strip())
 
     is_binance = "binance" in method_name.lower() or account_type == "crypto" or auto_verify in ("binance", "binance_pay")
-    if auto_verify == "binance":
-        # Legacy on-chain minimums are stored in wallet BDT, but customers enter coins.
-        min_dep *= rate or 1.0
+    # Binance/USDT and USD are 1:1; local methods display their BDT minimum.
     is_payment_link = account_info.startswith("https://")
 
-    # Global exchange rate from settings: all fiat/BDT methods use global usd_rate, crypto is 1.0.
-    # If a method specifies a custom rate > 1.0 (e.g. custom or testing), honor it.
-    if not is_binance:
-        custom_rate = float(method.get("rate_to_currency") or 0.0)
-        rate = custom_rate if custom_rate > 1.0 else float(usd_rate or 125.0)
-    else:
-        rate = 1.0
+    # USD wallet credit converts at one global rate; Binance USDT is 1:1.
+    rate = 1.0 if is_binance else float(usd_rate or 125.0)
 
     await state.set_data({
         "method_id": method["id"],
@@ -687,18 +666,18 @@ def _instant_keyboard(invoice: dict) -> InlineKeyboardMarkup:
 
 
 async def _render_instant_invoice(invoice: dict, services: Services) -> tuple[str, InlineKeyboardMarkup]:
-    symbol = await services.settings.get("currency_symbol")
-    formatted_amount = price(symbol, invoice["pay_amount"], show_usd=False)
+    credit = float(invoice.get("credit_amount") or 0.0)
+    pay_amount = float(invoice.get("pay_amount") or 0.0)
     ref = escape(str(invoice.get("reference") or invoice.get("id") or ""))
     ref_suffix = f" #{ref}" if ref else ""
     text = (
         f"<b>Top-up{ref_suffix}</b>\n"
-        f"Amount: <code>{formatted_amount}</code>\n"
+        f"Wallet credit: <code>${credit:.2f} USD</code>\n"
+        f"Payment: <code>৳{pay_amount:.2f} BDT</code>\n"
         "Status: Awaiting payment\n\n"
         "Tap Pay to open checkout. Balance is added after verification."
     )
     return text, _instant_keyboard(invoice)
-
 
 @router.message(DepositStates.waiting_for_instant_amount)
 async def create_instant_payment(message: Message, state: FSMContext, services: Services):
@@ -707,7 +686,9 @@ async def create_instant_payment(message: Message, state: FSMContext, services: 
         await navigate(raw_text, message, state, services)
         return
     try:
-        clean_amount = str(parse_deposit_amount(raw_text))
+        bdt_amount = float(parse_deposit_amount(raw_text))
+        usd_rate = float(await services.settings.number("usd_rate") or 125)
+        clean_amount = str(round(bdt_amount / max(usd_rate, 0.0001), 4))
         invoice = await services.payments.create_invoice(message.from_user.id, clean_amount)
     except ValueError as exc:
         await message.answer(f"{ICON_WARNING} {escape(str(exc))}", reply_markup=get_cancel_keyboard())
@@ -736,10 +717,12 @@ async def check_instant_payment(query: CallbackQuery, state: FSMContext, service
     if invoice["status"] == "completed":
         ref = escape(str(invoice.get("reference") or invoice.get("id") or ""))
         ref_suffix = f" #{ref}" if ref else ""
-        pay_amt = float(invoice.get("pay_amount") or invoice.get("credit_amount") or 0.0)
+        pay_amt = float(invoice.get("pay_amount") or 0.0)
+        credit = float(invoice.get("credit_amount") or 0.0)
         text = (
             f"<b>Payment verified{ref_suffix}</b>\n"
-            f"Paid: <code>{pay_amt:.2f} BDT</code>\n"
+            f"Paid: <code>৳{pay_amt:.2f} BDT</code>\n"
+            f"Wallet credit: <code>${credit:.2f} USD</code>\n"
             "Your wallet has been updated."
         )
         if query.message:
@@ -948,8 +931,7 @@ async def handle_deposit_quick_amount(query: CallbackQuery, state: FSMContext, s
     account_type = data.get("account_type", "personal")
     min_dep = float(data.get("min_deposit") or 1.0)
     is_binance = data.get("is_binance", False) or "binance" in method_name.lower() or data.get("auto_verify") == "binance_pay"
-    symbol = await services.settings.get("currency_symbol") or "৳"
-    curr_label = "USDT" if is_binance else symbol
+    curr_label = "USDT" if is_binance else "৳"
     lang = await services.users.get_language(query.from_user.id) if query.from_user else "en"
 
     raw_val = query.data.removeprefix("dep_amt_")
@@ -978,19 +960,17 @@ async def handle_deposit_quick_amount(query: CallbackQuery, state: FSMContext, s
         return
 
     max_dep = await services.settings.number("max_deposit_limit")
-    if not is_binance and max_dep and amount_num > max_dep:
-        max_bdt = max_dep
-        err_msg = f"সর্বোচ্চ ডিপোজিট {max_bdt:.0f} ৳:" if lang == "bn" else f"Maximum deposit is {max_bdt:.0f} ৳:"
+    usd_amount = amount_num if is_binance else round(amount_num / rate, 4)
+    if max_dep and usd_amount > max_dep:
+        err_msg = f"সর্বোচ্চ wallet credit ${max_dep:.2f} USD:" if lang == "bn" else f"Maximum wallet credit is ${max_dep:.2f} USD:"
         with suppress(TelegramBadRequest):
             await query.answer(err_msg, show_alert=True)
         return
 
     rate = float(data.get("rate") or 1.0)
     if is_binance:
-        usd_amount = amount_num
         pay_amount = amount_num
     else:
-        usd_amount = round(amount_num / rate, 2)
         pay_amount = amount_num
 
     q_msg = getattr(query, "message", None)
@@ -1193,15 +1173,6 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
     target_msg_id = data.get("card_msg_id") or (get_last_menu_message(chat_id) if chat_id else None)
 
     symbol = "৳"
-    if hasattr(services, "settings") and hasattr(services.settings, "get"):
-        try:
-            val = services.settings.get("currency_symbol")
-            if asyncio.iscoroutine(val) or hasattr(val, "__await__"):
-                symbol = (await val) or "৳"
-            elif isinstance(val, str):
-                symbol = val or "৳"
-        except Exception:
-            symbol = "৳"
 
     rate = float(data.get("rate") or 1.0)
     account_type = data.get("account_type", "personal")
@@ -1283,9 +1254,9 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
 
     rate = float(data.get("rate") or 1.0)
     max_dep = await services.settings.number("max_deposit_limit")
-    if not is_binance and max_dep and amount_num > max_dep:
-        max_bdt = max_dep
-        err_msg = f"সর্বোচ্চ ডিপোজিট {max_bdt:.0f} ৳:" if lang == "bn" else f"Maximum deposit is {max_bdt:.0f} ৳:"
+    usd_amount = amount_num if is_binance else round(amount_num / rate, 4)
+    if max_dep and usd_amount > max_dep:
+        err_msg = f"সর্বোচ্চ wallet credit ${max_dep:.2f} USD:" if lang == "bn" else f"Maximum wallet credit is ${max_dep:.2f} USD:"
         await _send_or_edit_error(_build_err_card(err_msg), quick_kb)
         return
 
@@ -1293,10 +1264,8 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
         asyncio.create_task(_delete_user_message(message))
 
     if is_binance:
-        usd_amount = amount_num
         pay_amount = amount_num
     else:
-        usd_amount = round(amount_num / rate, 2)
         pay_amount = amount_num
 
     await state.update_data(
@@ -1611,11 +1580,9 @@ async def execute_deposit_submission(
         actual_pay = raw_amount
         amt_display = f"{credit_amount:g} USDT"
     else:
-        # The ledger is denominated in BDT; USD is only an approximate display conversion.
-        credit_amount = pay_amount
+        credit_amount = round(pay_amount / rate, 4)
         actual_pay = pay_amount
-        rate = 1.0
-        amt_display = f"৳{actual_pay:g}"
+        amt_display = f"৳{actual_pay:g} → ${credit_amount:.2f} USD"
 
     user_msg = event.message if isinstance(event, CallbackQuery) else event
     chat = getattr(event, "chat", None) or (getattr(user_msg, "chat", None) if user_msg else None)
@@ -1744,9 +1711,10 @@ async def execute_deposit_submission(
     received_tx = await _get_unused_statement(services, clean_tx)
     if received_tx:
         auto_amt = float(received_tx["amount"])
-        credit_amount = auto_amt
+        rate = float(data.get("rate") or 125.0)
+        credit_amount = round(auto_amt / rate, 4)
         actual_pay = auto_amt
-        amt_display = f"৳{actual_pay:g}"
+        amt_display = f"৳{actual_pay:g} → ${credit_amount:.2f} USD"
 
         try:
             dep_id = await services.deposits.create_request(
@@ -1770,15 +1738,16 @@ async def execute_deposit_submission(
                 await state.clear()
                 user = await services.users.get(user_id)
                 user_balance = float(user.get("balance", 0.0)) if user else 0.0
+                balance_display = format_dual_price(user_balance, usd_rate=rate, lang=lang)
                 keyboard = get_deposit_status_keyboard(dep_id=dep_id, status="approved", lang=lang)
                 success_txt = (
                     f"✅ <b>ডিপোজিট সফল হয়েছে!</b>\n"
                     f"মেথড: <b>{escape(method_name)}</b> (<code>{amt_display}</code>)\n"
-                    f"বর্তমান ব্যালেন্স: <code>৳{user_balance:.2f}</code>"
+                    f"বর্তমান ব্যালেন্স: <code>{balance_display}</code>"
                 ) if lang == "bn" else (
                     f"✅ <b>Deposit Successful!</b>\n"
                     f"Method: <b>{escape(method_name)}</b> (<code>{amt_display}</code>)\n"
-                    f"Current Balance: <code>৳{user_balance:.2f}</code>"
+                    f"Current Balance: <code>{balance_display}</code>"
                 )
                 await _safe_edit_or_answer(status_msg, user_msg, success_txt, reply_markup=keyboard)
                 return
@@ -1891,15 +1860,16 @@ async def execute_deposit_submission(
             user_balance = float(user.get("balance", 0.0)) if user else 0.0
             provider = res.get("provider") or method_name
             lang = await services.users.get_language(user_id)
+            balance_display = format_dual_price(user_balance, usd_rate=rate, lang=lang)
             keyboard = get_deposit_status_keyboard(dep_id=0, status="approved", lang=lang)
             text = (
                 f"✅ <b>ডিপোজিট সফল হয়েছে!</b>\n"
                 f"মেথড: <b>{escape(provider)}</b> (<code>{amt_display}</code>)\n"
-                f"বর্তমান ব্যালেন্স: <code>৳{user_balance:.2f}</code>"
+                f"বর্তমান ব্যালেন্স: <code>{balance_display}</code>"
             ) if lang == "bn" else (
                 f"✅ <b>Deposit Successful!</b>\n"
                 f"Method: <b>{escape(provider)}</b> (<code>{amt_display}</code>)\n"
-                f"Current Balance: <code>৳{user_balance:.2f}</code>"
+                f"Current Balance: <code>{balance_display}</code>"
             )
             await _safe_edit_or_answer(status_msg, user_msg, text, reply_markup=keyboard)
             return
@@ -2106,18 +2076,21 @@ async def claim_binance_payment(
         received_coin = result.get("received_coin") or expected_usdt or 0.0
         coin = result.get("coin", "USDT")
         credited_amount = result.get("amount", 0.0)
+        usd_rate = await services.settings.number("usd_rate")
+        balance_display = format_dual_price(user_balance, usd_rate=usd_rate, lang=lang)
+        credited_display = format_dual_price(credited_amount, usd_rate=usd_rate, lang=lang)
 
         keyboard = get_deposit_status_keyboard(dep_id=0, status="approved", lang=lang)
         text = (
             f"✅ <b>ডিপোজিট সফল হয়েছে!</b>\n"
             f"মেথড: <b>Binance</b> (<code>{received_coin:g} {escape(coin)}</code>)\n"
-            f"যোগ হয়েছে: <code>৳{credited_amount:.2f}</code>\n"
-            f"বর্তমান ব্যালেন্স: <code>৳{user_balance:.2f}</code>"
+            f"যোগ হয়েছে: <code>{credited_display}</code>\n"
+            f"বর্তমান ব্যালেন্স: <code>{balance_display}</code>"
         ) if lang == "bn" else (
             f"✅ <b>Deposit Successful!</b>\n"
             f"Method: <b>Binance</b> (<code>{received_coin:g} {escape(coin)}</code>)\n"
-            f"Credited: <code>৳{credited_amount:.2f}</code>\n"
-            f"Current Balance: <code>৳{user_balance:.2f}</code>"
+            f"Credited: <code>{credited_display}</code>\n"
+            f"Current Balance: <code>{balance_display}</code>"
         )
         await _safe_edit_or_answer(status_msg, user_msg, text, reply_markup=keyboard)
     else:
@@ -2170,20 +2143,17 @@ async def refresh_deposit_status(query: CallbackQuery, services: Services):
     is_bin = "binance" in (dep.get("method_name") or "").lower()
     amt = float(dep.get("amount") or 0.0)
     pay_amt = float(dep.get("pay_amount") or 0.0)
-    rate = float(dep.get("rate_to_currency") or 1.0)
+    usd_rate = await services.settings.number("usd_rate")
     if is_bin:
-        amt_str = f"{amt:g} USDT"
+        amt_str = f"{pay_amt or amt:g} USDT → ${amt:.2f} USD"
     else:
-        if pay_amt > 0 and rate > 1.0:
-            amt_str = f"৳{pay_amt:g} (USD equivalent: ${amt:.2f})"
-        else:
-            amt_str = f"৳{amt:.2f}"
+        amt_str = f"৳{pay_amt:g} → ${amt:.2f} USD" if pay_amt > 0 else f"${amt:.2f} USD"
 
     user_balance_str = None
     if status in ("approved", "completed"):
         user_data = await services.users.get(user.id)
         user_bal = float(user_data.get("balance", 0.0)) if user_data else 0.0
-        user_balance_str = f"৳{user_bal:.2f}"
+        user_balance_str = format_dual_price(user_bal, usd_rate=usd_rate, lang=lang)
 
     card_text = format_deposit_status_card(
         dep_id=dep_id,
@@ -2257,20 +2227,17 @@ async def back_to_deposit_request(query: CallbackQuery, services: Services):
     is_bin = "binance" in (dep.get("method_name") or "").lower()
     amt = float(dep.get("amount") or 0.0)
     pay_amt = float(dep.get("pay_amount") or 0.0)
-    rate = float(dep.get("rate_to_currency") or 1.0)
+    usd_rate = await services.settings.number("usd_rate")
     if is_bin:
-        amt_str = f"{amt:g} USDT"
+        amt_str = f"{pay_amt or amt:g} USDT → ${amt:.2f} USD"
     else:
-        if pay_amt > 0 and rate > 1.0:
-            amt_str = f"৳{pay_amt:g} (USD equivalent: ${amt:.2f})"
-        else:
-            amt_str = f"৳{amt:.2f}"
+        amt_str = f"৳{pay_amt:g} → ${amt:.2f} USD" if pay_amt > 0 else f"${amt:.2f} USD"
 
     user_balance_str = None
     if status in ("approved", "completed"):
         user_data = await services.users.get(user.id)
         user_bal = float(user_data.get("balance", 0.0)) if user_data else 0.0
-        user_balance_str = f"৳{user_bal:.2f}"
+        user_balance_str = format_dual_price(user_bal, usd_rate=usd_rate, lang=lang)
 
     text = format_deposit_status_card(
         dep_id=dep_id,

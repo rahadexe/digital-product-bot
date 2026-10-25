@@ -307,14 +307,13 @@ class PaymentService:
         except (TypeError, ValueError):
             raise InvalidInputError("Enter a valid amount, for example 10 or 25.50.") from None
         values = await self.settings.values()
-        symbol = values["currency_symbol"]
-        if credit < options["min_amount"]:
-            raise InvalidInputError(f"The minimum is {symbol}{options['min_amount']:.2f}.")
         limit = float(values["max_deposit_limit"])
         if credit > limit:
-            raise InvalidInputError(f"The maximum single deposit is {symbol}{limit:.2f}.")
-        rate = _decimal(values["zinipay_rate"])
+            raise InvalidInputError(f"The maximum wallet credit is ${limit:.2f}.")
+        rate = _decimal(values["usd_rate"]) * _decimal(values["zinipay_rate"])
         pay_amount = (_decimal(credit) * rate).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        if pay_amount < _decimal(options["min_amount"]):
+            raise InvalidInputError(f"The minimum payment is BDT {options['min_amount']:.2f}.")
 
         async with self.db.transaction() as conn:
             user = await conn.fetchrow("SELECT id, first_name, is_banned FROM users WHERE tg_user_id = $1 FOR UPDATE", tg_user_id)

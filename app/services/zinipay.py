@@ -294,12 +294,21 @@ class ZiniPayVerificationService:
         them on a silent spinner.
         """
         clean_tx = str(transaction_id).strip()
+        try:
+            rate = float(await self.settings.number("usd_rate") or 125.0)
+        except (TypeError, ValueError):
+            rate = 125.0
+        if not rate > 0:
+            rate = 125.0
+        quoted_rate = rate
         if pay_amount is not None:
-            bdt_amount = pay_amount
-            credit_amount = amount
+            bdt_amount = round(float(pay_amount), 2)
+            credit_amount = round(bdt_amount / rate, 4)
+            if abs(credit_amount - float(amount)) > 0.0001:
+                raise InvalidInputError("The BDT payment and USD wallet credit do not match the current exchange rate.")
         else:
-            bdt_amount = amount
-            credit_amount = round(amount / quoted_rate, 2) if quoted_rate > 1.0 else amount
+            credit_amount = round(float(amount), 4)
+            bdt_amount = round(credit_amount * rate, 2)
 
         # 1. Pre-check: has this TrxID already been credited?
         existing = await self.deposits.find_by_transaction(clean_tx)
