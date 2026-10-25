@@ -502,8 +502,6 @@ async def product_view(
     if has_reseller_rate:
         text += f" · {t('rank_reseller', lang)}"
     text += f"\n{stock_text}"
-    if available:
-        text += f" · {delivery_text}"
 
     # The description lives behind its own button rather than in the card, so a
     # long one does not push the price and the quantity controls off the screen.
