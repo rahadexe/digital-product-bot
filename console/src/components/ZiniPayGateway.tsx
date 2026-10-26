@@ -363,7 +363,7 @@ export function ZiniPayGateway({
                   </label>
 
                   <label className="field" style={{ margin: 0 }}>
-                    <span style={{ fontSize: '12.5px', fontWeight: 500 }}>Smallest deposit (টাকা)</span>
+                    <span style={{ fontSize: '12.5px', fontWeight: 500 }}>Smallest deposit (BDT)</span>
                     <input
                       type="number"
                       min="1"

@@ -71,7 +71,7 @@ def _customer_menu(lang: str = "en", show_icons: bool = True) -> list[tuple[str,
     """Five customer actions in the primary menu; secondary settings stay available separately."""
     items = [
         ("🛍", "Shop", "open_categories"),
-        ("💰", "Wallet", "open_wallet"),
+        ("💰", "Balance", "open_wallet"),
         ("📦", "Orders", "open_orders"),
         ("🎁", "Referral", "open_referral"),
         ("💬", "Support", "open_help"),
@@ -271,7 +271,7 @@ def get_product_detail_reply_keyboard(
             buy_text = f"⚡ {buy_text}"
         rows.append([KeyboardButton(text=buy_text, style="success")])
     else:
-        add_text = "Add to Wallet" if lang != "bn" else "অ্যাড ব্যালেন্স"
+        add_text = "Add to Balance" if lang != "bn" else "অ্যাড ব্যালেন্স"
         buy_text = f"Buy Now · {price_formatted}" if lang != "bn" else f"কিনুন · {price_formatted}"
         if show_icons:
             add_text = f"💳 {add_text}"
@@ -952,7 +952,7 @@ def get_quantity_selector_keyboard(
     else:
         short = round(total_price - user_balance, 2)
         short_formatted = format_dual_price(short, currency_symbol, usd_rate=usd_rate, show_usd=show_usd, lang=lang)
-        add_text = f"💳 Add {short_formatted} to Wallet" if lang != "bn" else f"💳 {short_formatted} ওয়ালেটে যোগ করুন"
+        add_text = f"💳 Add {short_formatted} to Balance"
         buttons.append([
             InlineKeyboardButton(
                 text=add_text[:64],
@@ -1197,11 +1197,11 @@ def get_deposit_status_keyboard(
         if can_fix_trx and dep_id:
             fix_text = "✏️ Fix TrxID" if lang != "bn" else "✏️ TrxID পরিবর্তন"
             buttons.append([InlineKeyboardButton(text=fix_text, callback_data=f"dep_fix_trx_{dep_id}")])
-        wallet_text = "🔙 Back to Wallet" if lang != "bn" else "🔙 ওয়ালেট"
+        wallet_text = "🔙 Back to Balance" if lang != "bn" else "🔙 ওয়ালেট"
         buttons.append([InlineKeyboardButton(text=wallet_text, callback_data="open_deposit")])
     elif st in ("approved", "completed"):
         shop_text = "🛍️ All Products" if lang != "bn" else "🛍️ সকল প্রোডাক্ট"
-        wallet_text = "🔙 Back to Wallet" if lang != "bn" else "🔙 ওয়ালেট"
+        wallet_text = "🔙 Back to Balance" if lang != "bn" else "🔙 ওয়ালেট"
         buttons.append([InlineKeyboardButton(text=shop_text, callback_data="open_shop")])
         buttons.append([InlineKeyboardButton(text=wallet_text, callback_data="open_deposit")])
     else:  # rejected, failed, cancelled
@@ -1209,7 +1209,7 @@ def get_deposit_status_keyboard(
             clean_sup = support_username.lstrip("@")
             sup_text = "💬 Support" if lang != "bn" else "💬 সাপোর্ট"
             buttons.append([InlineKeyboardButton(text=sup_text, url=f"https://t.me/{clean_sup}")])
-        wallet_text = "🔙 Back to Wallet" if lang != "bn" else "🔙 ওয়ালেট"
+        wallet_text = "🔙 Back to Balance" if lang != "bn" else "🔙 ওয়ালেট"
         buttons.append([InlineKeyboardButton(text=wallet_text, callback_data="open_deposit")])
 
     return InlineKeyboardMarkup(inline_keyboard=buttons)

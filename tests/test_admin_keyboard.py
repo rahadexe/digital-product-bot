@@ -105,7 +105,7 @@ class AdminKeyboard(unittest.IsolatedAsyncioTestCase):
         sent = await self.tap(OWNER, text='/start')
         markup = next(i['markup'] for i in sent if isinstance(i['markup'], ReplyKeyboardMarkup))
         self.assertEqual([[b.text for b in row] for row in markup.keyboard], [
-            ["🛍 Shop", "💰 Wallet"], ["📦 Orders", "🎁 Referral"],
+            ["🛍 Shop", "💰 Balance"], ["📦 Orders", "🎁 Referral"],
             ["💬 Support"], ["🛡 Admin Panel"],
         ])
         more = await self.tap(OWNER, text="⚙️ Settings")

@@ -1391,8 +1391,6 @@ async def view_deposit_detail(query: CallbackQuery, state: FSMContext, services:
     "📊 Price List",
     "📊 PRICE LIST",
     "PRICE LIST",
-    "📊 প্রাইস লিস্ট",
-    "প্রাইস লিস্ট",
 }))
 @router.message(F.text.casefold() == "price list")
 @router.message(F.text.casefold() == "pricelist")
@@ -1420,12 +1418,12 @@ async def show_price_list(event: Message | CallbackQuery, state: FSMContext | No
 
     for p in products:
         cid = p.get("category_id")
-        cat_name = cat_map.get(cid, "Other Products" if lang == "en" else "অন্যান্য প্রোডাক্ট")
+        cat_name = cat_map.get(cid, "Other Products")
         if cat_name not in cat_products:
             cat_products[cat_name] = []
         cat_products[cat_name].append(p)
 
-    title_text = "📊 <b>Live Price & Stock List</b>" if lang == "en" else "📊 <b>লাইভ প্রোডাক্ট প্রাইস লিস্ট</b>"
+    title_text = "📊 <b>Live Price & Stock List</b>"
 
     sections = []
     for cat_name, prod_list in cat_products.items():
@@ -1442,11 +1440,11 @@ async def show_price_list(event: Message | CallbackQuery, state: FSMContext | No
                 price_str = format_dual_price(p_price, symbol, usd_rate=usd_rate, lang=lang)
 
             if is_manual:
-                stock_label = "Manual" if lang == "en" else "ম্যানুয়াল"
+                stock_label = "Manual"
             elif stock > 0:
-                stock_label = f"Stock: {stock}" if lang == "en" else f"স্টক: {stock}"
+                stock_label = f"Stock: {stock}"
             else:
-                stock_label = "Out of Stock" if lang == "en" else "স্টক শেষ"
+                stock_label = "Out of Stock"
 
             prod_icon = (p.get("icon") or "").strip()
             icon_prefix = f"{prod_icon} " if prod_icon else ""
@@ -1454,11 +1452,11 @@ async def show_price_list(event: Message | CallbackQuery, state: FSMContext | No
         sections.append("\n".join(cat_lines))
 
     if not sections:
-        body = "<i>No products currently available in the catalog.</i>" if lang == "en" else "<i>ক্যাটালগে বর্তমানে কোনো প্রোডাক্ট নেই।</i>"
+        body = "<i>No products currently available in the catalog.</i>"
     else:
         body = "\n\n".join(sections)
 
-    footer = "\n\n💡 <i>All prices are live and updated instantly.</i>" if lang == "en" else "\n\n💡 <i>সকল মূল্য লাইভ এবং তাৎক্ষণিকভাবে আপডেট করা হয়।</i>"
+    footer = "\n\n💡 <i>All prices are live and updated instantly.</i>"
     text = f"{title_text}\n\n{body}{footer}"
 
     buttons = [

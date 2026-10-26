@@ -49,7 +49,7 @@ def test_five_primary_buttons_are_short_and_routable():
     inline = get_main_inline_keyboard()
     labels = [[b.text for b in row] for row in reply.keyboard]
     assert labels == [
-        ["🛍 Shop", "💰 Wallet"],
+        ["🛍 Shop", "💰 Balance"],
         ["📦 Orders", "🎁 Referral"],
         ["💬 Support"],
     ]

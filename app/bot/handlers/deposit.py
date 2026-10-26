@@ -361,7 +361,7 @@ async def show_deposit_methods(event: Message | CallbackQuery, state: FSMContext
             text = f"💰 <b>ব্যালেন্স:</b> <code>{balance_display}</code>\n\n{prompt}"
         else:
             prompt = (
-                "Add balance to your wallet:"
+                "Add funds to your balance:"
                 if displayed_methods or instant
                 else "No payment methods are available right now."
             )
@@ -672,7 +672,7 @@ async def _render_instant_invoice(invoice: dict, services: Services) -> tuple[st
     ref_suffix = f" #{ref}" if ref else ""
     text = (
         f"<b>Top-up{ref_suffix}</b>\n"
-        f"Wallet credit: <code>${credit:.2f} USD</code>\n"
+        f"Balance credit: <code>${credit:.2f} USD</code>\n"
         f"Payment: <code>৳{pay_amount:.2f} BDT</code>\n"
         "Status: Awaiting payment\n\n"
         "Tap Pay to open checkout. Balance is added after verification."
@@ -722,15 +722,15 @@ async def check_instant_payment(query: CallbackQuery, state: FSMContext, service
         text = (
             f"<b>Payment verified{ref_suffix}</b>\n"
             f"Paid: <code>৳{pay_amt:.2f} BDT</code>\n"
-            f"Wallet credit: <code>${credit:.2f} USD</code>\n"
-            "Your wallet has been updated."
+            f"Balance credit: <code>${credit:.2f} USD</code>\n"
+            "Your balance has been updated."
         )
         if query.message:
             with suppress(TelegramBadRequest):
                 await query.message.edit_text(
                     text,
                     reply_markup=InlineKeyboardMarkup(
-                        inline_keyboard=[[InlineKeyboardButton(text="Wallet", callback_data="open_wallet")]]
+                        inline_keyboard=[[InlineKeyboardButton(text="Balance", callback_data="open_wallet")]]
                     ),
                 )
         with suppress(TelegramBadRequest):
@@ -746,7 +746,7 @@ async def check_instant_payment(query: CallbackQuery, state: FSMContext, service
                 await query.message.edit_text(
                     text,
                     reply_markup=InlineKeyboardMarkup(
-                        inline_keyboard=[[InlineKeyboardButton(text="Wallet", callback_data="open_wallet")]]
+                        inline_keyboard=[[InlineKeyboardButton(text="Balance", callback_data="open_wallet")]]
                     ),
                 )
         with suppress(TelegramBadRequest):
@@ -831,7 +831,7 @@ async def confirm_cancel_instant_payment(query: CallbackQuery, state: FSMContext
             f"Balance: <code>{price(symbol, user['balance'] if user else 0.0, usd_rate=usd_rate)}</code>"
         )
         reply_markup = InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text="Wallet", callback_data="open_wallet")]]
+            inline_keyboard=[[InlineKeyboardButton(text="Balance", callback_data="open_wallet")]]
         )
     else:
         text = (
@@ -839,7 +839,7 @@ async def confirm_cancel_instant_payment(query: CallbackQuery, state: FSMContext
             "This invoice is closed. If you already paid, contact Support before paying again."
         )
         reply_markup = InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text="Wallet", callback_data="open_wallet")]]
+            inline_keyboard=[[InlineKeyboardButton(text="Balance", callback_data="open_wallet")]]
         )
 
     if query.message:
@@ -1063,11 +1063,11 @@ async def begin_payment_reference(query: CallbackQuery, state: FSMContext, servi
         or str(selected_id) != requested_id
         or await state.get_state() != DepositStates.method_selected.state
     ):
-        await query.answer("This payment screen is no longer active. Open Wallet.", show_alert=True)
+        await query.answer("This payment screen is no longer active. Open Balance.", show_alert=True)
         return
     method = await services.deposits.get_method(selected_id)
     if not method or not method.get("is_active", True):
-        await query.answer("This payment method is unavailable. Open Wallet.", show_alert=True)
+        await query.answer("This payment method is unavailable. Open Balance.", show_alert=True)
         return
     if await services.deposits.pending_for(query.from_user.id):
         await query.answer("Your previous payment is still being checked.", show_alert=True)
@@ -1504,7 +1504,7 @@ async def process_confirm_text(message: Message, state: FSMContext, services: Se
 async def confirm_deposit_callback(query: CallbackQuery, state: FSMContext, services: Services):
     if await state.get_state() != DepositStates.waiting_for_confirm.state:
         with suppress(TelegramBadRequest):
-            await query.answer("This confirmation is no longer active. Open Wallet to check your deposit.")
+            await query.answer("This confirmation is no longer active. Open Balance to check your deposit.")
         return
     with suppress(TelegramBadRequest):
         await query.answer()

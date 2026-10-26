@@ -32,7 +32,7 @@ def test_persistent_reply_keyboard_five_action_layout():
     assert kb.is_persistent is False
     assert kb.resize_keyboard is True
     assert [[button.text for button in row] for row in rows] == [
-        ["🛍 Shop", "💰 Wallet"],
+        ["🛍 Shop", "💰 Balance"],
         ["📦 Orders", "🎁 Referral"],
         ["💬 Support"],
     ]
@@ -41,7 +41,7 @@ def test_persistent_reply_keyboard_five_action_layout():
 def test_admin_gets_separate_reply_row_and_reseller_stays_under_more():
     kb = get_persistent_reply_keyboard(is_admin=True, is_reseller=True, lang="en")
     assert [[button.text for button in row] for row in kb.keyboard] == [
-        ["🛍 Shop", "💰 Wallet"], ["📦 Orders", "🎁 Referral"],
+        ["🛍 Shop", "💰 Balance"], ["📦 Orders", "🎁 Referral"],
         ["💬 Support"], ["🛡 Admin Panel"],
     ]
     more = get_more_inline_keyboard(lang="en", is_admin=True, is_reseller=True)
@@ -63,7 +63,7 @@ def test_inline_keyboard_customer_actions_are_english_only():
     assert [button.callback_data for button in rows[1]] == ["open_orders", "open_referral"]
     assert [button.callback_data for button in rows[2]] == ["open_help"]
     assert [button.text for row in rows for button in row] == [
-        "🛍 Shop", "💰 Wallet", "📦 Orders", "🎁 Referral", "💬 Support",
+        "🛍 Shop", "💰 Balance", "📦 Orders", "🎁 Referral", "💬 Support",
     ]
 
 

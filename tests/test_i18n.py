@@ -64,7 +64,7 @@ def test_customer_keyboards_are_english_and_secondary_menu_is_small():
     main_kb = get_main_inline_keyboard(lang="bn", is_admin=False)
     assert len(main_kb.inline_keyboard) == 3
     assert [button.text for row in main_kb.inline_keyboard for button in row] == [
-        "🛍 Shop", "💰 Wallet", "📦 Orders", "🎁 Referral", "💬 Support",
+        "🛍 Shop", "💰 Balance", "📦 Orders", "🎁 Referral", "💬 Support",
     ]
 
     admin_kb = get_main_inline_keyboard(lang="bn", is_admin=True)

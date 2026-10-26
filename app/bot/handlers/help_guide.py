@@ -38,15 +38,15 @@ FAQ_ITEMS: dict[str, dict[str, Any]] = {
                 "1. Open Products and choose a category.\n"
                 "2. Choose a product, select validity if shown, and set the quantity.\n"
                 "3. Check the total, then select Buy to pay from your wallet balance.\n"
-                "4. If your balance is low, add funds anytime from Wallet."
+                "4. If your balance is low, add funds anytime from Balance."
             ),
         },
     },
     "deposit": {
         "answer": {
             "en": (
-                "<b>Top up your wallet</b>\n\n"
-                "1. Open Wallet and choose a payment method.\n"
+                "<b>Add funds to your balance</b>\n\n"
+                "1. Open Balance and choose a payment method.\n"
                 "2. Pay the displayed account, then tap Payment Done.\n"
                 "3. Reply with your TrxID or Binance Order ID, then the amount sent.\n"
                 "Hosted checkout has its own payment steps.\n\n"
@@ -235,7 +235,7 @@ GUIDE_TEXTS = {
     "en": (
         f"{ICON_NOTE} <b>How to use the bot</b>\n\n"
         f"{ICON_DEPOSIT} <b>1. Add balance</b>\n"
-        f"Open Wallet, choose a method, pay, then tap Payment Done. Send the reference and amount.\n\n"
+        f"Open Balance, choose a method, pay, then tap Payment Done. Send the reference and amount.\n\n"
         f"{ICON_SHOP} <b>2. Choose a product</b>\n"
         f"Browse a category and set the quantity.\n\n"
         f"{ICON_CHECK} <b>3. Confirm</b>\n"

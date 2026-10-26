@@ -21,7 +21,7 @@ from app.core.i18n import t
 
 def test_wallet_confirmation_is_short_and_keeps_financial_reference():
     text = wallet_updated(500, 650, "৳", 42)
-    assert text.splitlines()[0] == "<b>Wallet updated</b>"
+    assert text.splitlines()[0] == "<b>Balance updated</b>"
     assert "500" in text and "650" in text and "D42" in text
     assert len(text.splitlines()) == 4
 
@@ -30,7 +30,7 @@ def test_refund_keeps_reference_and_escaped_product_title():
     text = order_refunded(9, "VPN <private> & pro", 150, "৳")
     assert "Refunded · ORD-9" in text
     assert "&lt;private&gt; &amp;" in text
-    assert "150" in text and "returned to your wallet" in text
+    assert "150" in text and "returned to your balance" in text
 
 
 def test_pending_does_not_claim_payment_received():
@@ -174,7 +174,7 @@ class NotificationDeliveryTests(unittest.IsolatedAsyncioTestCase):
         await self.services.users.toggle_notification_preference(101, "notify_news")
         async with self.db.connect() as conn:
             essential_id = await conn.fetchval(
-                "INSERT INTO outbox(tg_user_id,text) VALUES(101,'Wallet updated') RETURNING id"
+                "INSERT INTO outbox(tg_user_id,text) VALUES(101,'Balance updated') RETURNING id"
             )
         messages = [await self.services.delivery.claim_next(), await self.services.delivery.claim_next()]
         self.assertIn(essential_id, [message["id"] for message in messages])
@@ -256,7 +256,7 @@ class NotificationDeliveryTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(approved, reason)
             await self.services.notifier.drain()
         self.assertEqual(send.await_count, 1)
-        self.assertIn("Wallet updated", send.await_args.args[1])
+        self.assertIn("Balance updated", send.await_args.args[1])
         self.assertIn(f"D{deposit_id}", send.await_args.args[1])
         self.assertNotIn("clears_after", send.await_args.kwargs)
 
