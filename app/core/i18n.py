@@ -82,7 +82,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "maintenance_notice": "{icon_warning} <b>Maintenance:</b> {notice}\n\n",
 
         # Profile / Wallet
-        "wallet_title": "My Balance",
+        "wallet_title": "Balance",
         "wallet_current_balance": "Available Balance",
         "account_title": "{icon_account} <b>My Account</b>",
         "profile_title": "{icon_account} <b>My Profile</b>",

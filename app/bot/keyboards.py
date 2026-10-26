@@ -1094,8 +1094,8 @@ def get_deposit_methods_keyboard(
             )
         )
 
-    for btn in method_btns:
-        buttons.append([btn])
+    for index in range(0, len(method_btns), 2):
+        buttons.append(method_btns[index : index + 2])
 
     if instant_label:
         inst_text = str(instant_label).strip()
@@ -1109,21 +1109,19 @@ def get_deposit_methods_keyboard(
                 )
             ])
 
-    if show_history:
-        history_text = "📜 History" if lang != "bn" else "📜 ডিপোজিট হিস্ট্রি"
+    if back_target and back_target != "back_to_main":
         buttons.append([
             InlineKeyboardButton(
-                text=history_text,
-                callback_data="open_deposits",
+                text="\U0001F519 Back",
+                callback_data=back_target,
             )
         ])
 
-    if back_target and back_target != "back_to_main":
-        back_text = "🔙 Back" if lang != "bn" else "🔙 ব্যাক"
+    if show_history:
         buttons.append([
             InlineKeyboardButton(
-                text=back_text,
-                callback_data=back_target,
+                text="\U0001F4DC Deposit History",
+                callback_data="open_deposits",
             )
         ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
