@@ -548,6 +548,8 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
     # ---- hosted invoices ------------------------------------------------------
 
     async def _invoice(self, amount=500):
+        # Security-flow fixtures need valid invoices; the max-limit behavior has its own tests.
+        await self.s.settings.update({"max_deposit_limit": str(max(float(amount), 500.0))})
         await self.s.payments.http.aclose()
         created = {'success': True, 'invoice_id': 'INV-1',
                    'payment_url': 'https://secure.zinipay.com/payment/INV-1'}
@@ -658,6 +660,7 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(seen, 'an invoice must only be readable by the customer it belongs to')
 
     async def test_payment_url_from_another_domain_is_refused(self):
+        await self.s.settings.update({"max_deposit_limit": "500"})
         await self.s.payments.http.aclose()
         async with gateway({'success': True, 'invoice_id': 'INV-2',
                             'payment_url': 'https://zinipay.attacker.example/payment/INV-2'}) as client:
