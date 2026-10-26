@@ -186,11 +186,12 @@ async def test_error_recovery_never_deletes_the_payment_details_card():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("raw,expected", [("৳50", "50"), ("৫০ টাকা", "50"), ("1,000.50", "1000.50")])
+@pytest.mark.parametrize("raw,expected", [("৳50", "0.4"), ("৫০ টাকা", "0.4"), ("1,000.50", "8.004")])
 async def test_hosted_checkout_uses_the_same_safe_bdt_parser(raw, expected):
     state = context()
     incoming = message(raw)
     svc = services()
+    svc.settings.number = AsyncMock(return_value=125.0)
     svc.payments = SimpleNamespace(create_invoice=AsyncMock(return_value={}))
     with patch("app.bot.handlers.deposit._render_instant_invoice", new_callable=AsyncMock) as render:
         render.return_value = ("Pay using checkout.", None)
