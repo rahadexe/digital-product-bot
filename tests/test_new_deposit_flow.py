@@ -446,7 +446,7 @@ async def test_deposit_refresh_callback():
     text = msg.edit_text.call_args[0][0]
     assert "Top-up D42" in text
     assert "Approved" in text
-    assert "৳500 (USD equivalent: $4.00)" in text
+    assert "৳500 → $4.00 USD" in text
     assert "Current Balance: <code>$750</code>" in text
     kb = msg.edit_text.call_args[1]["reply_markup"]
     assert [b.callback_data for row in kb.inline_keyboard for b in row] == ["open_shop", "open_deposit"]
