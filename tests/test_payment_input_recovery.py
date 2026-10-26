@@ -232,7 +232,7 @@ async def test_payment_details_hide_old_amount_directions_but_preserve_merchant_
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("raw", ["৳49", "৪৯ টাকা", "৳100,001"])
+@pytest.mark.parametrize("raw", ["৳49", "৪৯ টাকা", "৳12,500,001"])
 async def test_formatted_amounts_still_obey_minimum_and_maximum_limits(raw):
     state = await waiting_state()
     incoming = message(raw)
@@ -245,10 +245,10 @@ async def test_formatted_amounts_still_obey_minimum_and_maximum_limits(raw):
 
 
 @pytest.mark.asyncio
-async def test_bdt_limit_is_not_multiplied_by_the_usd_display_rate():
+async def test_bdt_maximum_uses_converted_usd_wallet_credit():
     state = await waiting_state()
     svc = services()
-    svc.settings.number.return_value = 1000
+    svc.settings.number.return_value = 8
     with patch("app.bot.handlers.deposit.execute_deposit_submission", new_callable=AsyncMock) as submit:
         await process_deposit_amount(message("৳1001"), state, svc)
     submit.assert_not_awaited()
