@@ -329,7 +329,7 @@ class DepositService:
                     rate = 1.0 if is_crypto else float(values.get("usd_rate") or 125)
                     actual_amount = amount
                     expected_amount = round(actual_pay_amount if is_crypto else actual_pay_amount / rate, 4)
-                    if abs(expected_amount - actual_amount) > 0.0001:
+                    if expected_amount != actual_amount:
                         raise InvalidInputError("The payment amount and USD wallet credit do not match the current rate.")
                     min_dep = float(method["min_deposit"] or 0.0)
                     minimum_paid = actual_amount if is_crypto else actual_pay_amount
@@ -391,7 +391,7 @@ class DepositService:
             raise DuplicateTransactionError("This transaction ID has already been submitted.") from exc
 
         # An automatic verification calls this first and credits the wallet a moment
-        # later, so alerting here put "New Deposit Request — Approve / Reject" in front
+        # later, so alerting here put "New Deposit Request â Approve / Reject" in front
         # of an owner for a deposit that was already approved by the time they read it.
         # Those paths alert from alert_admin_needs_review instead, once it is clear a
         # person is actually needed.
@@ -427,7 +427,7 @@ class DepositService:
     ) -> None:
         customer = f"@{escape(username)}" if username else "No username"
         payable = f"\n<b>Customer pays:</b> {quote['pay_amount']:.2f} {quote['paid_currency']} (wallet credit ${quote['amount']:.2f})"
-        note_line = f"\n⚠️ <b>Note:</b> <i>{escape(admin_note)}</i>" if admin_note else ""
+        note_line = f"\nâ ï¸ <b>Note:</b> <i>{escape(admin_note)}</i>" if admin_note else ""
 
         # Reviewing a deposit is the most time-critical thing an operator does:
         # a customer has already sent money and is waiting. Offer the decision
@@ -453,7 +453,7 @@ class DepositService:
         keyboard = InlineKeyboardMarkup(inline_keyboard=rows)
 
         await self.notifier.send_admin(
-            f"⏳ <b>New Deposit Request · {format_deposit_id(deposit_id)}</b>\n\n"
+            f"â³ <b>New Deposit Request Â· {format_deposit_id(deposit_id)}</b>\n\n"
             f"<b>Customer:</b> {customer}\n"
             f"<b>Customer ID:</b> <code>{tg_user_id}</code>\n"
             f"<b>Method:</b> {escape(quote['method_name'])}\n"
@@ -758,7 +758,7 @@ class DepositService:
             self._notify_customer(
                 tg_user_id,
                 lambda symbol: (
-                    f"⚠️ <b>Top-up not approved · {format_deposit_id(deposit_id)}</b>\n"
+                    f"â ï¸ <b>Top-up not approved Â· {format_deposit_id(deposit_id)}</b>\n"
                     f"<blockquote>Method: <b>{method_name}</b>\n"
                     f"Amount: <code>{amount:.2f} {symbol}</code>\n"
                     f"TrxID: <code>{trx_id}</code>\n"
