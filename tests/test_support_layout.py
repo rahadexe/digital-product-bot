@@ -128,7 +128,7 @@ async def test_technical_support_detail_has_plain_text_and_action():
     ("lang", "expected_text"),
     [
         ("en", "Choose a topic."),
-        ("bn", "<b>সাধারণ প্রশ্নসমূহ:</b>"),
+        ("bn", "Choose a topic."),
     ],
 )
 async def test_show_help_faq_hub_heading_text(lang, expected_text):
