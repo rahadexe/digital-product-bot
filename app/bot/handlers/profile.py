@@ -232,10 +232,9 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
 
     if lang != "bn":
         reward_line = (
-            f"🎁 Earn <b>{reward_display}</b> per new friend.\n"
-            "They must start the bot and complete any required channel check."
+            f"Get <b>{reward_display}</b> bonus per invite!"
             if reward_enabled and reward_amount > 0
-            else "🎁 Referral rewards are currently paused."
+            else "Referral rewards are currently paused."
         )
         text = (
             f"{reward_line}\n\n"
@@ -249,10 +248,9 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
         share_msg = quote(f"Join {store_name}")
     else:
         reward_line = (
-            f"🎁 বোনাস: <b>{reward_display}</b> (প্রতি রেফারে)\n"
-            "নতুন ইউজারকে বটে জয়েন করে চ্যানেল চেক সম্পন্ন করতে হবে।"
+            f"প্রতি ইনভাইটে <b>{reward_display}</b> বোনাস!"
             if reward_enabled and reward_amount > 0
-            else "🎁 রেফারেল বোনাস বর্তমানে বন্ধ আছে।"
+            else "রেফারেল বোনাস বর্তমানে বন্ধ আছে।"
         )
         text = (
             f"{reward_line}\n\n"

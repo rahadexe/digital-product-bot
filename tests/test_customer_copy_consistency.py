@@ -64,7 +64,7 @@ async def test_referral_copy_matches_reward_state_and_shares_one_encoded_link(en
     assert "Successful invites: <code>4</code>" in text
     assert ("currently paused" in text) == (not enabled or amount <= 0)
     if enabled and amount > 0:
-        assert "required channel check" in text
+        assert "bonus per invite!" in text
     share_url = keyboard.inline_keyboard[0][1].url
     query = parse_qs(urlsplit(share_url).query)
     assert query["url"] == ["https://t.me/sample_bot?start=101"]

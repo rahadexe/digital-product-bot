@@ -214,8 +214,7 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("<b>Referral</b>", text)
         self.assertIn("Successful invites: <code>4</code>", text)
         self.assertIn("Earned:", text)
-        self.assertIn("Earn <b>$20</b> per new friend", text)
-        self.assertIn("required channel check", text)
+        self.assertIn("Get <b>$20</b> bonus per invite!", text)
         self.assertIn("https://t.me/test_bot?start=999", text)
 
         button_texts = [btn.text for row in kb.inline_keyboard for btn in row]
