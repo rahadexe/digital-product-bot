@@ -32,9 +32,9 @@ def test_persistent_reply_keyboard_five_action_layout():
     assert kb.is_persistent is False
     assert kb.resize_keyboard is True
     assert [[button.text for button in row] for row in rows] == [
-        ["🛍 কেনাকাটা", "💰 ওয়ালেট"],
-        ["📦 অর্ডারস", "🎁 রেফারেল"],
-        ["💬 সাপোর্ট"],
+        ["🛍 Shop", "💰 Wallet"],
+        ["📦 Orders", "🎁 Referral"],
+        ["💬 Support"],
     ]
 
 
@@ -50,7 +50,7 @@ def test_admin_gets_separate_reply_row_and_reseller_stays_under_more():
     assert "adm_dashboard" not in callbacks
 
 
-def test_inline_keyboard_customer_first_bengali():
+def test_inline_keyboard_customer_actions_are_english_only():
     cats = [
         {"id": 1, "name": "VPN", "icon": "🛡️"},
         {"id": 2, "name": "AI Tools", "icon": "🤖"},
@@ -63,7 +63,7 @@ def test_inline_keyboard_customer_first_bengali():
     assert [button.callback_data for button in rows[1]] == ["open_orders", "open_referral"]
     assert [button.callback_data for button in rows[2]] == ["open_help"]
     assert [button.text for row in rows for button in row] == [
-        "🛍 কেনাকাটা", "💰 ওয়ালেট", "📦 অর্ডারস", "🎁 রেফারেল", "💬 সাপোর্ট",
+        "🛍 Shop", "💰 Wallet", "📦 Orders", "🎁 Referral", "💬 Support",
     ]
 
 

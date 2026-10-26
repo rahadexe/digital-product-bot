@@ -40,13 +40,6 @@ FAQ_ITEMS: dict[str, dict[str, Any]] = {
                 "3. Check the total, then select Buy to pay from your wallet balance.\n"
                 "4. If your balance is low, add funds anytime from Wallet."
             ),
-            "bn": (
-                "<b>কীভাবে প্রোডাক্ট কিনবেন</b>\n\n"
-                "১. মেনু থেকে Store অথবা ক্যাটাগরি বেছে নিন।\n"
-                "২. প্রোডাক্ট নির্বাচন করুন; মেয়াদ থাকলে মেয়াদ ও পরিমাণ নির্ধারণ করুন।\n"
-                "৩. মোট মূল্য দেখে Buy Now বাটনে চাপ দিয়ে ওয়ালেট ব্যালেন্স থেকে ক্রয় সম্পন্ন করুন।\n"
-                "৪. ব্যালেন্স কম থাকলে কীবোর্ডের Wallet অপশন থেকে সহজেই টাকা যোগ করে নিন।"
-            ),
         },
     },
     "deposit": {
@@ -59,14 +52,6 @@ FAQ_ITEMS: dict[str, dict[str, Any]] = {
                 "Hosted checkout has its own payment steps.\n\n"
                 "Balance is added after verification. Open History for status."
             ),
-            "bn": (
-                "<b>কীভাবে ব্যালেন্স যোগ করবেন</b>\n\n"
-                "১. নিচের মেনু থেকে Wallet বাটনে চাপ দিন।\n"
-                "২. আপনার সুবিধাজনক পেমেন্ট মেথড (বিকাশ, নগদ, রকেট, বাইন্যান্স ইত্যাদি) নির্বাচন করুন।\n"
-                "৩. স্ক্রিনে দেখানো নম্বরে/অ্যাড্রেসে টাকা পাঠিয়ে I've Paid চাপুন।\n"
-                "৪. চাওয়া পেমেন্ট রেফারেন্স (TrxID বা Binance Order ID) ও টাকার পরিমাণ দিন।\n"
-                "৫. পেমেন্ট যাচাই হলে স্বয়ংক্রিয়ভাবে ব্যালেন্স যোগ হবে। অবস্থা দেখতে Deposit History খুলুন।"
-            ),
         },
     },
     "delivery": {
@@ -76,12 +61,6 @@ FAQ_ITEMS: dict[str, dict[str, Any]] = {
                 "• Automatic items: Credentials/keys are delivered instantly in this chat right after purchase.\n"
                 "• Manual items: The bot confirms the order is being prepared, and the delivery arrives in a separate message when ready.\n"
                 "• Order history: Open Orders to find past orders and delivered details."
-            ),
-            "bn": (
-                "<b>ডেলিভারি কীভাবে হয়</b>\n\n"
-                "• অটোমেটিক ডেলিভারি: সফলভাবে কেনার সাথে সাথেই স্বয়ংক্রিয়ভাবে এই চ্যাটে ডেলিভারি পেয়ে যাবেন।\n"
-                "• ম্যানুয়াল ডেলিভারি: যেসব প্রোডাক্টে ম্যানুয়াল প্রসেসিং প্রয়োজন, আগে অর্ডার প্রস্তুত (prepared) হওয়ার বার্তা পাবেন। তৈরি হলে আলাদা মেসেজে ডেলিভারি আসবে।\n"
-                "• আগের অর্ডার ও ডেলিভারির তথ্য Orders-এ দেখুন।"
             ),
         },
     },
@@ -94,14 +73,6 @@ FAQ_ITEMS: dict[str, dict[str, Any]] = {
                 "When rewards are enabled, you earn once per eligible friend. "
                 "Rewards are for eligible friends, not for link clicks. "
                 "Successful invites counts rewarded friends."
-            ),
-            "bn": (
-                "<b>রেফারেল থেকে কীভাবে আয় করবেন</b>\n\n"
-                "১. নিচের মেনু থেকে Refer খুললে আপনার রেফারেল লিংক দেখতে পাবেন।\n"
-                "২. বন্ধুর সাথে লিংকটি শেয়ার করুন।\n"
-                "৩. বন্ধুকে লিংক খুলে বট চালু করতে হবে এবং প্রয়োজন হলে চ্যানেল যাচাই সম্পন্ন করতে হবে।\n"
-                "৪. রেফারেল বোনাস চালু থাকলে ওই বন্ধুর জন্য নির্ধারিত বোনাস একবার আপনার ওয়ালেটে যোগ হবে।\n"
-                "৫. লিংকে ক্লিক করলেই গণনা হয় না; বোনাস সম্পন্ন হলে Invited ও Earned আপডেট হয়।"
             ),
         },
     },
@@ -128,7 +99,7 @@ async def show_help_faq_hub(event: Message | CallbackQuery, state: FSMContext, s
     handle = (settings_map.get("support_username") or "").lstrip("@")
     channels = await services.update_channels.channels(active_only=True)
 
-    text = "Choose a topic." if lang != "bn" else "<b>সাধারণ প্রশ্নসমূহ:</b>"
+    text = "Choose a topic."
     kb = get_help_faq_keyboard(support_handle=handle, channels=channels, lang=lang)
 
     if isinstance(event, CallbackQuery):
@@ -160,38 +131,24 @@ async def show_faq_answer(query: CallbackQuery, state: FSMContext, services: Ser
     if faq_key == "support":
         settings_map = await services.settings.values()
         handle = (settings_map.get("support_username") or "").lstrip("@")
-        if lang != "bn":
-            text = (
-                "<b>Support</b>\n\n"
-                "Send your order or top-up reference and a short description of the issue.\n\n"
-                + (f"Telegram: @{handle}" if handle else "No support contact is configured. Check the update channels.")
-            )
-        else:
-            text = (
-                "<b>টেকনিক্যাল সাপোর্ট</b>\n\n"
-                "অর্ডার বা ওয়ালেট ব্যালেন্স নিয়ে সাহায্য পেতে সাপোর্ট টিমের সাথে যোগাযোগ করুন।\n\n"
-                f"<b>টেলিগ্রাম:</b> @{handle or 'সাপোর্ট'}\n"
-                "<b>সময়:</b> ২৪/৭"
-            )
+        text = (
+            "<b>Support</b>\n\n"
+            "Send your order or top-up reference and a short description of the issue.\n\n"
+            + (f"Telegram: @{handle}" if handle else "No support contact is configured. Check the update channels.")
+        )
         if handle:
-            chat_btn_text = "Message support" if lang != "bn" else "সাপোর্টে মেসেজ দিন"
+            chat_btn_text = "Message support"
             rows.append([InlineKeyboardButton(text=chat_btn_text, url=f"https://t.me/{handle}")])
 
     elif faq_key == "channel":
         channels = await services.update_channels.channels(active_only=True)
         primary_url = channels[0].get("url") if channels and channels[0].get("url") else None
-        if lang != "bn":
-            text = (
-                "<b>Update channel</b>\n\n"
-                "Join our official channel for restock alerts, discounts, announcements, and service updates."
-            )
-        else:
-            text = (
-                "<b>আপডেট চ্যানেল</b>\n\n"
-                "রিস্টক আপডেট, ডিসকাউন্ট, ঘোষণা ও সার্ভিসের খবর পেতে অফিশিয়াল চ্যানেলে যুক্ত থাকুন।"
-            )
+        text = (
+            "<b>Update channel</b>\n\n"
+            "Join our official channel for restock alerts, discounts, announcements, and service updates."
+        )
         if primary_url:
-            join_btn_text = "Join channel" if lang != "bn" else "চ্যানেলে যুক্ত হন"
+            join_btn_text = "Join channel"
             rows.append([InlineKeyboardButton(text=join_btn_text, url=primary_url)])
 
     else:
@@ -206,7 +163,7 @@ async def show_faq_answer(query: CallbackQuery, state: FSMContext, services: Ser
         settings_map = await services.settings.values()
         video_url = settings_map.get(f"faq_video_{faq_key}") or settings_map.get(f"faq_video_url_{faq_key}")
         if video_url and str(video_url).strip():
-            video_btn_text = "Watch video tutorial" if lang != "bn" else "ভিডিও টিউটোরিয়াল দেখুন"
+            video_btn_text = "Watch video tutorial"
             rows.append([
                 InlineKeyboardButton(
                     text=video_btn_text,
@@ -215,7 +172,7 @@ async def show_faq_answer(query: CallbackQuery, state: FSMContext, services: Ser
             ])
 
     # Back button to return to Most common questions list
-    back_label = "Back to help" if lang != "bn" else "সাহায্য মেনুতে ফিরুন"
+    back_label = "Back to help"
     rows.append([
         InlineKeyboardButton(
             text=back_label,
@@ -285,17 +242,6 @@ GUIDE_TEXTS = {
         f"Pay from your wallet. Automatic orders arrive here; manual orders follow.\n\n"
         f"{ICON_ORDERS} Open <b>Orders</b> for purchases or <b>Refer</b> for your invite link.\n"
         f"{ICON_SUPPORT} Need help? Open Help below."
-    ),
-    "bn": (
-        f"{ICON_NOTE} <b>বট ব্যবহার</b>\n\n"
-        f"{ICON_DEPOSIT} <b>১. ব্যালেন্স যোগ করুন</b>\n"
-        f"পেমেন্ট মেথড বেছে টাকা ও TrxID দিন।\n\n"
-        f"{ICON_SHOP} <b>২. প্রোডাক্ট বাছুন</b>\n"
-        f"ক্যাটাগরি খুলে পরিমাণ ঠিক করুন।\n\n"
-        f"{ICON_CHECK} <b>৩. নিশ্চিত করুন</b>\n"
-        f"ওয়ালেট থেকে টাকা কাটবে। অটো অর্ডার এখানেই, ম্যানুয়াল অর্ডার পরে পাবেন।\n\n"
-        f"{ICON_ORDERS} কেনাকাটা দেখতে <b>Orders</b>, রেফারেল লিংকের জন্য <b>Refer</b> খুলুন।\n"
-        f"{ICON_SUPPORT} সাহায্যের জন্য নিচে সাপোর্ট খুলুন।"
     ),
 }
 

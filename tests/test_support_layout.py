@@ -31,13 +31,13 @@ EMOJI_ICONS = "⚡💳📦🎁🛍️👤⏱️💡🧑‍💻💬📢🎬🔙"
         (
             "bn",
             [
-                ["কীভাবে প্রোডাক্ট কিনবেন?"],
-                ["কীভাবে ব্যালেন্স যোগ করবেন?"],
-                ["ডেলিভারি কীভাবে কাজ করে?"],
-                ["রেফারেল থেকে কীভাবে আয় করবেন?"],
-                ["টেকনিক্যাল সাপোর্ট"],
-                ["আপডেট চ্যানেল"],
-                ["ব্যাক"],
+                ["Buying"],
+                ["Payments"],
+                ["Delivery"],
+                ["Referrals"],
+                ["Support"],
+                ["Updates"],
+                ["Back"],
             ],
         ),
     ],
@@ -82,14 +82,11 @@ def test_faq_answers_match_current_purchase_payment_referral_and_delivery_flows(
     }
 
     assert "quantity" in answers["buy"]["en"].lower()
-    assert "ওয়ালেট ব্যালেন্স" in answers["buy"]["bn"]
     assert "Binance Order ID" in answers["deposit"]["en"]
-    assert "TrxID" in answers["deposit"]["bn"]
     assert "prepared" in answers["delivery"]["en"]
-    assert "আলাদা মেসেজে" in answers["delivery"]["bn"]
     assert "channel check" in answers["referral"]["en"]
-    assert "একবার" in answers["referral"]["bn"]
     assert "not for link clicks" in answers["referral"]["en"]
+    assert all(set(item["answer"]) == {"en"} for item in FAQ_ITEMS.values())
 
 
 def test_support_reply_keyboard_uses_plain_labels():

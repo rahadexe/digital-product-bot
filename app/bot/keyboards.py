@@ -616,24 +616,14 @@ def get_help_faq_keyboard(
     """
     rows: List[List[InlineKeyboardButton]] = []
 
-    if lang == "bn":
-        faq_buttons = [
-            ("faq_buy", "কীভাবে প্রোডাক্ট কিনবেন?"),
-            ("faq_deposit", "কীভাবে ব্যালেন্স যোগ করবেন?"),
-            ("faq_delivery", "ডেলিভারি কীভাবে কাজ করে?"),
-            ("faq_referral", "রেফারেল থেকে কীভাবে আয় করবেন?"),
-        ]
-        tech_label = "টেকনিক্যাল সাপোর্ট"
-        chan_label = "আপডেট চ্যানেল"
-    else:
-        faq_buttons = [
-            ("faq_buy", "Buying"),
-            ("faq_deposit", "Payments"),
-            ("faq_delivery", "Delivery"),
-            ("faq_referral", "Referrals"),
-        ]
-        tech_label = "Support"
-        chan_label = "Updates"
+    faq_buttons = [
+        ("faq_buy", "Buying"),
+        ("faq_deposit", "Payments"),
+        ("faq_delivery", "Delivery"),
+        ("faq_referral", "Referrals"),
+    ]
+    tech_label = "Support"
+    chan_label = "Updates"
 
     for callback, label in faq_buttons:
         rows.append([InlineKeyboardButton(text=label, callback_data=callback)])
@@ -666,7 +656,7 @@ def get_help_faq_keyboard(
                     )
                 ])
 
-    back_label = "Back" if lang != "bn" else "ব্যাক"
+    back_label = "Back"
     rows.append([InlineKeyboardButton(text=back_label, callback_data="open_more")])
 
     return InlineKeyboardMarkup(inline_keyboard=rows)
