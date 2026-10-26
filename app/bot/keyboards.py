@@ -95,7 +95,7 @@ def get_main_inline_keyboard(
     is_reseller: bool = False,
     is_admin: bool = False,
     lang: str = "en",
-    currency_symbol: str = "৳",
+    currency_symbol: str = "$",
     usd_rate: float | None = None,
     show_usd: bool = False,
 ) -> InlineKeyboardMarkup:
@@ -205,7 +205,7 @@ def get_categories_reply_keyboard(
 
 def get_products_reply_keyboard(
     products: List[Dict[str, Any]],
-    currency_symbol: str = "৳",
+    currency_symbol: str = "$",
     usd_rate: float | None = None,
     show_usd: bool = False,
     is_reseller: bool = False,
@@ -822,7 +822,7 @@ def get_products_keyboard(
     products: List[Dict[str, Any]],
     page: int = 1,
     total_pages: int = 1,
-    currency_symbol: str = "৳",
+    currency_symbol: str = "$",
     category_id: int | str | None = None,
     back_target: str = "back_to_main",
     is_reseller: bool = False,
@@ -995,7 +995,7 @@ def get_quantity_selector_keyboard(
     unit_price: float,
     max_stock: int,
     user_balance: float,
-    currency_symbol: str = "৳",
+    currency_symbol: str = "$",
     is_manual: bool = False,
     is_upstream: bool = False,
     back_target: str = "open_shop",
@@ -1009,7 +1009,7 @@ def get_quantity_selector_keyboard(
     """
     Interactive Quantity Selector keyboard matching reference UI:
     [-] [Qty] [+]
-    [⚡ Buy Now · Price] or [💳 Add ৳XX to Wallet]
+    [⚡ Buy Now · Price] or [💳 Add $XX to Wallet]
     [📝 Description] [📋 Copy Link]
     [🔙 Back] [🏠 Main Menu]
     """
@@ -1161,7 +1161,7 @@ def get_product_detail_keyboard(
     has_stock: bool,
     user_has_enough_balance: bool,
     price: float,
-    currency_symbol: str = "৳",
+    currency_symbol: str = "$",
     usd_rate: float | None = None,
     show_usd: bool = False,
     product_icon_custom_emoji_id: str | None = None,

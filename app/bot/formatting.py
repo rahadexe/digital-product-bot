@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import math
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from html import escape
@@ -132,33 +133,32 @@ def configure_pricing(usd_rate: float | None = None, *args, **kwargs) -> None:
         _DEFAULT_USD_RATE = float(usd_rate)
 
 
+def _money_text(value: float, digits: int = 2) -> str:
+    if abs(value) < 1 and value != 0:
+        return f"{value:,.4f}".rstrip("0").rstrip(".")
+    return f"{value:,.{digits}f}".rstrip("0").rstrip(".")
+
+
 def format_dual_price(
     amount: float,
-    symbol: str = "৳",
+    symbol: str = "$",
     usd_rate: float | None = None,
     show_usd: bool | None = None,
     lang: str | None = None,
 ) -> str:
+    """Format a canonical USD amount; Bangla users also see the BDT equivalent."""
     try:
-        amt = float(amount)
-        amt_str = f"{amt:g} {symbol}" if amt == int(amt) else f"{amt:.2f} {symbol}"
+        usd = float(amount)
+        if not math.isfinite(usd):
+            usd = 0.0
     except (ValueError, TypeError):
-        amt = 0.0
-        amt_str = f"{amount} {symbol}"
-
+        usd = 0.0
+    usd_text = f"${_money_text(usd)}"
     rate = usd_rate if usd_rate is not None else _DEFAULT_USD_RATE
-    display_usd = show_usd if show_usd is not None else False
-
-    if symbol in ("$", "USD"):
-        return f"${amt:g}" if amt == int(amt) else f"${amt:.2f}"
-
-    # If language is English and USD display is active, show clean USD ($):
-    if lang == "en" and display_usd and rate and rate > 0:
-        usd = round(amt / rate, 2)
-        return f"${usd:g}" if usd == int(usd) else f"${usd:.2f}"
-
-    # Keep the BDT wallet amount explicit whenever USD conversion is not requested.
-    return amt_str
+    if lang == "bn" and rate and rate > 0:
+        bdt_text = f"৳{_money_text(usd * rate)}"
+        return f"{bdt_text} (≈{usd_text})"
+    return usd_text
 
 
 def price(
@@ -168,7 +168,7 @@ def price(
     show_usd: bool | None = None,
     lang: str | None = None,
 ) -> str:
-    return format_dual_price(amount, symbol=escape(symbol), usd_rate=usd_rate, show_usd=show_usd, lang=lang)
+    return format_dual_price(amount, symbol="$", usd_rate=usd_rate, show_usd=show_usd, lang=lang)
 
 
 def callback_int(data: str | None, prefix: str) -> int | None:

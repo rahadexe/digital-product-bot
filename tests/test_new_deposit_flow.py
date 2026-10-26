@@ -341,8 +341,8 @@ async def test_process_deposit_txid_direct_submission():
     await process_deposit_txid(message, state, services)
     assert services.deposits.create_request.called
     create_kwargs = services.deposits.create_request.call_args.kwargs
-    assert create_kwargs.get("amount") == 100.0
-    assert create_kwargs.get("quoted_rate") == 1.0
+    assert create_kwargs.get("amount") == 0.8
+    assert create_kwargs.get("quoted_rate") == 125.0
     assert create_kwargs.get("pay_amount") == 100.0
     assert await state.get_state() is None
 
@@ -418,10 +418,11 @@ async def test_deposit_refresh_callback():
     services = MagicMock()
     services.users.get_language = AsyncMock(return_value="en")
     services.settings.get = AsyncMock(return_value="৳")
+    services.settings.number = AsyncMock(return_value=125.0)
     services.deposits.get_for_customer = AsyncMock(return_value={
         "id": 42,
         "method_name": "bKash",
-        "amount": 2.14,
+        "amount": 4.0,
         "pay_amount": 500.0,
         "rate_to_currency": 234.0,
         "transaction_id": "BL12345678",
@@ -445,8 +446,8 @@ async def test_deposit_refresh_callback():
     text = msg.edit_text.call_args[0][0]
     assert "Top-up D42" in text
     assert "Approved" in text
-    assert "৳500 (USD equivalent: $2.14)" in text
-    assert "Current Balance: <code>৳750.00</code>" in text
+    assert "৳500 → $4.00 USD" in text
+    assert "Current Balance: <code>$750</code>" in text
     kb = msg.edit_text.call_args[1]["reply_markup"]
     assert [b.callback_data for row in kb.inline_keyboard for b in row] == ["open_shop", "open_deposit"]
 
@@ -488,7 +489,7 @@ async def test_exchange_rate_and_dollar_conversion_flow():
     assert "bKash (Send Money)" in screen1_text
     assert "Number: <code>01700000000</code>" in screen1_text
     assert "Minimum: <b>৳50</b>" in screen1_text
-    assert "Rate: 1 USD = ৳234 BDT" in screen1_text
+    assert "Rate: 1 USD = ৳125 BDT" in screen1_text
     assert "tap Payment Done" in screen1_text
 
     # Screen 2: User enters 500
@@ -498,7 +499,7 @@ async def test_exchange_rate_and_dollar_conversion_flow():
     screen2_text = message.answer.call_args[0][0]
     assert "bKash Personal (Send Money)" in screen2_text
     assert "Number: <code>01700000000</code>" in screen2_text
-    assert "Amount: <b>৳500 (USD equivalent: $2.14)</b>" in screen2_text
+    assert "Amount: <b>৳500 (USD equivalent: $4.00)</b>" in screen2_text
     assert "Enter TrxID below:" in screen2_text
 
     # Screen 3: User enters TrxID
@@ -515,9 +516,9 @@ async def test_exchange_rate_and_dollar_conversion_flow():
     await process_deposit_txid(message, state, services)
     assert services.deposits.create_request.called
     kwargs = services.deposits.create_request.call_args.kwargs
-    assert kwargs["amount"] == 500.0
+    assert kwargs["amount"] == 4.0
     assert kwargs["pay_amount"] == 500.0
-    assert kwargs["quoted_rate"] == 1.0
+    assert kwargs["quoted_rate"] == 125.0
 
     status_card = status_mock.edit_text.call_args[0][0]
     assert "Top-up D99" in status_card

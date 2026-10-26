@@ -23,7 +23,7 @@ class BalanceHistoryUITests(unittest.IsolatedAsyncioTestCase):
             {
                 "id": 101,
                 "method_name": "bKash Personal",
-                "amount": 100.0,
+                "amount": 0.8,
                 "status": "approved",
                 "transaction_id": "TRX101",
                 "admin_note": None,
@@ -33,7 +33,7 @@ class BalanceHistoryUITests(unittest.IsolatedAsyncioTestCase):
             {
                 "id": 102,
                 "method_name": "Nagad",
-                "amount": 50.0,
+                "amount": 0.4,
                 "status": "pending",
                 "transaction_id": "TRX102",
                 "admin_note": None,
@@ -70,8 +70,8 @@ class BalanceHistoryUITests(unittest.IsolatedAsyncioTestCase):
 
         all_texts = [btn.text for r in kb.inline_keyboard for btn in r]
         all_cbs = [btn.callback_data for r in kb.inline_keyboard for btn in r if btn.callback_data]
-        self.assertIn("✅ bKash Personal · $0.80 · D101", all_texts)
-        self.assertIn("⏳ Nagad · $0.40 · D102", all_texts)
+        self.assertIn("✅ bKash Personal · $0.8 · D101", all_texts)
+        self.assertIn("⏳ Nagad · $0.4 · D102", all_texts)
         self.assertIn("vdep_101_1_0", all_cbs)
         self.assertIn("vdep_102_1_0", all_cbs)
         self.assertFalse(any("Add Balance" in t for t in all_texts))
@@ -89,7 +89,7 @@ class BalanceHistoryUITests(unittest.IsolatedAsyncioTestCase):
         services.deposits.get_for_customer = AsyncMock(return_value={
             "id": 101,
             "method_name": "bKash Personal",
-            "amount": 100.0,
+            "amount": 0.8,
             "status": "rejected",
             "transaction_id": "BLX998877",
             "admin_note": "Transaction could not be verified.",
@@ -141,7 +141,7 @@ class BalanceHistoryUITests(unittest.IsolatedAsyncioTestCase):
         services.deposits.get_for_customer = AsyncMock(return_value={
             "id": 102,
             "method_name": "Nagad",
-            "amount": 50.0,
+            "amount": 0.4,
             "status": "approved",
             "transaction_id": "NG12345",
             "admin_note": None,

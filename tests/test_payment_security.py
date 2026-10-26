@@ -110,7 +110,7 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
         await migrate(self.db)
         self.s = build_services(self.config, db=self.db, use_telegram=False)
         await self.s.settings.update({'zinipay_enabled': '1', 'zinipay_api_key': 'test-key',
-                                      'zinipay_web_gateway_enabled': '1', 'zinipay_brand_url': 'https://shop.example'})
+                                      'zinipay_web_gateway_enabled': '1', 'zinipay_brand_url': 'https://shop.example', 'usd_rate': '125'})
         await self.s.users.sync_profile(CUSTOMER, first_name='Customer')
         await self.s.users.sync_profile(INTRUDER, first_name='Intruder')
         self.method = await self.s.deposits.create_method('bKash', '01700000000')
@@ -133,7 +133,7 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
         await self.s.zinipay.http.aclose()
         async with gateway(body) as client:
             self.s.zinipay.http = client
-            return await self.s.zinipay.claim(CUSTOMER, self.method, amount, trx, quoted_rate=1.0)
+            return await self.s.zinipay.claim(CUSTOMER, self.method, round(amount / 125, 4), trx, pay_amount=amount, quoted_rate=125.0)
 
     async def test_receipt_that_names_nothing_does_not_credit(self):
         """The gateway says yes but names no amount and no transaction."""
@@ -158,21 +158,21 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
         body = {'success': True, 'data': {'id': 77, 'amount': 500, 'trxID': 'TRX0000001', 'provider': 'bKash'}}
         result = await self._claim(body)
         self.assertTrue(result.get('auto_verified'), result)
-        self.assertEqual(await self.balance(), 500.0)
+        self.assertEqual(await self.balance(), 4.0)
 
         # The same transaction id a second time must not pay twice.
         with self.assertRaises(DuplicateTransactionError):
             await self._claim(body)
-        self.assertEqual(await self.balance(), 500.0)
+        self.assertEqual(await self.balance(), 4.0)
 
     async def test_transaction_already_used_by_another_customer(self):
         await self._claim({'success': True, 'data': {'id': 77, 'amount': 500, 'trxID': 'TRX0000001', 'provider': 'bKash'}})
-        self.assertEqual(await self.balance(), 500.0)
+        self.assertEqual(await self.balance(), 4.0)
         await self.s.zinipay.http.aclose()
         async with gateway({'success': True, 'data': {'id': 78, 'amount': 500, 'trxID': 'TRX0000001', 'provider': 'bKash'}}) as client:
             self.s.zinipay.http = client
             with self.assertRaises(DuplicateTransactionError):
-                await self.s.zinipay.claim(INTRUDER, self.method, 500, 'TRX0000001', quoted_rate=1.0)
+                await self.s.zinipay.claim(INTRUDER, self.method, 4, 'TRX0000001', pay_amount=500, quoted_rate=125.0)
         self.assertEqual(await self.balance(INTRUDER), 0.0)
 
     # ---- what the gateway says when it refuses --------------------------------
@@ -222,8 +222,8 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
             await self.s.zinipay.http.aclose()
             async with gateway(body, 404) as client:
                 self.s.zinipay.http = client
-                result = await self.s.zinipay.claim(CUSTOMER, self.method, 500, 'TRX0000001',
-                                                    quoted_rate=1.0, on_sync_wait=on_wait)
+                result = await self.s.zinipay.claim(CUSTOMER, self.method, 4, 'TRX0000001',
+                                                    pay_amount=500, quoted_rate=125.0, on_sync_wait=on_wait)
 
         self.assertEqual(len(waits), 3, 'the customer should be told we are still checking')
         self.assertTrue(result.get('pending_sync'), result)
@@ -239,7 +239,7 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
             await self.s.zinipay.http.aclose()
             async with gateway(missing, 404) as client:
                 self.s.zinipay.http = client
-                return await self.s.zinipay.claim(CUSTOMER, self.method, amount, trx, quoted_rate=1.0)
+                return await self.s.zinipay.claim(CUSTOMER, self.method, round(amount / 125, 4), trx, pay_amount=amount, quoted_rate=125.0)
 
     async def _due_now(self, deposit_id):
         async with self.db.connect() as conn:
@@ -273,7 +273,7 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
             self.s.zinipay.http = client
             await self.s.zinipay.recover()
 
-        self.assertEqual(await self.balance(), 500.0, 'nobody had to touch this')
+        self.assertEqual(await self.balance(), 4.0, 'nobody had to touch this')
         async with self.db.connect() as conn:
             row = await conn.fetchrow('SELECT d.status, a.status AS attempt FROM deposits d '
                                       'JOIN payment_verification_attempts a ON a.deposit_id=d.id WHERE d.id=$1',
@@ -313,9 +313,9 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
         await self.s.zinipay.http.aclose()
         async with gateway(arrived) as client:
             self.s.zinipay.http = client
-            second = await self.s.zinipay.claim(CUSTOMER, self.method, 500, 'TRX0000001', quoted_rate=1.0)
+            second = await self.s.zinipay.claim(CUSTOMER, self.method, 4, 'TRX0000001', pay_amount=500, quoted_rate=125.0)
         self.assertTrue(second.get('auto_verified'), second)
-        self.assertEqual(await self.balance(), 500.0)
+        self.assertEqual(await self.balance(), 4.0)
 
     async def test_nobody_else_can_cancel_your_deposit(self):
         result = await self._awaiting()
@@ -331,7 +331,7 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
             self.s.zinipay.http = client
             await self.s.zinipay.recover()
         self.assertFalse(await self.s.deposits.cancel_awaiting_sms(result['deposit_id'], CUSTOMER))
-        self.assertEqual(await self.balance(), 500.0)
+        self.assertEqual(await self.balance(), 4.0)
 
     # ---- how often an owner is interrupted ------------------------------------
 
@@ -420,7 +420,7 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
         await self.s.zinipay.http.aclose()
         async with httpx.AsyncClient(transport=httpx.MockTransport(answer)) as client:
             self.s.zinipay.http = client
-            result = await self.s.zinipay.claim(CUSTOMER, self.method, amount, trx, quoted_rate=1.0)
+            result = await self.s.zinipay.claim(CUSTOMER, self.method, round(amount / 125, 4), trx, pay_amount=amount, quoted_rate=125.0)
         return result, calls
 
     async def test_a_nagad_transaction_cannot_pay_a_bkash_deposit(self):
@@ -464,7 +464,7 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
         async with httpx.AsyncClient(transport=httpx.MockTransport(answer)) as client:
             self.s.zinipay.http = client
             with self.assertRaises(DuplicateTransactionError):
-                await self.s.zinipay.claim(CUSTOMER, self.method, 500, 'TRXSEEN0001', quoted_rate=1.0)
+                await self.s.zinipay.claim(CUSTOMER, self.method, 4, 'TRXSEEN0001', pay_amount=500, quoted_rate=125.0)
         self.assertEqual(calls, [], 'the gateway was asked about a transaction id the shop already knew')
 
     async def test_a_transaction_id_is_used_once_even_by_the_same_customer(self):
@@ -500,7 +500,7 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
         """Binance switched on, answering with this Pay history; returns its method id."""
         await self.s.settings.update({'binance_enabled': '1', 'binance_api_key': 'k' * 64,
                                       'binance_api_secret': 's' * 64, 'binance_pay_id': '750176717',
-                                      'binance_pay_rate': '125', 'binance_pay_min': '0.2'})
+                                      'binance_pay_rate': '1', 'binance_pay_min': '0.2'})
         self._pay = patch('app.services.binance.BinanceClient.pay_transactions', return_value=history)
         self._pay.start()
         self.addCleanup(self._pay.stop)
@@ -519,7 +519,7 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
         method = await self._binance([self._transfer('455551124534788096')])
         result = await self.s.binance.claim(CUSTOMER, method, '455551124534788096')
         self.assertTrue(result.get('credited'), result)
-        self.assertEqual(await self.balance(), 250.0)
+        self.assertEqual(await self.balance(), 2.0)
 
     async def test_binance_refuses_a_made_up_order_id_without_filing_it(self):
         """Filing it told the customer to wait, and held their one pending deposit."""
@@ -548,6 +548,8 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
     # ---- hosted invoices ------------------------------------------------------
 
     async def _invoice(self, amount=500):
+        # Security-flow fixtures need valid invoices; the max-limit behavior has its own tests.
+        await self.s.settings.update({"max_deposit_limit": str(max(float(amount), 500.0))})
         await self.s.payments.http.aclose()
         created = {'success': True, 'invoice_id': 'INV-1',
                    'payment_url': 'https://secure.zinipay.com/payment/INV-1'}
@@ -630,7 +632,7 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
         async with gateway(receipt) as client:
             self.s.zinipay.http = client
             with self.assertRaises(DuplicateTransactionError):
-                await self.s.zinipay.claim(CUSTOMER, self.method, 500, 'DIN3SC3IAH', quoted_rate=1.0)
+                await self.s.zinipay.claim(CUSTOMER, self.method, 4, 'DIN3SC3IAH', pay_amount=500, quoted_rate=125.0)
         self.assertEqual(await self.balance(), 500.0, 'paid once, credited once')
 
     async def test_an_invoice_that_names_someone_elses_reference_is_still_refused(self):
@@ -658,6 +660,7 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(seen, 'an invoice must only be readable by the customer it belongs to')
 
     async def test_payment_url_from_another_domain_is_refused(self):
+        await self.s.settings.update({"max_deposit_limit": "500"})
         await self.s.payments.http.aclose()
         async with gateway({'success': True, 'invoice_id': 'INV-2',
                             'payment_url': 'https://zinipay.attacker.example/payment/INV-2'}) as client:
@@ -702,7 +705,7 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
         result = await self._refresh(invoice['reference'], {
             'status': True, 'data': {
                 'status': 'COMPLETED', 'val_id': invoice['reference'],
-                'amount': 500, 'transaction_id': 'NESTED-PAID-1',
+                'amount': float(invoice['pay_amount']), 'transaction_id': 'NESTED-PAID-1',
             },
         })
         self.assertEqual(result['status'], 'completed')
@@ -719,9 +722,9 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result['status'], 'pending')
         self.assertEqual(await self.balance(), 0)
 
-    async def _awaiting_deposit(self, *, credit=500, paid=500):
+    async def _awaiting_deposit(self, *, credit=4, paid=500):
         dep_id = await self.s.deposits.create_request(
-            CUSTOMER, self.method, credit, 'LATE-RECEIPT-1', pay_amount=paid,
+            CUSTOMER, self.method, credit, 'LATE-RECEIPT-1', pay_amount=paid, quoted_rate=125,
         )
         await self.s.zinipay._mark_awaiting(dep_id)
         async with self.db.connect() as conn:
@@ -773,16 +776,16 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
             )
         self.assertEqual(confirmations, 1)
         self.assertEqual(sum(outcomes), 1)
-        self.assertEqual(await self.balance(), 500)
+        self.assertEqual(await self.balance(), 4)
 
     async def test_late_receipt_verifies_the_paid_amount_not_the_quoted_credit(self):
-        row = await self._awaiting_deposit(credit=40, paid=500)
+        row = await self._awaiting_deposit(credit=4, paid=500)
         with patch.object(self.s.zinipay, 'verify', return_value=self._verified_late_receipt()) as verify, \
              patch.object(self.s.zinipay, 'confirm', return_value={'ok': True}) as confirm:
             await self.s.zinipay._finish_awaiting(row)
         verify.assert_awaited_once_with(500, 'LATE-RECEIPT-1')
         confirm.assert_awaited_once_with(500, 'LATE-RECEIPT-1', 77)
-        self.assertEqual(await self.balance(), 40)
+        self.assertEqual(await self.balance(), 4)
 
     async def test_expired_lookup_cannot_downgrade_an_inflight_confirmation(self):
         row = await self._awaiting_deposit()
@@ -797,40 +800,40 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
             )
         self.assertEqual(status, 'confirming')
 
-    async def test_manual_binance_quote_uses_usdt_not_bdt_for_the_paid_amount(self):
+    async def test_manual_binance_quote_uses_1_to_1_usdt_wallet_credit(self):
         method = await self.s.deposits.create_method(
             'Binance', '12345678', min_deposit=0.2, rate=125, account_type='crypto',
         )
-        quote = await self.s.deposits.quote(method, 250)
+        quote = await self.s.deposits.quote(method, 2)
         self.assertEqual(quote['pay_amount'], 2)
         self.assertEqual(quote['paid_currency'], 'USDT')
         result = await self.s.binance.claim(CUSTOMER, method, 'MANUAL-BINANCE-1', expected_usdt=2)
         self.assertFalse(result['credited'])
         pending = await self.s.deposits.find_by_transaction('MANUAL-BINANCE-1')
-        self.assertEqual(float(pending['amount']), 250)
+        self.assertEqual(float(pending['amount']), 2)
         self.assertEqual(float(pending['pay_amount']), 2)
         self.assertEqual(pending['paid_currency'], 'USDT')
 
-    async def test_onchain_binance_claim_uses_its_quoted_conversion_direction(self):
+    async def test_onchain_binance_claim_uses_1_to_1_credit(self):
         method = await self.s.deposits.create_method(
-            'Binance Chain', 'chain-test-address', min_deposit=25, rate=0.008,
+            'Binance Chain', 'chain-test-address', min_deposit=0.2, rate=1,
             auto_verify='binance', account_type='crypto',
         )
         result = await self.s.binance.claim(CUSTOMER, method, 'CHAIN-REFERENCE-1', expected_usdt=2)
         self.assertFalse(result['credited'])
         pending = await self.s.deposits.find_by_transaction('CHAIN-REFERENCE-1')
-        self.assertEqual(float(pending['amount']), 250)
+        self.assertEqual(float(pending['amount']), 2)
         self.assertEqual(float(pending['pay_amount']), 2)
         self.assertEqual(pending['paid_currency'], 'USDT')
 
-    async def test_explicit_paid_amount_cannot_bypass_the_bdt_wallet_limit(self):
+    async def test_explicit_paid_amount_cannot_bypass_the_usd_wallet_limit(self):
         await self.s.settings.update({'max_deposit_limit': '100'})
         method = await self.s.deposits.create_method(
-            'Binance', '12345678', min_deposit=0.2, rate=125, account_type='crypto',
+            'Binance', '12345678', min_deposit=0.2, rate=1, account_type='crypto',
         )
         with self.assertRaises(InvalidInputError):
             await self.s.deposits.create_request(
-                CUSTOMER, method, 250, 'LIMIT-BINANCE-1', pay_amount=2, quoted_rate=125,
+                CUSTOMER, method, 200, 'LIMIT-BINANCE-1', pay_amount=200, quoted_rate=1,
             )
         self.assertIsNone(await self.s.deposits.pending_for(CUSTOMER))
 

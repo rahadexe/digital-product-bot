@@ -35,7 +35,7 @@ async def test_wallet_shows_balance_and_direct_deposit_options(pending, show_usd
         await show_deposit_methods(query, state, services)
     text, keyboard = respond.await_args.args[1:]
     assert "Balance:" in text
-    assert ("$0.39" if show_usd else "48.75") in text
+    assert "$48.75" in text
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
     if pending:
         assert callbacks == ["open_deposits"]

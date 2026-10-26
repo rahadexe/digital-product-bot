@@ -54,15 +54,14 @@ def test_guide_copy_and_support_action_match_each_language():
 
 def test_language_specific_currency_formatting():
     from app.bot.formatting import format_dual_price, price
-    # Bengali should show Tk (৳), never dual price
-    assert format_dual_price(44.0, "৳", usd_rate=125.0, show_usd=True, lang="bn") == "44 ৳"
-    assert price("৳", 44.0, usd_rate=125.0, show_usd=True, lang="bn") == "44 ৳"
-    assert "≈" not in format_dual_price(44.0, "৳", usd_rate=125.0, show_usd=True, lang="bn")
+    # Bengali shows the local equivalent and the canonical USD wallet amount.
+    assert format_dual_price(44.0, "৳", usd_rate=125.0, lang="bn") == "৳5,500 (≈$44)"
+    assert price("৳", 44.0, usd_rate=125.0, lang="bn") == "৳5,500 (≈$44)"
 
-    # English should show $ cleanly, converted using usd_rate
-    assert format_dual_price(125.0, "৳", usd_rate=125.0, show_usd=True, lang="en") == "$1"
-    assert price("৳", 125.0, usd_rate=125.0, show_usd=True, lang="en") == "$1"
-    assert "≈" not in format_dual_price(125.0, "৳", usd_rate=125.0, show_usd=True, lang="en")
+    # English uses the canonical USD amount directly; exchange-rate settings do not rescale it.
+    assert format_dual_price(125.0, "৳", usd_rate=125.0, lang="en") == "$125"
+    assert price("৳", 125.0, usd_rate=125.0, lang="en") == "$125"
+    assert "≈" not in format_dual_price(125.0, "৳", usd_rate=125.0, lang="en")
 
 def test_keyboards_all_languages():
     for lang in ["en", "bn"]:

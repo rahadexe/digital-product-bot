@@ -559,7 +559,7 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
             )}
           </div>
         </header>
-        <p style={{ margin: '0 18px 12px', color: 'var(--muted)' }}>Store retail and wholesale prices and customer balances use BDT. Remote supplier prices show the supplier's source currency; imported USD/USDT wholesale costs are converted to BDT using the Settings exchange rate.</p>
+        <p style={{ margin: '0 18px 12px', color: 'var(--muted)' }}>Store retail, wholesale, and customer wallet values use USD. Digital Mart source prices are BDT and convert with the Settings rate; Tiger source prices are USDT/USD 1:1.</p>
 
         {/* TAB 1: SYNCED STORE PRODUCTS */}
         {viewMode === 'synced' && (
@@ -730,9 +730,9 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
               <ul className="app-record-list supplier-product-feed" aria-label="Synced supplier products">
                 {paginatedSynced.map(product => <li key={product.id}>
                   <label className="app-record-select"><input type="checkbox" aria-label={`Select supplier product ${product.id}`} checked={selectedSyncedIds.includes(product.id)} onChange={event => setSelectedSyncedIds(ids => event.target.checked ? [...ids, product.id] : ids.filter(id => id !== product.id))} /></label>
-                  <MobileRecordDetails title={product.title} subtitle={product.supplier_code === 'safwan_tiger' ? 'Safwan Tiger' : 'Digital Mart'} meta={product.duration_label || undefined} amount={`${money(product.price)} BDT`} status={product.is_active ? 'Active' : 'Hidden'} tone={product.is_active ? 'good' : 'neutral'} icon={product.icon || undefined} label={`View supplier product ${product.id}`} fields={[
+                  <MobileRecordDetails title={product.title} subtitle={product.supplier_code === 'safwan_tiger' ? 'Safwan Tiger' : 'Digital Mart'} meta={product.duration_label || undefined} amount={`$${money(product.price)} USD`} status={product.is_active ? 'Active' : 'Hidden'} tone={product.is_active ? 'good' : 'neutral'} icon={product.icon || undefined} label={`View supplier product ${product.id}`} fields={[
                     ['Product', product.title], ['Supplier ID', product.upstream_product_id], ['Category', categories.find(category => category.id === product.category_id)?.name || 'General'],
-                    ['Retail price (BDT)', `${money(product.price)} BDT`], ['Wholesale rate (BDT)', product.reseller_price != null ? `${money(product.reseller_price)} BDT` : 'Not set'], ['Duration', product.duration_label || 'Default'],
+                    ['Retail price (USD)', `$${money(product.price)} USD`], ['Wholesale rate (USD)', product.reseller_price != null ? `$${money(product.reseller_price)} USD` : 'Not set'], ['Duration', product.duration_label || 'Default'],
                   ]}>
                     <button type="button" className="btn" onClick={() => void toggleProductActive(product)}>{product.is_active ? 'Hide product' : 'Activate product'}</button>
                   </MobileRecordDetails>
@@ -754,8 +754,8 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                       <th>Product</th>
                       <th>Supplier</th>
                       <th>Category</th>
-                      <th>Retail Price (BDT)</th>
-                      <th>Wholesale Rate (BDT)</th>
+                      <th>Retail Price (USD)</th>
+                      <th>Wholesale Rate (USD)</th>
                       <th style={{ textAlign: 'center' }}>Status</th>
                     </tr>
                   </thead>
@@ -804,7 +804,7 @@ export function Suppliers({ say, onOpen }: { say: Say; onOpen?: (screen: string)
                           <td>{cat?.name || 'General'}</td>
                           <td style={{ fontWeight: 700 }}>{money(p.price)}</td>
                           <td style={{ color: 'var(--accent)', fontWeight: 600 }}>
-                            {p.reseller_price != null ? money(p.reseller_price) : 'Not set'}
+                            {p.reseller_price != null ? `$${money(p.reseller_price)}` : 'Not set'}
                           </td>
                           <td style={{ textAlign: 'center' }}>
                             <button

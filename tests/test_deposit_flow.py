@@ -182,11 +182,11 @@ class DepositConversation(unittest.IsolatedAsyncioTestCase):
             async with self.gateway(receipt(100, 'BKCOMPACT1')) as client:
                 self.s.zinipay.http = client
                 await self.tap(text='৳১০০ টাকা')
-        self.assertEqual(await self.balance(), 100.0, self.last())
+        self.assertEqual(await self.balance(), 0.8, self.last())
         stored = await self.s.deposits.find_by_transaction('BKCOMPACT1')
         self.assertEqual(stored['status'], 'approved')
         await self.tap(data=f'dep_paid_{self.method}')
-        self.assertEqual(await self.balance(), 100.0, 'an old Payment Done button must not credit again')
+        self.assertEqual(await self.balance(), 0.8, 'an old Payment Done button must not credit again')
         self.assertIn('no longer active', self.last())
 
     async def test_compact_payment_still_rejects_a_receipt_from_the_wrong_wallet(self):
@@ -206,7 +206,7 @@ class DepositConversation(unittest.IsolatedAsyncioTestCase):
             await self.tap(text='BDT 100')
         stored = await self.s.deposits.find_by_transaction('BKMANUAL1')
         self.assertEqual(stored['status'], 'pending')
-        self.assertEqual(float(stored['amount']), 100.0)
+        self.assertEqual(float(stored['amount']), 0.8)
         self.assertEqual(stored['tg_user_id'], CUSTOMER)
         self.assertEqual(await self.balance(), 0.0)
 
@@ -235,7 +235,7 @@ class DepositConversation(unittest.IsolatedAsyncioTestCase):
             async with self.gateway(receipt(100, 'BKAMOUNT1')) as client:
                 self.s.zinipay.http = client
                 await self.tap(text='৳100')
-        self.assertEqual(await self.balance(), 100, self.last())
+        self.assertEqual(await self.balance(), 0.8, self.last())
 
     async def test_used_reference_can_be_corrected_without_reentering_the_amount(self):
         await self.s.users.sync_profile(CUSTOMER + 5, first_name='Other')
@@ -250,7 +250,7 @@ class DepositConversation(unittest.IsolatedAsyncioTestCase):
             async with self.gateway(receipt(100, 'BKNEW1111')) as client:
                 self.s.zinipay.http = client
                 await self.tap(text='BKNEW1111')
-        self.assertEqual(await self.balance(), 100, self.last())
+        self.assertEqual(await self.balance(), 0.8, self.last())
 
     async def test_gateway_exception_after_reservation_preserves_one_reviewable_deposit(self):
         await self._compact_payment('BKCRASH11')
@@ -258,7 +258,7 @@ class DepositConversation(unittest.IsolatedAsyncioTestCase):
 
         async def interrupted(*args, **kwargs):
             created.append(await self.s.deposits.create_request(
-                CUSTOMER, self.method, 100, 'BKCRASH11', pay_amount=100,
+                CUSTOMER, self.method, 0.8, 'BKCRASH11', pay_amount=100, quoted_rate=125,
             ))
             raise RuntimeError('simulated interruption after reservation')
 
@@ -301,7 +301,7 @@ class DepositConversation(unittest.IsolatedAsyncioTestCase):
             await self.tap(text='BKGOOD0001')
 
         # The wallet stores BDT; display conversion must not reduce the credited amount.
-        self.assertEqual(await self.balance(), 120.0, self.last())
+        self.assertEqual(await self.balance(), 0.96, self.last())
 
     async def test_the_fix_button_only_works_on_your_own_waiting_deposit(self):
         await self.submit(120, 'BKTYPO0002', MISSING)

@@ -551,7 +551,7 @@ export function Products({ say }: { say: Say }) {
                   title={product.title}
                   subtitle={[category?.name, product.duration_label].filter(Boolean).join(', ')}
                   meta={product.is_pinned ? 'Pinned' : undefined}
-                  amount={`${money(product.price)} BDT`}
+                  amount={`$${money(product.price)} USD`}
                   status={stock}
                   tone={!product.is_active ? 'neutral' : !supplier && product.delivery_type !== 'manual' && !product.stock ? 'warn' : 'good'}
                     icon={product.icon || Array.from(product.title)[0]?.toUpperCase()}
@@ -578,7 +578,7 @@ export function Products({ say }: { say: Say }) {
                   />
                 </th>
                 <th>Product</th>
-                <th>Price (BDT)</th>
+                <th>Price (USD)</th>
                 <th>Stock / Source</th>
                 <th style={{ width: '100px', textAlign: 'center' }}>Status</th>
                 <th className="right" aria-label="Actions" />
@@ -628,7 +628,7 @@ export function Products({ say }: { say: Say }) {
                       <div style={{ fontWeight: 700 }}>{money(product.price)}</div>
                       {product.reseller_price != null && product.reseller_price > 0 ? (
                         <small style={{ color: 'var(--accent)', fontSize: '11px', fontWeight: 600, display: 'block' }}>
-                          Wholesale (BDT): {money(product.reseller_price)}
+                          Wholesale (USD): ${money(product.reseller_price)}
                         </small>
                       ) : null}
                     </td>
@@ -914,13 +914,13 @@ export function Products({ say }: { say: Say }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span>💳</span>
                 <div>
-                  <strong>Price (BDT): </strong>
+                  <strong>Price (USD): </strong>
                   <code style={{ background: 'var(--surface)', padding: '1px 5px', borderRadius: '4px', fontSize: '12px' }}>
                     {money(previewProduct.price)}
                   </code>
                   {previewProduct.reseller_price != null && previewProduct.reseller_price > 0 ? (
                     <span style={{ marginLeft: '8px', color: 'var(--accent)', fontWeight: 600, fontSize: '12px' }}>
-                      (Reseller (BDT): {money(previewProduct.reseller_price)})
+                      (Reseller (USD): ${money(previewProduct.reseller_price)})
                     </span>
                   ) : null}
                 </div>
@@ -1196,11 +1196,11 @@ function ProductForm({
 
       <div className="form-columns">
         <label className="field" style={{ margin: 0 }}>
-          <span>Regular Price (BDT)</span>
+          <span>Regular Price (USD)</span>
           <input type="number" step="any" min="0.0001" max="1000000000" required value={form.price} onChange={(event) => set({ price: parseFloat(event.target.value) || 0 })} />
         </label>
         <label className="field" style={{ margin: 0 }}>
-          <span>Reseller Price (BDT) <small style={{ color: 'var(--muted)', fontWeight: 'normal' }}>(Optional)</small></span>
+          <span>Reseller Price (USD) <small style={{ color: 'var(--muted)', fontWeight: 'normal' }}>(Optional)</small></span>
           <input
             type="number"
             step="any"
@@ -1212,7 +1212,7 @@ function ProductForm({
           />
         </label>
       </div>
-      <small style={{ display: "block", marginTop: 8, color: "var(--muted)" }}>Store prices are in BDT. Supplier USD/USDT costs are converted to BDT using the exchange rate in Settings.</small>
+      <small style={{ display: "block", marginTop: 8, color: "var(--muted)" }}>Store prices and wallet credits are USD. Digital Mart prices in BDT convert using the Settings exchange rate; Tiger USD/USDT prices stay 1:1.</small>
 
       <div className="field">
         <ValidityPicker

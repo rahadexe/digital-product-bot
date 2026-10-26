@@ -300,8 +300,15 @@ class DigitalMartClient(BaseSupplier):
                     except Exception:
                         markup = 15.0
 
-                reseller_rate = float(p.get("reseller_price") or p.get("price") or 0.0)
-                raw_regular = float(p.get("regular_price") or 0.0)
+                usd_rate = 125.0
+                if self.settings:
+                    try:
+                        usd_rate = float(await self.settings.get("usd_rate") or 125.0)
+                    except Exception:
+                        usd_rate = 125.0
+                usd_rate = max(usd_rate, 0.0001)
+                reseller_rate = float(p.get("reseller_price") or p.get("price") or 0.0) / usd_rate
+                raw_regular = float(p.get("regular_price") or 0.0) / usd_rate
                 computed_price = max(raw_regular, round(reseller_rate * (1 + markup / 100), 2))
 
                 if existing:
@@ -472,13 +479,6 @@ class SafwanTigerClient(BaseSupplier):
         if not products:
             return 0, 0
 
-        usd_rate = 125.0
-        if self.settings:
-            try:
-                usd_rate = float(await self.settings.get("usd_rate") or 125.0)
-            except Exception:
-                usd_rate = 125.0
-
         markup = 15.0
         if self.settings:
             try:
@@ -511,9 +511,8 @@ class SafwanTigerClient(BaseSupplier):
                         cats_synced += 1
                 prod_name = (p.get("name") or p.get("title") or "Unnamed Product").strip()
                 usd_price = float(p.get("price") or 0.0)
-                # Convert USD to BDT
-                reseller_rate_bdt = round(usd_price * usd_rate, 2)
-                computed_price_bdt = round(reseller_rate_bdt * (1 + markup / 100), 2) if reseller_rate_bdt > 0 else 0.0
+                reseller_rate_usd = usd_price
+                computed_price_usd = round(reseller_rate_usd * (1 + markup / 100), 4) if reseller_rate_usd > 0 else 0.0
 
                 desc = (p.get("description") or "").strip()
                 if p.get("warranty"):
@@ -521,7 +520,7 @@ class SafwanTigerClient(BaseSupplier):
 
                 if existing:
                     existing_price = float(existing.get("price") or 0.0)
-                    min_selling_price = round(reseller_rate_bdt * (1 + markup / 100), 2)
+                    min_selling_price = round(reseller_rate_usd * (1 + markup / 100), 2)
                     final_price = existing_price if existing_price >= min_selling_price else min_selling_price
                     new_active = (1 if force_active else 0) if force_active is not None else existing.get("is_active", 0)
                     if target_category_id:
@@ -531,7 +530,7 @@ class SafwanTigerClient(BaseSupplier):
                             SET reseller_price = $1, price = $2, supplier_code = 'safwan_tiger', upstream_product_id = $3, is_active = $4, category_id = $5
                             WHERE id = $6
                             """,
-                            reseller_rate_bdt, final_price, supplier_prod_id, new_active, target_category_id, existing["id"]
+                            reseller_rate_usd, final_price, supplier_prod_id, new_active, target_category_id, existing["id"]
                         )
                     else:
                         await conn.execute(
@@ -540,10 +539,10 @@ class SafwanTigerClient(BaseSupplier):
                             SET reseller_price = $1, price = $2, supplier_code = 'safwan_tiger', upstream_product_id = $3, is_active = $4
                             WHERE id = $5
                             """,
-                            reseller_rate_bdt, final_price, supplier_prod_id, new_active, existing["id"]
+                            reseller_rate_usd, final_price, supplier_prod_id, new_active, existing["id"]
                         )
                 else:
-                    if computed_price_bdt <= 0:
+                    if computed_price_usd <= 0:
                         raise SupplierError("Supplier price is unavailable. No products were imported.")
                     # Deduplication: check if same title already exists in store
                     same_title = await conn.fetchval(
@@ -558,7 +557,7 @@ class SafwanTigerClient(BaseSupplier):
                                               supplier_code, upstream_product_id, is_active, upstream_devices, upstream_share_hours)
                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'safwan_tiger', $9, $10, 1, 24)
                         """,
-                        cat_id, final_title, desc, computed_price_bdt, reseller_rate_bdt,
+                        cat_id, final_title, desc, computed_price_usd, reseller_rate_usd,
                         p.get("icon") or "", p.get("duration") or p.get("duration_label") or "",
                         p.get("warranty") or "", supplier_prod_id, active_val
                     )

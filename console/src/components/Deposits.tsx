@@ -220,7 +220,7 @@ function TopUps({
               <MobileRecord
                 title={who(deposit)}
                 subtitle={`${deposit.method_name || 'Deposit'}, D${deposit.id}`}
-                amount={`${money(deposit.amount)} BDT`}
+                amount={`$${money(deposit.amount)} USD`}
                 status={flagged ? 'Needs review' : deposit.status}
                 tone={flagged ? 'bad' : tone(deposit.status) || 'neutral'}
                 icon={<Wallet size={20} />}
@@ -274,7 +274,7 @@ function TopUps({
                           fields={[
                             ['Deposit ID', `D${deposit.id}`],
                             ['Customer', who(deposit)],
-                            ['Wallet credit (BDT)', `${money(deposit.amount)} BDT`],
+                            ['Wallet credit (USD)', `$${money(deposit.amount)} USD`],
                             ['Method', deposit.method_name || 'Not set'],
                             ['Transaction ID', deposit.transaction_id || 'Not set'],
                             ['Created', when(deposit.created_at)],
@@ -284,8 +284,8 @@ function TopUps({
                         />
                       </div>
                     </td>
-                    <td className="right" data-label="Wallet credit (BDT)">
-                      <strong className="money">{money(deposit.amount)} BDT</strong>
+                    <td className="right" data-label="Wallet credit (USD)">
+                      <strong className="money">${money(deposit.amount)} USD</strong>
                       {deposit.pay_amount != null && deposit.rate_to_currency != null && deposit.rate_to_currency !== 1 ? (
                         <small style={{ display: 'block', color: 'var(--muted)', fontSize: '11px' }}>
                           pays {deposit.pay_amount.toFixed(2)} {isBinance ? 'USDT' : 'BDT'}
@@ -598,7 +598,7 @@ function Instant({
       <div className="app-list-heading"><span>{total} payments</span><span>ZiniPay</span></div>
       <ul className="app-record-list deposit-feed" aria-label="Instant deposits" aria-busy={loading}>
         {(rows ?? []).map(payment => <li key={payment.id}>
-          <MobileRecord title={payment.first_name || payment.username || `User ${payment.tg_user_id}`} subtitle={payment.payment_method || 'ZiniPay'} meta={when(payment.created_at)} amount={`${money(payment.credit_amount)} BDT`} status={['created', 'pending'].includes(payment.status) ? 'Unpaid' : payment.status} tone={tone(payment.status) || 'neutral'} icon={<Zap size={20} />} label={`View payment ${payment.reference}`} onOpen={() => setSelectedPayment(payment)} />
+          <MobileRecord title={payment.first_name || payment.username || `User ${payment.tg_user_id}`} subtitle={payment.payment_method || 'ZiniPay'} meta={when(payment.created_at)} amount={`$${money(payment.credit_amount)} USD`} status={['created', 'pending'].includes(payment.status) ? 'Unpaid' : payment.status} tone={tone(payment.status) || 'neutral'} icon={<Zap size={20} />} label={`View payment ${payment.reference}`} onOpen={() => setSelectedPayment(payment)} />
         </li>)}
         {!rows || !rows.length ? <li className="app-list-empty">{loading ? 'Loading payments…' : 'No instant deposits yet.'}</li> : null}
       </ul>
@@ -606,7 +606,7 @@ function Instant({
         <dl className="record-details">
           {[
             ['Customer', selectedPayment.first_name || selectedPayment.username || String(selectedPayment.tg_user_id)],
-            ['Wallet credit (BDT)', `${money(selectedPayment.credit_amount)} BDT`],
+            ['Wallet credit (USD)', `$${money(selectedPayment.credit_amount)} USD`],
             ['Amount to pay (BDT)', `৳${selectedPayment.pay_amount.toFixed(2)}`],
             ['Reference', selectedPayment.reference],
             ['Transaction ID', selectedPayment.provider_transaction_id || 'Not set'],
@@ -623,7 +623,7 @@ function Instant({
           <thead>
             <tr>
               <th scope="col">Customer</th>
-              <th scope="col">Credit (BDT)</th>
+              <th scope="col">Wallet Credit (USD)</th>
               <th scope="col">Paid with</th>
               <th scope="col">Transaction ID</th>
               <th scope="col">Status</th>
@@ -641,7 +641,7 @@ function Instant({
                         fields={[
                           ['Invoice ID', `#${payment.id}`],
                           ['Customer', who(payment)],
-                          ['Credit amount (BDT)', `${money(payment.credit_amount)} BDT`],
+                          ['Wallet credit (USD)', `$${money(payment.credit_amount)} USD`],
                           ['Payable amount (BDT)', `৳${payment.pay_amount.toFixed(2)}`],
                           ['Method', payment.payment_method || 'ZiniPay'],
                           ['Reference', payment.reference],
@@ -652,8 +652,8 @@ function Instant({
                       />
                     </div>
                   </td>
-                  <td data-label="Credit (BDT)">
-                    <strong className="money">{money(payment.credit_amount)} BDT</strong>
+                  <td data-label="Wallet credit (USD)">
+                    <strong className="money">${money(payment.credit_amount)} USD</strong>
                     <small style={{ display: 'block', color: 'var(--muted)', fontSize: '11px' }}>
                       ৳{payment.pay_amount.toFixed(2)}
                     </small>

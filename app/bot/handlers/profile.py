@@ -562,18 +562,10 @@ async def show_api_hub(event: Message | CallbackQuery, state: FSMContext | None,
     endpoint_text, docs_rows = reseller_api_links(services.config)
     key = await services.reseller.get_latest_key(tg_user.id)
     stats = await services.reseller.get_reseller_stats(tg_user.id)
-    symbol = (await services.settings.get("currency_symbol") or "৳").strip()
     usd_rate = await services.settings.number("usd_rate")
-    show_usd = await services.settings.flag("show_usd_price")
     user_balance = float(user.get("balance", 0.0)) if user else 0.0
-
-    if lang == "en" and show_usd and usd_rate and usd_rate > 0:
-        usd = round(user_balance / usd_rate, 2)
-        balance_str = f"${usd:g}" if usd == int(usd) else f"${usd:.2f}"
-    else:
-        balance_str = f"{symbol}{user_balance:g}" if user_balance == int(user_balance) else f"{symbol}{user_balance:.2f}"
-
-    recent_spend_str = price(symbol, stats["total_spent"], usd_rate=usd_rate, lang=lang)
+    balance_str = format_dual_price(user_balance, usd_rate=usd_rate, lang=lang)
+    recent_spend_str = format_dual_price(stats["total_spent"], usd_rate=usd_rate, lang=lang)
 
     if key and key.get("is_active"):
         status_line = "Connected"

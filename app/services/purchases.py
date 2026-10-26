@@ -240,20 +240,20 @@ class PurchaseService:
                         else:
                             supplier_order_id = str(upstream_resp.get("order_id") or "")
                             charged_cost = float(upstream_resp.get("total_price") or upstream_resp.get("unit_price") or 0.0)
-                            if getattr(supplier, "currency", "BDT") == "USDT":
-                                charged_cost_bdt = round(charged_cost * usd_rate, 2)
+                            if getattr(supplier, "currency", "BDT") == "BDT":
+                                charged_cost_usd = round(charged_cost / max(usd_rate, 0.0001), 4)
                             else:
-                                charged_cost_bdt = charged_cost
+                                charged_cost_usd = charged_cost
 
-                            # Post-purchase Loss Shield: verify actual deducted cost
-                            if upstream_devices <= 1 and charged_cost_bdt > float(total_price):
+                            # Post-purchase Loss Shield compares supplier cost and wallet price in USD.
+                            if upstream_devices <= 1 and charged_cost_usd > float(total_price):
                                 admin_ids = await self.settings.admin_chat_ids()
                                 alert_text = (
                                     f"⚠️ <b>Loss Shield Alert: Price Jump Detected!</b>\n\n"
                                     f"Product: <b>{product['title']}</b> (Supplier: {getattr(supplier, 'name', supplier_code)} #{upstream_prod_id})\n"
-                                    f"Customer Paid: <code>৳{float(total_price):.2f}</code>\n"
-                                    f"Supplier Deducted: <code>৳{charged_cost_bdt:.2f}</code>\n"
-                                    f"Difference: <code>-৳{charged_cost_bdt - float(total_price):.2f} BDT</code>\n\n"
+                                    f"Customer Paid: <code>${float(total_price):.2f} USD</code>\n"
+                                    f"Supplier Cost: <code>${charged_cost_usd:.2f} USD</code>\n"
+                                    f"Difference: <code>-${charged_cost_usd - float(total_price):.2f} USD</code>\n\n"
                                     f"The supplier has increased their wholesale rate. Please check and adjust retail pricing in the admin console."
                                 )
                                 for aid in admin_ids:

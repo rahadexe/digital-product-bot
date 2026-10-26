@@ -84,7 +84,7 @@ class ReliabilityTests(unittest.IsolatedAsyncioTestCase):
         values = await self.s.settings.values()
         for name in ('supplier_api_url', 'supplier_api_key', 'notice_banner', 'referral_bonus_percent', 'custom_emojis'):
             self.assertNotIn(name, values)
-        for changes in ({'currency': 'USD'}, {'zinipay_rate': '2'}):
+        for changes in ({'currency': 'BDT'}, {'zinipay_rate': '2'}):
             with self.assertRaises(InvalidInputError):
                 await self.s.settings.update(changes)
 
@@ -177,7 +177,7 @@ class ReliabilityTests(unittest.IsolatedAsyncioTestCase):
         methods = await asyncio.gather(*(self.s.deposits.get_or_create_binance_method() for _ in range(5)))
         self.assertEqual(len({row['id'] for row in methods}), 1)
         quote = await self.s.deposits.quote(methods[0]['id'], 250)
-        self.assertEqual(quote['pay_amount'], 2)
+        self.assertEqual(quote['pay_amount'], 250)
         self.assertEqual(quote['paid_currency'], 'USDT')
 
     async def test_binance_uid_does_not_auto_credit(self):
@@ -439,12 +439,13 @@ class ReliabilityTests(unittest.IsolatedAsyncioTestCase):
                 )
                 await conn.execute("INSERT INTO bot_welcome_banners(content_type,data,width,height) VALUES('image/png',decode('00','hex'),1,1)")
                 # Simulate migration history written before checksums were introduced.
+                await conn.execute("INSERT INTO bot_settings(key,value) VALUES('usd_rate','125') ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value")
                 await conn.execute('UPDATE schema_migrations SET checksum=NULL')
             await migrate(old)
             self.assertEqual(await migrate(old), [])
             async with old.connect() as conn:
-                self.assertEqual(await conn.fetchval('SELECT balance FROM users'), 123.4567)
-                self.assertEqual(await conn.fetchval('SELECT balance_after FROM wallet_ledger'), 123.4567)
+                self.assertAlmostEqual(float(await conn.fetchval('SELECT balance FROM users')), 0.9877, places=4)
+                self.assertAlmostEqual(float(await conn.fetchval('SELECT balance_after FROM wallet_ledger')), 0.9877, places=4)
                 self.assertEqual(await conn.fetchval('SELECT delivered_item FROM orders'), 'old-secret')
                 self.assertEqual(await conn.fetchval("SELECT count(*) FROM audit_logs WHERE action='supplier_history_archived'"), 1)
                 self.assertIsNone(await conn.fetchval("SELECT to_regclass('bot_welcome_banners')"))

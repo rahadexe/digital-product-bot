@@ -186,11 +186,12 @@ async def test_error_recovery_never_deletes_the_payment_details_card():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("raw,expected", [("৳50", "50"), ("৫০ টাকা", "50"), ("1,000.50", "1000.50")])
+@pytest.mark.parametrize("raw,expected", [("৳50", "0.4"), ("৫০ টাকা", "0.4"), ("1,000.50", "8.004")])
 async def test_hosted_checkout_uses_the_same_safe_bdt_parser(raw, expected):
     state = context()
     incoming = message(raw)
     svc = services()
+    svc.settings.number = AsyncMock(return_value=125.0)
     svc.payments = SimpleNamespace(create_invoice=AsyncMock(return_value={}))
     with patch("app.bot.handlers.deposit._render_instant_invoice", new_callable=AsyncMock) as render:
         render.return_value = ("Pay using checkout.", None)
@@ -231,7 +232,7 @@ async def test_payment_details_hide_old_amount_directions_but_preserve_merchant_
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("raw", ["৳49", "৪৯ টাকা", "৳100,001"])
+@pytest.mark.parametrize("raw", ["৳49", "৪৯ টাকা", "৳12,500,001"])
 async def test_formatted_amounts_still_obey_minimum_and_maximum_limits(raw):
     state = await waiting_state()
     incoming = message(raw)
@@ -244,10 +245,10 @@ async def test_formatted_amounts_still_obey_minimum_and_maximum_limits(raw):
 
 
 @pytest.mark.asyncio
-async def test_bdt_limit_is_not_multiplied_by_the_usd_display_rate():
+async def test_bdt_maximum_uses_converted_usd_wallet_credit():
     state = await waiting_state()
     svc = services()
-    svc.settings.number.return_value = 1000
+    svc.settings.number.return_value = 8
     with patch("app.bot.handlers.deposit.execute_deposit_submission", new_callable=AsyncMock) as submit:
         await process_deposit_amount(message("৳1001"), state, svc)
     submit.assert_not_awaited()
@@ -279,7 +280,7 @@ async def test_binance_reference_retry_keeps_the_valid_amount(error):
 
 
 @pytest.mark.asyncio
-async def test_onchain_method_shows_the_minimum_in_the_currency_the_customer_enters():
+async def test_binance_method_uses_usdt_minimum_without_legacy_rate_conversion():
     state = context()
     incoming = message("Binance Chain")
     svc = services()
@@ -291,8 +292,8 @@ async def test_onchain_method_shows_the_minimum_in_the_currency_the_customer_ent
         "min_deposit": 25, "rate_to_currency": 0.008, "auto_verify": "binance",
         "account_type": "crypto",
     })
-    assert (await state.get_data())["min_deposit"] == pytest.approx(0.2)
-    assert "Minimum: <b>0.2 USDT</b>" in incoming.answer.await_args.args[0]
+    assert (await state.get_data())["min_deposit"] == pytest.approx(25.0)
+    assert "Minimum: <b>25 USDT</b>" in incoming.answer.await_args.args[0]
 
 
 @pytest.mark.asyncio
