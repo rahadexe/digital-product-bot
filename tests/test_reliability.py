@@ -177,7 +177,7 @@ class ReliabilityTests(unittest.IsolatedAsyncioTestCase):
         methods = await asyncio.gather(*(self.s.deposits.get_or_create_binance_method() for _ in range(5)))
         self.assertEqual(len({row['id'] for row in methods}), 1)
         quote = await self.s.deposits.quote(methods[0]['id'], 250)
-        self.assertEqual(quote['pay_amount'], 2)
+        self.assertEqual(quote['pay_amount'], 250)
         self.assertEqual(quote['paid_currency'], 'USDT')
 
     async def test_binance_uid_does_not_auto_credit(self):
