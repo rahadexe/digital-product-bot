@@ -1,7 +1,7 @@
 [project]
 name = "pixelstore"
 version = "1.0.0"
-description = "Telegram digital subscription shop: customer bot, Mini App storefront and web admin console"
+description = "Telegram digital subscription shop: customer bot and web admin console"
 requires-python = ">=3.12"
 readme = "README.md"
 

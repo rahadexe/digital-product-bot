@@ -45,22 +45,5 @@ def parse_deposit_amount(text: str, *, is_binance: bool = False) -> Decimal:
 
 
 def payment_instruction_note(instructions: str) -> str:
-    """Hide obsolete amount-entry directions, leaving other merchant notes intact.
-
-    This affects display only, not the configured instructions in the database.
-    Payment details and warnings that don't direct input to this chat are kept.
-    """
-    kept = []
-    for line in instructions.splitlines():
-        english_input = re.search(
-            r"\b(?:enter|type|write|reply|select)\b.*\bamount\b.*\b(?:below|here|chat|bot)\b",
-            line, re.IGNORECASE,
-        )
-        bengali_input = (
-            re.search(r"(?:টাকা|অ্যামাউন্ট|পরিমাণ)", line)
-            and re.search(r"(?:নিচে|এখানে|বটে|চ্যাটে)", line)
-            and re.search(r"(?:লিখুন|লিখে|টাইপ|দিন|দেন)", line)
-        )
-        if not english_input and not bengali_input:
-            kept.append(line)
-    return "\n".join(kept).strip()
+    """Return administrator-authored payment instructions without rewriting them."""
+    return instructions.strip()

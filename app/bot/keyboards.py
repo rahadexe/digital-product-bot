@@ -70,21 +70,20 @@ def _catalog_button_name(name: str, icon: str, custom_id: str) -> str:
 def _customer_menu(lang: str = "en", show_icons: bool = True) -> list[tuple[str, str]]:
     """Five customer actions in the primary menu; secondary settings stay available separately."""
     items = [
-        ("🛍", "Shop", "কেনাকাটা", "open_categories"),
-        ("💰", "Wallet", "ওয়ালেট", "open_wallet"),
-        ("📦", "Orders", "অর্ডারস", "open_orders"),
-        ("🎁", "Referral", "রেফারেল", "open_referral"),
-        ("💬", "Support", "সাপোর্ট", "open_help"),
+        ("🛍", "Shop", "open_categories"),
+        ("💰", "Balance", "open_wallet"),
+        ("📦", "Orders", "open_orders"),
+        ("🎁", "Referral", "open_referral"),
+        ("💬", "Support", "open_help"),
     ]
     return [
-        (f"{icon} {bn if lang == 'bn' else en}" if show_icons else (bn if lang == "bn" else en), callback)
-        for icon, en, bn, callback in items
+        (f"{icon} {label}" if show_icons else label, callback)
+        for icon, label, callback in items
     ]
 
 
 def _admin_panel_label(lang: str = "en", show_icons: bool = True) -> str:
-    label = "অ্যাডমিন প্যানেল" if lang == "bn" else ADMIN_PANEL_TEXT
-    return f"🛡 {label}" if show_icons else label
+    return f"🛡 {ADMIN_PANEL_TEXT}" if show_icons else ADMIN_PANEL_TEXT
 
 
 def get_main_inline_keyboard(
@@ -115,26 +114,12 @@ def get_more_inline_keyboard(
     is_reseller: bool = False,
     is_admin: bool = False,
 ) -> InlineKeyboardMarkup:
-    """Compact hub for language, notification, API, and reseller options."""
-    if lang == "bn":
-        notif_label = "🔔 নোটিফিকেশন"
-        language_label = "🌐 ভাষা"
-        reseller_label = "💼 রিসেলার হাব" if is_reseller else "💼 রিসেলার"
-        api_label = "⚡ এপিআই"
-    else:
-        notif_label = "🔔 Notifications"
-        language_label = "🌐 Language"
-        reseller_label = "💼 Reseller Hub" if is_reseller else "💼 Reseller"
-        api_label = "⚡ API"
-
+    """Simple secondary hub for API and reseller tools."""
+    reseller_label = "💼 Reseller Hub" if is_reseller else "💼 Reseller"
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text=language_label, callback_data="open_language_menu"),
-                InlineKeyboardButton(text=notif_label, callback_data="open_notifications_hub"),
-            ],
-            [
-                InlineKeyboardButton(text=api_label, callback_data="open_api_hub"),
+                InlineKeyboardButton(text="⚡ API", callback_data="open_api_hub"),
                 InlineKeyboardButton(
                     text=reseller_label,
                     callback_data="open_reseller_hub" if is_reseller else "open_reseller",
@@ -286,7 +271,7 @@ def get_product_detail_reply_keyboard(
             buy_text = f"⚡ {buy_text}"
         rows.append([KeyboardButton(text=buy_text, style="success")])
     else:
-        add_text = "Add to Wallet" if lang != "bn" else "অ্যাড ব্যালেন্স"
+        add_text = "Add to Balance" if lang != "bn" else "অ্যাড ব্যালেন্স"
         buy_text = f"Buy Now · {price_formatted}" if lang != "bn" else f"কিনুন · {price_formatted}"
         if show_icons:
             add_text = f"💳 {add_text}"
@@ -546,94 +531,6 @@ def get_update_channels_keyboard(channels: List[Dict[str, Any]]) -> InlineKeyboa
     )
 
 
-def get_account_keyboard(
-    lang: str = "en",
-    is_admin: bool = False,
-    ref_link: str | None = None,
-    is_reseller: bool = False,
-    order_count: int = 0,
-    include_referral: bool = False,
-    share_url: str | None = None,
-) -> InlineKeyboardMarkup:
-    """Show profile actions directly, without duplicating the main menu.
-
-    Legacy arguments remain accepted so older callers cannot restore removed
-    Orders/Referral shortcuts or break when opening the profile.
-    """
-    if lang != "bn":
-        reseller_label = "Reseller"
-        api_label = "API"
-        notifications_label = "Notifications"
-        back_label = "Back"
-    else:
-        reseller_label = "রিসেলার"
-        api_label = "এপিআই"
-        notifications_label = "নোটিফিকেশন"
-        back_label = "ব্যাক"
-    language_label = t("btn_change_language", lang)
-
-    rows = [
-        [InlineKeyboardButton(text=language_label, callback_data="open_language_menu")],
-        [
-            InlineKeyboardButton(text=notifications_label, callback_data="open_notifications_hub"),
-        ],
-        [
-            InlineKeyboardButton(text=api_label, callback_data="open_api_hub"),
-            InlineKeyboardButton(
-                text=reseller_label,
-                callback_data="open_reseller_hub" if is_reseller else "open_reseller",
-            ),
-        ],
-        [InlineKeyboardButton(text=back_label, callback_data="back_to_main")],
-    ]
-    return InlineKeyboardMarkup(inline_keyboard=rows)
-
-
-def get_notification_settings_keyboard(prefs: dict[str, bool], lang: str = "en") -> InlineKeyboardMarkup:
-    """Interactive toggle keyboard for customer notification preferences."""
-    news_on = prefs.get("notify_news", True)
-    orders_on = prefs.get("notify_orders", True)
-    deposits_on = prefs.get("notify_deposits", True)
-
-    if lang != "bn":
-        orders_btn = f"📦 Order Deliveries ({'On' if orders_on else 'Off'})"
-        deposits_btn = f"💳 Payment Results ({'On' if deposits_on else 'Off'})"
-        news_btn = f"🔔 News & Offers ({'On' if news_on else 'Off'})"
-        back_btn = "🔙 Back"
-    else:
-        orders_btn = f"📦 অর্ডার ডেলিভারি ({'চালু' if orders_on else 'বন্ধ'})"
-        deposits_btn = f"💳 পেমেন্ট ফলাফল ({'চালু' if deposits_on else 'বন্ধ'})"
-        news_btn = f"🔔 অফার ও নোটিশ ({'চালু' if news_on else 'বন্ধ'})"
-        back_btn = "🔙 ফিরে যান"
-
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text=orders_btn, callback_data="notif_toggle_notify_orders")],
-            [InlineKeyboardButton(text=deposits_btn, callback_data="notif_toggle_notify_deposits")],
-            [InlineKeyboardButton(text=news_btn, callback_data="notif_toggle_notify_news")],
-            [InlineKeyboardButton(text=back_btn, callback_data="open_more")],
-        ]
-    )
-
-
-
-def get_language_selection_keyboard(current_lang: str = "en", back_target: str | None = "open_more") -> InlineKeyboardMarkup:
-    """Offer both supported languages and mark the user's current choice."""
-    active_lang = current_lang if current_lang in {"en", "bn"} else "en"
-    en_label = "🇬🇧 English ✓" if active_lang == "en" else "🇬🇧 English"
-    bn_label = "🇧🇩 বাংলা ✓" if active_lang == "bn" else "🇧🇩 বাংলা"
-    rows = [
-        [InlineKeyboardButton(text=en_label, callback_data="set_lang_en")],
-        [InlineKeyboardButton(text=bn_label, callback_data="set_lang_bn")],
-    ]
-
-    if back_target:
-        back_text = t("btn_back", active_lang)
-        rows.append([InlineKeyboardButton(text=back_text, callback_data=back_target)])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
-
-
-
 def get_support_keyboard(
     support_handle: str = "",
     channels: List[Dict[str, Any]] | None = None,
@@ -719,24 +616,14 @@ def get_help_faq_keyboard(
     """
     rows: List[List[InlineKeyboardButton]] = []
 
-    if lang == "bn":
-        faq_buttons = [
-            ("faq_buy", "কীভাবে প্রোডাক্ট কিনবেন?"),
-            ("faq_deposit", "কীভাবে ব্যালেন্স যোগ করবেন?"),
-            ("faq_delivery", "ডেলিভারি কীভাবে কাজ করে?"),
-            ("faq_referral", "রেফারেল থেকে কীভাবে আয় করবেন?"),
-        ]
-        tech_label = "টেকনিক্যাল সাপোর্ট"
-        chan_label = "আপডেট চ্যানেল"
-    else:
-        faq_buttons = [
-            ("faq_buy", "Buying"),
-            ("faq_deposit", "Payments"),
-            ("faq_delivery", "Delivery"),
-            ("faq_referral", "Referrals"),
-        ]
-        tech_label = "Support"
-        chan_label = "Updates"
+    faq_buttons = [
+        ("faq_buy", "Buying"),
+        ("faq_deposit", "Payments"),
+        ("faq_delivery", "Delivery"),
+        ("faq_referral", "Referrals"),
+    ]
+    tech_label = "Support"
+    chan_label = "Updates"
 
     for callback, label in faq_buttons:
         rows.append([InlineKeyboardButton(text=label, callback_data=callback)])
@@ -769,7 +656,7 @@ def get_help_faq_keyboard(
                     )
                 ])
 
-    back_label = "Back" if lang != "bn" else "ব্যাক"
+    back_label = "Back"
     rows.append([InlineKeyboardButton(text=back_label, callback_data="open_more")])
 
     return InlineKeyboardMarkup(inline_keyboard=rows)
@@ -1065,7 +952,7 @@ def get_quantity_selector_keyboard(
     else:
         short = round(total_price - user_balance, 2)
         short_formatted = format_dual_price(short, currency_symbol, usd_rate=usd_rate, show_usd=show_usd, lang=lang)
-        add_text = f"💳 Add {short_formatted} to Wallet" if lang != "bn" else f"💳 {short_formatted} ওয়ালেটে যোগ করুন"
+        add_text = f"💳 Add {short_formatted} to Balance"
         buttons.append([
             InlineKeyboardButton(
                 text=add_text[:64],
@@ -1207,8 +1094,8 @@ def get_deposit_methods_keyboard(
             )
         )
 
-    for btn in method_btns:
-        buttons.append([btn])
+    for index in range(0, len(method_btns), 2):
+        buttons.append(method_btns[index : index + 2])
 
     if instant_label:
         inst_text = str(instant_label).strip()
@@ -1222,21 +1109,19 @@ def get_deposit_methods_keyboard(
                 )
             ])
 
-    if show_history:
-        history_text = "📜 History" if lang != "bn" else "📜 ডিপোজিট হিস্ট্রি"
+    if back_target and back_target != "back_to_main":
         buttons.append([
             InlineKeyboardButton(
-                text=history_text,
-                callback_data="open_deposits",
+                text="\U0001F519 Back",
+                callback_data=back_target,
             )
         ])
 
-    if back_target and back_target != "back_to_main":
-        back_text = "🔙 Back" if lang != "bn" else "🔙 ব্যাক"
+    if show_history:
         buttons.append([
             InlineKeyboardButton(
-                text=back_text,
-                callback_data=back_target,
+                text="\U0001F4DC Deposit History",
+                callback_data="open_deposits",
             )
         ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -1310,11 +1195,11 @@ def get_deposit_status_keyboard(
         if can_fix_trx and dep_id:
             fix_text = "✏️ Fix TrxID" if lang != "bn" else "✏️ TrxID পরিবর্তন"
             buttons.append([InlineKeyboardButton(text=fix_text, callback_data=f"dep_fix_trx_{dep_id}")])
-        wallet_text = "🔙 Back to Wallet" if lang != "bn" else "🔙 ওয়ালেট"
+        wallet_text = "🔙 Back to Balance" if lang != "bn" else "🔙 ওয়ালেট"
         buttons.append([InlineKeyboardButton(text=wallet_text, callback_data="open_deposit")])
     elif st in ("approved", "completed"):
         shop_text = "🛍️ All Products" if lang != "bn" else "🛍️ সকল প্রোডাক্ট"
-        wallet_text = "🔙 Back to Wallet" if lang != "bn" else "🔙 ওয়ালেট"
+        wallet_text = "🔙 Back to Balance" if lang != "bn" else "🔙 ওয়ালেট"
         buttons.append([InlineKeyboardButton(text=shop_text, callback_data="open_shop")])
         buttons.append([InlineKeyboardButton(text=wallet_text, callback_data="open_deposit")])
     else:  # rejected, failed, cancelled
@@ -1322,7 +1207,7 @@ def get_deposit_status_keyboard(
             clean_sup = support_username.lstrip("@")
             sup_text = "💬 Support" if lang != "bn" else "💬 সাপোর্ট"
             buttons.append([InlineKeyboardButton(text=sup_text, url=f"https://t.me/{clean_sup}")])
-        wallet_text = "🔙 Back to Wallet" if lang != "bn" else "🔙 ওয়ালেট"
+        wallet_text = "🔙 Back to Balance" if lang != "bn" else "🔙 ওয়ালেট"
         buttons.append([InlineKeyboardButton(text=wallet_text, callback_data="open_deposit")])
 
     return InlineKeyboardMarkup(inline_keyboard=buttons)

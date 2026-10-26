@@ -1,13 +1,8 @@
-"""Centralized Internationalization (i18n) Engine.
-
-Supports 2 languages:
-  - English ('en') - Default fallback
-  - Bengali ('bn') - বাংলা
+"""English-only customer-bot copy catalog.
 
 Features:
   - Dynamic variable interpolation with kwargs
-  - Automatic fallback to English if a key or language is missing
-  - Extensible: adding or modifying any key updates all languages in one place
+  - Legacy language codes resolve to English
 """
 
 from __future__ import annotations
@@ -16,7 +11,6 @@ from typing import Any
 
 SUPPORTED_LANGUAGES = {
     "en": {"name": "English", "native": "English", "flag": "🇬🇧"},
-    "bn": {"name": "Bengali", "native": "বাংলা", "flag": "🇧🇩"},
 }
 
 DEFAULT_LANGUAGE = "en"
@@ -25,7 +19,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     "en": {
         # Buttons
         "btn_shop": "Products",
-        "btn_wallet": "💳 Wallet",
+        "btn_wallet": "💰 Balance",
         "btn_deposit": "Top Up",
         "btn_add_balance": "Top Up",
         "btn_search": "🔍 Search",
@@ -44,7 +38,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "btn_other_products": "Products",
         "btn_all_products": "Products",
         "btn_my_orders": "📦 Orders",
-        "btn_my_balance": "Wallet",
+        "btn_my_balance": "Balance",
         "btn_order_history": "Orders",
         "btn_balance_history": "History",
         "btn_deposit_history": "History",
@@ -56,7 +50,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "btn_cancel": "Cancel",
         "btn_copy_format": "📋 Copy Format",
         "btn_contact_management": "Contact Support",
-        "btn_deposit_menu": "Wallet",
+        "btn_deposit_menu": "Balance",
         "btn_main_menu": "Menu",
         "btn_share_referral": "Share",
         "btn_copy_link": "Copy Link",
@@ -88,12 +82,12 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "maintenance_notice": "{icon_warning} <b>Maintenance:</b> {notice}\n\n",
 
         # Profile / Wallet
-        "wallet_title": "My Wallet",
+        "wallet_title": "Balance",
         "wallet_current_balance": "Available Balance",
         "account_title": "{icon_account} <b>My Account</b>",
         "profile_title": "{icon_account} <b>My Profile</b>",
         "account_info_title": "Account Info",
-        "wallet_orders_title": "Wallet & Orders",
+        "wallet_orders_title": "Balance & Orders",
         "profile_name": "Name",
         "profile_username": "Username",
         "profile_user_id": "User ID",
@@ -122,7 +116,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         # Support & Help
         "support_title": "{icon_support} <b>Support</b>",
         "help_title": "<b>Most common questions:</b>",
-        "support_text": "Need help with an order or wallet? Message us.",
+        "support_text": "Need help with an order or your balance? Message us.",
         "support_unavailable": "No support contact is configured. Check Help or the update channels.",
         "channel_list_title": "Our channels",
         "channel_list_intro": "Join for new products and offers.",
@@ -196,7 +190,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "balance_history_hint": "",
         "balance_history_empty": "📜 No deposits yet.",
         "balance_history_page": "<b>Deposit History</b>",
-        "deposit_not_found": "Top-up not found. Open Wallet to check History.",
+        "deposit_not_found": "Top-up not found. Open Balance to check History.",
         "deposit_detail_title": "<b>Top-up {id}</b>",
         "status_approved_msg": "Payment verified. Your balance is updated.",
         "status_rejected_msg": "Top-up not approved. Contact Support if you have already paid.",
@@ -214,7 +208,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "status_refunded": "Refunded",
         "status_waiting": "Preparing",
         "status_completed_msg": "Order delivered.",
-        "status_refunded_msg": "Order cancelled. Funds returned to your wallet.",
+        "status_refunded_msg": "Order cancelled. Funds returned to your balance.",
         "status_waiting_msg": "Preparing your order for delivery.",
 
         "deposit_choose_method": (
@@ -484,9 +478,7 @@ def t(key: str, lang: str | None = "en", **kwargs: Any) -> str:
     Gracefully falls back to English ('en') if key or language is not found.
     Interpolates kwargs safely.
     """
-    code = (lang or DEFAULT_LANGUAGE).strip().lower()
-    if code not in TRANSLATIONS:
-        code = DEFAULT_LANGUAGE
+    code = normalize_language(lang)
 
     tmpl = TRANSLATIONS[code].get(key)
     if tmpl is None:
@@ -502,6 +494,6 @@ def t(key: str, lang: str | None = "en", **kwargs: Any) -> str:
 
 
 def normalize_language(lang: str | None) -> str:
-    """Normalize language code to one of ('en', 'bn')."""
+    """The customer bot currently supports English only."""
     code = (lang or "").strip().lower()
     return code if code in SUPPORTED_LANGUAGES else DEFAULT_LANGUAGE

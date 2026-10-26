@@ -319,11 +319,11 @@ async def handle_buy_now_by_text(message: Message, state: FSMContext, services: 
     if not success or not order:
         wallet_kb = InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(
-                text="💳 Wallet" if lang != "bn" else "💳 ওয়ালেট",
+                text="💰 Balance" if lang != "bn" else "💳 ওয়ালেট",
                 callback_data="open_deposit",
             )
         ]])
-        add_bal_hint = "👇 <i>অনুগ্রহ করে ওয়ালেটে ব্যালেন্স যোগ করুন:</i>" if lang == "bn" else "👇 <i>Please add balance to your wallet:</i>"
+        add_bal_hint = "👇 <i>অনুগ্রহ করে ওয়ালেটে ব্যালেন্স যোগ করুন:</i>" if lang == "bn" else "👇 <i>Please add funds to your balance:</i>"
         await message.answer(f"⚠️ {result_msg}\n\n{add_bal_hint}", reply_markup=wallet_kb)
         return
 

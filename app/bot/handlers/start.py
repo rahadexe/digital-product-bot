@@ -316,14 +316,6 @@ async def handle_start(message: Message, state: FSMContext, services: Services):
     # User passed gate directly (or no gate channels configured): process pending referral reward
     await services.users.process_referral_reward(tg_user.id)
 
-    # Mini App handoffs keep sensitive reseller/key and warranty actions in the bot.
-    mini_target = (message.text or "").split(maxsplit=1)
-    if len(mini_target) == 2 and mini_target[1] in {"mini_reseller", "mini_orders"}:
-        from app.bot.handlers.profile import show_order_history, show_reseller_info
-        handler = show_reseller_info if mini_target[1] == "mini_reseller" else show_order_history
-        await handler(message, state, services)
-        return
-
     # Opened from an announcement button: show that product directly.
     if product_id:
         product = await services.catalog.product(product_id)

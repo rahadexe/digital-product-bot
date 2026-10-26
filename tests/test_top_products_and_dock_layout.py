@@ -10,7 +10,6 @@ from app.bot.handlers.search import _product_button
 from app.bot.handlers.shop import show_main_product_detail
 from app.bot.icons import tg_icon
 from app.bot.keyboards import (
-    get_account_keyboard,
     get_categories_keyboard,
     get_categories_reply_keyboard,
     get_main_inline_keyboard,
@@ -33,16 +32,16 @@ def test_persistent_reply_keyboard_five_action_layout():
     assert kb.is_persistent is False
     assert kb.resize_keyboard is True
     assert [[button.text for button in row] for row in rows] == [
-        ["🛍 কেনাকাটা", "💰 ওয়ালেট"],
-        ["📦 অর্ডারস", "🎁 রেফারেল"],
-        ["💬 সাপোর্ট"],
+        ["🛍 Shop", "💰 Balance"],
+        ["📦 Orders", "🎁 Referral"],
+        ["💬 Support"],
     ]
 
 
 def test_admin_gets_separate_reply_row_and_reseller_stays_under_more():
     kb = get_persistent_reply_keyboard(is_admin=True, is_reseller=True, lang="en")
     assert [[button.text for button in row] for row in kb.keyboard] == [
-        ["🛍 Shop", "💰 Wallet"], ["📦 Orders", "🎁 Referral"],
+        ["🛍 Shop", "💰 Balance"], ["📦 Orders", "🎁 Referral"],
         ["💬 Support"], ["🛡 Admin Panel"],
     ]
     more = get_more_inline_keyboard(lang="en", is_admin=True, is_reseller=True)
@@ -51,7 +50,7 @@ def test_admin_gets_separate_reply_row_and_reseller_stays_under_more():
     assert "adm_dashboard" not in callbacks
 
 
-def test_inline_keyboard_customer_first_bengali():
+def test_inline_keyboard_customer_actions_are_english_only():
     cats = [
         {"id": 1, "name": "VPN", "icon": "🛡️"},
         {"id": 2, "name": "AI Tools", "icon": "🤖"},
@@ -64,7 +63,7 @@ def test_inline_keyboard_customer_first_bengali():
     assert [button.callback_data for button in rows[1]] == ["open_orders", "open_referral"]
     assert [button.callback_data for button in rows[2]] == ["open_help"]
     assert [button.text for row in rows for button in row] == [
-        "🛍 কেনাকাটা", "💰 ওয়ালেট", "📦 অর্ডারস", "🎁 রেফারেল", "💬 সাপোর্ট",
+        "🛍 Shop", "💰 Balance", "📦 Orders", "🎁 Referral", "💬 Support",
     ]
 
 
@@ -372,20 +371,6 @@ def test_top_products_dock_bengali_shows_admin_action_on_home():
     more_callbacks = [button.callback_data for row in more.inline_keyboard for button in row]
     assert "open_reseller_hub" in more_callbacks
     assert "adm_dashboard" not in more_callbacks
-
-
-def test_account_keyboard_clean_grid():
-    kb = get_account_keyboard(lang="en")
-    all_callbacks = [btn.callback_data for row in kb.inline_keyboard for btn in row if btn.callback_data]
-    assert "open_orders_acc" not in all_callbacks
-    assert "open_referral" not in all_callbacks
-    assert "open_api_hub" in all_callbacks
-    assert "open_language_menu" in all_callbacks
-    assert "open_notifications_hub" in all_callbacks
-    assert "back_to_main" in all_callbacks
-    assert "open_deposits" not in all_callbacks
-    assert "open_reseller" in all_callbacks
-    assert len(kb.inline_keyboard) == 4
 
 
 @pytest.mark.asyncio

@@ -25,7 +25,9 @@ async def test_wallet_shows_balance_and_inline_payment_actions():
     services.payments.instant_options = AsyncMock(return_value=None)
     services.deposits.methods = AsyncMock(return_value=[
         {"id": 1, "name": "bKash"},
-        {"id": 2, "name": "Binance"},
+        {"id": 2, "name": "Nagad"},
+        {"id": 3, "name": "Rocket"},
+        {"id": 4, "name": "Binance"},
     ])
     services.deposits.pending_for = AsyncMock(return_value=None)
     services.users.get = AsyncMock(return_value={"language": "en", "balance": 45.0})
@@ -44,16 +46,21 @@ async def test_wallet_shows_balance_and_inline_payment_actions():
     text = message.answer.call_args.args[0]
     keyboard = message.answer.call_args.kwargs["reply_markup"]
     assert "<b>Balance:</b>" in text
-    assert "Add balance to your wallet:" in text
+    assert "Add funds to your balance:" in text
     assert "💰" in text
     assert "45" in text
     assert "User:" not in text
     assert "Manual:" not in text
     assert isinstance(keyboard, InlineKeyboardMarkup)
     labels = [button.text for row in keyboard.inline_keyboard for button in row]
-    assert labels == ["bKash", "Binance", "📜 History"]
+    assert labels == ["bKash", "Nagad", "Rocket", "Binance", "📜 Deposit History"]
+    assert [[button.text for button in row] for row in keyboard.inline_keyboard] == [
+        ["bKash", "Nagad"],
+        ["Rocket", "Binance"],
+        ["📜 Deposit History"],
+    ]
     callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
-    assert callbacks == ["dep_method_1", "dep_method_2", "open_deposits"]
+    assert callbacks == ["dep_method_1", "dep_method_2", "dep_method_3", "dep_method_4", "open_deposits"]
 
 
 @pytest.mark.asyncio
@@ -85,7 +92,7 @@ async def test_wallet_with_pending_deposit_keeps_history_and_hides_new_payment_m
     assert "💰" in text
     assert "Top-up D20 is being verified" in text
     assert [button.text for row in keyboard.inline_keyboard for button in row] == [
-        "📜 History",
+        "📜 Deposit History",
     ]
     assert keyboard.inline_keyboard[0][0].callback_data == "open_deposits"
 

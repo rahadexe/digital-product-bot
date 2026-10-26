@@ -24,12 +24,8 @@ FALLBACK_USERNAME = "PremiumHaven24Bot"
 # The admin ones are listed by /admin and work whether or not they are listed.
 COMMANDS = [
     BotCommand(command="start", description="Start the Bot"),
+    BotCommand(command="more", description="API and reseller tools"),
 ]
-
-
-def menu_button(webapp_url: str) -> MenuButtonCommands:
-    """The customer bot uses the Telegram command menu."""
-    return MenuButtonCommands()
 
 
 class Notifier:
@@ -39,15 +35,14 @@ class Notifier:
         self._username: str | None = None
         self._pending: set[asyncio.Task] = set()
 
-    async def configure_bot(self, webapp_url: str = "") -> None:
+    async def configure_bot(self) -> None:
         if not self.bot:
             return
         try:
             await self.bot_username()
             await self.bot.set_my_commands(COMMANDS)
-            button = menu_button(webapp_url)
-            await self.bot.set_chat_menu_button(menu_button=button)
-            logger.info("Bot identity cached as @%s; commands and %s menu button configured.", self._username, button.type)
+            await self.bot.set_chat_menu_button(menu_button=MenuButtonCommands())
+            logger.info("Bot identity cached as @%s; customer commands menu configured.", self._username)
         except Exception as exc:
             logger.warning("Could not configure bot commands: %s", type(exc).__name__)
 

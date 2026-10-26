@@ -161,7 +161,7 @@ class TestBotDepositWithStatementSync(unittest.IsolatedAsyncioTestCase):
         from app.bot.handlers.deposit import DepositStates, process_deposit_txid
 
         services = MagicMock()
-        services.users.get_language = AsyncMock(return_value="bn")
+        services.users.get_language = AsyncMock(return_value="en")
         services.users.get = AsyncMock(return_value={"id": 1, "balance": 901.0})
         services.deposits.get_method = AsyncMock(return_value={"id": 1, "name": "bKash", "is_active": 1, "auto_verify": "none", "min_deposit": 50})
         services.deposits.find_by_transaction = AsyncMock(return_value=None)
@@ -220,7 +220,7 @@ class TestBotDepositWithStatementSync(unittest.IsolatedAsyncioTestCase):
         from app.bot.handlers.deposit import DepositStates, process_deposit_txid
 
         services = MagicMock()
-        services.users.get_language = AsyncMock(return_value="bn")
+        services.users.get_language = AsyncMock(return_value="en")
         # No statement in DB yet
         services.deposits.get_unused_received_transaction = AsyncMock(return_value=None)
 

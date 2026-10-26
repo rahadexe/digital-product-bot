@@ -26,12 +26,6 @@ LEASE_SECONDS = 120
 def waiting_notice(order: dict[str, Any], lang: str = "en") -> str:
     order_id = int(order.get('order_id', order.get('id')) or 0)
     title = escape(str(order.get('product_title', 'Purchase')))
-    if lang == "bn":
-        return (
-            f"⏳ <b>Preparing delivery · {format_order_id(order_id)}</b>\n"
-            f"<blockquote><b>{title}</b>\n"
-            "Payment received. প্রস্তুতি চলছে, শীঘ্রই পাঠানো হবে।</blockquote>"
-        )
     return (
         f"⏳ <b>Preparing delivery · {format_order_id(order_id)}</b>\n"
         f"<blockquote><b>{title}</b>\n"
@@ -50,20 +44,12 @@ def receipt(order: dict[str, Any], lang: str = "en") -> str:
     price_str = format_dual_price(price_val, symbol=symbol, usd_rate=usd_rate, show_usd=show_usd, lang=lang)
 
     raw_content = str(order.get('delivered_item', '')).strip()
-    if lang == "bn":
-        lines = [
-            f"✅ <b>Delivered · {format_order_id(order_id)}</b>",
-            f"<blockquote><b>{title}</b>",
-            f"Paid: <code>{price_str}</code></blockquote>\n",
-            "<b>ডেলিভারি বিবরণ:</b>",
-        ]
-    else:
-        lines = [
-            f"✅ <b>Delivered · {format_order_id(order_id)}</b>",
-            f"<blockquote><b>{title}</b>",
-            f"Paid: <code>{price_str}</code></blockquote>\n",
-            "<b>Delivery:</b>",
-        ]
+    lines = [
+        f"✅ <b>Delivered · {format_order_id(order_id)}</b>",
+        f"<blockquote><b>{title}</b>",
+        f"Paid: <code>{price_str}</code></blockquote>\n",
+        "<b>Delivery:</b>",
+    ]
 
     cred_items = [escape(it.strip()) for it in raw_content.splitlines() if it.strip()]
     if cred_items:

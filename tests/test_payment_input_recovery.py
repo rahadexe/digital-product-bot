@@ -130,20 +130,16 @@ def test_crypto_amounts_do_not_silently_convert_bdt_or_invalid_values(raw):
         parse_deposit_amount(raw, is_binance=True)
 
 
-def test_old_amount_entry_note_is_hidden_without_changing_other_payment_notes():
+def test_admin_payment_instructions_are_displayed_without_rewriting():
     notes = (
         "Send Money only. Do not use Cash Out.\n"
         "Enter the amount below.\n"
         "আপনি কত টাকা পাঠিয়েছেন তা নিচে লিখুন\n"
         "Contact support if your receipt is missing."
     )
-    assert payment_instruction_note(notes) == (
-        "Send Money only. Do not use Cash Out.\n"
-        "Contact support if your receipt is missing."
-    )
-    assert payment_instruction_note("Enter the amount in your Rocket app.") == (
-        "Enter the amount in your Rocket app."
-    )
+    assert payment_instruction_note(notes) == notes
+    bangla_instruction = "বিকাশে টাকা পাঠিয়ে TrxID-টি এখানে লিখুন।"
+    assert payment_instruction_note(bangla_instruction) == bangla_instruction
 
 
 @pytest.mark.asyncio
@@ -211,7 +207,7 @@ async def test_hosted_checkout_does_not_treat_other_currency_or_reference_as_bdt
 
 
 @pytest.mark.asyncio
-async def test_payment_details_hide_old_amount_directions_but_preserve_merchant_warnings():
+async def test_payment_details_preserve_admin_custom_instructions_verbatim():
     state = context()
     incoming = message("Rocket")
     svc = services()
@@ -224,7 +220,7 @@ async def test_payment_details_hide_old_amount_directions_but_preserve_merchant_
     }
     await render_method_details(incoming, state, svc, method)
     text = incoming.answer.await_args.args[0]
-    assert old_instruction not in text
+    assert old_instruction in text
     assert "Send Money only." in text
     assert "After paying, tap Payment Done." in text
     assert old_instruction in method["instructions"]

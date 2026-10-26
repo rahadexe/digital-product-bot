@@ -15,14 +15,13 @@ import pytest
 from app.bot.customer_copy import order_refunded, wallet_updated
 from app.bot.handlers.deposit import _render_instant_invoice, confirm_cancel_instant_payment
 from app.bot.handlers.help_guide import FAQ_ITEMS
-from app.bot.handlers.profile import handle_notification_toggle, show_referral_info
-from app.bot.keyboards import get_notification_settings_keyboard
+from app.bot.handlers.profile import show_referral_info
 from app.core.i18n import t
 
 
 def test_wallet_confirmation_is_short_and_keeps_financial_reference():
     text = wallet_updated(500, 650, "৳", 42)
-    assert text.splitlines()[0] == "<b>Wallet updated</b>"
+    assert text.splitlines()[0] == "<b>Balance updated</b>"
     assert "500" in text and "650" in text and "D42" in text
     assert len(text.splitlines()) == 4
 
@@ -31,37 +30,13 @@ def test_refund_keeps_reference_and_escaped_product_title():
     text = order_refunded(9, "VPN <private> & pro", 150, "৳")
     assert "Refunded · ORD-9" in text
     assert "&lt;private&gt; &amp;" in text
-    assert "150" in text and "returned to your wallet" in text
+    assert "150" in text and "returned to your balance" in text
 
 
 def test_pending_does_not_claim_payment_received():
     text = t("status_pending_msg", "en").lower()
     assert "verification" in text and "do not pay again" in text
     assert "payment received" not in text
-
-
-@pytest.mark.parametrize("enabled", [True, False])
-def test_optional_toggle_is_the_only_customer_notification_switch(enabled):
-    keyboard = get_notification_settings_keyboard({"notify_news": enabled})
-    buttons = [button for row in keyboard.inline_keyboard for button in row]
-    assert [button.callback_data for button in buttons] == [
-        "notif_toggle_notify_orders", "notif_toggle_notify_deposits", "notif_toggle_notify_news", "open_more",
-    ]
-    assert f"({'On' if enabled else 'Off'})" in buttons[2].text
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("key", ["notify_orders", "notify_deposits", "unknown"])
-async def test_old_or_forged_essential_toggle_does_not_change_preferences(key):
-    query = SimpleNamespace(
-        from_user=SimpleNamespace(id=101),
-        data=f"notif_toggle_{key}",
-        answer=AsyncMock(),
-    )
-    services = SimpleNamespace(users=SimpleNamespace(toggle_notification_preference=AsyncMock()))
-    await handle_notification_toggle(query, services)
-    services.users.toggle_notification_preference.assert_not_awaited()
-    assert "stay on" in query.answer.await_args.args[0]
 
 
 @pytest.mark.asyncio
@@ -199,7 +174,7 @@ class NotificationDeliveryTests(unittest.IsolatedAsyncioTestCase):
         await self.services.users.toggle_notification_preference(101, "notify_news")
         async with self.db.connect() as conn:
             essential_id = await conn.fetchval(
-                "INSERT INTO outbox(tg_user_id,text) VALUES(101,'Wallet updated') RETURNING id"
+                "INSERT INTO outbox(tg_user_id,text) VALUES(101,'Balance updated') RETURNING id"
             )
         messages = [await self.services.delivery.claim_next(), await self.services.delivery.claim_next()]
         self.assertIn(essential_id, [message["id"] for message in messages])
@@ -281,7 +256,7 @@ class NotificationDeliveryTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(approved, reason)
             await self.services.notifier.drain()
         self.assertEqual(send.await_count, 1)
-        self.assertIn("Wallet updated", send.await_args.args[1])
+        self.assertIn("Balance updated", send.await_args.args[1])
         self.assertIn(f"D{deposit_id}", send.await_args.args[1])
         self.assertNotIn("clears_after", send.await_args.kwargs)
 

@@ -200,17 +200,6 @@ NAVIGATION_TEXTS = {
     "🔄 Refresh": "orders",
     "Refresh": "orders",
     "🔄 রিফ্রেশ": "orders",
-    "🌐 LANGUAGE": "language",
-    "LANGUAGE": "language",
-    "🌐 Language": "language",
-    "Language": "language",
-    "🌐 ভাষা": "language",
-    "ভাষা": "language",
-    "🇬🇧 English": "set_lang_en",
-    "English": "set_lang_en",
-    "ENGLISH": "set_lang_en",
-    "🇧🇩 বাংলা": "set_lang_bn",
-    "বাংলা": "set_lang_bn",
     "🔙 BACK": "start",
     "BACK": "start",
     "🔙 Back": "start",
@@ -377,24 +366,19 @@ NAVIGATION_TEXTS.update({
     "🎁 Referral": "referral", "🎁 REFERRAL": "referral",
     "🎁 রেফারেল": "referral", "রেফারেল": "referral",
     "🛡 Admin Panel": "admin", "🛡 অ্যাডমিন প্যানেল": "admin", "🛡️ অ্যাডমিন প্যানেল": "admin", "অ্যাডমিন প্যানেল": "admin",
-    "English": "set_en", "english": "set_en", "EN": "set_en", "en": "set_en",
-    "বাংলা": "set_bn", "bangla": "set_bn", "BN": "set_bn", "bn": "set_bn",
 })
 
 COMMAND_ACTIONS = {
     "/start": "start",
     "/menu": "start",
     "/cancel": "cancel",
-    "/en": "set_en",
-    "/english": "set_en",
-    "/bn": "set_bn",
-    "/bangla": "set_bn",
     "/products": "shop",
     "/shop": "shop",
     "/buy": "shop",
     "/deposit": "deposit",
     "/wallet": "deposit",
     "/balance": "deposit",
+    "/more": "more",
     "/refer": "referral",
     "/account": "account",
     "/profile": "account",
@@ -405,8 +389,6 @@ COMMAND_ACTIONS = {
     "/help": "help",
     "/channel": "channel",
     "/updates": "channel",
-    "/language": "language",
-    "/lang": "language",
     "/pricelist": "pricelist",
     "/prices": "pricelist",
 }
@@ -469,21 +451,9 @@ async def navigate(text: str, message: Message, state: FSMContext, services: Ser
         or COMMAND_ACTIONS.get(clean.split()[0].split("@")[0], "start")
     )
     if action == "cancel":
-        lang = await services.users.get_language(message.from_user.id) if message.from_user else "en"
-        cancel_msg = f"{ICON_CROSS} বর্তমান কার্যক্রম বাতিল করা হয়েছে।" if lang == "bn" else f"{ICON_CROSS} Current operation cancelled."
-        await message.answer(cancel_msg)
+        await message.answer(f"{ICON_CROSS} Current operation cancelled.")
         return
     if action == "start":
-        await start.render_main_dashboard(message, services, message.from_user.id)
-        return
-    if action == "set_lang_en":
-        if message.from_user:
-            await services.users.set_language(message.from_user.id, "en")
-        await start.render_main_dashboard(message, services, message.from_user.id)
-        return
-    if action == "set_lang_bn":
-        if message.from_user:
-            await services.users.set_language(message.from_user.id, "bn")
         await start.render_main_dashboard(message, services, message.from_user.id)
         return
     handlers = {
@@ -501,9 +471,6 @@ async def navigate(text: str, message: Message, state: FSMContext, services: Ser
         "help": "help_guide.show_help_faq_hub",
         "guide": "help_guide.show_guide",
         "channel": "help_guide.show_channel_info",
-        "language": "profile.show_language_menu",
-        "set_en": "profile.switch_to_en",
-        "set_bn": "profile.switch_to_bn",
         "pricelist": "profile.show_price_list",
         "balance_history": "profile.show_deposit_history",
         "more": "profile.show_more_menu",

@@ -300,43 +300,10 @@ class MenuAndGuideTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(message_holder, "an unknown action should still answer")
 
     async def test_guide_stays_in_english(self):
-        replies_en = await self._feed(data="guide_lang_en")
-        replies_bn = await self._feed(data="guide_lang_bn")
-        self.assertTrue(any("How to use the bot" in (r.get("text") or "") for r in replies_en),
-                        "English guide did not render")
-        self.assertTrue(any("How to use the bot" in (r.get("text") or "") for r in replies_bn),
-                        "Legacy Bengali guide callback should fall back to English")
-
-    async def test_user_can_switch_language_and_localize_the_bot(self):
-        selector = await self._feed(data="open_language_menu")
-        selector_markup = next((r.get("reply_markup") for r in selector if r.get("reply_markup")), None)
-        self.assertIsNotNone(selector_markup)
-        self.assertEqual(
-            [row[0].callback_data for row in selector_markup.inline_keyboard],
-            ["set_lang_en", "set_lang_bn", "open_more"],
-        )
-
-        replies_bn = await self._feed(data="set_lang_bn")
-        self.assertEqual(await self.services.users.get_language(CUSTOMER), "bn")
-        reply_keyboard_bn = next(
-            (r.get("reply_markup") for r in replies_bn if getattr(r.get("reply_markup"), "keyboard", None)),
-            None,
-        )
-        self.assertIsNotNone(reply_keyboard_bn)
-        labels_bn = [button.text for row in reply_keyboard_bn.keyboard for button in row]
-        self.assertIn("🛍 কেনাকাটা", labels_bn)
-        guide_bn = await self._feed(data="open_guide")
-        self.assertTrue(any("বট ব্যবহার" in (r.get("text") or "") for r in guide_bn))
-
-        replies_en = await self._feed(data="set_lang_en")
+        replies = await self._feed(data="open_guide")
         self.assertEqual(await self.services.users.get_language(CUSTOMER), "en")
-        reply_keyboard_en = next(
-            (r.get("reply_markup") for r in replies_en if getattr(r.get("reply_markup"), "keyboard", None)),
-            None,
-        )
-        self.assertIsNotNone(reply_keyboard_en)
-        labels_en = [button.text for row in reply_keyboard_en.keyboard for button in row]
-        self.assertIn("🛍 Shop", labels_en)
+        self.assertTrue(any("How to use the bot" in (r.get("text") or "") for r in replies),
+                        "English guide did not render")
 
     async def test_support_and_channels_answer(self):
         for label in ("Support", "Channel"):

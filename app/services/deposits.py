@@ -1,6 +1,6 @@
 """Manual deposits: payment methods, quotes, requests and admin review.
 
-The bot, the Mini App and the admin console all use the same quote rules, and each
+The bot and admin console use the same quote rules, and each
 request stores the exchange rate and payable amount the customer was shown.
 """
 

@@ -1,6 +1,6 @@
 """Checks payments nobody is watching: unpaid ZiniPay invoices and USDT deposits awaiting Binance.
 
-A missed callback, a closed Mini App or a transaction that confirms minutes later still credits the
+    A missed callback or a transaction that confirms minutes later still credits the
 wallet without anyone touching it."""
 
 from __future__ import annotations
