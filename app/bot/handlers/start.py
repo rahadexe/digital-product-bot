@@ -68,15 +68,14 @@ def build_welcome_text(
     bal_display = balance_str if balance_str else "$0.00"
 
     if lang == "bn":
-        order_line = f"অর্ডার: <b>{order_count}টি</b>" if order_count > 0 else "অর্ডার: <b>০টি</b>"
+        order_line = f"অর্ডার: <code>{order_count}টি</code>" if order_count > 0 else "অর্ডার: <code>০টি</code>"
         card_items = []
         if user_id_display:
             card_items.append(f"আইডি: <code>{user_id_display}</code>")
-        card_items.append(f"💰 ব্যালেন্স: <code>{bal_display}</code>")
+        card_items.append(f"ব্যালেন্স: <code>{bal_display}</code>")
         card_items.append(order_line)
         card = "<blockquote>" + "\n".join(card_items) + "</blockquote>"
         lines = [
-            f"<b>{store_title}</b>",
             f"স্বাগতম, <b>{name_display}</b>! 🤝",
             "",
             card,
@@ -84,15 +83,14 @@ def build_welcome_text(
             f"সাপোর্ট: {clean_support}",
         ]
     else:
-        order_line = f"Orders: <b>{order_count}</b>" if order_count > 0 else "Orders: <b>0</b>"
+        order_line = f"Orders: <code>{order_count}</code>" if order_count > 0 else "Orders: <code>0</code>"
         card_items = []
         if user_id_display:
             card_items.append(f"ID: <code>{user_id_display}</code>")
-        card_items.append(f"💰 Balance: <code>{bal_display}</code>")
+        card_items.append(f"Balance: <code>{bal_display}</code>")
         card_items.append(order_line)
         card = "<blockquote>" + "\n".join(card_items) + "</blockquote>"
         lines = [
-            f"<b>{store_title}</b>",
             f"Welcome, <b>{name_display}</b>! 🤝",
             "",
             card,
