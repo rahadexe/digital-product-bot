@@ -69,32 +69,38 @@ def build_welcome_text(
 
     if lang == "bn":
         order_line = f"অর্ডার: <b>{order_count}টি</b>" if order_count > 0 else "অর্ডার: <b>০টি</b>"
+        card_items = []
+        if user_id_display:
+            card_items.append(f"আইডি: <code>{user_id_display}</code>")
+        card_items.append(f"💰 ব্যালেন্স: <code>{bal_display}</code>")
+        card_items.append(order_line)
+        card = "<blockquote>" + "\n".join(card_items) + "</blockquote>"
         lines = [
             f"<b>{store_title}</b>",
             f"স্বাগতম, <b>{name_display}</b>! 🤝",
             "",
-            f"আইডি: <code>{user_id_display}</code>",
-            f"💰 ব্যালেন্স: <code>{bal_display}</code>",
-            order_line,
+            card,
             "",
             f"সাপোর্ট: {clean_support}",
         ]
     else:
         order_line = f"Orders: <b>{order_count}</b>" if order_count > 0 else "Orders: <b>0</b>"
+        card_items = []
+        if user_id_display:
+            card_items.append(f"ID: <code>{user_id_display}</code>")
+        card_items.append(f"💰 Balance: <code>{bal_display}</code>")
+        card_items.append(order_line)
+        card = "<blockquote>" + "\n".join(card_items) + "</blockquote>"
         lines = [
             f"<b>{store_title}</b>",
             f"Welcome, <b>{name_display}</b>! 🤝",
             "",
-            f"ID: <code>{user_id_display}</code>",
-            f"💰 Balance: <code>{bal_display}</code>",
-            order_line,
+            card,
             "",
             f"Support: {clean_support}",
         ]
 
-    # Filter empty lines if user_id_display is missing
-    clean_lines = [line for line in lines if not line.startswith("ID: <code></code>") and not line.startswith("আইডি: <code></code>")]
-    return prefix + "\n".join(clean_lines)
+    return prefix + "\n".join(lines)
 
 
 router = Router(name="start_router")

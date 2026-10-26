@@ -239,8 +239,8 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
         )
         text = (
             f"{reward_line}\n\n"
-            f"👥 Successful invites: <code>{total_invited}</code>\n"
-            f"💵 Earned: <code>{earned_display}</code>\n\n"
+            f"<blockquote>👥 Successful invites: <code>{total_invited}</code>\n"
+            f"💵 Earned: <code>{earned_display}</code></blockquote>\n\n"
             "🔗 Your referral link:\n"
             f"<code>{ref_link}</code>"
         )
@@ -256,8 +256,8 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
         )
         text = (
             f"{reward_line}\n\n"
-            f"👥 মোট ইনভাইট: <code>{total_invited}</code>\n"
-            f"💵 মোট আয়: <code>{earned_display}</code>\n\n"
+            f"<blockquote>👥 মোট ইনভাইট: <code>{total_invited}</code>\n"
+            f"💵 মোট আয়: <code>{earned_display}</code></blockquote>\n\n"
             "🔗 আপনার রেফারেল লিংক:\n"
             f"<code>{ref_link}</code>"
         )
@@ -1010,18 +1010,18 @@ async def view_order_detail(query: CallbackQuery, state: FSMContext, services: S
     if lang != "bn":
         text = (
             f"<b>Order:</b> <code>{format_order_id(order['id'])}</code>\n\n"
-            f"{status_line}\n"
+            f"<blockquote>{status_line}\n"
             f"Product: {escape(order['product_title'])}\n"
             f"Price: <code>{price_str}</code>\n"
-            f"Date: <code>{date_str}</code>"
+            f"Date: <code>{date_str}</code></blockquote>"
         )
     else:
         text = (
             f"<b>অর্ডার:</b> <code>{format_order_id(order['id'])}</code>\n\n"
-            f"{status_line}\n"
+            f"<blockquote>{status_line}\n"
             f"প্রোডাক্ট: {escape(order['product_title'])}\n"
             f"মূল্য: <code>{price_str}</code>\n"
-            f"তারিখ: <code>{date_str}</code>"
+            f"তারিখ: <code>{date_str}</code></blockquote>"
         )
 
     has_credentials = bool(order.get("delivered_item") and order.get("fulfillment") != "waiting")
