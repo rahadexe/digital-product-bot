@@ -25,7 +25,7 @@ class AccountRedesignTests(unittest.TestCase):
         kb_en = get_deposit_methods_keyboard([], lang="en", show_history=True)
         self.assertEqual(
             [[button.text for button in row] for row in kb_en.inline_keyboard],
-            [["📜 History"]],
+            [["📜 Deposit History"]],
         )
 
         # Configured methods and hosted checkout stay selectable as buttons.
@@ -46,11 +46,10 @@ class AccountRedesignTests(unittest.TestCase):
         self.assertEqual(
             [[button.text for button in row] for row in methods_kb.inline_keyboard],
             [
-                ["bKash"],
-                ["Nagad"],
+                ["bKash", "Nagad"],
                 ["Binance Pay"],
                 ["Jinpay Checkout"],
-                ["📜 History"],
+                ["📜 Deposit History"],
             ],
         )
         self.assertEqual(
