@@ -84,7 +84,7 @@ class ReliabilityTests(unittest.IsolatedAsyncioTestCase):
         values = await self.s.settings.values()
         for name in ('supplier_api_url', 'supplier_api_key', 'notice_banner', 'referral_bonus_percent', 'custom_emojis'):
             self.assertNotIn(name, values)
-        for changes in ({'currency': 'USD'}, {'zinipay_rate': '2'}):
+        for changes in ({'currency': 'BDT'}, {'zinipay_rate': '2'}):
             with self.assertRaises(InvalidInputError):
                 await self.s.settings.update(changes)
 
