@@ -68,14 +68,13 @@ def _catalog_button_name(name: str, icon: str, custom_id: str) -> str:
 
 
 def _customer_menu(lang: str = "en", show_icons: bool = True) -> list[tuple[str, str]]:
-    """Six customer actions ordered for a compact 2-column home menu."""
+    """Five customer actions in the primary menu; secondary settings stay available separately."""
     items = [
         ("🛍", "Shop", "কেনাকাটা", "open_categories"),
         ("💰", "Wallet", "ওয়ালেট", "open_wallet"),
         ("📦", "Orders", "অর্ডারস", "open_orders"),
         ("🎁", "Referral", "রেফারেল", "open_referral"),
         ("💬", "Support", "সাপোর্ট", "open_help"),
-        ("⚙️", "Settings", "সেটিংস", "open_more"),
     ]
     return [
         (f"{icon} {bn if lang == 'bn' else en}" if show_icons else (bn if lang == "bn" else en), callback)

@@ -7,7 +7,7 @@ from app.bot.keyboards import get_main_inline_keyboard, get_more_inline_keyboard
 from app.bot.handlers.search import _prompt_keyboard, _closing_row, search_entry, search_products, SearchStates
 
 
-def test_main_inline_keyboard_six_action_layout():
+def test_main_inline_keyboard_five_action_layout():
     cats = [
         {"id": 1, "name": "Facebook", "icon": "📱"},
         {"id": 2, "name": "VPN", "icon": "🛡️"},
@@ -21,9 +21,9 @@ def test_main_inline_keyboard_six_action_layout():
 
     assert [button.callback_data for button in rows[0]] == ["open_categories", "open_wallet"]
     assert [button.callback_data for button in rows[1]] == ["open_orders", "open_referral"]
-    assert [button.callback_data for button in rows[2]] == ["open_help", "open_more"]
+    assert [button.callback_data for button in rows[2]] == ["open_help"]
     assert [button.text for row in rows for button in row] == [
-        "🛍 Shop", "💰 Wallet", "📦 Orders", "🎁 Referral", "💬 Support", "⚙️ Settings",
+        "🛍 Shop", "💰 Wallet", "📦 Orders", "🎁 Referral", "💬 Support",
     ]
 
     # The admin panel remains on its own row; reseller stays under More.
