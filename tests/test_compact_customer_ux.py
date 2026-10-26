@@ -44,18 +44,18 @@ def services():
     )
 
 
-def test_six_primary_buttons_are_short_and_routable():
+def test_five_primary_buttons_are_short_and_routable():
     reply = get_persistent_reply_keyboard()
     inline = get_main_inline_keyboard()
     labels = [[b.text for b in row] for row in reply.keyboard]
     assert labels == [
         ["🛍 Shop", "💰 Wallet"],
         ["📦 Orders", "🎁 Referral"],
-        ["💬 Support", "⚙️ Settings"],
+        ["💬 Support"],
     ]
     assert labels == [[b.text for b in row] for row in inline.inline_keyboard]
     assert [NAVIGATION_TEXTS[b.text] for row in reply.keyboard for b in row] == [
-        "other_products", "deposit", "orders", "referral", "support", "more",
+        "other_products", "deposit", "orders", "referral", "support",
     ]
     assert all(len(b.text) <= 12 for row in reply.keyboard for b in row)
 
