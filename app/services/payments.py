@@ -55,7 +55,6 @@ REUSE_PENDING_SECONDS = 30 * 60
 MAX_INVOICES_PER_HOUR = 10
 # Unpaid invoices stop being checked after this long.
 EXPIRE_AFTER_HOURS = 24
-AMOUNT_TOLERANCE = Decimal("0.01")
 REFERENCE_PREFIX = "SM"
 
 
@@ -378,8 +377,8 @@ class PaymentService:
                 )
             self.notifier.in_background(
                 self.notifier.send_admin(
-                    f"⚠️ <b>ZiniPay Gateway Warning</b>\n\n{escape(str(exc))}\n\n"
-                    "<i>Check the API key in Settings → Payments.</i>",
+                    f"â ï¸ <b>ZiniPay Gateway Warning</b>\n\n{escape(str(exc))}\n\n"
+                    "<i>Check the API key in Settings â Payments.</i>",
                     event="system_error",
                 )
             )
@@ -525,7 +524,7 @@ class PaymentService:
         if alert:
             self.notifier.in_background(
                 self.notifier.send_admin(
-                    f"⚠️ <b>Automatic Payment Verification Issue</b>\n\n"
+                    f"â ï¸ <b>Automatic Payment Verification Issue</b>\n\n"
                     f"<b>Reference:</b> <code>{escape(row['reference'])}</code>\n"
                     f"<b>Customer ID:</b> <code>{row['tg_user_id']}</code>\n"
                     f"<b>Error:</b> {escape(reason)}\n\n"
@@ -568,7 +567,7 @@ class PaymentService:
             # ZiniPay answers with its own invoice UUID and with val_id, the reference we
             # gave it. Creation only ever told us the reference, so the UUID never matched
             # what was stored and a paid invoice was failed with "the verified invoice does
-            # not match" — the customer paid and got nothing. Either name identifying this
+            # not match" â the customer paid and got nothing. Either name identifying this
             # invoice is proof it is ours; only an answer that names neither is refused.
             if not ref_match and not inv_match:
                 problems.append(
@@ -588,7 +587,7 @@ class PaymentService:
             answered_currency = str(result.get("currency") or "").strip().upper()
             if answered_currency and answered_currency != LOCAL_CURRENCY:
                 problems.append(f"the payment currency is {answered_currency}, not {LOCAL_CURRENCY}")
-            if abs(paid - expected) > AMOUNT_TOLERANCE:
+            if paid != expected:
                 problems.append(f"paid {paid:.2f} {LOCAL_CURRENCY} but the invoice was for {expected:.2f} {LOCAL_CURRENCY}")
             if problems:
                 reason = "; ".join(problems)
@@ -702,7 +701,7 @@ class PaymentService:
             pass
 
         await self.notifier.send_admin(
-            f"✅ <b>Automatic Deposit · {format_deposit_id(deposit_id)}</b>\n\n"
+            f"â <b>Automatic Deposit Â· {format_deposit_id(deposit_id)}</b>\n\n"
             f"<b>Customer:</b> {customer_name}\n"
             f"<b>Customer ID:</b> <code>{row['tg_user_id']}</code>\n"
             f"<b>Method:</b> {escape(row['payment_method'] or 'ZiniPay')}\n"

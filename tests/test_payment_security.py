@@ -57,6 +57,11 @@ class ReceiptMatching(unittest.TestCase):
         self.assertFalse(_matches_receipt({'amount': 50, 'trxID': 'OTHER'}, 50, 'ABC123'))
         self.assertFalse(_matches_receipt({'amount': 50, 'trxID': 'ABC123', 'transactionId': 'OTHER'}, 50, 'ABC123'))
 
+    def test_any_amount_difference_at_paisa_precision_is_rejected(self):
+        for paid in ('49.99', '50.01'):
+            with self.subTest(paid=paid):
+                self.assertFalse(_matches_receipt({'amount': paid, 'trxID': 'ABC123'}, 50, 'ABC123'))
+
     def test_silence_is_rejected(self):
         # These all used to pass: the check only compared the fields that happened
         # to be present, so a body naming neither agreed with every payment.
@@ -153,6 +158,12 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
         result = await self._claim({'success': True, 'data': {'id': 77, 'amount': 500, 'trxID': 'SOMEONE-ELSE', 'provider': 'bKash'}})
         self.assertFalse(result.get('auto_verified'))
         self.assertEqual(await self.balance(), 0.0)
+
+    async def test_credit_amount_cannot_exceed_the_exact_bdt_quote(self):
+        with self.assertRaises(InvalidInputError):
+            await self.s.zinipay.claim(CUSTOMER, self.method, 4.0001, 'TRXEXACT0001', pay_amount=500, quoted_rate=125.0)
+        self.assertEqual(await self.balance(), 0.0)
+        self.assertIsNone(await self.s.deposits.pending_for(CUSTOMER))
 
     async def test_matching_receipt_credits_once(self):
         body = {'success': True, 'data': {'id': 77, 'amount': 500, 'trxID': 'TRX0000001', 'provider': 'bKash'}}
@@ -586,6 +597,24 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
         invoice = await self._invoice()
         await self._refresh(invoice['reference'],
                             {'status': 'COMPLETED', 'val_id': invoice['reference'], 'amount': 5})
+        self.assertEqual(await self.balance(), 0.0)
+
+    async def test_one_paisa_short_hosted_payment_is_refused(self):
+        invoice = await self._invoice()
+        result = await self._refresh(invoice['reference'], {
+            'status': 'COMPLETED', 'val_id': invoice['reference'],
+            'amount': round(float(invoice['pay_amount']) - 0.01, 2),
+        })
+        self.assertEqual(result['status'], 'failed')
+        self.assertEqual(await self.balance(), 0.0)
+
+    async def test_one_paisa_over_hosted_payment_is_refused(self):
+        invoice = await self._invoice()
+        result = await self._refresh(invoice['reference'], {
+            'status': 'COMPLETED', 'val_id': invoice['reference'],
+            'amount': round(float(invoice['pay_amount']) + 0.01, 2),
+        })
+        self.assertEqual(result['status'], 'failed')
         self.assertEqual(await self.balance(), 0.0)
 
     async def test_completed_naming_no_invoice_is_refused(self):
