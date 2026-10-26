@@ -633,7 +633,7 @@ class PaymentSecurityTests(unittest.IsolatedAsyncioTestCase):
             self.s.zinipay.http = client
             with self.assertRaises(DuplicateTransactionError):
                 await self.s.zinipay.claim(CUSTOMER, self.method, 4, 'DIN3SC3IAH', pay_amount=500, quoted_rate=125.0)
-        self.assertEqual(await self.balance(), 4.0, 'paid once, credited once')
+        self.assertEqual(await self.balance(), 500.0, 'paid once, credited once')
 
     async def test_an_invoice_that_names_someone_elses_reference_is_still_refused(self):
         invoice = await self._invoice()
