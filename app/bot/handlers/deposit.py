@@ -1723,7 +1723,7 @@ async def execute_deposit_submission(
                 amount=credit_amount,
                 transaction_id=clean_tx,
                 pay_amount=actual_pay,
-                quoted_rate=1.0,
+                quoted_rate=rate,
                 admin_note="Auto-verified via Instant Statement Sync",
                 notify_admin=True,
             )

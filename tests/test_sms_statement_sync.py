@@ -191,14 +191,14 @@ class TestBotDepositWithStatementSync(unittest.IsolatedAsyncioTestCase):
 
         await process_deposit_txid(message, state, services)
 
-        # Verified that deposit request was created for exact 500 Tk without asking for amount
+        # Verified BDT 500 is converted to the canonical USD credit without asking for amount
         services.deposits.create_request.assert_awaited_once_with(
             tg_user_id=6775546602,
             method_id=1,
-            amount=500.0,
+            amount=4.0,
             transaction_id="9ABC123456",
             pay_amount=500.0,
-            quoted_rate=1.0,
+            quoted_rate=125.0,
             admin_note="Auto-verified via Instant Statement Sync",
             notify_admin=True,
         )
