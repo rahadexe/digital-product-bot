@@ -280,7 +280,7 @@ async def test_binance_reference_retry_keeps_the_valid_amount(error):
 
 
 @pytest.mark.asyncio
-async def test_onchain_method_shows_the_minimum_in_the_currency_the_customer_enters():
+async def test_binance_method_uses_usdt_minimum_without_legacy_rate_conversion():
     state = context()
     incoming = message("Binance Chain")
     svc = services()
@@ -292,8 +292,8 @@ async def test_onchain_method_shows_the_minimum_in_the_currency_the_customer_ent
         "min_deposit": 25, "rate_to_currency": 0.008, "auto_verify": "binance",
         "account_type": "crypto",
     })
-    assert (await state.get_data())["min_deposit"] == pytest.approx(0.2)
-    assert "Minimum: <b>0.2 USDT</b>" in incoming.answer.await_args.args[0]
+    assert (await state.get_data())["min_deposit"] == pytest.approx(25.0)
+    assert "Minimum: <b>25 USDT</b>" in incoming.answer.await_args.args[0]
 
 
 @pytest.mark.asyncio
