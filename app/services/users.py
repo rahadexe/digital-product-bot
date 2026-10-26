@@ -72,7 +72,7 @@ class UserService:
             result = dict(row)
             self._user_cache[tg_user_id] = (time.monotonic(), result)
             if result.get("language"):
-                self._lang_cache[tg_user_id] = (time.monotonic(), normalize_language(str(result["language"])))
+                self._lang_cache[tg_user_id] = (time.monotonic(), self._display_locale(str(result["language"])))
             if row["is_new"]:
                 cust = f" · @{escape(username)}" if username else ""
                 full_name = escape(" ".join(filter(None, [first_name, last_name])) or "No name")
@@ -173,9 +173,30 @@ class UserService:
         return {"total": row["total"], "earned": row["earned"]}
 
     async def get_language(self, tg_user_id: int) -> str:
-        """Return the single supported customer-bot language."""
-        self._lang_cache[tg_user_id] = (time.monotonic(), "en")
-        return "en"
+        """Return English UI locale, retaining the legacy Bangladesh price-display marker."""
+        cached_user = self._user_cache.get(tg_user_id)
+        if (
+            cached_user
+            and cached_user[1]
+            and time.monotonic() - cached_user[0] < self._cache_ttl
+        ):
+            locale = self._display_locale(str(cached_user[1].get("language") or ""))
+            self._lang_cache[tg_user_id] = (time.monotonic(), locale)
+            return locale
+        cached = self._lang_cache.get(tg_user_id)
+        if cached and time.monotonic() - cached[0] < self._cache_ttl:
+            locale = self._display_locale(cached[1])
+            self._lang_cache[tg_user_id] = (time.monotonic(), locale)
+            return locale
+        raw = await self.get_raw_language(tg_user_id)
+        locale = self._display_locale(raw or "")
+        self._lang_cache[tg_user_id] = (time.monotonic(), locale)
+        return locale
+
+    @staticmethod
+    def _display_locale(language: str) -> str:
+        """All copy is English; the legacy Bangla preference only opts into BDT equivalents."""
+        return "en-BD" if str(language).strip().lower() in {"bn", "en-bd"} else "en"
 
     async def get_raw_language(self, tg_user_id: int) -> str | None:
         """Returns None if user has not yet explicitly selected a language."""

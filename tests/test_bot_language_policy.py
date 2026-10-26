@@ -8,7 +8,7 @@ from app.services.users import UserService
 
 @pytest.mark.parametrize(
     ("stored", "expected"),
-    [("bn", "en"), ("en", "en"), ("FR", "en"), (None, "en")],
+    [("bn", "en-BD"), ("en", "en"), ("FR", "en"), (None, "en")],
 )
 @pytest.mark.asyncio
 async def test_get_language_is_english_regardless_of_legacy_preference(stored, expected):

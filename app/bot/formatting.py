@@ -146,7 +146,7 @@ def format_dual_price(
     show_usd: bool | None = None,
     lang: str | None = None,
 ) -> str:
-    """Format a canonical USD amount; Bangla users also see the BDT equivalent."""
+    """Format a canonical USD amount; Bangladesh display locale also sees the BDT equivalent."""
     try:
         usd = float(amount)
         if not math.isfinite(usd):
@@ -155,7 +155,7 @@ def format_dual_price(
         usd = 0.0
     usd_text = f"${_money_text(usd)}"
     rate = usd_rate if usd_rate is not None else _DEFAULT_USD_RATE
-    if lang == "bn" and rate and rate > 0:
+    if (lang or "").lower() in {"bn", "en-bd"} and rate and rate > 0:
         bdt_text = f"৳{_money_text(usd * rate)}"
         return f"{bdt_text} (≈{usd_text})"
     return usd_text
