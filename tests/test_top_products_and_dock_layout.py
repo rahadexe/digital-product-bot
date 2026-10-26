@@ -64,7 +64,7 @@ def test_inline_keyboard_customer_first_bengali():
     assert [button.callback_data for button in rows[1]] == ["open_orders", "open_referral"]
     assert [button.callback_data for button in rows[2]] == ["open_help"]
     assert [button.text for row in rows for button in row] == [
-        "🛍 কেনাকাটা", "💰 ওয়ালেট", "📦 অর্ডারস", "🎁 রেফারেল", "💬 সাপোর্ট", "⚙️ সেটিংস",
+        "🛍 কেনাকাটা", "💰 ওয়ালেট", "📦 অর্ডারস", "🎁 রেফারেল", "💬 সাপোর্ট",
     ]
 
 
