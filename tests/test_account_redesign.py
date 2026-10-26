@@ -47,8 +47,7 @@ class AccountRedesignTests(unittest.TestCase):
             [[button.text for button in row] for row in methods_kb.inline_keyboard],
             [
                 ["bKash", "Nagad"],
-                ["Binance Pay"],
-                ["Jinpay Checkout"],
+                ["Binance Pay", "Jinpay Checkout"],
                 ["📜 Deposit History"],
             ],
         )

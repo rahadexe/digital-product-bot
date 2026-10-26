@@ -1076,7 +1076,7 @@ def get_deposit_methods_keyboard(
     """Inline keyboard for choosing a deposit method or opening wallet history."""
     buttons: List[List[InlineKeyboardButton]] = []
 
-    # Payment methods first, followed by the hosted instant option.
+    # Payment methods first, followed by the hosted instant option, grouped 2-per-row.
     method_btns: List[InlineKeyboardButton] = []
     for m in methods:
         name = str(m.get("name") or "Method").strip()
@@ -1094,20 +1094,20 @@ def get_deposit_methods_keyboard(
             )
         )
 
-    for index in range(0, len(method_btns), 2):
-        buttons.append(method_btns[index : index + 2])
-
     if instant_label:
         inst_text = str(instant_label).strip()
         _, clean_inst = extract_emoji_and_name(inst_text)
         btn_label = clean_inst or strip_leading_emoji(inst_text).strip()
         if btn_label:
-            buttons.append([
+            method_btns.append(
                 InlineKeyboardButton(
                     text=btn_label,
                     callback_data="dep_instant",
                 )
-            ])
+            )
+
+    for index in range(0, len(method_btns), 2):
+        buttons.append(method_btns[index : index + 2])
 
     if back_target and back_target != "back_to_main":
         buttons.append([
