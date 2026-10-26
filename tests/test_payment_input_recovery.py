@@ -207,7 +207,7 @@ async def test_hosted_checkout_does_not_treat_other_currency_or_reference_as_bdt
 
 
 @pytest.mark.asyncio
-async def test_payment_details_hide_old_amount_directions_but_preserve_merchant_warnings():
+async def test_payment_details_preserve_admin_custom_instructions_verbatim():
     state = context()
     incoming = message("Rocket")
     svc = services()
@@ -220,7 +220,7 @@ async def test_payment_details_hide_old_amount_directions_but_preserve_merchant_
     }
     await render_method_details(incoming, state, svc, method)
     text = incoming.answer.await_args.args[0]
-    assert old_instruction not in text
+    assert old_instruction in text
     assert "Send Money only." in text
     assert "After paying, tap Payment Done." in text
     assert old_instruction in method["instructions"]
