@@ -525,7 +525,7 @@ function CustomerProfilePage({
       !user.is_banned &&
       !(await confirm(
         `Ban ${nameOf(user)}?`,
-        'They will not be able to use the bot or the Mini App until unbanned.',
+        'They will not be able to use the bot until unbanned.',
         'Ban customer'
       ))
     ) {

@@ -15,8 +15,7 @@ import pytest
 from app.bot.customer_copy import order_refunded, wallet_updated
 from app.bot.handlers.deposit import _render_instant_invoice, confirm_cancel_instant_payment
 from app.bot.handlers.help_guide import FAQ_ITEMS
-from app.bot.handlers.profile import handle_notification_toggle, show_referral_info
-from app.bot.keyboards import get_notification_settings_keyboard
+from app.bot.handlers.profile import show_referral_info
 from app.core.i18n import t
 
 
@@ -38,30 +37,6 @@ def test_pending_does_not_claim_payment_received():
     text = t("status_pending_msg", "en").lower()
     assert "verification" in text and "do not pay again" in text
     assert "payment received" not in text
-
-
-@pytest.mark.parametrize("enabled", [True, False])
-def test_optional_toggle_is_the_only_customer_notification_switch(enabled):
-    keyboard = get_notification_settings_keyboard({"notify_news": enabled})
-    buttons = [button for row in keyboard.inline_keyboard for button in row]
-    assert [button.callback_data for button in buttons] == [
-        "notif_toggle_notify_orders", "notif_toggle_notify_deposits", "notif_toggle_notify_news", "open_more",
-    ]
-    assert f"({'On' if enabled else 'Off'})" in buttons[2].text
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("key", ["notify_orders", "notify_deposits", "unknown"])
-async def test_old_or_forged_essential_toggle_does_not_change_preferences(key):
-    query = SimpleNamespace(
-        from_user=SimpleNamespace(id=101),
-        data=f"notif_toggle_{key}",
-        answer=AsyncMock(),
-    )
-    services = SimpleNamespace(users=SimpleNamespace(toggle_notification_preference=AsyncMock()))
-    await handle_notification_toggle(query, services)
-    services.users.toggle_notification_preference.assert_not_awaited()
-    assert "stay on" in query.answer.await_args.args[0]
 
 
 @pytest.mark.asyncio

@@ -129,7 +129,7 @@ async def run_polling(services: Services) -> None:
         while True:
             try:
                 if not configured:
-                    await services.notifier.configure_bot(config.webapp_url)
+                    await services.notifier.configure_bot()
                     await bot.delete_webhook(drop_pending_updates=False)
                     configured = True
 
@@ -169,7 +169,7 @@ async def run_webhook(services: Services) -> None:
     backoff = 3
     while True:
         try:
-            await services.notifier.configure_bot(config.webapp_url)
+            await services.notifier.configure_bot()
             await bot.set_webhook(
                 url=config.webhook_url,
                 secret_token=config.webhook_secret,

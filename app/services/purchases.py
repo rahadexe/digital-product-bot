@@ -102,7 +102,7 @@ class PurchaseService:
         if not 1 <= quantity <= 1000:
             return False, "Choose a quantity from 1 to 1000.", None
         request_id = request_id or uuid.uuid4().hex
-        # Paused applies to every way in (bot, Mini App), so it is checked here rather than in each of them.
+        # Paused applies to every purchase path, so it is checked here rather than in each handler.
         paused = await self.settings.paused_message()
         if paused:
             return False, paused, None

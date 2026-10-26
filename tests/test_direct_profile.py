@@ -12,32 +12,10 @@ from app.bot.handlers.deposit import DepositStates, MethodTextFilter
 from app.bot.handlers.help_guide import FAQ_ITEMS, GUIDE_TEXTS
 from app.bot.handlers.navigation import is_navigation, navigate
 from app.bot.handlers.profile import open_wallet_from_legacy_account
-from app.bot.keyboards import get_account_keyboard
 
 
 def context():
     return FSMContext(storage=MemoryStorage(), key=StorageKey(bot_id=1, chat_id=2, user_id=2))
-
-
-@pytest.mark.parametrize("is_reseller", [False, True])
-@pytest.mark.parametrize("lang", ["en", "bn"])
-def test_profile_actions_stay_direct_even_with_legacy_options(is_reseller, lang):
-    keyboard = get_account_keyboard(
-        lang=lang,
-        is_admin=True,
-        is_reseller=is_reseller,
-        order_count=99,
-        include_referral=True,
-        ref_link="https://t.me/example_bot?start=2",
-        share_url="https://t.me/share/url",
-    )
-    assert [[button.callback_data for button in row] for row in keyboard.inline_keyboard] == [
-        ["open_language_menu"],
-        ["open_notifications_hub"],
-        ["open_api_hub", "open_reseller_hub" if is_reseller else "open_reseller"],
-        ["back_to_main"],
-    ]
-    assert all(button.url is None for row in keyboard.inline_keyboard for button in row)
 
 
 @pytest.mark.asyncio

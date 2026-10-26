@@ -1,4 +1,4 @@
-"""FastAPI application: admin API, Mini App storefront API, health checks and the static console."""
+"""FastAPI application: admin API, health checks and the static console."""
 
 from __future__ import annotations
 

@@ -1,1 +1,1 @@
-"""HTTP API: admin console, Telegram Mini App storefront and health checks."""
+"""HTTP API for the admin console, payment integrations and health checks."""

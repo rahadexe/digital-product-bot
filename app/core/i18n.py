@@ -1,13 +1,8 @@
-"""Centralized Internationalization (i18n) Engine.
-
-Supports 2 languages:
-  - English ('en') - Default fallback
-  - Bengali ('bn') - বাংলা
+"""English-only customer-bot copy catalog.
 
 Features:
   - Dynamic variable interpolation with kwargs
-  - Automatic fallback to English if a key or language is missing
-  - Extensible: adding or modifying any key updates all languages in one place
+  - Legacy language codes resolve to English
 """
 
 from __future__ import annotations
@@ -16,7 +11,6 @@ from typing import Any
 
 SUPPORTED_LANGUAGES = {
     "en": {"name": "English", "native": "English", "flag": "🇬🇧"},
-    "bn": {"name": "Bengali", "native": "বাংলা", "flag": "🇧🇩"},
 }
 
 DEFAULT_LANGUAGE = "en"
@@ -484,9 +478,7 @@ def t(key: str, lang: str | None = "en", **kwargs: Any) -> str:
     Gracefully falls back to English ('en') if key or language is not found.
     Interpolates kwargs safely.
     """
-    code = (lang or DEFAULT_LANGUAGE).strip().lower()
-    if code not in TRANSLATIONS:
-        code = DEFAULT_LANGUAGE
+    code = normalize_language(lang)
 
     tmpl = TRANSLATIONS[code].get(key)
     if tmpl is None:
@@ -502,6 +494,6 @@ def t(key: str, lang: str | None = "en", **kwargs: Any) -> str:
 
 
 def normalize_language(lang: str | None) -> str:
-    """Normalize language code to one of ('en', 'bn')."""
+    """The customer bot currently supports English only."""
     code = (lang or "").strip().lower()
     return code if code in SUPPORTED_LANGUAGES else DEFAULT_LANGUAGE

@@ -315,8 +315,6 @@ def get_guide_keyboard(lang: str = "en") -> InlineKeyboardMarkup:
 
 
 @router.callback_query(F.data == "open_guide")
-@router.callback_query(F.data == "guide_lang_en")
-@router.callback_query(F.data == "guide_lang_bn")
 async def show_guide(event: Message | CallbackQuery, state: FSMContext, services: Services):
     """Show a concise guide in English."""
     await state.clear()

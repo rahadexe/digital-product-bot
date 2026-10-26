@@ -10,7 +10,6 @@ from app.bot.handlers.search import _product_button
 from app.bot.handlers.shop import show_main_product_detail
 from app.bot.icons import tg_icon
 from app.bot.keyboards import (
-    get_account_keyboard,
     get_categories_keyboard,
     get_categories_reply_keyboard,
     get_main_inline_keyboard,
@@ -372,20 +371,6 @@ def test_top_products_dock_bengali_shows_admin_action_on_home():
     more_callbacks = [button.callback_data for row in more.inline_keyboard for button in row]
     assert "open_reseller_hub" in more_callbacks
     assert "adm_dashboard" not in more_callbacks
-
-
-def test_account_keyboard_clean_grid():
-    kb = get_account_keyboard(lang="en")
-    all_callbacks = [btn.callback_data for row in kb.inline_keyboard for btn in row if btn.callback_data]
-    assert "open_orders_acc" not in all_callbacks
-    assert "open_referral" not in all_callbacks
-    assert "open_api_hub" in all_callbacks
-    assert "open_language_menu" in all_callbacks
-    assert "open_notifications_hub" in all_callbacks
-    assert "back_to_main" in all_callbacks
-    assert "open_deposits" not in all_callbacks
-    assert "open_reseller" in all_callbacks
-    assert len(kb.inline_keyboard) == 4
 
 
 @pytest.mark.asyncio

@@ -173,15 +173,9 @@ class UserService:
         return {"total": row["total"], "earned": row["earned"]}
 
     async def get_language(self, tg_user_id: int) -> str:
-        """Return the user's saved language, defaulting safely to English."""
-        now = time.monotonic()
-        cached = self._lang_cache.get(tg_user_id)
-        if cached and now - cached[0] < self._cache_ttl:
-            return cached[1]
-
-        language = normalize_language(await self.get_raw_language(tg_user_id))
-        self._lang_cache[tg_user_id] = (now, language)
-        return language
+        """Return the single supported customer-bot language."""
+        self._lang_cache[tg_user_id] = (time.monotonic(), "en")
+        return "en"
 
     async def get_raw_language(self, tg_user_id: int) -> str | None:
         """Returns None if user has not yet explicitly selected a language."""
@@ -350,10 +344,8 @@ class UserService:
         return clean_rank
 
     async def set_language(self, tg_user_id: int, language: str) -> str:
-        """Update customer preferred language ('en', 'bn')."""
-        clean_lang = language.strip().lower()
-        if clean_lang not in ("en", "bn"):
-            clean_lang = "en"
+        """Keep legacy callers compatible while enforcing the English-only bot."""
+        clean_lang = "en"
         async with self.db.transaction() as conn:
             await conn.execute("UPDATE users SET language = $1, updated_at = now() WHERE tg_user_id = $2", clean_lang, tg_user_id)
         self.invalidate_cache(tg_user_id)

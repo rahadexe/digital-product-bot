@@ -8,10 +8,10 @@ from app.services.users import UserService
 
 @pytest.mark.parametrize(
     ("stored", "expected"),
-    [("bn", "bn"), ("en", "en"), ("FR", "en"), (None, "en")],
+    [("bn", "en"), ("en", "en"), ("FR", "en"), (None, "en")],
 )
 @pytest.mark.asyncio
-async def test_get_language_uses_saved_preference_or_english_fallback(stored, expected):
+async def test_get_language_is_english_regardless_of_legacy_preference(stored, expected):
     users = UserService(MagicMock(), MagicMock(), MagicMock())
     users._user_cache[123] = (monotonic(), {"language": stored})
 
@@ -19,9 +19,9 @@ async def test_get_language_uses_saved_preference_or_english_fallback(stored, ex
 
 
 @pytest.mark.asyncio
-async def test_get_language_uses_fresh_preference_cache():
+async def test_get_language_ignores_legacy_language_cache():
     users = UserService(MagicMock(), MagicMock(), MagicMock())
     users._lang_cache[123] = (monotonic(), "bn")
     users._user_cache[123] = (monotonic(), {"language": "en"})
 
-    assert await users.get_language(123) == "bn"
+    assert await users.get_language(123) == "en"

@@ -5,8 +5,6 @@ import pytest
 from app.bot.handlers.help_guide import GUIDE_TEXTS, get_guide_keyboard
 from app.bot.handlers.navigation import COMMAND_ACTIONS, NAVIGATION_TEXTS
 from app.bot.keyboards import (
-    get_account_keyboard,
-    get_language_selection_keyboard,
     get_main_inline_keyboard,
     get_more_inline_keyboard,
     get_persistent_reply_keyboard,
@@ -14,15 +12,15 @@ from app.bot.keyboards import (
 from app.core.i18n import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, TRANSLATIONS, t
 
 def test_supported_languages():
-    assert "en" in SUPPORTED_LANGUAGES
-    assert "bn" in SUPPORTED_LANGUAGES
-    assert len(SUPPORTED_LANGUAGES) == 2
+    assert SUPPORTED_LANGUAGES == {
+        "en": {"name": "English", "native": "English", "flag": "🇬🇧"},
+    }
 
 def test_i18n_translation_and_fallback():
     # English
     assert t("btn_add_balance", "en") == "Top Up"
-    # Bengali
-    assert t("btn_add_balance", "bn") == "💳 ডিপোজিট"
+    # Legacy saved preferences still resolve to English.
+    assert t("btn_add_balance", "bn") == "Top Up"
     
     # Missing key fallback
     assert t("non_existent_key_xyz", "bn") == "non_existent_key_xyz"
@@ -45,12 +43,11 @@ def test_translations_preserve_placeholders_across_languages():
         }
         assert bengali_fields == english_fields, f"Placeholder mismatch: {key}"
 
-def test_guide_copy_and_support_action_match_each_language():
-    for lang, phrase in (("en", "How to use the bot"), ("bn", "বট ব্যবহার")):
-        assert phrase in GUIDE_TEXTS[lang]
-        button = get_guide_keyboard(lang).inline_keyboard[0][0]
-        assert button.text.endswith(t("btn_support", lang).split(" ", 1)[-1])
-        assert button.callback_data == "open_support"
+def test_guide_copy_and_support_action_are_english():
+    assert "How to use the bot" in GUIDE_TEXTS["en"]
+    button = get_guide_keyboard("en").inline_keyboard[0][0]
+    assert button.text.endswith(t("btn_support", "en").split(" ", 1)[-1])
+    assert button.callback_data == "open_support"
 
 def test_language_specific_currency_formatting():
     from app.bot.formatting import format_dual_price, price
@@ -63,47 +60,29 @@ def test_language_specific_currency_formatting():
     assert price("৳", 125.0, usd_rate=125.0, lang="en") == "$125"
     assert "≈" not in format_dual_price(125.0, "৳", usd_rate=125.0, lang="en")
 
-def test_keyboards_all_languages():
-    for lang in ["en", "bn"]:
-        main_kb = get_main_inline_keyboard(lang=lang, is_admin=False)
-        assert len(main_kb.inline_keyboard) == 3
-        admin_kb = get_main_inline_keyboard(lang=lang, is_admin=True)
-        assert len(admin_kb.inline_keyboard) == 4
-        admin_callbacks = [btn.callback_data for row in admin_kb.inline_keyboard for btn in row]
-        assert "adm_dashboard" in admin_callbacks
-        more_kb = get_more_inline_keyboard(lang=lang, is_admin=True, is_reseller=True)
-        more_callbacks = [btn.callback_data for row in more_kb.inline_keyboard for btn in row]
-        assert "adm_dashboard" not in more_callbacks
-        assert "open_reseller_hub" in more_callbacks
-        kb = get_persistent_reply_keyboard(is_reseller=False, is_admin=False, lang=lang)
-        assert len(kb.keyboard) == 3
-        assert kb.is_persistent is False
-        assert kb.resize_keyboard is True
-        kb_admin = get_persistent_reply_keyboard(is_reseller=False, is_admin=True, lang=lang)
-        assert len(kb_admin.keyboard) == 4
-        assert kb_admin.keyboard[-1][0].text == ("🛡 অ্যাডমিন প্যানেল" if lang == "bn" else "🛡 Admin Panel")
-        kb_cats = get_persistent_reply_keyboard(pinned_categories=[{"name": "VPN", "icon": "🛡️"}], lang=lang)
-        assert len(kb_cats.keyboard) == 3
-        account_kb = get_account_keyboard(lang=lang, is_admin=False)
-        assert len(account_kb.inline_keyboard) > 0
-        assert any(
-            btn.callback_data == "open_language_menu"
-            for row in account_kb.inline_keyboard for btn in row
-        )
-        assert len(t("select_language_title", lang)) > 0
-        assert len(t("select_language_prompt", lang)) > 0
+def test_customer_keyboards_are_english_and_secondary_menu_is_small():
+    main_kb = get_main_inline_keyboard(lang="bn", is_admin=False)
+    assert len(main_kb.inline_keyboard) == 3
+    assert [button.text for row in main_kb.inline_keyboard for button in row] == [
+        "🛍 Shop", "💰 Wallet", "📦 Orders", "🎁 Referral", "💬 Support",
+    ]
 
-def test_language_selection_keyboard():
-    for current_lang, selected_code in (("en", "set_lang_en"), ("bn", "set_lang_bn")):
-        kb = get_language_selection_keyboard(current_lang=current_lang)
-        language_buttons = [
-            btn for row in kb.inline_keyboard for btn in row
-            if btn.callback_data in {"set_lang_en", "set_lang_bn"}
-        ]
-        assert [btn.callback_data for btn in language_buttons] == ["set_lang_en", "set_lang_bn"]
-        selected = [btn for btn in language_buttons if btn.text.endswith("✓")]
-        assert len(selected) == 1
-        assert selected[0].callback_data == selected_code
+    admin_kb = get_main_inline_keyboard(lang="bn", is_admin=True)
+    assert len(admin_kb.inline_keyboard) == 4
+    assert admin_kb.inline_keyboard[-1][0].text == "🛡 Admin Panel"
+    more_kb = get_more_inline_keyboard(lang="bn", is_admin=True, is_reseller=True)
+    assert [btn.callback_data for row in more_kb.inline_keyboard for btn in row] == [
+        "open_api_hub", "open_reseller_hub",
+    ]
+    kb = get_persistent_reply_keyboard(is_reseller=False, is_admin=False, lang="bn")
+    assert len(kb.keyboard) == 3
+    assert kb.is_persistent is False
+    assert kb.resize_keyboard is True
+    kb_admin = get_persistent_reply_keyboard(is_reseller=False, is_admin=True, lang="bn")
+    assert len(kb_admin.keyboard) == 4
+    assert kb_admin.keyboard[-1][0].text == "🛡 Admin Panel"
+    kb_cats = get_persistent_reply_keyboard(pinned_categories=[{"name": "VPN", "icon": "🛡️"}], lang="bn")
+    assert len(kb_cats.keyboard) == 3
 
 def test_navigation_texts_include_all_languages():
     # Check English
@@ -122,13 +101,12 @@ def test_navigation_texts_include_all_languages():
     assert NAVIGATION_TEXTS["📦 আমার অর্ডার"] == "orders"
     assert NAVIGATION_TEXTS["🎧 সাপোর্ট"] == "support"
 
-    # Check commands
-    assert COMMAND_ACTIONS["/language"] == "language"
-    assert COMMAND_ACTIONS["/lang"] == "language"
-    assert COMMAND_ACTIONS["/en"] == "set_en"
-    assert COMMAND_ACTIONS["/bn"] == "set_bn"
-    assert NAVIGATION_TEXTS["en"] == "set_en"
-    assert NAVIGATION_TEXTS["bn"] == "set_bn"
+    # No language-switch commands remain.
+    assert "/language" not in COMMAND_ACTIONS
+    assert "/lang" not in COMMAND_ACTIONS
+    assert "/bn" not in COMMAND_ACTIONS
+    assert "/en" not in COMMAND_ACTIONS
+    assert COMMAND_ACTIONS["/more"] == "more"
 
 def test_history_translations():
     for lang in ["en", "bn"]:

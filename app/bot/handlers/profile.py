@@ -30,7 +30,6 @@ from app.bot.icons import (
     ICON_COIN,
     ICON_CROSS,
     ICON_CROWN,
-    ICON_GLOBE,
     ICON_ID,
     ICON_KEY,
     ICON_LIGHTNING,
@@ -55,9 +54,7 @@ from app.bot.icons import (
     Icons,
 )
 from app.bot.keyboards import (
-    get_language_selection_keyboard,
     get_more_inline_keyboard,
-    get_notification_settings_keyboard,
     product_display_labels,
 )
 from app.core.i18n import t
@@ -87,10 +84,7 @@ async def show_more_menu(event: Message | CallbackQuery, state: FSMContext, serv
     )
     is_reseller = (user.get("rank") or "").strip().lower() in {"reseller", "reseller partner"}
 
-    if lang == "bn":
-        text = "⚙️ <b>সেটিংস</b>\n\nভাষা, নোটিফিকেশন, এপিআই ও রিসেলার সুবিধা।"
-    else:
-        text = "⚙️ <b>Settings</b>\n\nLanguage, notifications, API, and reseller options."
+    text = "⚙️ <b>More</b>\n\nAPI and reseller tools."
 
     keyboard = get_more_inline_keyboard(lang=lang, is_reseller=is_reseller)
     await respond(event, text, keyboard)
@@ -171,83 +165,6 @@ async def open_wallet_from_legacy_account(event: Message | CallbackQuery, state:
     from app.bot.handlers.deposit import show_deposit_methods
 
     await show_deposit_methods(event, state, services)
-
-@router.message(Command("language"))
-@router.message(Command("lang"))
-@router.callback_query(F.data == "open_language_menu")
-async def show_language_menu(event: Message | CallbackQuery, state: FSMContext, services: Services):
-    await state.clear()
-    tg_user = event.from_user
-    if not tg_user:
-        return
-    user_lang = await services.users.get_language(tg_user.id)
-    text = t("select_language_prompt", user_lang)
-    kb = get_language_selection_keyboard(current_lang=user_lang, back_target="open_more")
-    await respond(event, text, kb)
-
-
-async def _save_language_and_return_to_menu(
-    event: CallbackQuery, state: FSMContext, services: Services, language: str
-) -> None:
-    await state.clear()
-    tg_user = event.from_user
-    if not tg_user:
-        return
-
-    selected = await services.users.set_language(tg_user.id, language)
-    with suppress(TelegramBadRequest):
-        await event.answer(t("lang_switched_toast", selected))
-
-    message = event.message
-    if isinstance(message, Message):
-        with suppress(TelegramBadRequest):
-            await message.delete()
-        from app.bot.handlers.start import render_main_dashboard
-
-        await render_main_dashboard(message, services, tg_user.id)
-
-
-@router.callback_query(F.data == "set_lang_en")
-async def select_english_language(event: CallbackQuery, state: FSMContext, services: Services):
-    await _save_language_and_return_to_menu(event, state, services, "en")
-
-
-@router.callback_query(F.data == "set_lang_bn")
-async def select_bengali_language(event: CallbackQuery, state: FSMContext, services: Services):
-    await _save_language_and_return_to_menu(event, state, services, "bn")
-
-
-@router.message(Command("en"))
-@router.message(Command("english"))
-@router.message(F.text.casefold().in_({"english", "en"}))
-async def switch_to_en(message: Message, state: FSMContext, services: Services):
-    """Direct 1-step switch to English."""
-    await state.clear()
-    tg_user = message.from_user
-    if not tg_user:
-        return
-    await services.users.set_language(tg_user.id, "en")
-    with suppress(TelegramBadRequest):
-        await message.answer(t("lang_switched_toast", "en"))
-    from app.bot.handlers.start import render_main_dashboard
-    await render_main_dashboard(message, services, tg_user.id)
-
-
-@router.message(Command("bn"))
-@router.message(Command("bangla"))
-@router.message(F.text.casefold().in_({"bangla", "bn", "বাংলা"}))
-async def switch_to_bn(message: Message, state: FSMContext, services: Services):
-    """Direct 1-step switch to Bengali."""
-    await state.clear()
-    tg_user = message.from_user
-    if not tg_user:
-        return
-    await services.users.set_language(tg_user.id, "bn")
-    with suppress(TelegramBadRequest):
-        await message.answer(t("lang_switched_toast", "bn"))
-    from app.bot.handlers.start import render_main_dashboard
-    await render_main_dashboard(message, services, tg_user.id)
-
 
 @router.message(Command("referral"))
 @router.message(Command("refer"))
@@ -655,76 +572,6 @@ async def show_api_hub(event: Message | CallbackQuery, state: FSMContext | None,
     ])
     kb = InlineKeyboardMarkup(inline_keyboard=rows)
     await respond(event, text, kb)
-
-
-# --- User Notification Settings Hub ---
-@router.message(F.text.in_({
-    "🔔 Notifications",
-    "Notifications",
-    "notifications",
-    "🔔 নোটিফিকেশন",
-    "নোটিফিকেশন",
-}))
-@router.callback_query(F.data == "open_notifications_hub")
-async def show_notifications_hub(event: Message | CallbackQuery, state: FSMContext | None, services: Services):
-    if state:
-        await state.clear()
-    tg_user = event.from_user
-    if not tg_user:
-        return
-
-    lang = await services.users.get_language(tg_user.id)
-    prefs = await services.users.get_notification_preferences(tg_user.id)
-
-    if lang != "bn":
-        text = "Notification settings:"
-    else:
-        text = "নোটিফিকেশন সেটিংস:"
-
-    kb = get_notification_settings_keyboard(prefs, lang=lang)
-    await respond(event, text, kb)
-
-
-@router.callback_query(F.data.startswith("notif_toggle_"))
-async def handle_notification_toggle(query: CallbackQuery, services: Services):
-    tg_user = query.from_user
-    if not tg_user:
-        return
-
-    lang = "en"
-    if hasattr(services, "users") and hasattr(services.users, "get_language"):
-        try:
-            lang = await services.users.get_language(tg_user.id)
-        except Exception:
-            lang = "en"
-
-    key = query.data.removeprefix("notif_toggle_")
-    if key in ("notify_orders", "notify_deposits"):
-        msg = "Order and payment notifications stay on." if lang != "bn" else "অর্ডার ও পেমেন্ট নোটিফিকেশন সবসময় চালু থাকে।"
-        with suppress(TelegramBadRequest):
-            await query.answer(msg)
-        return
-
-    if key != "notify_news":
-        with suppress(TelegramBadRequest):
-            await query.answer("Payment results and order deliveries stay on.")
-        return
-    updated_prefs = await services.users.toggle_notification_preference(tg_user.id, key)
-    lang = await services.users.get_language(tg_user.id)
-
-    new_kb = get_notification_settings_keyboard(updated_prefs, lang=lang)
-    with suppress(TelegramBadRequest):
-        if query.message:
-            await query.message.edit_reply_markup(reply_markup=new_kb)
-
-    if lang == "bn":
-        status_str = "চালু করা হয়েছে ✅" if updated_prefs.get(key, True) else "বন্ধ করা হয়েছে 🔕"
-        toast = f"নোটিফিকেশন {status_str}"
-    else:
-        status_str = "On" if updated_prefs.get(key, True) else "Off"
-        toast = f"News & Offers: {status_str}"
-    with suppress(TelegramBadRequest):
-        await query.answer(toast)
 
 
 @router.callback_query(F.data == "reseller_toggle_active")

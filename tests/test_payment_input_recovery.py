@@ -130,20 +130,16 @@ def test_crypto_amounts_do_not_silently_convert_bdt_or_invalid_values(raw):
         parse_deposit_amount(raw, is_binance=True)
 
 
-def test_old_amount_entry_note_is_hidden_without_changing_other_payment_notes():
+def test_admin_payment_instructions_are_displayed_without_rewriting():
     notes = (
         "Send Money only. Do not use Cash Out.\n"
         "Enter the amount below.\n"
         "আপনি কত টাকা পাঠিয়েছেন তা নিচে লিখুন\n"
         "Contact support if your receipt is missing."
     )
-    assert payment_instruction_note(notes) == (
-        "Send Money only. Do not use Cash Out.\n"
-        "Contact support if your receipt is missing."
-    )
-    assert payment_instruction_note("Enter the amount in your Rocket app.") == (
-        "Enter the amount in your Rocket app."
-    )
+    assert payment_instruction_note(notes) == notes
+    bangla_instruction = "বিকাশে টাকা পাঠিয়ে TrxID-টি এখানে লিখুন।"
+    assert payment_instruction_note(bangla_instruction) == bangla_instruction
 
 
 @pytest.mark.asyncio

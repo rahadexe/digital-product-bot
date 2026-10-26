@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 from aiogram.fsm.context import FSMContext
 
-from app.bot.keyboards import get_main_inline_keyboard, get_more_inline_keyboard, get_account_keyboard
+from app.bot.keyboards import get_main_inline_keyboard, get_more_inline_keyboard
 from app.bot.handlers.search import _prompt_keyboard, _closing_row, search_entry, search_products, SearchStates
 
 
@@ -34,19 +34,6 @@ def test_main_inline_keyboard_five_action_layout():
     more_callbacks = [button.callback_data for row in more.inline_keyboard for button in row]
     assert "adm_dashboard" not in more_callbacks
     assert "open_reseller_hub" in more_callbacks
-
-
-def test_account_keyboard_keeps_profile_actions_direct():
-    kb = get_account_keyboard(lang="en")
-    callbacks = [btn.callback_data for row in kb.inline_keyboard for btn in row]
-    assert "open_referral" not in callbacks
-    assert "open_language_menu" in callbacks
-    assert "open_orders_acc" not in callbacks
-    assert "open_deposits" not in callbacks
-    assert "open_notifications_hub" in callbacks
-    assert "open_api_hub" in callbacks
-    assert "open_reseller" in callbacks
-    assert "back_to_main" in callbacks
 
 
 def test_search_prompt_keyboard_back_target():

@@ -1,4 +1,4 @@
-"""Categories and products. The bot, the Mini App and the admin console read the same catalog."""
+"""Categories and products shared by the bot and admin console."""
 
 from __future__ import annotations
 

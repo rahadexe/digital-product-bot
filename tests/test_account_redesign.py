@@ -1,70 +1,21 @@
-"""Tests for Account actions, language selection, and notification settings."""
+"""Tests for the compact More menu and English-only customer UI."""
 
 from __future__ import annotations
 
 import unittest
 
-from app.bot.keyboards import (
-    get_account_keyboard,
-    get_language_selection_keyboard,
-    get_notification_settings_keyboard,
-)
+from app.bot.keyboards import get_more_inline_keyboard
 
 
 class AccountRedesignTests(unittest.TestCase):
-    def test_account_keyboard_structure_english(self):
-        kb = get_account_keyboard(lang="en", is_reseller=False)
-        rows = kb.inline_keyboard
-
-        self.assertEqual(len(rows), 4)
-        self.assertEqual([button.text for button in rows[0]], ["🌐 Language"])
-        self.assertEqual([button.callback_data for button in rows[0]], ["open_language_menu"])
-        self.assertEqual([button.text for button in rows[1]], ["Notifications"])
-        self.assertEqual([button.callback_data for button in rows[1]], ["open_notifications_hub"])
-        self.assertEqual([button.text for button in rows[2]], ["API", "Reseller"])
-        self.assertEqual([button.callback_data for button in rows[2]], ["open_api_hub", "open_reseller"])
-        self.assertEqual([button.text for button in rows[3]], ["Back"])
-        self.assertEqual([button.callback_data for button in rows[3]], ["back_to_main"])
-
-    def test_account_keyboard_reseller_tier(self):
-        rows = get_account_keyboard(lang="en", is_reseller=True).inline_keyboard
-        self.assertEqual(len(rows), 4)
-        self.assertEqual(rows[2][1].text, "Reseller")
-        self.assertEqual(rows[2][1].callback_data, "open_reseller_hub")
-
-    def test_account_keyboard_structure_bengali(self):
-        rows = get_account_keyboard(lang="bn", is_reseller=False).inline_keyboard
-        self.assertEqual(len(rows), 4)
-        self.assertEqual([button.text for button in rows[0]], ["🌐 ভাষা"])
-        self.assertEqual([button.text for button in rows[1]], ["নোটিফিকেশন"])
-        self.assertEqual([button.text for button in rows[2]], ["এপিআই", "রিসেলার"])
-        self.assertEqual([button.text for button in rows[3]], ["ব্যাক"])
-
-    def test_language_keyboard_marks_current_choice(self):
-        rows_en = get_language_selection_keyboard(current_lang="en").inline_keyboard
-        self.assertEqual(rows_en[0][0].text, "🇬🇧 English ✓")
-        self.assertEqual(rows_en[0][0].callback_data, "set_lang_en")
-        self.assertEqual(rows_en[1][0].text, "🇧🇩 বাংলা")
-        self.assertEqual(rows_en[1][0].callback_data, "set_lang_bn")
-        self.assertEqual(rows_en[2][0].callback_data, "open_more")
-        self.assertEqual(rows_en[2][0].text, "Back")
-
-        rows_bn = get_language_selection_keyboard(current_lang="bn").inline_keyboard
-        self.assertEqual(rows_bn[0][0].text, "🇬🇧 English")
-        self.assertEqual(rows_bn[1][0].text, "🇧🇩 বাংলা ✓")
-        self.assertEqual(rows_bn[2][0].text, "🔙 ব্যাক")
-
-    def test_notification_settings_keyboard(self):
-        prefs = {"notify_orders": True, "notify_deposits": False, "notify_news": True}
-        kb = get_notification_settings_keyboard(prefs, lang="en")
-        rows = kb.inline_keyboard
-
-        self.assertEqual(len(rows), 4)
-        self.assertEqual(rows[2][0].callback_data, "notif_toggle_notify_news")
-        self.assertIn("(On)", rows[2][0].text)
-
-        # Back returns to open_more
-        self.assertEqual(rows[3][0].callback_data, "open_more")
+    def test_more_menu_keeps_only_api_and_reseller_tools(self):
+        keyboard = get_more_inline_keyboard(is_reseller=True)
+        buttons = [button for row in keyboard.inline_keyboard for button in row]
+        self.assertEqual(
+            [button.callback_data for button in buttons],
+            ["open_api_hub", "open_reseller_hub"],
+        )
+        self.assertEqual([button.text for button in buttons], ["⚡ API", "💼 Reseller Hub"])
 
     def test_deposit_history_keyboard_and_prompts(self):
         from app.bot.keyboards import get_deposit_methods_keyboard
@@ -75,13 +26,6 @@ class AccountRedesignTests(unittest.TestCase):
         self.assertEqual(
             [[button.text for button in row] for row in kb_en.inline_keyboard],
             [["📜 History"]],
-        )
-
-        # Bengali labels are localized.
-        kb_bn = get_deposit_methods_keyboard([], lang="bn", show_history=True)
-        self.assertEqual(
-            [[button.text for button in row] for row in kb_bn.inline_keyboard],
-            [["📜 ডিপোজিট হিস্ট্রি"]],
         )
 
         # Configured methods and hosted checkout stay selectable as buttons.
@@ -121,12 +65,8 @@ class AccountRedesignTests(unittest.TestCase):
             "💰 <b>Balance:</b> <code>$10.00</code>\n\nChoose a method to top up.",
         )
 
-        prompt_bn = t("deposit_choose_method", "bn", balance="৳১০০")
-        self.assertEqual(
-            prompt_bn,
-            "💰 <b>ব্যালেন্স:</b> <code>৳১০০</code>\n\n"
-            "<b>পেমেন্ট মেথড সিলেক্ট করুন</b>",
-        )
+        prompt_legacy_language = t("deposit_choose_method", "bn", balance="$1.00")
+        self.assertEqual(prompt_legacy_language, prompt_en.replace("$10.00", "$1.00"))
 
         # Check title and hint
         title_en = t("balance_history_title", "en", icon_stats="📊")
@@ -136,7 +76,7 @@ class AccountRedesignTests(unittest.TestCase):
         # Check btn_deposit
         # Check deposit_detail_title without #id
         self.assertEqual(t("deposit_detail_title", "en", id="D21"), "<b>Top-up D21</b>")
-        self.assertEqual(t("deposit_detail_title", "bn", id="D21"), "<b>ডিপোজিট D21</b>")
+        self.assertEqual(t("deposit_detail_title", "bn", id="D21"), "<b>Top-up D21</b>")
 
 
 class DepositPickerRoutingTests(unittest.IsolatedAsyncioTestCase):
@@ -192,54 +132,12 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
             await show_more_menu(event, state, services)
 
         text, keyboard = respond.await_args.args[1:]
-        self.assertIn("<b>Settings</b>", text)
+        self.assertIn("<b>More</b>", text)
         self.assertNotIn("Balance:", text)
         self.assertNotIn("Profile", text)
         callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
-        self.assertEqual(callbacks, [
-            "open_language_menu", "open_notifications_hub",
-            "open_api_hub", "open_reseller_hub",
-        ])
-        self.assertEqual([len(row) for row in keyboard.inline_keyboard], [2, 2])
-
-    async def test_language_menu_offers_both_languages(self):
-        from types import SimpleNamespace
-        from unittest.mock import AsyncMock, patch
-
-        from app.bot.handlers.profile import show_language_menu
-
-        event = SimpleNamespace(from_user=SimpleNamespace(id=123))
-        state = SimpleNamespace(clear=AsyncMock())
-        services = SimpleNamespace(users=SimpleNamespace(get_language=AsyncMock(return_value="bn")))
-
-        with patch("app.bot.handlers.profile.respond", new_callable=AsyncMock) as respond:
-            await show_language_menu(event, state, services)
-
-        text, keyboard = respond.await_args.args[1:]
-        self.assertIn("ভাষা", text)
-        self.assertEqual([row[0].callback_data for row in keyboard.inline_keyboard], [
-            "set_lang_en", "set_lang_bn", "open_more",
-        ])
-        self.assertEqual(keyboard.inline_keyboard[1][0].text, "🇧🇩 বাংলা ✓")
-
-    async def test_language_selection_persists_english_and_bengali(self):
-        from types import SimpleNamespace
-        from unittest.mock import AsyncMock
-
-        from app.bot.handlers.profile import select_bengali_language, select_english_language
-
-        state = SimpleNamespace(clear=AsyncMock())
-        set_language = AsyncMock(side_effect=lambda _user_id, language: language)
-        services = SimpleNamespace(users=SimpleNamespace(set_language=set_language))
-
-        for language, handler in (("en", select_english_language), ("bn", select_bengali_language)):
-            with self.subTest(language=language):
-                event = SimpleNamespace(
-                    from_user=SimpleNamespace(id=123), message=None, answer=AsyncMock()
-                )
-                await handler(event, state, services)
-                set_language.assert_awaited_with(123, language)
-                event.answer.assert_awaited()
+        self.assertEqual(callbacks, ["open_api_hub", "open_reseller_hub"])
+        self.assertEqual([len(row) for row in keyboard.inline_keyboard], [2])
 
     async def test_reseller_openapi_spec_structure(self):
         from types import SimpleNamespace

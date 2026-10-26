@@ -117,7 +117,7 @@ class Settings(BaseSettings):
             if not self.database_url:
                 raise ValueError("Production requires DATABASE_URL.")
             if self.webapp_url and not self.webapp_url.startswith("https://"):
-                raise ValueError("WEBAPP_URL must be an https:// address; Telegram opens Mini Apps only over HTTPS.")
+                raise ValueError("WEBAPP_URL must be an https:// address.")
             self.cookie_secure = True
         elif weak_secret:
             self.secret_key = secrets.token_urlsafe(48)
@@ -140,7 +140,7 @@ class Settings(BaseSettings):
         """
         for candidate in (self.webhook_base_url, self.webapp_url):
             parts = urlsplit(candidate.strip())
-            # Legacy WEBAPP_URL remains a compatible origin fallback.
+            # WEBAPP_URL remains a compatible public-origin fallback for hosted payment returns.
             if parts.scheme == "https" and parts.netloc:
                 return f"https://{parts.netloc}"
         return ""
