@@ -62,7 +62,7 @@ def test_inline_keyboard_customer_first_bengali():
     assert len(rows) == 3
     assert [button.callback_data for button in rows[0]] == ["open_categories", "open_wallet"]
     assert [button.callback_data for button in rows[1]] == ["open_orders", "open_referral"]
-    assert [button.callback_data for button in rows[2]] == ["open_help", "open_more"]
+    assert [button.callback_data for button in rows[2]] == ["open_help"]
     assert [button.text for row in rows for button in row] == [
         "🛍 কেনাকাটা", "💰 ওয়ালেট", "📦 অর্ডারস", "🎁 রেফারেল", "💬 সাপোর্ট", "⚙️ সেটিংস",
     ]
@@ -97,7 +97,7 @@ def test_featured_products_do_not_expand_compact_main_menu():
     assert len(rows) == 3
     assert [button.callback_data for button in rows[0]] == ["open_categories", "open_wallet"]
     assert [button.callback_data for button in rows[1]] == ["open_orders", "open_referral"]
-    assert [button.callback_data for button in rows[2]] == ["open_help", "open_more"]
+    assert [button.callback_data for button in rows[2]] == ["open_help"]
 
 
 def test_product_list_separates_validity_from_legacy_title():
@@ -366,7 +366,7 @@ def test_top_products_dock_bengali_shows_admin_action_on_home():
     kb = get_main_inline_keyboard(pinned_categories=pinned, featured_products=prods, is_admin=True, is_reseller=True, lang="bn")
     assert [[button.callback_data for button in row] for row in kb.inline_keyboard] == [
         ["open_categories", "open_wallet"], ["open_orders", "open_referral"],
-        ["open_help", "open_more"], ["adm_dashboard"],
+        ["open_help"], ["adm_dashboard"],
     ]
     more = get_more_inline_keyboard(lang="bn", is_admin=True, is_reseller=True)
     more_callbacks = [button.callback_data for row in more.inline_keyboard for button in row]

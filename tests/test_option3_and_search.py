@@ -21,7 +21,7 @@ def test_main_inline_keyboard_five_action_layout():
 
     assert [button.callback_data for button in rows[0]] == ["open_categories", "open_wallet"]
     assert [button.callback_data for button in rows[1]] == ["open_orders", "open_referral"]
-    assert [button.callback_data for button in rows[2]] == ["open_help", "open_more"]
+    assert [button.callback_data for button in rows[2]] == ["open_help"]
     assert [button.text for row in rows for button in row] == [
         "🛍 Shop", "💰 Wallet", "📦 Orders", "🎁 Referral", "💬 Support",
     ]
