@@ -24,7 +24,8 @@ FALLBACK_USERNAME = "PremiumHaven24Bot"
 # The admin ones are listed by /admin and work whether or not they are listed.
 COMMANDS = [
     BotCommand(command="start", description="Start the Bot"),
-    BotCommand(command="more", description="API and reseller tools"),
+    BotCommand(command="api", description="API hub"),
+    BotCommand(command="reseller", description="Reseller hub"),
 ]
 
 
