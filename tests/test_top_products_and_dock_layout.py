@@ -32,8 +32,7 @@ def test_persistent_reply_keyboard_five_action_layout():
     assert kb.resize_keyboard is True
     assert [[button.text for button in row] for row in rows] == [
         ["🛍 Shop", "💰 Balance"],
-        ["📦 Orders", "🎁 Referral"],
-        ["💬 Support"],
+        ["📦 Orders", "🎁 Referral", "💬 Support"],
     ]
 
 
@@ -45,10 +44,9 @@ def test_inline_keyboard_customer_actions_are_english_only():
     kb = get_main_inline_keyboard(pinned_categories=cats, is_admin=False, is_reseller=False, lang="bn")
     rows = kb.inline_keyboard
 
-    assert len(rows) == 3
+    assert len(rows) == 2
     assert [button.callback_data for button in rows[0]] == ["open_categories", "open_deposit"]
-    assert [button.callback_data for button in rows[1]] == ["open_orders", "open_referral"]
-    assert [button.callback_data for button in rows[2]] == ["open_help"]
+    assert [button.callback_data for button in rows[1]] == ["open_orders", "open_referral", "open_help"]
     assert [button.text for row in rows for button in row] == [
         "🛍 Shop", "💰 Balance", "📦 Orders", "🎁 Referral", "💬 Support",
     ]
@@ -61,8 +59,9 @@ def test_admin_gets_fifth_inline_button_on_its_own_row():
     ]
     kb = get_main_inline_keyboard(pinned_categories=cats, is_admin=True, is_reseller=True, lang="en")
     assert [[button.callback_data for button in row] for row in kb.inline_keyboard] == [
-        ["open_categories", "open_deposit"], ["open_orders", "open_referral"],
-        ["open_help"], ["adm_dashboard"],
+        ["open_categories", "open_deposit"],
+        ["open_orders", "open_referral", "open_help"],
+        ["adm_dashboard"],
     ]
 
 
@@ -77,10 +76,9 @@ def test_featured_products_do_not_expand_compact_main_menu():
     kb_bn = get_main_inline_keyboard(pinned_categories=pinned, featured_products=prods, is_admin=False, lang="bn")
     rows = kb_bn.inline_keyboard
 
-    assert len(rows) == 3
+    assert len(rows) == 2
     assert [button.callback_data for button in rows[0]] == ["open_categories", "open_deposit"]
-    assert [button.callback_data for button in rows[1]] == ["open_orders", "open_referral"]
-    assert [button.callback_data for button in rows[2]] == ["open_help"]
+    assert [button.callback_data for button in rows[1]] == ["open_orders", "open_referral", "open_help"]
 
 
 def test_product_list_separates_validity_from_legacy_title():
@@ -348,8 +346,9 @@ def test_legacy_language_dock_shows_admin_action_on_home():
     pinned = [{"id": 8, "name": "Streaming", "icon": "🎬"}]
     kb = get_main_inline_keyboard(pinned_categories=pinned, featured_products=prods, is_admin=True, is_reseller=True, lang="bn")
     assert [[button.callback_data for button in row] for row in kb.inline_keyboard] == [
-        ["open_categories", "open_deposit"], ["open_orders", "open_referral"],
-        ["open_help"], ["adm_dashboard"],
+        ["open_categories", "open_deposit"],
+        ["open_orders", "open_referral", "open_help"],
+        ["adm_dashboard"],
     ]
 
 

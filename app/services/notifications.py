@@ -93,7 +93,7 @@ class Notifier:
         carrying anything worth keeping: a payment confirmed, a purchase gone through.
         The balance and the order are both somewhere better, and a chat that fills up
         with them buries the messages that do matter. Anything a customer might need
-        later Ã¢ÂÂ credentials, a receipt Ã¢ÂÂ is sent without it."""
+        later — credentials, a receipt — is sent without it."""
         if not self.bot or not chat_id:
             return False
         try:
