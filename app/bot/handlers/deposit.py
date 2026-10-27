@@ -511,17 +511,19 @@ async def render_method_details(
     destination = "Open the payment page below." if is_payment_link else f"{destination_label}: <code>{escape(account_info)}</code>"
     minimum = f"{min_dep:g} USDT" if is_binance else f"৳{min_dep:g}"
 
-    lines = [
+    card_lines = [
         f"<b>{escape(heading)}</b>",
         f"⚠️ Minimum: <b>{minimum}</b>",
     ]
     if not is_binance and rate > 1:
-        lines.append(f"Rate: 1 USD = ৳{rate:g} BDT")
-    lines.extend([
+        card_lines.append(f"Rate: 1 USD = ৳{rate:g} BDT")
+
+    lines = [
+        "<blockquote>" + "\n".join(card_lines) + "</blockquote>",
         "",
         destination,
         "",
-    ])
+    ]
     if custom_inst:
         lines.extend([escape(custom_inst), ""])
 
