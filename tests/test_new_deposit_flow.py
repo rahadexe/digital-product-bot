@@ -162,12 +162,11 @@ async def test_render_method_details_flow():
     kb = call[1]["reply_markup"]
     assert isinstance(kb, InlineKeyboardMarkup)
     assert [[button.text for button in row] for row in kb.inline_keyboard] == [
-        ["📋 Copy Number"],
         ["✅ Payment Done"],
         ["🔙 Back"],
     ]
     assert [button.callback_data for row in kb.inline_keyboard for button in row] == [
-        None, "dep_paid_1", "dep_methods",
+        "dep_paid_1", "dep_methods",
     ]
 
 

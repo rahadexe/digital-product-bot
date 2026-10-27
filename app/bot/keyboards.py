@@ -1172,12 +1172,6 @@ def get_manual_deposit_invoice_keyboard(
     if destination.startswith("https://"):
         pay_text = "Open Payment" if lang != "bn" else "🌐 পেমেন্ট পেজ খুলুন"
         buttons.append([InlineKeyboardButton(text=pay_text, url=destination)])
-    elif destination:
-        copy_label = "Copy ID" if is_binance else "Copy Number"
-        buttons.append([InlineKeyboardButton(
-            text=f"📋 {copy_label}" if lang != "bn" else ("📋 আইডি কপি" if is_binance else "📋 নম্বর কপি"),
-            copy_text=CopyTextButton(text=destination[:256]),
-        )])
     paid_text = "✅ Payment Done" if lang != "bn" else "✅ পেমেন্ট করেছি"
     back_text = "🔙 Back" if lang != "bn" else "🔙 ফিরে যান"
     buttons.append([
