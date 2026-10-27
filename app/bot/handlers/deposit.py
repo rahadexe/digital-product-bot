@@ -529,11 +529,8 @@ async def render_method_details(
         lines.append(escape(custom_inst))
     else:
         target_name = "number" if not is_binance else "Pay ID"
-        if lang == "bn":
-            lines.append(f"উপরের {target_name}-এ পেমেন্ট করে <b>✅ Payment Done</b>-এ ক্লিক করে TrxID দিন।")
-        else:
-            target_phrase = f"Pay to the {target_name} above" if not is_binance else f"Send USDT to the {target_name} above"
-            lines.append(f"{target_phrase}, then tap <b>✅ Payment Done</b> to submit your TrxID.")
+        target_phrase = f"Pay to the {target_name} above" if not is_binance else f"Send USDT to the {target_name} above"
+        lines.append(f"{target_phrase}, then tap <b>✅ Payment Done</b> to submit your TrxID.")
 
     inst = "\n".join(lines)
     keyboard = get_manual_deposit_invoice_keyboard(
