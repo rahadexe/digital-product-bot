@@ -21,5 +21,5 @@ def test_customer_keyboard_places_orders_referral_and_support_on_second_row():
     reply_rows = get_persistent_reply_keyboard(show_icons=False).keyboard
     assert [[button.text for button in row] for row in reply_rows] == [
         ["Shop", "Balance"],
-        ["Orders", "Referral", "Support"],
+        ["Orders", "Refer", "Help"],
     ]

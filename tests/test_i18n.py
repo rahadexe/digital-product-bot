@@ -48,7 +48,7 @@ def test_customer_keyboards_are_english_and_more_is_removed():
     main_kb = get_main_inline_keyboard(lang="en-BD", is_admin=False)
     assert len(main_kb.inline_keyboard) == 2
     assert [button.text for row in main_kb.inline_keyboard for button in row] == [
-        "🛍 Shop", "💰 Balance", "📦 Orders", "🎁 Referral", "💬 Support",
+        "🛍 Shop", "💰 Balance", "📦 Orders", "🎁 Refer", "💬 Help",
     ]
 
     admin_kb = get_main_inline_keyboard(lang="en-BD", is_admin=True)
@@ -69,7 +69,10 @@ def test_navigation_texts_only_include_active_routes():
         "Back": "cancel", "back": "cancel", "Cancel": "cancel", "cancel": "cancel",
         "❌ Cancel": "cancel", "🛍 Shop": "other_products", "Shop": "other_products",
         "💰 Balance": "deposit", "Balance": "deposit", "Add Balance": "deposit", "💰 Add Balance": "deposit",
-        "📦 Orders": "orders", "Orders": "orders", "🎁 Referral": "referral", "Referral": "referral",
+        "📦 Orders": "orders", "Orders": "orders",
+        "🎁 Refer": "referral", "Refer": "referral",
+        "🎁 Referral": "referral", "Referral": "referral",
+        "💬 Help": "help", "Help": "help",
         "💬 Support": "support", "Support": "support", "Search": "search", "🔍 Search": "search",
         "🛡 Admin Panel": "admin", "Admin Panel": "admin",
     }
