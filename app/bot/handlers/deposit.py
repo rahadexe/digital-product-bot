@@ -512,13 +512,14 @@ async def render_method_details(
     minimum = f"{min_dep:g} USDT" if is_binance else f"৳{min_dep:g}"
 
     card_lines = [
-        f"<b>{escape(heading)}</b>",
         f"⚠️ Minimum: <b>{minimum}</b>",
     ]
     if not is_binance and rate > 1:
         card_lines.append(f"Rate: 1 USD = ৳{rate:g} BDT")
 
     lines = [
+        f"<b>{escape(heading)}</b>",
+        "",
         "<blockquote>" + "\n".join(card_lines) + "</blockquote>",
         "",
         destination,
