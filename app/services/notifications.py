@@ -23,9 +23,9 @@ FALLBACK_USERNAME = "PremiumHaven24Bot"
 # Telegram shows this menu to everyone, so only customer commands belong here.
 # The admin ones are listed by /admin and work whether or not they are listed.
 COMMANDS = [
-    BotCommand(command="start", description="Start the Bot"),
-    BotCommand(command="api", description="API hub"),
-    BotCommand(command="reseller", description="Reseller hub"),
+    BotCommand(command="start", description="Start the bot"),
+    BotCommand(command="api", description="API"),
+    BotCommand(command="reseller", description="Reseller"),
 ]
 
 
@@ -93,7 +93,7 @@ class Notifier:
         carrying anything worth keeping: a payment confirmed, a purchase gone through.
         The balance and the order are both somewhere better, and a chat that fills up
         with them buries the messages that do matter. Anything a customer might need
-        later — credentials, a receipt — is sent without it."""
+        later â credentials, a receipt â is sent without it."""
         if not self.bot or not chat_id:
             return False
         try:
