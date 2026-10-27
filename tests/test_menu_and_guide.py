@@ -302,11 +302,13 @@ class MenuAndGuideTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(any("How to use the bot" in (r.get("text") or "") for r in replies),
                         "English guide did not render")
 
-    async def test_support_and_channels_answer(self):
-        for label in ("Support", "Channel"):
-            replies = await self._feed(text=label)
-            self.assertTrue(any(r.get("text") or r.get("alert") for r in replies),
-                            f"{label!r} answered with nothing")
+    async def test_support_button_works_and_channel_shortcut_is_removed(self):
+        replies = await self._feed(text="Support")
+        self.assertTrue(any(r.get("text") or r.get("alert") for r in replies),
+                        "Support answered with nothing")
+        replies = await self._feed(text="Channel")
+        self.assertFalse(any(r.get("text") or r.get("alert") for r in replies),
+                         "the removed Channel shortcut still answered")
 
     async def test_only_an_admin_gets_an_emoji_id_back(self):
         """The emoji helper reads a message's entities; it is an admin convenience."""

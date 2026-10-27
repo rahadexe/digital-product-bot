@@ -13,7 +13,7 @@ def test_only_current_customer_commands_are_routed():
     assert COMMAND_ACTIONS == {"/start": "start", "/api": "api", "/reseller": "reseller"}
     for command in COMMAND_ACTIONS:
         assert is_navigation(command)
-    for command in ["/menu", "/more", "/profile", "/account", "/wallet", "/balance", "/deposit", "/shop", "/orders", "/refer", "/search", "/help"]:
+    for command in ["/menu", "/more", "/profile", "/account", "/wallet", "/balance", "/deposit", "/shop", "/orders", "/refer", "/search", "/help", "/channel", "/updates"]:
         assert not is_navigation(command)
     assert not is_navigation("/admin")  # admin commands must reach the admin router
 
