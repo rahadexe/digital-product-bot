@@ -46,23 +46,23 @@ def test_language_specific_currency_formatting():
 
 def test_customer_keyboards_are_english_and_more_is_removed():
     main_kb = get_main_inline_keyboard(lang="en-BD", is_admin=False)
-    assert len(main_kb.inline_keyboard) == 3
+    assert len(main_kb.inline_keyboard) == 2
     assert [button.text for row in main_kb.inline_keyboard for button in row] == [
         "🛍 Shop", "💰 Balance", "📦 Orders", "🎁 Referral", "💬 Support",
     ]
 
     admin_kb = get_main_inline_keyboard(lang="en-BD", is_admin=True)
-    assert len(admin_kb.inline_keyboard) == 4
+    assert len(admin_kb.inline_keyboard) == 3
     assert admin_kb.inline_keyboard[-1][0].text == "🛡 Admin Panel"
     kb = get_persistent_reply_keyboard(is_reseller=False, is_admin=False, lang="en-BD")
-    assert len(kb.keyboard) == 3
+    assert len(kb.keyboard) == 2
     assert kb.is_persistent is False
     assert kb.resize_keyboard is True
     kb_admin = get_persistent_reply_keyboard(is_reseller=False, is_admin=True, lang="bn")
-    assert len(kb_admin.keyboard) == 4
+    assert len(kb_admin.keyboard) == 3
     assert kb_admin.keyboard[-1][0].text == "🛡 Admin Panel"
     kb_cats = get_persistent_reply_keyboard(pinned_categories=[{"name": "VPN", "icon": "🛡️"}], lang="bn")
-    assert len(kb_cats.keyboard) == 3
+    assert len(kb_cats.keyboard) == 2
 
 def test_navigation_texts_only_include_active_routes():
     assert NAVIGATION_TEXTS == {

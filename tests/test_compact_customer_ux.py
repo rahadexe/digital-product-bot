@@ -50,8 +50,7 @@ def test_five_primary_buttons_are_short_and_routable():
     labels = [[b.text for b in row] for row in reply.keyboard]
     assert labels == [
         ["🛍 Shop", "💰 Balance"],
-        ["📦 Orders", "🎁 Referral"],
-        ["💬 Support"],
+        ["📦 Orders", "🎁 Referral", "💬 Support"],
     ]
     assert labels == [[b.text for b in row] for row in inline.inline_keyboard]
     assert [NAVIGATION_TEXTS[b.text] for row in reply.keyboard for b in row] == [
@@ -63,14 +62,14 @@ def test_five_primary_buttons_are_short_and_routable():
 def test_admin_panel_is_a_separate_admin_only_home_row():
     customer_reply = get_persistent_reply_keyboard()
     customer_inline = get_main_inline_keyboard()
-    assert len(customer_reply.keyboard) == 3
-    assert len(customer_inline.inline_keyboard) == 3
+    assert len(customer_reply.keyboard) == 2
+    assert len(customer_inline.inline_keyboard) == 2
 
     admin_reply = get_persistent_reply_keyboard(is_admin=True)
     admin_inline = get_main_inline_keyboard(is_admin=True)
     assert admin_reply.keyboard[-1][0].text == "🛡 Admin Panel"
-    assert len(admin_reply.keyboard) == 4
-    assert len(admin_inline.inline_keyboard) == 4
+    assert len(admin_reply.keyboard) == 3
+    assert len(admin_inline.inline_keyboard) == 3
     assert admin_inline.inline_keyboard[-1][0].callback_data == "adm_dashboard"
 
 

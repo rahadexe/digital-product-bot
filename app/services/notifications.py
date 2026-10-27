@@ -23,9 +23,9 @@ FALLBACK_USERNAME = "PremiumHaven24Bot"
 # Telegram shows this menu to everyone, so only customer commands belong here.
 # The admin ones are listed by /admin and work whether or not they are listed.
 COMMANDS = [
-    BotCommand(command="start", description="Start the Bot"),
-    BotCommand(command="api", description="API hub"),
-    BotCommand(command="reseller", description="Reseller hub"),
+    BotCommand(command="start", description="Start"),
+    BotCommand(command="api", description="API"),
+    BotCommand(command="reseller", description="Reseller"),
 ]
 
 

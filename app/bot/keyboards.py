@@ -97,13 +97,13 @@ def get_main_inline_keyboard(
     usd_rate: float | None = None,
     show_usd: bool = False,
 ) -> InlineKeyboardMarkup:
-    """2x3 customer actions, with an admin-only action when authorized."""
+    """2+3 customer actions, with an admin-only action when authorized."""
     menu = _customer_menu(lang)
     customer_buttons = [
         InlineKeyboardButton(text=label, callback_data=callback)
         for label, callback in menu
     ]
-    rows = [customer_buttons[i:i + 2] for i in range(0, len(customer_buttons), 2)]
+    rows = [customer_buttons[:2], customer_buttons[2:]]
     if is_admin:
         rows.append([InlineKeyboardButton(text=_admin_panel_label(lang), callback_data="adm_dashboard")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
@@ -117,10 +117,10 @@ def get_persistent_reply_keyboard(
     lang: str = "en",
     show_icons: bool = True,
 ) -> ReplyKeyboardMarkup:
-    """2x3 customer actions; admins additionally get a private shortcut."""
+    """2+3 customer actions; admins additionally get a private shortcut."""
     menu = _customer_menu(lang, show_icons)
     customer_buttons = [KeyboardButton(text=label) for label, _ in menu]
-    rows = [customer_buttons[i:i + 2] for i in range(0, len(customer_buttons), 2)]
+    rows = [customer_buttons[:2], customer_buttons[2:]]
     if is_admin:
         rows.append([KeyboardButton(text=_admin_panel_label(lang, show_icons))])
     return ReplyKeyboardMarkup(
