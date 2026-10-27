@@ -157,13 +157,14 @@ async def test_render_method_details_flow():
     assert "01700000000" in text
     assert "Minimum: <b>৳50</b>" in text
     assert "Rate: 1 USD = ৳125 BDT" in text
-    assert "tap Payment Done" in text
     assert "Send Money to this personal number" in text
 
     kb = call[1]["reply_markup"]
     assert isinstance(kb, InlineKeyboardMarkup)
-    assert [button.text for row in kb.inline_keyboard for button in row] == [
-        "📋 Copy Number", "✅ Payment Done", "🔙 Back",
+    assert [[button.text for button in row] for row in kb.inline_keyboard] == [
+        ["📋 Copy Number"],
+        ["✅ Payment Done"],
+        ["🔙 Back"],
     ]
     assert [button.callback_data for row in kb.inline_keyboard for button in row] == [
         None, "dep_paid_1", "dep_methods",

@@ -1182,6 +1182,8 @@ def get_manual_deposit_invoice_keyboard(
     back_text = "🔙 Back" if lang != "bn" else "🔙 ফিরে যান"
     buttons.append([
         InlineKeyboardButton(text=paid_text, callback_data=f"dep_paid_{method_id}" if method_id else "dep_paid"),
+    ])
+    buttons.append([
         InlineKeyboardButton(text=back_text, callback_data="dep_methods"),
     ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
