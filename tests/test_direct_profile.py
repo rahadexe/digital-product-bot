@@ -1,78 +1,54 @@
-"""Direct profile actions, short identity text and backward-compatible navigation."""
+"""Tests for the English customer menu and removed legacy routes."""
 
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.storage.base import StorageKey
-from aiogram.fsm.storage.memory import MemoryStorage
 
-from app.bot.handlers.deposit import DepositStates, MethodTextFilter
-from app.bot.handlers.help_guide import FAQ_ITEMS, GUIDE_TEXTS
-from app.bot.handlers.navigation import is_navigation, navigate
-from app.bot.handlers.profile import open_wallet_from_legacy_account
+from app.bot.handlers.navigation import COMMAND_ACTIONS, NAVIGATION_TEXTS, is_navigation, navigate
+from app.bot.handlers.start import build_welcome_text
 
 
-def context():
-    return FSMContext(storage=MemoryStorage(), key=StorageKey(bot_id=1, chat_id=2, user_id=2))
+def test_only_current_customer_commands_are_routed():
+    assert COMMAND_ACTIONS == {"/start": "start", "/api": "api", "/reseller": "reseller"}
+    for command in COMMAND_ACTIONS:
+        assert is_navigation(command)
+    for command in ["/menu", "/more", "/profile", "/account", "/wallet", "/balance", "/deposit", "/shop", "/orders", "/refer", "/search", "/help", "/channel", "/updates"]:
+        assert not is_navigation(command)
+    assert not is_navigation("/admin")  # admin commands must reach the admin router
 
 
-@pytest.mark.asyncio
-async def test_legacy_profile_entry_redirects_to_wallet_without_identity_details():
-    state = context()
-    await state.set_state(DepositStates.waiting_for_txid)
-    event = SimpleNamespace(from_user=SimpleNamespace(id=2, full_name="<Buyer> & Co"))
-    services = SimpleNamespace()
-    with patch("app.bot.handlers.deposit.show_deposit_methods", new_callable=AsyncMock) as show_wallet:
-        await open_wallet_from_legacy_account(event, state, services)
-    show_wallet.assert_awaited_once_with(event, state, services)
-    assert await state.get_state() is None
-    assert await state.get_data() == {}
+def test_removed_profile_and_more_labels_are_not_menu_routes():
+    for label in ["Profile", "👤 Profile", "Account", "Wallet", "More", "Settings", "Price List", "My Balance"]:
+        assert not is_navigation(label)
+        assert label not in NAVIGATION_TEXTS
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("label", [
-    "👤 Profile", "Profile", "profile", "PROFILE", "👤 PROFILE",
-    "/profile", "/profile@example_bot", "/me", "Account", "👤 Account", "/account",
-])
-async def test_profile_and_legacy_labels_leave_payment_prompts(label):
-    state = context()
-    await state.set_state(DepositStates.waiting_for_amount)
+@pytest.mark.parametrize("label", ["Balance", "💰 Balance", "Add Balance"])
+async def test_balance_button_opens_balance_screen(label):
+    state = SimpleNamespace(get_state=AsyncMock(return_value=None), clear=AsyncMock())
     message = SimpleNamespace(from_user=SimpleNamespace(id=2))
     services = SimpleNamespace()
-    assert is_navigation(label)
-    with patch("app.bot.handlers.deposit.show_deposit_methods", new_callable=AsyncMock) as show_wallet:
+    with patch("app.bot.handlers.deposit.show_deposit_methods", new_callable=AsyncMock) as open_balance:
         await navigate(label, message, state, services)
-    show_wallet.assert_awaited_once_with(message, state, services)
-    assert await state.get_state() is None
+    open_balance.assert_awaited_once_with(message, state, services)
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("label", [
-    "/balance", "Balance", "My Balance", "💰 My Balance", "💳 My Balance", "MY BALANCE",
-])
-async def test_balance_aliases_keep_wallet_access(label):
-    state = context()
+@pytest.mark.parametrize(("command", "handler"), [("/api", "show_api_hub"), ("/reseller", "show_reseller_hub")])
+async def test_api_and_reseller_commands_open_their_hubs(command, handler):
+    state = SimpleNamespace(get_state=AsyncMock(return_value=None), clear=AsyncMock())
     message = SimpleNamespace(from_user=SimpleNamespace(id=2))
     services = SimpleNamespace()
-    with patch("app.bot.handlers.deposit.show_deposit_methods", new_callable=AsyncMock) as show:
-        await navigate(label, message, state, services)
-    show.assert_awaited_once_with(message, state, services)
+    with patch(f"app.bot.handlers.profile.{handler}", new_callable=AsyncMock) as open_hub:
+        await navigate(command, message, state, services)
+    open_hub.assert_awaited_once_with(message, state, services)
 
 
-@pytest.mark.asyncio
-@pytest.mark.parametrize("label", ["👤 Profile", "Profile", "PROFILE", "প্রোফাইল"])
-async def test_profile_button_cannot_be_mistaken_for_a_payment_method(label):
-    message = SimpleNamespace(text=label)
-    assert await MethodTextFilter()(message, SimpleNamespace()) is False
-
-
-def test_help_points_to_the_main_menu_instead_of_removed_profile_shortcuts():
-    delivery = FAQ_ITEMS["delivery"]["answer"]["en"]
-    assert "Open Orders" in delivery
-    assert "Open Account" not in delivery
-    assert "Open Refer" in FAQ_ITEMS["referral"]["answer"]["en"]
-    assert "<b>Orders</b>" in GUIDE_TEXTS["en"]
-    assert "<b>Refer</b>" in GUIDE_TEXTS["en"]
-    assert "My Profile" not in GUIDE_TEXTS["en"]
+def test_dashboard_shows_balance_without_personal_identity():
+    text = build_welcome_text(balance_str="$3.50", order_count=2)
+    assert "Welcome!" in text
+    assert "Balance: <code>$3.50</code>" in text
+    assert "ID:" not in text
+    assert "Name:" not in text

@@ -1,22 +1,12 @@
-"""Tests for the compact More menu and English-only customer UI."""
+"""Tests for the English-only customer UI and order flows."""
 
 from __future__ import annotations
 
 import unittest
 
-from app.bot.keyboards import get_more_inline_keyboard
 
 
 class AccountRedesignTests(unittest.TestCase):
-    def test_more_menu_keeps_only_api_and_reseller_tools(self):
-        keyboard = get_more_inline_keyboard(is_reseller=True)
-        buttons = [button for row in keyboard.inline_keyboard for button in row]
-        self.assertEqual(
-            [button.callback_data for button in buttons],
-            ["open_api_hub", "open_reseller_hub"],
-        )
-        self.assertEqual([button.text for button in buttons], ["⚡ API", "💼 Reseller Hub"])
-
     def test_deposit_history_keyboard_and_prompts(self):
         from app.bot.keyboards import get_deposit_methods_keyboard
         from app.core.i18n import t
@@ -98,45 +88,6 @@ class DepositPickerRoutingTests(unittest.IsolatedAsyncioTestCase):
 
 
 class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
-    async def test_legacy_account_callback_redirects_to_wallet(self):
-        from types import SimpleNamespace
-        from unittest.mock import AsyncMock, patch
-
-        from app.bot.handlers.profile import open_wallet_from_legacy_account
-
-        event = SimpleNamespace(from_user=SimpleNamespace(id=123))
-        state = SimpleNamespace(clear=AsyncMock())
-        services = SimpleNamespace()
-
-        with patch("app.bot.handlers.deposit.show_deposit_methods", new_callable=AsyncMock) as show_wallet:
-            await open_wallet_from_legacy_account(event, state, services)
-
-        show_wallet.assert_awaited_once_with(event, state, services)
-        state.clear.assert_awaited_once()
-
-    async def test_more_menu_has_only_settings_and_role_tools(self):
-        from types import SimpleNamespace
-        from unittest.mock import AsyncMock, patch
-
-        from app.bot.handlers.profile import show_more_menu
-
-        event = SimpleNamespace(from_user=SimpleNamespace(id=123))
-        state = SimpleNamespace(clear=AsyncMock())
-        services = SimpleNamespace(users=SimpleNamespace(
-            get=AsyncMock(return_value={"rank": "reseller partner"}),
-            get_language=AsyncMock(return_value="en"),
-        ))
-        with patch("app.bot.handlers.profile.respond", new_callable=AsyncMock) as respond:
-            await show_more_menu(event, state, services)
-
-        text, keyboard = respond.await_args.args[1:]
-        self.assertIn("<b>More</b>", text)
-        self.assertNotIn("Balance:", text)
-        self.assertNotIn("Profile", text)
-        callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
-        self.assertEqual(callbacks, ["open_api_hub", "open_reseller_hub"])
-        self.assertEqual([len(row) for row in keyboard.inline_keyboard], [2])
-
     async def test_reseller_openapi_spec_structure(self):
         from types import SimpleNamespace
         from unittest.mock import AsyncMock
@@ -312,7 +263,7 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Buy Again", button_texts)
         self.assertIn("Back", button_texts)
 
-    async def test_order_detail_back_navigation_preserves_account_origin(self):
+    async def test_order_detail_back_navigation_returns_to_orders(self):
         from types import SimpleNamespace
         from unittest.mock import AsyncMock
         from datetime import datetime
@@ -339,10 +290,10 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
             users=SimpleNamespace(get_language=AsyncMock(return_value="en")),
         )
 
-        # 1. From account (from_acc=1): vord_1005_1_1
+        # 1. From Orders: vord_1005_1
         query = SimpleNamespace(
             from_user=SimpleNamespace(id=123),
-            data="vord_1005_1_1",
+            data="vord_1005_1",
             answer=AsyncMock(),
             message=SimpleNamespace(edit_text=AsyncMock()),
         )
@@ -353,11 +304,11 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
         report_btn = [btn for row in kb.inline_keyboard for btn in row if "Report Issue" in btn.text][0]
         buy_again_btn = [btn for row in kb.inline_keyboard for btn in row if "Buy Again" in btn.text][0]
         back_btn = [btn for row in kb.inline_keyboard for btn in row if "Back" in btn.text][0]
-        self.assertEqual(report_btn.callback_data, "claim_warranty_1005_1_1")
-        self.assertEqual(buy_again_btn.callback_data, "prod_bo_1_1005_1_1")
-        self.assertEqual(back_btn.callback_data, "open_orders_acc")
+        self.assertEqual(report_btn.callback_data, "claim_warranty_1005_1")
+        self.assertEqual(buy_again_btn.callback_data, "prod_bo_1_1005_1")
+        self.assertEqual(back_btn.callback_data, "open_orders")
 
-        # 2. When clicking Buy Again: prod_bo_1_1005_1_1
+        # 2. When clicking Buy Again: prod_bo_1_1005_1
         from app.bot.handlers.shop import show_order_buy_again
         services.catalog = SimpleNamespace(
             product=AsyncMock(return_value={
@@ -376,7 +327,7 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
         from aiogram.types import CallbackQuery, Message, User
         query_buy = MagicMock(spec=CallbackQuery)
         query_buy.from_user = User(id=123, is_bot=False, first_name="Test")
-        query_buy.data = "prod_bo_1_1005_1_1"
+        query_buy.data = "prod_bo_1_1005_1"
         query_buy.answer = AsyncMock()
         query_buy.message = MagicMock(spec=Message)
         query_buy.message.edit_text = AsyncMock()
@@ -387,16 +338,16 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
         prod_kb = query_buy.message.edit_text.call_args[1]["reply_markup"]
         prod_back_btn = [btn for row in prod_kb.inline_keyboard for btn in row if "Back" in btn.text][0]
         # Back button on product page returns directly to the order detail!
-        self.assertEqual(prod_back_btn.callback_data, "vord_1005_1_1")
+        self.assertEqual(prod_back_btn.callback_data, "vord_1005_1")
 
-        # 3. When clicking Report Issue: claim_warranty_1005_1_1
+        # 3. When clicking Report Issue: claim_warranty_1005_1
         query_claim = SimpleNamespace(
             from_user=SimpleNamespace(id=123),
-            data="claim_warranty_1005_1_1",
+            data="claim_warranty_1005_1",
             answer=AsyncMock(),
             message=SimpleNamespace(edit_text=AsyncMock()),
         )
         await handle_claim_warranty(query_claim, state, services)
         claim_kb = query_claim.message.edit_text.call_args[1]["reply_markup"]
         claim_back_btn = [btn for row in claim_kb.inline_keyboard for btn in row if "Back" in btn.text][0]
-        self.assertEqual(claim_back_btn.callback_data, "vord_1005_1_1")
+        self.assertEqual(claim_back_btn.callback_data, "vord_1005_1")

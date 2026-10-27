@@ -23,7 +23,6 @@ from typing import Any
 
 from aiogram import BaseMiddleware, F, Router
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
@@ -33,9 +32,8 @@ from app.bot.formatting import (
     format_dual_price,
     get_last_menu_message,
     remember_menu_message,
-    respond,
 )
-from app.bot.icons import ICON_CROSS, ICON_SHOP, ICON_VIP, Icons
+from app.bot.icons import ICON_CROSS, ICON_SHOP
 from app.bot.keyboards import extract_emoji_and_name
 from app.core.i18n import t
 from app.services import Services
@@ -111,12 +109,6 @@ async def prompt_search(message: Message, state: FSMContext, services: Services)
     await search_entry(message, state, services)
 
 
-@router.message(Command("search"))
-@router.message(F.text.in_({
-    "🔍 Search", "Search Products", "Search", "search",
-    "🔍 SEARCH", "SEARCH", "SEARCH PRODUCTS",
-    "🔍 সার্চ", "সার্চ",
-}))
 @router.callback_query(F.data == "open_search")
 async def search_entry(event: Message | CallbackQuery, state: FSMContext, services: Services) -> None:
     _search_handled.set(True)

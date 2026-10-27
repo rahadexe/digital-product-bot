@@ -131,8 +131,8 @@ class BalanceHistoryUITests(unittest.IsolatedAsyncioTestCase):
         kb = kwargs["reply_markup"]
         all_cbs = [btn.callback_data for r in kb.inline_keyboard for btn in r]
         # Back button returns to page 2 with wallet context preserved!
-        self.assertIn("dep_page_2_w", all_cbs)
-        self.assertEqual(all_cbs, ["dep_page_2_w"])
+        self.assertIn("dep_page_2", all_cbs)
+        self.assertEqual(all_cbs, ["dep_page_2"])
         self.assertNotIn("open_deposit_from_history", all_cbs)
         self.assertNotIn("close_menu", all_cbs)
 

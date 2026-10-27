@@ -18,7 +18,6 @@ from app.bot.icons import (
     ICON_ORDERS,
     ICON_SHOP,
     ICON_SUPPORT,
-    Icons,
 )
 from app.bot.keyboards import (
     get_help_faq_keyboard,
@@ -79,15 +78,6 @@ FAQ_ITEMS: dict[str, dict[str, Any]] = {
 }
 
 
-@router.message(Command("help"))
-@router.message(Command("support"))
-@router.message(F.text.in_({
-    "💬 Help", "Help", "help", "HELP", "💬 HELP",
-    "💬 হেল্প", "হেল্প",
-    "🎧 Support", "💬 Support", "Support", "support",
-    "🎧 SUPPORT", "SUPPORT",
-    "🎧 সাপোর্ট", "সাপোর্ট",
-}))
 @router.callback_query(F.data == "open_help")
 @router.callback_query(F.data == "open_support")
 async def show_help_faq_hub(event: Message | CallbackQuery, state: FSMContext, services: Services):
@@ -276,13 +266,6 @@ async def show_guide(event: Message | CallbackQuery, state: FSMContext, services
     else:
         await send_operator_html(event.answer, GUIDE_TEXTS.get(lang, GUIDE_TEXTS["en"]), reply_markup=keyboard)
 
-@router.message(Command("channel"))
-@router.message(Command("updates"))
-@router.message(F.text == "📢 Channel")
-@router.message(F.text == "📢 Updates")
-@router.message(F.text == "📢 Update Channel")
-@router.message(F.text.casefold() == "channel")
-@router.message(F.text.casefold() == "updates")
 @router.callback_query(F.data == "open_channel")
 async def show_channel_info(event: Message | CallbackQuery, state: FSMContext, services: Services):
     await state.clear()

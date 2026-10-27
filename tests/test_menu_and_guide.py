@@ -186,9 +186,9 @@ class MenuAndGuideTests(unittest.IsolatedAsyncioTestCase):
         import inspect
         import re
 
-        from app.bot.handlers import deposit, help_guide, navigation, profile, search, shop, start
+        from app.bot.handlers import admin, deposit, help_guide, navigation, profile, search, shop, start
 
-        modules = {"shop": shop, "profile": profile, "deposit": deposit,
+        modules = {"admin": admin, "shop": shop, "profile": profile, "deposit": deposit,
                    "help_guide": help_guide, "start": start, "search": search}
         source = inspect.getsource(navigation.navigate)
         targets = re.findall(r'"((?:' + "|".join(modules) + r')\.\w+)"', source)
@@ -201,37 +201,34 @@ class MenuAndGuideTests(unittest.IsolatedAsyncioTestCase):
     async def test_a_menu_button_leaves_the_prompt_behind(self):
         """Tapping a menu button means leaving, not answering the question."""
         await self._strand_in_a_prompt()
-        await self._feed(text="👤 Profile")
+        await self._feed(text="🛍 Shop")
         context = self.dp.fsm.get_context(self.bot, chat_id=CUSTOMER, user_id=CUSTOMER)
         self.assertIsNone(await context.get_state(),
                           "the deposit prompt should have been dropped")
 
-    async def test_cancel_returns_to_wallet_and_clears(self):
+    async def test_cancel_returns_to_balance_and_clears(self):
         await self._strand_in_a_prompt()
         replies = await self._feed(text="Cancel")
         self.assertTrue(any("balance:" in (r.get("text") or "").lower() for r in replies), replies)
         context = self.dp.fsm.get_context(self.bot, chat_id=CUSTOMER, user_id=CUSTOMER)
         self.assertIsNone(await context.get_state())
 
-    async def test_profile_and_legacy_account_buttons_open_wallet_without_identity_screen(self):
-        for label in ("👤 Profile", "Profile", "/profile", "👤 Account", "Account", "/account"):
+    async def test_profile_and_account_shortcuts_are_removed(self):
+        for label in ("👤 Profile", "Profile", "👤 Account", "Account", "/profile", "/account"):
             with self.subTest(label=label):
                 replies = await self._feed(text=label)
                 texts = [reply.get("text") or "" for reply in replies]
-                self.assertTrue(any("<b>Balance:</b>" in text for text in texts), replies)
-                self.assertFalse(any(
-                    marker in text
-                    for text in texts
-                    for marker in ("<b>Profile</b>", "Telegram ID:", "Username:")
-                ), replies)
+                self.assertFalse(any("<b>Balance:</b>" in text or "<b>Profile</b>" in text for text in texts), replies)
 
-    async def test_legacy_balance_entries_open_wallet_instead_of_profile(self):
-        for label in ("/balance", "Balance", "My Balance", "💰 My Balance"):
+    async def test_only_current_balance_labels_open_the_balance_screen(self):
+        for label in ("Balance", "💰 Balance", "Add Balance"):
             with self.subTest(label=label):
                 replies = await self._feed(text=label)
-                texts = [reply.get("text") or "" for reply in replies]
-                self.assertTrue(any("balance:" in text.lower() for text in texts), replies)
-                self.assertFalse(any("<b>Profile</b>" in text for text in texts), replies)
+                self.assertTrue(any("balance:" in (reply.get("text") or "").lower() for reply in replies), replies)
+        for label in ("/balance", "/wallet", "My Balance"):
+            with self.subTest(label=label):
+                replies = await self._feed(text=label)
+                self.assertFalse(any("balance:" in (reply.get("text") or "").lower() for reply in replies), replies)
 
     async def test_amount_input_is_not_captured_by_a_matching_payment_method_label(self):
         from app.bot.handlers.deposit import DepositStates
@@ -305,11 +302,13 @@ class MenuAndGuideTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(any("How to use the bot" in (r.get("text") or "") for r in replies),
                         "English guide did not render")
 
-    async def test_support_and_channels_answer(self):
-        for label in ("Support", "Channel"):
-            replies = await self._feed(text=label)
-            self.assertTrue(any(r.get("text") or r.get("alert") for r in replies),
-                            f"{label!r} answered with nothing")
+    async def test_support_button_works_and_channel_shortcut_is_removed(self):
+        replies = await self._feed(text="Support")
+        self.assertTrue(any(r.get("text") or r.get("alert") for r in replies),
+                        "Support answered with nothing")
+        replies = await self._feed(text="Channel")
+        self.assertFalse(any(r.get("text") or r.get("alert") for r in replies),
+                         "the removed Channel shortcut still answered")
 
     async def test_only_an_admin_gets_an_emoji_id_back(self):
         """The emoji helper reads a message's entities; it is an admin convenience."""

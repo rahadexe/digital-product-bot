@@ -14,7 +14,7 @@ from app.bot.handlers.start import gate_text
 from app.bot.keyboards import get_gate_keyboard
 from app.services import Services
 
-OPEN_COMMANDS = {"/start", "/menu"}
+OPEN_COMMANDS = {"/start"}
 
 SLOW_DOWN_TEXT = "⏳ Too many requests. Please wait a few seconds and try again."
 
@@ -221,7 +221,7 @@ class FastCallback(BaseMiddleware):
 
     NAV_PREFIXES = (
         "open_", "mcat_", "cat_", "back_", "catpage_",
-        "orders_page_", "orders_acc_page_", "catval_", "close_menu", "shop_all", "search_again",
+        "orders_page_", "catval_", "close_menu", "shop_all", "search_again",
         "prod_", "adm_", "lang_", "val_", "pay_", "cancel_", "sub_", "reseller_",
         "vord_", "vdep_", "dep_page_", "notif_",
         "sprod_", "sback_", "qty_set_", "qty_custom_", "qpad_", "faq_",

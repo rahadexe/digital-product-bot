@@ -16,7 +16,7 @@ from app.bot.handlers.deposit import (
     process_deposit_txid,
 )
 from app.bot.handlers.navigation import NAVIGATION_TEXTS
-from app.bot.keyboards import get_main_inline_keyboard, get_more_inline_keyboard, get_persistent_reply_keyboard
+from app.bot.keyboards import get_main_inline_keyboard, get_persistent_reply_keyboard
 
 
 def context():
@@ -72,16 +72,6 @@ def test_admin_panel_is_a_separate_admin_only_home_row():
     assert len(admin_reply.keyboard) == 4
     assert len(admin_inline.inline_keyboard) == 4
     assert admin_inline.inline_keyboard[-1][0].callback_data == "adm_dashboard"
-
-
-def test_more_menu_keeps_only_api_and_reseller_actions():
-    keyboard = get_more_inline_keyboard(lang="en", is_reseller=True, is_admin=True)
-    buttons = [button for row in keyboard.inline_keyboard for button in row]
-    callbacks = [button.callback_data for button in buttons]
-    assert callbacks == ["open_api_hub", "open_reseller_hub"]
-    assert [[button.text for button in row] for row in keyboard.inline_keyboard] == [
-        ["⚡ API", "💼 Reseller Hub"],
-    ]
 
 
 def test_products_keyboard_renders_category_chips_on_top():

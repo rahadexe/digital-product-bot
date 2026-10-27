@@ -9,7 +9,6 @@ from urllib.parse import quote
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
     BufferedInputFile,
@@ -20,43 +19,15 @@ from aiogram.types import (
     Message,
 )
 
-from app.bot.formatting import callback_int, format_dual_price, price, respond
+from app.bot.formatting import format_dual_price, price, respond
 from app.core.identifiers import format_deposit_id, format_order_id
 from app.bot.icons import (
-    ICON_ACCOUNT,
-    ICON_BALANCE,
-    ICON_CART,
     ICON_CHECK,
-    ICON_COIN,
     ICON_CROSS,
-    ICON_CROWN,
-    ICON_ID,
-    ICON_KEY,
-    ICON_LIGHTNING,
-    ICON_LINK,
-    ICON_LOCK,
-    ICON_MONEY,
-    ICON_NOTE,
-    ICON_ORDERS,
-    ICON_REFER,
-    ICON_RESELLER,
-    ICON_ROCKET,
-    ICON_SHIELD,
-    ICON_SHOP,
-    ICON_SPARKLES,
-    ICON_SPENT,
     ICON_STATS,
-    ICON_SUPPORT,
     ICON_TIMER,
-    ICON_USER,
-    ICON_VIP,
-    ICON_WARNING,
-    Icons,
 )
-from app.bot.keyboards import (
-    get_more_inline_keyboard,
-    product_display_labels,
-)
+from app.bot.keyboards import product_display_labels
 from app.core.i18n import t
 from app.services import Services
 
@@ -64,33 +35,6 @@ router = Router(name="profile_router")
 
 ORDERS_PAGE_SIZE = 5
 INLINE_CREDENTIAL_LIMIT = 500
-
-
-@router.callback_query(F.data == "open_more")
-@router.callback_query(F.data == "open_settings")
-async def show_more_menu(event: Message | CallbackQuery, state: FSMContext, services: Services):
-    """Show secondary account options without repeating wallet or referral details."""
-    await state.clear()
-    tg_user = event.from_user
-    if not tg_user:
-        return
-
-    user = (await services.users.get(tg_user.id)) if hasattr(services.users, "get") else {}
-    user = user or {}
-    lang = (
-        await services.users.get_language(tg_user.id)
-        if hasattr(services.users, "get_language")
-        else "en"
-    )
-    is_reseller = (user.get("rank") or "").strip().lower() in {"reseller", "reseller partner"}
-
-    text = "⚙️ <b>More</b>\n\nAPI and reseller tools."
-
-    keyboard = get_more_inline_keyboard(lang=lang, is_reseller=is_reseller)
-    await respond(event, text, keyboard)
-
-
-show_settings_menu = show_more_menu
 
 
 def reseller_api_links(config) -> tuple[str, list[list[InlineKeyboardButton]]]:
@@ -119,77 +63,6 @@ def reseller_api_links(config) -> tuple[str, list[list[InlineKeyboardButton]]]:
 
 
 
-@router.message(Command("me"))
-@router.message(Command("profile"))
-@router.message(Command("account"))
-@router.message(F.text.in_({
-    "My Profile",
-    "my profile",
-    "👤 My Profile",
-    "👤 MY PROFILE",
-    "MY PROFILE",
-    "Profile",
-    "profile",
-    "👤 Profile",
-    "Account",
-    "account",
-    "👤 Account",
-    "👤 ACCOUNT",
-    "ACCOUNT",
-    "💼 Account",
-    "👤 আমার প্রোফাইল",
-    "আমার প্রোফাইল",
-    "👤 একাউন্ট",
-    "একাউন্ট",
-    "👤 অ্যাকাউন্ট",
-    "অ্যাকাউন্ট",
-    "👤 একাউন্ট ও রেফার",
-    "একাউন্ট ও রেফার",
-    "👤 অ্যাকাউন্ট ও রেফার",
-    "অ্যাকাউন্ট ও রেফার",
-    "Account & Refer",
-    "account & refer",
-    "👤 Account & Refer",
-    "👤 ACCOUNT & REFER",
-    "ACCOUNT & REFER",
-}))
-@router.message(F.text.casefold() == "my profile")
-@router.message(F.text.casefold() == "profile")
-@router.message(F.text.casefold() == "account")
-@router.message(F.text.casefold() == "account & refer")
-@router.message(F.text.casefold() == "account and refer")
-@router.callback_query(F.data == "open_account")
-async def open_wallet_from_legacy_account(event: Message | CallbackQuery, state: FSMContext, services: Services):
-    """Route old account/profile buttons to the wallet instead of showing identity details."""
-    await state.clear()
-    from app.bot.handlers.deposit import show_deposit_methods
-
-    await show_deposit_methods(event, state, services)
-
-@router.message(Command("referral"))
-@router.message(Command("refer"))
-@router.message(F.text.in_({
-    "🎁 Refer & Earn",
-    "Refer & Earn",
-    "refer & earn",
-    "🎁 REFER & EARN",
-    "REFER & EARN",
-    "🎁 Refer",
-    "Refer",
-    "🎁 REFER",
-    "REFER",
-    "🎁 Referral",
-    "Referral",
-    "referral",
-    "🎁 REFERRAL",
-    "REFERRAL",
-    "🎁 রেফার ও ইনকাম",
-    "রেফার ও ইনকাম",
-    "🎁 রেফারেল",
-    "রেফারেল",
-    "🎁 রেফার",
-    "রেফার",
-}))
 @router.callback_query(F.data == "open_referral")
 async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, services: Services):
     await state.clear()
@@ -281,30 +154,6 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
 
 
 # --- Reseller Portal (Wholesale & Business Program) ---
-@router.message(Command("reseller"))
-@router.message(F.text.in_({
-    "💼 Reseller Panel",
-    "Reseller Panel",
-    "reseller panel",
-    "RESELLER PANEL",
-    "💼 RESELLER PANEL",
-    "reseller",
-    "RESELLER",
-    "💼 Reseller",
-    "Reseller",
-    "💼 RESELLER",
-    "💼 Become Reseller",
-    "Become Reseller",
-    "become reseller",
-    "💼 Apply as a Reseller",
-    "Apply as a Reseller",
-    "💼 রিসেলার হন",
-    "রিসেলার হন",
-    "💼 রিসেলার প্যানেল",
-    "রিসেলার প্যানেল",
-    "💼 রিসেলার",
-    "রিসেলার",
-}))
 @router.callback_query(F.data == "open_reseller_hub")
 @router.callback_query(F.data == "open_reseller")
 async def show_reseller_hub(event: Message | CallbackQuery, state: FSMContext | None, services: Services):
@@ -357,7 +206,7 @@ async def show_reseller_hub(event: Message | CallbackQuery, state: FSMContext | 
         rows.append([InlineKeyboardButton(text=api_btn_text, callback_data="open_api_hub")])
         rows.append([
             InlineKeyboardButton(text=refresh_btn_text, callback_data="open_reseller_hub"),
-            InlineKeyboardButton(text=back_btn_text, callback_data="open_more"),
+            InlineKeyboardButton(text=back_btn_text, callback_data="back_to_main"),
         ])
     else:
         # Check pending applications
@@ -389,7 +238,7 @@ async def show_reseller_hub(event: Message | CallbackQuery, state: FSMContext | 
             rows.append([InlineKeyboardButton(text=cancel_btn_text, callback_data="reseller_cancel_pending")])
             if handle:
                 rows.append([InlineKeyboardButton(text=contact_btn_text, url=f"https://t.me/{handle}")])
-            rows.append([InlineKeyboardButton(text=back_btn_text, callback_data="open_more")])
+            rows.append([InlineKeyboardButton(text=back_btn_text, callback_data="back_to_main")])
         else:
             # Fetch up to 3 active products with configured reseller discounts
             async with services.db.connect() as conn:
@@ -440,28 +289,14 @@ async def show_reseller_hub(event: Message | CallbackQuery, state: FSMContext | 
             if handle:
                 prefill = f"Hello, I would like to inquire about becoming a Reseller at {store_name}."
                 rows.append([InlineKeyboardButton(text=contact_btn_text, url=f"https://t.me/{handle}?text={quote(prefill)}")])
-            rows.append([InlineKeyboardButton(text=back_btn_text, callback_data="open_more")])
+            rows.append([InlineKeyboardButton(text=back_btn_text, callback_data="back_to_main")])
 
     kb = InlineKeyboardMarkup(inline_keyboard=rows)
     await respond(event, text, kb)
 
-show_reseller_info = show_reseller_hub
 
 
 # --- Developer REST API Portal ---
-@router.message(Command("api"))
-@router.message(F.text.in_({
-    "🔑 Developer API",
-    "Developer API",
-    "🔑 API",
-    "API",
-    "api",
-    "/api",
-    "🔑 ডেভেলপার এপিআই",
-    "ডেভেলপার এপিআই",
-    "🔑 এপিআই",
-    "এপিআই",
-}))
 @router.callback_query(F.data == "open_api_hub")
 async def show_api_hub(event: Message | CallbackQuery, state: FSMContext | None, services: Services):
     if state:
@@ -566,7 +401,7 @@ async def show_api_hub(event: Message | CallbackQuery, state: FSMContext | None,
         rows.append([docs_btn])
 
     rows.append([
-        InlineKeyboardButton(text=back_text, callback_data="open_more"),
+        InlineKeyboardButton(text=back_text, callback_data="back_to_main"),
     ])
     kb = InlineKeyboardMarkup(inline_keyboard=rows)
     await respond(event, text, kb)
@@ -800,33 +635,8 @@ async def reseller_web_docs_notice_handler(event: CallbackQuery, services: Servi
         )
 
 
-@router.message(Command("orders"))
-@router.message(Command("order"))
-@router.message(Command("history"))
-@router.message(F.text.in_({
-    "Orders",
-    "orders",
-    "📦 Orders",
-    "📦 ORDERS",
-    "ORDERS",
-    "My Orders",
-    "my orders",
-    "📦 My Orders",
-    "📦 MY ORDERS",
-    "MY ORDERS",
-    "Order History",
-    "order history",
-    "📦 Order History",
-    "📦 ORDER HISTORY",
-    "ORDER HISTORY",
-}))
-@router.message(F.text.casefold() == "orders")
-@router.message(F.text.casefold() == "my orders")
-@router.message(F.text.casefold() == "order history")
 @router.callback_query(F.data == "open_orders")
-@router.callback_query(F.data == "open_orders_acc")
 @router.callback_query(F.data.startswith("orders_page_"))
-@router.callback_query(F.data.startswith("orders_acc_page_"))
 async def show_order_history(event: Message | CallbackQuery, state: FSMContext, services: Services):
     await state.clear()
     tg_user = event.from_user
@@ -835,21 +645,14 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
 
     lang = await services.users.get_language(tg_user.id)
 
-    from_acc = False
     page = 1
-    if isinstance(event, CallbackQuery) and event.data:
-        if event.data == "open_orders_acc" or event.data.startswith("orders_acc_page_"):
-            from_acc = True
-            suffix = event.data[len("orders_acc_page_") :]
-            if suffix.isdigit():
-                page = max(1, int(suffix))
-        elif event.data.startswith("orders_page_"):
-            suffix = event.data[len("orders_page_") :]
-            if suffix.isdigit():
-                page = max(1, int(suffix))
+    if isinstance(event, CallbackQuery) and event.data and event.data.startswith("orders_page_"):
+        suffix = event.data[len("orders_page_") :]
+        if suffix.isdigit():
+            page = max(1, int(suffix))
 
-    back_target = "open_account" if from_acc else "back_to_main"
-    page_prefix = "orders_acc_page_" if from_acc else "orders_page_"
+    back_target = "back_to_main"
+    page_prefix = "orders_page_"
 
     orders, total = await services.purchases.customer_orders(tg_user.id, limit=ORDERS_PAGE_SIZE, offset=(page - 1) * ORDERS_PAGE_SIZE)
     symbol = await services.settings.get("currency_symbol")
@@ -905,7 +708,7 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
                 label = f"{status_emoji} " + " · ".join(elements)
                 label = label[:64]
 
-            cb_data = f"vord_{order['id']}_{page}_1" if from_acc else f"vord_{order['id']}_{page}"
+            cb_data = f"vord_{order['id']}_{page}"
             buttons.append([
                 InlineKeyboardButton(
                     text=label[:64],
@@ -962,20 +765,12 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
 
 
 @router.callback_query(F.data.startswith("vord_"))
-@router.callback_query(F.data.startswith("view_order_"))
 async def view_order_detail(query: CallbackQuery, state: FSMContext, services: Services):
     await state.clear()
     lang = await services.users.get_language(query.from_user.id)
-    raw = query.data
-    page = 1
-    from_acc = False
-    if raw.startswith("vord_"):
-        parts = raw.removeprefix("vord_").split("_")
-        order_id = int(parts[0]) if parts and parts[0].isdigit() else None
-        page = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 1
-        from_acc = len(parts) > 2 and parts[2] == "1"
-    else:
-        order_id = callback_int(raw, "view_order_")
+    parts = query.data.removeprefix("vord_").split("_")
+    order_id = int(parts[0]) if parts and parts[0].isdigit() else None
+    page = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 1
 
     # Ownership is part of the lookup: another customer's order ID finds nothing.
     order = await services.purchases.order_for_customer(query.from_user.id, order_id) if order_id is not None else None
@@ -1030,10 +825,7 @@ async def view_order_detail(query: CallbackQuery, state: FSMContext, services: S
             f"<code>{escape(order['delivered_item'])}</code>"
         )
 
-    if from_acc:
-        back_cb = f"orders_acc_page_{page}" if page > 1 else "open_orders_acc"
-    else:
-        back_cb = f"orders_page_{page}" if page > 1 else "open_orders"
+    back_cb = f"orders_page_{page}" if page > 1 else "open_orders"
     detail_buttons = []
 
     if has_credentials:
@@ -1047,7 +839,7 @@ async def view_order_detail(query: CallbackQuery, state: FSMContext, services: S
         else:
             await query.message.answer_document(BufferedInputFile(order["delivered_item"].encode(), filename=f"order-{order_id}.txt"))
 
-    claim_cb = f"claim_warranty_{order['id']}_{page}_1" if from_acc else f"claim_warranty_{order['id']}_{page}"
+    claim_cb = f"claim_warranty_{order['id']}_{page}"
     action_row = [
         InlineKeyboardButton(
             text="Report Issue" if lang != "bn" else "সমস্যা জানান",
@@ -1055,11 +847,10 @@ async def view_order_detail(query: CallbackQuery, state: FSMContext, services: S
         )
     ]
     if order.get("product_id"):
-        from_acc_flag = 1 if from_acc else 0
         action_row.append(
             InlineKeyboardButton(
                 text="Buy Again" if lang != "bn" else "আবার কিনুন",
-                callback_data=f"prod_bo_{order['product_id']}_{order['id']}_{page}_{from_acc_flag}",
+                callback_data=f"prod_bo_{order['product_id']}_{order['id']}_{page}",
             )
         )
     detail_buttons.append(action_row)
@@ -1084,7 +875,6 @@ async def handle_claim_warranty(query: CallbackQuery, state: FSMContext, service
     parts = raw.split("_")
     order_id = int(parts[0]) if parts and parts[0].isdigit() else None
     page = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 1
-    from_acc = len(parts) > 2 and parts[2] == "1"
 
     if not order_id:
         with suppress(TelegramBadRequest):
@@ -1141,7 +931,7 @@ async def handle_claim_warranty(query: CallbackQuery, state: FSMContext, service
             copy_text=CopyTextButton(text=format_order_id(order["id"])),
         )
     ])
-    back_to_order_cb = f"vord_{order['id']}_{page}_1" if from_acc else f"vord_{order['id']}_{page}"
+    back_to_order_cb = f"vord_{order['id']}_{page}"
     kb_rows.append([
         InlineKeyboardButton(
             text="Back",
@@ -1166,26 +956,7 @@ DEPOSIT_STATUS_BADGES = {
 }
 
 
-@router.message(F.text.in_({
-    "Balance History",
-    "balance history",
-    "📊 Balance History",
-    "📊 BALANCE HISTORY",
-    "BALANCE HISTORY",
-    "Deposit History",
-    "deposit history",
-    "📊 Deposit History",
-    "📊 DEPOSIT HISTORY",
-    "DEPOSIT HISTORY",
-    "ডিপোজিট হিস্ট্রি",
-    "📊 ডিপোজিট হিস্ট্রি",
-    "ব্যালেন্স হিস্ট্রি",
-    "📊 ব্যালেন্স হিস্ট্রি",
-}))
-@router.message(F.text.casefold() == "balance history")
-@router.message(F.text.casefold() == "deposit history")
 @router.callback_query(F.data == "open_deposits")
-@router.callback_query(F.data == "open_deposits_from_wallet")
 @router.callback_query(F.data.startswith("open_deposits_dep_"))
 @router.callback_query(F.data.startswith("dep_page_"))
 async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext, services: Services):
@@ -1198,20 +969,13 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
 
     page = 1
     dep_id_ref: int | None = None
-    from_wallet = True
     if isinstance(event, CallbackQuery) and event.data:
-        if event.data == "open_deposits_from_wallet":
-            from_wallet = True
-        elif event.data.startswith("open_deposits_dep_"):
+        if event.data.startswith("open_deposits_dep_"):
             raw = event.data.removeprefix("open_deposits_dep_")
             if raw.isdigit():
                 dep_id_ref = int(raw)
         elif event.data.startswith("dep_page_"):
-            raw = event.data.removeprefix("dep_page_")
-            if raw.endswith("_w"):
-                from_wallet = True
-                raw = raw[:-2]
-            parts = raw.split("_")
+            parts = event.data.removeprefix("dep_page_").split("_")
             if parts[0].isdigit():
                 page = max(1, int(parts[0]))
             if len(parts) > 1 and parts[1].isdigit():
@@ -1229,7 +993,7 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
         show_usd = await services.settings.flag("show_usd_price")
     except Exception:
         show_usd = False
-    back_cb = f"back_to_dep_req_{dep_id_ref}" if dep_id_ref else ("open_deposit" if from_wallet else "open_account")
+    back_cb = f"back_to_dep_req_{dep_id_ref}" if dep_id_ref else "open_deposit"
 
     if not deposits:
         text = t("balance_history_empty", lang)
@@ -1270,9 +1034,7 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
         text = header
 
         def page_cb(p: int) -> str:
-            if dep_id_ref:
-                return f"dep_page_{p}_{dep_id_ref}"
-            return f"dep_page_{p}_w"
+            return f"dep_page_{p}_{dep_id_ref}" if dep_id_ref else f"dep_page_{p}"
 
         if total_pages > 1:
             if page == 1:
@@ -1368,7 +1130,7 @@ async def view_deposit_detail(query: CallbackQuery, state: FSMContext, services:
         rev_str = rev.strftime("%d %b %Y · %H:%M") if isinstance(rev, datetime) else str(rev)[:16]
         text += f"\n<b>{t('deposit_reviewed_at', lang)}:</b> {rev_str}"
 
-    back_to_history_cb = f"dep_page_{page}_{dep_id_ref}" if dep_id_ref else f"dep_page_{page}_w"
+    back_to_history_cb = f"dep_page_{page}_{dep_id_ref}" if dep_id_ref else f"dep_page_{page}"
 
     detail_buttons = [[
         InlineKeyboardButton(
@@ -1381,102 +1143,3 @@ async def view_deposit_detail(query: CallbackQuery, state: FSMContext, services:
         await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=detail_buttons))
 
 
-@router.message(Command("pricelist"))
-@router.message(Command("prices"))
-@router.message(F.text.in_({
-    "Price List",
-    "price list",
-    "📊 Price List",
-    "📊 PRICE LIST",
-    "PRICE LIST",
-}))
-@router.message(F.text.casefold() == "price list")
-@router.message(F.text.casefold() == "pricelist")
-@router.callback_query(F.data == "open_price_list")
-async def show_price_list(event: Message | CallbackQuery, state: FSMContext | None, services: Services):
-    if state:
-        await state.clear()
-    tg_user = event.from_user
-    if not tg_user:
-        return
-
-    user = await services.users.get(tg_user.id)
-    lang = await services.users.get_language(tg_user.id)
-    is_reseller = (user.get("rank") or "").strip().lower() == "reseller" if user else False
-
-    symbol = await services.settings.get("currency_symbol")
-    usd_rate = await services.settings.number("usd_rate")
-
-    categories = await services.catalog.categories()
-    products = await services.catalog.products(active_only=True, limit=500)
-
-    # Group products by category_id
-    cat_map: dict[int | None, str] = {c["id"]: c["name"] for c in categories}
-    cat_products: dict[str, list[dict[str, Any]]] = {}
-
-    for p in products:
-        cid = p.get("category_id")
-        cat_name = cat_map.get(cid, "Other Products")
-        if cat_name not in cat_products:
-            cat_products[cat_name] = []
-        cat_products[cat_name].append(p)
-
-    title_text = "📊 <b>Live Price & Stock List</b>"
-
-    sections = []
-    for cat_name, prod_list in cat_products.items():
-        cat_lines = [f"📂 <b>{escape(cat_name)}</b>"]
-        for p in prod_list:
-            p_price = p["price"]
-            r_price = p.get("reseller_price")
-            is_manual = p.get("delivery_type") == "manual"
-            stock = p.get("stock", 0)
-
-            if is_reseller and r_price is not None and float(r_price) > 0:
-                price_str = format_dual_price(float(r_price), symbol, usd_rate=usd_rate, lang=lang)
-            else:
-                price_str = format_dual_price(p_price, symbol, usd_rate=usd_rate, lang=lang)
-
-            if is_manual:
-                stock_label = "Manual"
-            elif stock > 0:
-                stock_label = f"Stock: {stock}"
-            else:
-                stock_label = "Out of Stock"
-
-            prod_icon = (p.get("icon") or "").strip()
-            icon_prefix = f"{prod_icon} " if prod_icon else ""
-            cat_lines.append(f"  {icon_prefix}<b>{escape(p['title'])}</b>: <code>{price_str}</code> (<i>{stock_label}</i>)")
-        sections.append("\n".join(cat_lines))
-
-    if not sections:
-        body = "<i>No products currently available in the catalog.</i>"
-    else:
-        body = "\n\n".join(sections)
-
-    footer = "\n\n💡 <i>All prices are live and updated instantly.</i>"
-    text = f"{title_text}\n\n{body}{footer}"
-
-    buttons = [
-        [
-            InlineKeyboardButton(
-                text=t("btn_browse_products", lang),
-                callback_data="open_categories",
-                icon_custom_emoji_id=Icons.PRODUCTS,
-            ),
-            InlineKeyboardButton(
-                text=t("btn_refresh", lang),
-                callback_data="open_price_list",
-                icon_custom_emoji_id=Icons.REFRESH,
-            ),
-        ],
-        [
-            InlineKeyboardButton(
-                text=t("btn_back", lang),
-                callback_data="open_account",
-                icon_custom_emoji_id=Icons.BACK,
-            ),
-        ],
-    ]
-    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
-    await respond(event, text, kb)
