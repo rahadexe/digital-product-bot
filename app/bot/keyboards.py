@@ -73,8 +73,8 @@ def _customer_menu(lang: str = "en", show_icons: bool = True) -> list[tuple[str,
         ("🛍", "Shop", "open_categories"),
         ("💰", "Balance", "open_deposit"),
         ("📦", "Orders", "open_orders"),
-        ("🎁", "Referral", "open_referral"),
-        ("💬", "Support", "open_help"),
+        ("🎁", "Refer", "open_referral"),
+        ("💬", "Help", "open_help"),
     ]
     return [
         (f"{icon} {label}" if show_icons else label, callback)

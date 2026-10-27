@@ -32,7 +32,7 @@ def test_persistent_reply_keyboard_five_action_layout():
     assert kb.resize_keyboard is True
     assert [[button.text for button in row] for row in rows] == [
         ["🛍 Shop", "💰 Balance"],
-        ["📦 Orders", "🎁 Referral", "💬 Support"],
+        ["📦 Orders", "🎁 Refer", "💬 Help"],
     ]
 
 
@@ -48,7 +48,7 @@ def test_inline_keyboard_customer_actions_are_english_only():
     assert [button.callback_data for button in rows[0]] == ["open_categories", "open_deposit"]
     assert [button.callback_data for button in rows[1]] == ["open_orders", "open_referral", "open_help"]
     assert [button.text for row in rows for button in row] == [
-        "🛍 Shop", "💰 Balance", "📦 Orders", "🎁 Referral", "💬 Support",
+        "🛍 Shop", "💰 Balance", "📦 Orders", "🎁 Refer", "💬 Help",
     ]
 
 

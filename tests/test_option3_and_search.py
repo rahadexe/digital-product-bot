@@ -22,7 +22,7 @@ def test_main_inline_keyboard_five_action_layout():
     assert [button.callback_data for button in rows[0]] == ["open_categories", "open_deposit"]
     assert [button.callback_data for button in rows[1]] == ["open_orders", "open_referral", "open_help"]
     assert [button.text for row in rows for button in row] == [
-        "🛍 Shop", "💰 Balance", "📦 Orders", "🎁 Referral", "💬 Support",
+        "🛍 Shop", "💰 Balance", "📦 Orders", "🎁 Refer", "💬 Help",
     ]
 
     # Admin remains on a separate row; reseller tools are reached via /reseller.

@@ -50,11 +50,11 @@ def test_five_primary_buttons_are_short_and_routable():
     labels = [[b.text for b in row] for row in reply.keyboard]
     assert labels == [
         ["🛍 Shop", "💰 Balance"],
-        ["📦 Orders", "🎁 Referral", "💬 Support"],
+        ["📦 Orders", "🎁 Refer", "💬 Help"],
     ]
     assert labels == [[b.text for b in row] for row in inline.inline_keyboard]
     assert [NAVIGATION_TEXTS[b.text] for row in reply.keyboard for b in row] == [
-        "other_products", "deposit", "orders", "referral", "support",
+        "other_products", "deposit", "orders", "referral", "help",
     ]
     assert all(len(b.text) <= 12 for row in reply.keyboard for b in row)
 
