@@ -9,7 +9,7 @@ from typing import Any
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.filters import Command, CommandStart
+from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
     CallbackQuery,
@@ -23,7 +23,6 @@ from app.bot.formatting import (
     AUTO_DELETE_ENABLED,
     _quiet_delete,
     clean_previous_menu,
-    price,
     remember_menu_message,
     send_operator_html,
 )
@@ -32,7 +31,6 @@ from app.bot.handlers.shop import product_view
 from app.bot.icons import (
     ICON_CHANNEL,
     ICON_LOCK,
-    ICON_SPARKLES,
     ICON_WARNING,
 )
 from app.bot.keyboards import (
@@ -47,58 +45,19 @@ logger = logging.getLogger("app.bot.start")
 
 
 def build_welcome_text(
-    paused_notice: str = "",
+    *,
+    paused_notice: str | None = None,
     lang: str = "en",
     balance_str: str = "",
-    user_name: str = "",
-    store_name: str = "",
     order_count: int = 0,
-    tagline: str = "",
-    user_id: int | str = "",
-    username: str = "",
-    total_users: int = 0,
     support_username: str = "",
-    has_banner: bool = False,
 ) -> str:
     prefix = t("maintenance_notice", lang, icon_warning=ICON_WARNING, notice=escape(paused_notice)) + "\n\n" if paused_notice else ""
-    name_display = escape(user_name) if user_name else "there"
-    store_title = escape(store_name) if store_name else "BM DIGITAL"
-    user_id_display = str(user_id) if user_id else ""
-    clean_support = f"@{support_username.lstrip('@')}" if support_username else "@support"
-    bal_display = balance_str if balance_str else "$0.00"
-
-    if lang == "bn":
-        order_line = f"অর্ডার: <code>{order_count}টি</code>" if order_count > 0 else "অর্ডার: <code>০টি</code>"
-        card_items = []
-        if user_id_display:
-            card_items.append(f"আইডি: <code>{user_id_display}</code>")
-        card_items.append(f"ব্যালেন্স: <code>{bal_display}</code>")
-        card_items.append(order_line)
-        card = "<blockquote>" + "\n".join(card_items) + "</blockquote>"
-        lines = [
-            f"স্বাগতম, <b>{name_display}</b>! 🤝",
-            "",
-            card,
-            "",
-            f"সাপোর্ট: {clean_support}",
-        ]
-    else:
-        order_line = f"Orders: <code>{order_count}</code>" if order_count > 0 else "Orders: <code>0</code>"
-        card_items = []
-        if user_id_display:
-            card_items.append(f"ID: <code>{user_id_display}</code>")
-        card_items.append(f"Balance: <code>{bal_display}</code>")
-        card_items.append(order_line)
-        card = "<blockquote>" + "\n".join(card_items) + "</blockquote>"
-        lines = [
-            f"Welcome, <b>{name_display}</b>! 🤝",
-            "",
-            card,
-            "",
-            f"Support: {clean_support}",
-        ]
-
-    return prefix + "\n".join(lines)
+    support = f"@{support_username.lstrip('@')}" if support_username else "@support"
+    balance = balance_str or "$0.00"
+    orders = f"Orders: <code>{order_count}</code>" if order_count else "Orders: <code>0</code>"
+    card = "<blockquote>" + "\n".join((f"Balance: <code>{balance}</code>", orders)) + "</blockquote>"
+    return prefix + "\n".join(("Welcome! 🤝", "", card, "", f"Support: {support}"))
 
 
 router = Router(name="start_router")
@@ -111,22 +70,13 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
         services.users.get(tg_user_id),
         services.settings.admin_chat_ids(),
     )
-    store_name = values.get("store_name", "Premium Haven") if isinstance(values, dict) else "Premium Haven"
     lang = await services.users.get_language(tg_user_id)
 
     usd_rate = float(values.get("usd_rate") or 125) if isinstance(values, dict) else 125.0
     user_balance = float(user.get("balance", 0.0)) if user and isinstance(user, dict) else 0.0
     balance_str = format_dual_price(user_balance, usd_rate=usd_rate, lang=lang)
-    user_name = (user.get("first_name") or getattr(getattr(message, "from_user", None), "first_name", "") or "").strip() if user and isinstance(user, dict) else ""
     banner_file_id = (values.get("welcome_banner_file_id") or "").strip() if isinstance(values, dict) else ""
-    tagline = (values.get("welcome_tagline") or "").strip() if isinstance(values, dict) else ""
     support_username = (values.get("support_username") or "").strip() if isinstance(values, dict) else ""
-    username = (
-        getattr(getattr(message, "from_user", None), "username", "")
-        or (user.get("username") if isinstance(user, dict) else "")
-        or ""
-    ).strip()
-
     order_count = 0
     if hasattr(services, "purchases") and hasattr(services.purchases, "customer_orders"):
         try:
@@ -136,28 +86,12 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
         except Exception:
             order_count = 0
 
-    total_users = 0
-    if hasattr(services, "dashboard") and hasattr(services.dashboard, "stats"):
-        try:
-            stats = await services.dashboard.stats()
-            if isinstance(stats, dict):
-                total_users = int(stats.get("total_users") or 0)
-        except Exception:
-            total_users = 0
-
     text = build_welcome_text(
         paused_notice=paused_notice,
         lang=lang,
         balance_str=balance_str,
-        user_name=user_name,
-        store_name=store_name,
         order_count=order_count,
-        tagline=tagline,
-        user_id=tg_user_id,
-        username=username,
-        total_users=total_users,
         support_username=support_username,
-        has_banner=bool(banner_file_id),
     )
 
     is_admin = tg_user_id in admin_ids
@@ -223,7 +157,7 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
     if sent and chat_id:
         remember_menu_message(chat_id, sent.message_id)
 
-    # In private chat, quietly delete incoming command message (e.g. /start or /menu)
+    # In private chat, quietly delete the incoming command message.
     msg_id = getattr(message, "message_id", None)
     msg_text = (getattr(message, "text", "") or "").strip()
     if bot and chat_id and msg_id and getattr(chat, "type", "") == "private" and msg_text.startswith("/"):
@@ -283,7 +217,6 @@ def referral_parameter(text: str | None) -> int | None:
 
 
 @router.message(CommandStart())
-@router.message(Command("menu"))
 async def handle_start(message: Message, state: FSMContext, services: Services):
     await state.clear()
     tg_user = message.from_user
@@ -394,12 +327,6 @@ async def on_gate_channel_membership_changed(event: ChatMemberUpdated, services:
     logger.info("Gate: user %s left channel %s; cached membership dropped", user_id, event.chat.id)
 
 
-@router.message(F.text.in_({
-    "🔙 BACK TO MAIN", "🔙 Back to Main", "Back to Main", "back to main",
-    "🔙 BACK", "BACK", "🔙 Back", "Back", "back", "🔙 back",
-    "🔙 ব্যাক", "ব্যাক", "🏠 MAIN MENU", "🏠 Main Menu", "Main Menu", "main menu",
-    "🏠 মেইন মেনু", "মেইন মেনু", "🔙 BACK TO CATALOG", "🔙 Back to Catalog",
-}))
 @router.callback_query(F.data == "back_to_main")
 async def handle_back_to_main(event: Message | CallbackQuery, state: FSMContext, services: Services):
     await state.clear()

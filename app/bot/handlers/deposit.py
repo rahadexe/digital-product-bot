@@ -12,7 +12,7 @@ from typing import Any
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.filters import BaseFilter, Command, StateFilter
+from aiogram.filters import BaseFilter, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, ForceReply, InlineKeyboardButton, InlineKeyboardMarkup, Message
@@ -29,27 +29,13 @@ from app.bot.formatting import (
 from app.core.identifiers import format_deposit_id
 from app.bot.handlers.navigation import is_navigation, navigate
 from app.bot.icons import (
-    ICON_BALANCE,
-    ICON_CHECK,
-    ICON_COIN,
     ICON_CROSS,
-    ICON_DEPOSIT,
-    ICON_ID,
-    ICON_KEY,
     ICON_LIGHTNING,
-    ICON_MONEY,
     ICON_NEXT,
-    ICON_NOTE,
-    ICON_QUESTION,
-    ICON_SPARKLES,
-    ICON_TIMER,
-    ICON_USER,
     ICON_WARNING,
-    Icons,
 )
 from app.bot.keyboards import (
     get_cancel_keyboard,
-    get_deposit_amount_keyboard,
     get_deposit_confirm_keyboard,
     get_deposit_input_inline_keyboard,
     get_deposit_methods_keyboard,
@@ -260,12 +246,6 @@ class DepositStates(StatesGroup):
     waiting_for_instant_amount = State()
 
 
-@router.message(Command("cancel"))
-async def cmd_cancel(message: Message, state: FSMContext):
-    await state.clear()
-    await message.answer(f"{ICON_CROSS} Current operation cancelled.")
-
-
 @router.callback_query(F.data == "cancel_deposit")
 async def cancel_deposit_flow(query: CallbackQuery, state: FSMContext):
     await state.clear()
@@ -276,30 +256,9 @@ async def cancel_deposit_flow(query: CallbackQuery, state: FSMContext):
             await query.message.delete()
 
 
-@router.message(Command("wallet"))
-@router.message(Command("deposit"))
-@router.message(Command("balance"))
-@router.message(F.text.in_({
-    "Wallet", "wallet", "💳 Wallet", "💼 Wallet", "💰 Wallet",
-    "WALLET", "💳 WALLET",
-    "Balance", "balance", "BALANCE", "💰 Balance",
-    "My Balance", "my balance", "MY BALANCE", "💰 My Balance", "💳 My Balance",
-    "💰 আমার ব্যালেন্স", "আমার ব্যালেন্স",
-    "💳 ওয়ালেট", "ওয়ালেট",
-    "Add Balance", "add balance", "💰 Add Balance", "💳 Add Balance", "Deposit", "deposit", "💳 Deposit",
-    "ADD BALANCE", "💳 ADD BALANCE", "DEPOSIT", "💳 DEPOSIT",
-    "💳 অ্যাড ব্যালেন্স", "অ্যাড ব্যালেন্স",
-}))
-@router.message(F.text.casefold() == "wallet")
-@router.message(F.text.casefold() == "balance")
-@router.message(F.text.casefold() == "my balance")
-@router.callback_query(F.data == "open_wallet")
-@router.callback_query(F.data == "open_balance")
 @router.callback_query(F.data == "open_deposit")
 @router.callback_query(F.data == "dep_methods")
 @router.callback_query(F.data == "dep_back")
-@router.callback_query(F.data == "open_deposit_from_history")
-@router.callback_query(F.data == "open_deposit_from_account")
 @router.callback_query(F.data.startswith("open_deposit_prod_"))
 async def show_deposit_methods(event: Message | CallbackQuery, state: FSMContext, services: Services):
     """Show the current balance and payment options in an inline keyboard."""
@@ -309,16 +268,9 @@ async def show_deposit_methods(event: Message | CallbackQuery, state: FSMContext
         return
 
     back_target: str | None = "back_to_main"
-    if isinstance(event, CallbackQuery) and event.data:
-        if event.data == "open_deposit_from_history":
-            back_target = "open_deposits"
-        elif event.data == "open_deposit_from_account":
-            back_target = "open_account"
-        elif event.data.startswith("open_deposit_prod_"):
-            prod_id = event.data.removeprefix("open_deposit_prod_")
-            back_target = f"prod_{prod_id}"
-        else:
-            back_target = "back_to_main"
+    if isinstance(event, CallbackQuery) and event.data and event.data.startswith("open_deposit_prod_"):
+        prod_id = event.data.removeprefix("open_deposit_prod_")
+        back_target = f"prod_{prod_id}"
 
     paused_msg = await services.settings.paused_message()
     if paused_msg:
@@ -730,7 +682,7 @@ async def check_instant_payment(query: CallbackQuery, state: FSMContext, service
                 await query.message.edit_text(
                     text,
                     reply_markup=InlineKeyboardMarkup(
-                        inline_keyboard=[[InlineKeyboardButton(text="Balance", callback_data="open_wallet")]]
+                        inline_keyboard=[[InlineKeyboardButton(text="Balance", callback_data="open_deposit")]]
                     ),
                 )
         with suppress(TelegramBadRequest):
@@ -746,7 +698,7 @@ async def check_instant_payment(query: CallbackQuery, state: FSMContext, service
                 await query.message.edit_text(
                     text,
                     reply_markup=InlineKeyboardMarkup(
-                        inline_keyboard=[[InlineKeyboardButton(text="Balance", callback_data="open_wallet")]]
+                        inline_keyboard=[[InlineKeyboardButton(text="Balance", callback_data="open_deposit")]]
                     ),
                 )
         with suppress(TelegramBadRequest):
@@ -831,7 +783,7 @@ async def confirm_cancel_instant_payment(query: CallbackQuery, state: FSMContext
             f"Balance: <code>{price(symbol, user['balance'] if user else 0.0, usd_rate=usd_rate)}</code>"
         )
         reply_markup = InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text="Balance", callback_data="open_wallet")]]
+            inline_keyboard=[[InlineKeyboardButton(text="Balance", callback_data="open_deposit")]]
         )
     else:
         text = (
@@ -839,7 +791,7 @@ async def confirm_cancel_instant_payment(query: CallbackQuery, state: FSMContext
             "This invoice is closed. If you already paid, contact Support before paying again."
         )
         reply_markup = InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text="Balance", callback_data="open_wallet")]]
+            inline_keyboard=[[InlineKeyboardButton(text="Balance", callback_data="open_deposit")]]
         )
 
     if query.message:

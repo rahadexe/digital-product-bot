@@ -108,7 +108,7 @@ async def test_rate_limit_cools_down_channel_for_other_customers():
     assert not gate._verified
 
 
-def event(text='Account'):
+def event(text='Balance'):
     return Message(message_id=1, date=datetime.now(timezone.utc),
                    chat=Chat(id=123, type='private'),
                    from_user=User(id=123, is_bot=False, first_name='Test'), text=text)
@@ -127,7 +127,7 @@ def services_for_access(missing=None):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('opening', ['/start', '/menu', 'gate_verify'])
+@pytest.mark.parametrize('opening', ['/start', 'gate_verify'])
 async def test_opening_gate_never_caches_an_unverified_pass(opening):
     middleware, services, handler = StoreAccess(), services_for_access(), AsyncMock()
     first = event(opening)

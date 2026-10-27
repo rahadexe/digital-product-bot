@@ -3,17 +3,15 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from aiogram.types import CallbackQuery, Message, User
+from aiogram.types import CallbackQuery
 
 from app.bot.handlers.deposit import show_deposit_methods
-from app.bot.handlers.profile import show_order_history, view_order_detail
+from app.bot.handlers.profile import view_order_detail
 from app.bot.handlers.shop import (
     adjust_quantity,
-    handle_keypad_action,
     show_order_buy_again,
     show_product_detail_paginated,
 )
-from app.bot.keyboards import get_products_keyboard
 
 
 @pytest.mark.asyncio
@@ -113,7 +111,7 @@ async def test_quantity_adjustment_preserves_page_back_target():
 async def test_order_buy_again_back_returns_to_exact_order():
     query = SimpleNamespace(
         from_user=SimpleNamespace(id=123),
-        data="prod_bo_15_1001_2_1",
+        data="prod_bo_15_1001_2",
         answer=AsyncMock(),
         message=SimpleNamespace(edit_text=AsyncMock()),
     )
@@ -152,15 +150,15 @@ async def test_order_buy_again_back_returns_to_exact_order():
     kb = mock_respond.call_args.args[2]
     back_buttons = [btn for row in kb.inline_keyboard for btn in row if "Back" in btn.text]
     assert len(back_buttons) >= 1
-    # Returns back to the order detail on page 2 originating from account
-    assert back_buttons[0].callback_data == "vord_1001_2_1"
+    # Returns to the order detail on page 2 from Orders
+    assert back_buttons[0].callback_data == "vord_1001_2"
 
 
 @pytest.mark.asyncio
-async def test_order_detail_from_account_page_2_back_target():
+async def test_order_detail_page_2_back_target():
     query = SimpleNamespace(
         from_user=SimpleNamespace(id=123),
-        data="vord_1001_2_1",
+        data="vord_1001_2",
         answer=AsyncMock(),
         message=SimpleNamespace(edit_text=AsyncMock()),
     )
@@ -192,7 +190,7 @@ async def test_order_detail_from_account_page_2_back_target():
     kb = query.message.edit_text.call_args.kwargs["reply_markup"]
     back_buttons = [btn for row in kb.inline_keyboard for btn in row if btn.text == "Back"]
     assert len(back_buttons) >= 1
-    assert back_buttons[0].callback_data == "orders_acc_page_2"
+    assert back_buttons[0].callback_data == "orders_page_2"
 
 
 @pytest.mark.asyncio

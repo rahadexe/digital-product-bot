@@ -11,7 +11,7 @@ from uuid import uuid4
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.filters import BaseFilter, Command
+from aiogram.filters import BaseFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
@@ -369,24 +369,6 @@ async def handle_legacy_cat_callbacks(query: CallbackQuery, state: FSMContext, s
         await show_category_or_validity(query, state, services, category=cat, back_target="back_to_main")
 
 
-@router.message(F.text.in_({
-    "🛍️ Store", "Store", "store", "STORE", "🛍️ STORE",
-    "🛍️ Shop", "Shop", "shop", "SHOP", "🛍️ SHOP",
-    "🛍️ স্টোর", "স্টোর",
-    "🛍️ শপ", "শপ",
-    "🛍️ Other Products", "Other Products", "other products",
-    "🛍️ OTHER PRODUCTS", "OTHER PRODUCTS",
-    "🛍️ ALL CATALOG", "ALL CATALOG",
-    "🛍️ ALL PRODUCTS", "ALL PRODUCTS",
-    "🛍️ Other Product", "Other Product", "other product",
-    "🛍️ অন্যান্য প্রোডাক্ট", "অন্যান্য প্রোডাক্ট",
-    "🛍️ সকল প্রোডাক্ট", "সকল প্রোডাক্ট",
-    "👑 Other Products", "💎 Other Products",
-    "Premium Products", "premium products", "👑 Premium Products",
-    "🛍️ Products", "🛒 Products", "Products", "products",
-    "🛍️ Buy Products", "🛒 Buy Products", "Buy Products",
-    "🛍️ All Products", "All Products", "all products",
-}))
 @router.callback_query(F.data.in_({"open_other_products", "open_premium_products", "open_categories"}))
 async def show_other_products_hub(event: Message | CallbackQuery, state: FSMContext, services: Services):
     """Dynamic showcase displaying products directly with category filter chips."""
@@ -554,24 +536,6 @@ async def product_view(
     return text, keyboard
 
 
-@router.message(Command("products"))
-@router.message(Command("shop"))
-@router.message(Command("buy"))
-@router.message(F.text.in_({
-    "Other Products", "other products", "OTHER PRODUCTS",
-    "🛍️ Other Products", "🛍️ OTHER PRODUCTS",
-    "Other Product", "other product",
-    "Others", "others",
-    "Premium Products", "premium products",
-    "All Products", "all products", "ALL PRODUCTS",
-    "🛍️ All Products", "🛍️ ALL PRODUCTS",
-    "Products", "products", "PRODUCTS",
-    "🛍️ Products", "🛍️ PRODUCTS",
-    "Shop", "shop", "SHOP", "🛍️ Shop", "🛒 Shop", "🛒 Products",
-    "অন্যান্য প্রোডাক্ট", "🛍️ অন্যান্য প্রোডাক্ট",
-    "সকল প্রোডাক্ট", "🛍️ সকল প্রোডাক্ট",
-    "পণ্য কিনুন",
-}))
 @router.callback_query(F.data == "open_shop")
 async def show_shop_entry(event: Message | CallbackQuery, state: FSMContext, services: Services):
     """Shop entry point displaying all active categories."""
@@ -585,7 +549,6 @@ async def show_all_products(query: CallbackQuery, state: FSMContext, services: S
 
 
 @router.callback_query(F.data.in_({"shop_uncat", "shop_uncategorized", "shop_others"}))
-@router.message(F.text.in_({"Others", "others", "📁 Others", "আদার্স", "📁 আদার্স", "অন্যান্য", "Uncategorized", "uncategorized"}))
 async def show_uncat_products(event: Message | CallbackQuery, state: FSMContext, services: Services):
     await state.clear()
     await show_products_list(event, state, services, category_id="others", back_target="open_categories")
@@ -926,15 +889,13 @@ async def show_main_product_detail(query: CallbackQuery, state: FSMContext, serv
     await show_product(query, state, services, product_id, back_target="back_to_main")
 
 
-@router.callback_query(F.data.regexp(r"^prod_bo_\d+_\d+_\d+_\d+$"))
+@router.callback_query(F.data.regexp(r"^prod_bo_\d+_\d+_\d+$"))
 async def show_order_buy_again(query: CallbackQuery, state: FSMContext, services: Services):
-    # Format: prod_bo_{product_id}_{order_id}_{page}_{from_acc}
     parts = query.data.split("_")
     product_id = int(parts[2])
     order_id = int(parts[3])
     page = int(parts[4])
-    from_acc = parts[5] == "1"
-    back_target = f"vord_{order_id}_{page}_1" if from_acc else f"vord_{order_id}_{page}"
+    back_target = f"vord_{order_id}_{page}"
     await show_product(query, state, services, product_id, back_target=back_target)
 
 

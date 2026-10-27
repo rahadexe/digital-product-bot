@@ -14,7 +14,7 @@ from urllib.parse import urlsplit
 
 from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
-from aiogram.types import CallbackQuery, Chat, InlineKeyboardMarkup, Message, ReplyKeyboardMarkup, Update, User
+from aiogram.types import CallbackQuery, Chat, Message, ReplyKeyboardMarkup, Update, User
 
 from app.bot.app import create_dispatcher
 from app.bot.handlers import admin, deposit, help_guide, navigation, profile, reseller_apply, search, shop, start
@@ -101,17 +101,14 @@ class AdminKeyboard(unittest.IsolatedAsyncioTestCase):
                 return [b.text for row in item['markup'].keyboard for b in row]
         return []
 
-    async def test_admin_action_stays_on_separate_row_and_out_of_more(self):
+    async def test_admin_action_stays_on_a_separate_row(self):
         sent = await self.tap(OWNER, text='/start')
         markup = next(i['markup'] for i in sent if isinstance(i['markup'], ReplyKeyboardMarkup))
         self.assertEqual([[b.text for b in row] for row in markup.keyboard], [
             ["🛍 Shop", "💰 Balance"], ["📦 Orders", "🎁 Referral"],
             ["💬 Support"], ["🛡 Admin Panel"],
         ])
-        more = await self.tap(OWNER, text="⚙️ Settings")
-        more_markup = next(i['markup'] for i in more if isinstance(i['markup'], InlineKeyboardMarkup))
-        callbacks = [b.callback_data for row in more_markup.inline_keyboard for b in row]
-        self.assertNotIn("adm_dashboard", callbacks)
+
 
     async def test_a_customer_never_sees_it(self):
         buttons = self.reply_buttons(await self.tap(CUSTOMER, text='/start'))
@@ -126,7 +123,7 @@ class AdminKeyboard(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(any('Admin' in i['text'] for i in sent), sent)
 
     async def test_it_works_from_the_middle_of_a_deposit(self):
-        await self.tap(OWNER, text='Add Balance')
+        await self.tap(OWNER, text='Balance')
         methods = await self.s.deposits.methods(active_only=True)
         await self.tap(OWNER, data=f"dep_method_{methods[0]['id']}")
         await self.tap(OWNER, data='dep_confirm_paid')

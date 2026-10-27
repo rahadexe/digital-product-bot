@@ -71,7 +71,7 @@ def _customer_menu(lang: str = "en", show_icons: bool = True) -> list[tuple[str,
     """Five customer actions in the primary menu; secondary settings stay available separately."""
     items = [
         ("🛍", "Shop", "open_categories"),
-        ("💰", "Balance", "open_wallet"),
+        ("💰", "Balance", "open_deposit"),
         ("📦", "Orders", "open_orders"),
         ("🎁", "Referral", "open_referral"),
         ("💬", "Support", "open_help"),
@@ -107,29 +107,6 @@ def get_main_inline_keyboard(
     if is_admin:
         rows.append([InlineKeyboardButton(text=_admin_panel_label(lang), callback_data="adm_dashboard")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
-
-
-def get_more_inline_keyboard(
-    lang: str = "en",
-    is_reseller: bool = False,
-    is_admin: bool = False,
-) -> InlineKeyboardMarkup:
-    """Simple secondary hub for API and reseller tools."""
-    reseller_label = "💼 Reseller Hub" if is_reseller else "💼 Reseller"
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(text="⚡ API", callback_data="open_api_hub"),
-                InlineKeyboardButton(
-                    text=reseller_label,
-                    callback_data="open_reseller_hub" if is_reseller else "open_reseller",
-                ),
-            ],
-        ]
-    )
-
-
-get_settings_inline_keyboard = get_more_inline_keyboard
 
 
 def get_persistent_reply_keyboard(
@@ -290,36 +267,6 @@ def get_product_detail_reply_keyboard(
         KeyboardButton(text=back_products_label),
         KeyboardButton(text=main_menu_label),
     ])
-    return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
-
-
-def get_account_reply_keyboard(
-    is_reseller: bool = False,
-    lang: str = "en",
-    show_icons: bool = False,
-) -> ReplyKeyboardMarkup:
-    """Pure Reply Keyboard for Account screen (Clean 2x2 grid without unnecessary icons)."""
-    if lang != "bn":
-        orders_label = "Orders"
-        refer_label = "Referral"
-        prices_label = "Prices"
-        back_label = "Back"
-    else:
-        orders_label = "অর্ডার"
-        refer_label = "রেফারেল"
-        prices_label = "প্রাইস"
-        back_label = "ব্যাক"
-
-    rows = [
-        [
-            KeyboardButton(text=orders_label),
-            KeyboardButton(text=refer_label),
-        ],
-        [
-            KeyboardButton(text=prices_label),
-            KeyboardButton(text=back_label),
-        ],
-    ]
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
 
@@ -657,7 +604,7 @@ def get_help_faq_keyboard(
                 ])
 
     back_label = "Back"
-    rows.append([InlineKeyboardButton(text=back_label, callback_data="open_more")])
+    rows.append([InlineKeyboardButton(text=back_label, callback_data="back_to_main")])
 
     return InlineKeyboardMarkup(inline_keyboard=rows)
 

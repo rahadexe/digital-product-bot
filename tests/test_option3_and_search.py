@@ -1,9 +1,9 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
+from aiogram.types import CallbackQuery, Message
 from aiogram.fsm.context import FSMContext
 
-from app.bot.keyboards import get_main_inline_keyboard, get_more_inline_keyboard
+from app.bot.keyboards import get_main_inline_keyboard
 from app.bot.handlers.search import _prompt_keyboard, _closing_row, search_entry, search_products, SearchStates
 
 
@@ -19,21 +19,17 @@ def test_main_inline_keyboard_five_action_layout():
     rows = kb.inline_keyboard
     assert len(rows) == 3
 
-    assert [button.callback_data for button in rows[0]] == ["open_categories", "open_wallet"]
+    assert [button.callback_data for button in rows[0]] == ["open_categories", "open_deposit"]
     assert [button.callback_data for button in rows[1]] == ["open_orders", "open_referral"]
     assert [button.callback_data for button in rows[2]] == ["open_help"]
     assert [button.text for row in rows for button in row] == [
         "🛍 Shop", "💰 Balance", "📦 Orders", "🎁 Referral", "💬 Support",
     ]
 
-    # The admin panel remains on its own row; reseller stays under More.
+    # Admin remains on a separate row; reseller tools are reached via /reseller.
     kb_admin = get_main_inline_keyboard(pinned_categories=cats, is_admin=True, lang="en")
     assert len(kb_admin.inline_keyboard) == 4
     assert kb_admin.inline_keyboard[-1][0].callback_data == "adm_dashboard"
-    more = get_more_inline_keyboard(lang="en", is_admin=True, is_reseller=True)
-    more_callbacks = [button.callback_data for row in more.inline_keyboard for button in row]
-    assert "adm_dashboard" not in more_callbacks
-    assert "open_reseller_hub" in more_callbacks
 
 
 def test_search_prompt_keyboard_back_target():

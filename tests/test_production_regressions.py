@@ -30,7 +30,7 @@ async def test_channel_cache_does_not_allow_a_newly_banned_user():
     )
     message = Message(message_id=1, date=datetime.now(timezone.utc),
                       chat=Chat(id=123, type='private'),
-                      from_user=User(id=123, is_bot=False, first_name='Test'), text='Account')
+                      from_user=User(id=123, is_bot=False, first_name='Test'), text='Balance')
     handler = AsyncMock()
     with patch.object(Message, 'answer', new_callable=AsyncMock) as answer:
         await middleware(handler, message, {'services': services})
