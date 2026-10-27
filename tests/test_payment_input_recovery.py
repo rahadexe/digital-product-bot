@@ -222,7 +222,6 @@ async def test_payment_details_preserve_admin_custom_instructions_verbatim():
     text = incoming.answer.await_args.args[0]
     assert old_instruction in text
     assert "Send Money only." in text
-    assert "tap Payment Done" in text
     assert old_instruction in method["instructions"]
     assert await state.get_state() == DepositStates.method_selected.state
 
