@@ -512,7 +512,7 @@ async def render_method_details(
     minimum = f"{min_dep:g} USDT" if is_binance else f"৳{min_dep:g}"
 
     lines = [
-        f"<b>{escape(heading)}</b>",
+        f"<blockquote><b>{escape(heading)}</b></blockquote>",
         "",
         destination,
         "",
