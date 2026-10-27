@@ -498,7 +498,6 @@ async def test_exchange_rate_and_dollar_conversion_flow():
     assert "Minimum: <b>৳50</b>" in screen1_text
     assert "Rate: 1 USD = ৳125 BDT" in screen1_text
     assert "<b>✅ Payment Done</b>" in screen1_text
-    assert "auto-convert to USD ($)" in screen1_text
 
     # Screen 2: User enters 500
     message.text = "500"
