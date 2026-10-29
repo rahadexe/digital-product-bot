@@ -136,8 +136,8 @@ def configure_pricing(usd_rate: float | None = None, *args, **kwargs) -> None:
 
 def _money_text(value: float, digits: int = 2) -> str:
     if abs(value) < 1 and value != 0:
-        return f"{value:,.4f}".rstrip("0").rstrip(".")
-    return f"{value:,.{digits}f}".rstrip("0").rstrip(".")
+        return f"{value:.4f}".rstrip("0").rstrip(".")
+    return f"{value:.{digits}f}".rstrip("0").rstrip(".")
 
 
 def format_dual_price(

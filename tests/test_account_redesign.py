@@ -393,7 +393,7 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
         await show_account_hub(query, state, services)
         text = query.message.edit_text.call_args[0][0]
         kb = query.message.edit_text.call_args[1]["reply_markup"]
-        self.assertIn("1,250 ৳", text)
+        self.assertIn("1250 ৳", text)
         curr_btn = [btn for row in kb.inline_keyboard for btn in row if "Currency" in btn.text][0]
         self.assertEqual(curr_btn.text, "💱 Currency: ৳ BDT")
         self.assertEqual(curr_btn.callback_data, "acct_toggle_currency")

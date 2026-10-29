@@ -36,8 +36,8 @@ def test_guide_copy_and_support_action_are_english():
 def test_language_specific_currency_formatting():
     from app.bot.formatting import format_dual_price, price
     # Bangladesh locale keeps the English UI and shows the local equivalent.
-    assert format_dual_price(44.0, "৳", usd_rate=125.0, lang="en-BD") == "5,500 ৳ (≈$44)"
-    assert price("৳", 44.0, usd_rate=125.0, lang="en-BD") == "5,500 ৳ (≈$44)"
+    assert format_dual_price(44.0, "৳", usd_rate=125.0, lang="en-BD") == "5500 ৳ (≈$44)"
+    assert price("৳", 44.0, usd_rate=125.0, lang="en-BD") == "5500 ৳ (≈$44)"
 
     # English uses the canonical USD amount directly; exchange-rate settings do not rescale it.
     assert format_dual_price(125.0, "৳", usd_rate=125.0, lang="en") == "$125"

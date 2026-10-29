@@ -242,6 +242,38 @@ def format_deposit_status_card(
     return card
 
 
+def format_deposit_success_card(
+    provider: str,
+    amount_display: str,
+    balance_display: str,
+    txid: str | None = None,
+    credited_display: str | None = None,
+    lang: str = "en",
+) -> str:
+    clean_tx = (txid or "").strip()
+    if lang == "bn":
+        lines = [
+            "✅ <b>ডিপোজিট সফল হয়েছে!</b>\n",
+            f"মেথড: <b>{escape(provider)}</b> (<code>{amount_display}</code>)",
+        ]
+        if clean_tx:
+            lines.append(f"TrxID: <code>{escape(clean_tx)}</code>")
+        if credited_display:
+            lines.append(f"যোগ হয়েছে: <code>{credited_display}</code>")
+        lines.append(f"বর্তমান ব্যালেন্স: <code>{balance_display}</code>")
+    else:
+        lines = [
+            "✅ <b>Deposit Successful!</b>\n",
+            f"Method: <b>{escape(provider)}</b> (<code>{amount_display}</code>)",
+        ]
+        if clean_tx:
+            lines.append(f"TrxID: <code>{escape(clean_tx)}</code>")
+        if credited_display:
+            lines.append(f"Credited: <code>{credited_display}</code>")
+        lines.append(f"Current Balance: <code>{balance_display}</code>")
+    return "\n".join(lines)
+
+
 class DepositStates(StatesGroup):
     method_selected = State()
     waiting_for_amount = State()
@@ -1742,14 +1774,12 @@ async def execute_deposit_submission(
                     provider = method_name
                     balance_display = format_dual_price(user_balance, usd_rate=rate, lang=lang)
                     keyboard = get_deposit_status_keyboard(dep_id=existing_pending["id"], status="approved", lang=lang)
-                    text = (
-                        f"✅ <b>ডিপোজিট সফল হয়েছে!</b>\n"
-                        f"মেথড: <b>{escape(provider)}</b> (<code>{amt_display}</code>)\n"
-                        f"বর্তমান ব্যালেন্স: <code>{balance_display}</code>"
-                    ) if lang == "bn" else (
-                        f"✅ <b>Deposit Successful!</b>\n"
-                        f"Method: <b>{escape(provider)}</b> (<code>{amt_display}</code>)\n"
-                        f"Current Balance: <code>{balance_display}</code>"
+                    text = format_deposit_success_card(
+                        provider=provider,
+                        amount_display=amt_display,
+                        balance_display=balance_display,
+                        txid=clean_tx,
+                        lang=lang,
                     )
                     await _safe_edit_or_answer(status_msg, user_msg, text, reply_markup=keyboard)
                     return
@@ -1828,14 +1858,12 @@ async def execute_deposit_submission(
                 user_balance = float(user.get("balance", 0.0)) if user else 0.0
                 balance_display = format_dual_price(user_balance, usd_rate=rate, lang=lang)
                 keyboard = get_deposit_status_keyboard(dep_id=dep_id, status="approved", lang=lang)
-                success_txt = (
-                    f"✅ <b>ডিপোজিট সফল হয়েছে!</b>\n"
-                    f"মেথড: <b>{escape(method_name)}</b> (<code>{amt_display}</code>)\n"
-                    f"বর্তমান ব্যালেন্স: <code>{balance_display}</code>"
-                ) if lang == "bn" else (
-                    f"✅ <b>Deposit Successful!</b>\n"
-                    f"Method: <b>{escape(method_name)}</b> (<code>{amt_display}</code>)\n"
-                    f"Current Balance: <code>{balance_display}</code>"
+                success_txt = format_deposit_success_card(
+                    provider=method_name,
+                    amount_display=amt_display,
+                    balance_display=balance_display,
+                    txid=clean_tx,
+                    lang=lang,
                 )
                 await _safe_edit_or_answer(status_msg, user_msg, success_txt, reply_markup=keyboard)
                 return
@@ -1951,14 +1979,12 @@ async def execute_deposit_submission(
             lang = await services.users.get_language(user_id)
             balance_display = format_dual_price(user_balance, usd_rate=rate, lang=lang)
             keyboard = get_deposit_status_keyboard(dep_id=0, status="approved", lang=lang)
-            text = (
-                f"✅ <b>ডিপোজিট সফল হয়েছে!</b>\n"
-                f"মেথড: <b>{escape(provider)}</b> (<code>{amt_display}</code>)\n"
-                f"বর্তমান ব্যালেন্স: <code>{balance_display}</code>"
-            ) if lang == "bn" else (
-                f"✅ <b>Deposit Successful!</b>\n"
-                f"Method: <b>{escape(provider)}</b> (<code>{amt_display}</code>)\n"
-                f"Current Balance: <code>{balance_display}</code>"
+            text = format_deposit_success_card(
+                provider=provider,
+                amount_display=amt_display,
+                balance_display=balance_display,
+                txid=clean_tx,
+                lang=lang,
             )
             await _safe_edit_or_answer(status_msg, user_msg, text, reply_markup=keyboard)
             return
@@ -2194,16 +2220,13 @@ async def claim_binance_payment(
         credited_display = format_dual_price(credited_amount, usd_rate=usd_rate, lang=lang)
 
         keyboard = get_deposit_status_keyboard(dep_id=0, status="approved", lang=lang)
-        text = (
-            f"✅ <b>ডিপোজিট সফল হয়েছে!</b>\n"
-            f"মেথড: <b>Binance</b> (<code>{received_coin:g} {escape(coin)}</code>)\n"
-            f"যোগ হয়েছে: <code>{credited_display}</code>\n"
-            f"বর্তমান ব্যালেন্স: <code>{balance_display}</code>"
-        ) if lang == "bn" else (
-            f"✅ <b>Deposit Successful!</b>\n"
-            f"Method: <b>Binance</b> (<code>{received_coin:g} {escape(coin)}</code>)\n"
-            f"Credited: <code>{credited_display}</code>\n"
-            f"Current Balance: <code>{balance_display}</code>"
+        text = format_deposit_success_card(
+            provider="Binance",
+            amount_display=f"{received_coin:g} {escape(coin)}",
+            balance_display=balance_display,
+            txid=ref,
+            credited_display=credited_display,
+            lang=lang,
         )
         await _safe_edit_or_answer(status_msg, user_msg, text, reply_markup=keyboard)
     else:

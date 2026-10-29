@@ -1168,10 +1168,9 @@ def get_deposit_status_keyboard(
         wallet_text = "🔙 Back to Balance" if lang != "bn" else "🔙 ওয়ালেট"
         buttons.append([InlineKeyboardButton(text=wallet_text, callback_data="open_deposit")])
     elif st in ("approved", "completed"):
-        shop_text = "🛍️ All Products" if lang != "bn" else "🛍️ সকল প্রোডাক্ট"
-        wallet_text = "🔙 Back to Balance" if lang != "bn" else "🔙 ওয়ালেট"
-        buttons.append([InlineKeyboardButton(text=shop_text, callback_data="open_shop")])
-        buttons.append([InlineKeyboardButton(text=wallet_text, callback_data="open_deposit")])
+        # No inline navigation buttons (no back/shop buttons) so that the deposit success
+        # receipt remains permanently as a standalone receipt in chat history without being overwritten.
+        return InlineKeyboardMarkup(inline_keyboard=[])
     else:  # rejected, failed, cancelled
         if support_username:
             clean_sup = support_username.lstrip("@")

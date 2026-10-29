@@ -456,7 +456,7 @@ async def test_deposit_refresh_callback():
     assert "500 ৳ → $4.00 USD" in text
     assert "Current Balance: <code>$750</code>" in text
     kb = msg.edit_text.call_args[1]["reply_markup"]
-    assert [b.callback_data for row in kb.inline_keyboard for b in row] == ["open_shop", "open_deposit"]
+    assert [b.callback_data for row in kb.inline_keyboard for b in row] == []
 
 
 @pytest.mark.asyncio

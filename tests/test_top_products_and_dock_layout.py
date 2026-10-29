@@ -94,7 +94,7 @@ def test_product_list_separates_validity_from_legacy_title():
         lang="bn",
     )
 
-    assert keyboard.inline_keyboard[0][0].text == "Netflix · 30d (Full Warranty) · 31,250 ৳ (≈$250)"
+    assert keyboard.inline_keyboard[0][0].text == "Netflix · 30d (Full Warranty) · 31250 ৳ (≈$250)"
 
 
 def test_product_list_extracts_legacy_validity_when_field_is_empty():
@@ -107,7 +107,7 @@ def test_product_list_extracts_legacy_validity_when_field_is_empty():
         lang="bn",
     )
 
-    assert keyboard.inline_keyboard[0][0].text == "YouTube Premium · 1mo · 40,000 ৳ (≈$320)"
+    assert keyboard.inline_keyboard[0][0].text == "YouTube Premium · 1mo · 40000 ৳ (≈$320)"
 
 
 def test_product_list_separates_legacy_warranty_from_product_name():
@@ -126,7 +126,7 @@ def test_product_list_separates_legacy_warranty_from_product_name():
         lang="bn",
     )
 
-    assert keyboard.inline_keyboard[0][0].text == "ChatGPT Plus · 30d (FW) · 56,250 ৳ (≈$450)"
+    assert keyboard.inline_keyboard[0][0].text == "ChatGPT Plus · 30d (FW) · 56250 ৳ (≈$450)"
 
 
 def test_product_warranty_is_optional_in_admin_payloads():
@@ -243,11 +243,11 @@ def test_product_buttons_render_basic_or_custom_icon_without_duplicate_title_emo
     )
     buttons = [row[0] for row in keyboard.inline_keyboard[:3]]
 
-    assert buttons[0].text == "🌐 Netflix · 31,250 ৳ (≈$250)"
+    assert buttons[0].text == "🌐 Netflix · 31250 ৳ (≈$250)"
     assert buttons[0].icon_custom_emoji_id is None
-    assert buttons[1].text == "ChatGPT Plus · 56,250 ৳ (≈$450)"
+    assert buttons[1].text == "ChatGPT Plus · 56250 ৳ (≈$450)"
     assert buttons[1].icon_custom_emoji_id == "5796345694969140339"
-    assert buttons[2].text == "Prime · 12,500 ৳ (≈$100)"
+    assert buttons[2].text == "Prime · 12500 ৳ (≈$100)"
     assert buttons[2].icon_custom_emoji_id is None
     assert [button.style for button in buttons] == ["success"] * 3
     assert all(button.style is None for button in keyboard.inline_keyboard[-1])
@@ -330,7 +330,7 @@ def test_long_warranty_label_does_not_hide_price_or_exceed_telegram_limit():
 
     label = keyboard.inline_keyboard[0][0].text
     assert label.startswith("Premium")
-    assert label.endswith("56,250 ৳ (≈$450)")
+    assert label.endswith("56250 ৳ (≈$450)")
     assert len(label) <= 64
 
 
