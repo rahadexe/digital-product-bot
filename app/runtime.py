@@ -38,9 +38,7 @@ async def run(role: str, config: Settings) -> None:
                 key = await services.zinipay.get_api_key()
                 if key:
                     async with services.db.connect() as conn:
-                        current_flag = await conn.fetchval("SELECT value FROM bot_settings WHERE key = 'zinipay_enabled'")
-                        if current_flag is None or current_flag == "":
-                            await conn.execute("INSERT INTO bot_settings(key, value) VALUES('zinipay_enabled', '1') ON CONFLICT (key) DO UPDATE SET value='1'")
+                        await conn.execute("INSERT INTO bot_settings(key, value) VALUES('zinipay_enabled', '1') ON CONFLICT (key) DO UPDATE SET value='1'")
                         await conn.execute(
                             "UPDATE deposit_methods SET auto_verify='zinipay' "
                             "WHERE (auto_verify='none' OR auto_verify IS NULL) AND account_type IN ('personal','agent','merchant')"

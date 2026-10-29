@@ -183,6 +183,9 @@ class ZiniPayVerificationService:
         key = await self.get_api_key()
         if not key:
             return False
+        # If API key is provided via env/config, always enabled
+        if self.config.zinipay_api_key:
+            return True
         try:
             async with self.db.connect() as conn:
                 row = await conn.fetchval("SELECT value FROM bot_settings WHERE key = 'zinipay_enabled'")
@@ -190,12 +193,7 @@ class ZiniPayVerificationService:
                     return str(row).strip() == "1"
         except Exception:
             pass
-        flag = await self.settings.get("zinipay_enabled")
-        if flag == "1":
-            return True
-        if self.config.zinipay_api_key and not (await self.settings.get("zinipay_api_key")):
-            return True
-        return await self.settings.flag("zinipay_enabled")
+        return True
 
     async def verify(self, amount: float, transaction_id: str) -> dict[str, Any]:
         """Step 1: Validate transaction existence, amount, and status."""
@@ -214,7 +212,6 @@ class ZiniPayVerificationService:
         }
         payload = {
             "transactionId": clean_tx,
-            "trxID": clean_tx,
             "amount": clean_amt,
         }
 
@@ -224,7 +221,8 @@ class ZiniPayVerificationService:
             try:
                 data = res.json()
             except Exception:
-                data = {}
+                data = {"raw": res.text}
+            logger.info("ZiniPay verify call: url=%s, payload=%s, status=%s, response=%s", url, payload, status, data)
         except Exception as exc:
             logger.warning("ZiniPay verify connection error: %s", exc)
             return {"ok": False, "reason": "connection_error", "message": f"Connection error: {exc}"}
@@ -280,10 +278,14 @@ class ZiniPayVerificationService:
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
+        try:
+            v_id = int(verify_id)
+        except (ValueError, TypeError):
+            v_id = verify_id
         payload = {
             "transactionId": clean_tx,
             "amount": clean_amt,
-            "id": verify_id,
+            "id": v_id,
         }
 
         try:
@@ -292,7 +294,8 @@ class ZiniPayVerificationService:
             try:
                 data = res.json()
             except Exception:
-                data = {}
+                data = {"raw": res.text}
+            logger.info("ZiniPay confirm call: status=%s, response=%s", status, data)
         except Exception as exc:
             logger.warning("ZiniPay confirm connection error: %s", exc)
             return {"ok": False, "message": f"Connection error: {exc}"}
@@ -559,7 +562,13 @@ class ZiniPayVerificationService:
     async def _finish_awaiting(self, row: dict[str, Any]) -> bool:
         """The receipt has landed: consume it at the gateway and credit the wallet."""
         deposit_id = row["id"]
-        amount = float(row.get("pay_amount") if row.get("pay_amount") is not None else row["amount"])
+        pay_amt = row.get("pay_amount")
+        if pay_amt is not None and float(pay_amt) > 0:
+            amount = float(pay_amt)
+        else:
+            usd_amt = float(row.get("amount") or 0.0)
+            rate = float(row.get("rate_to_currency") or 125.0)
+            amount = round(usd_amt * rate, 2)
         clean_tx = str(row["transaction_id"]).strip().upper()
         verify_res = await self.verify(amount, clean_tx)
         if not verify_res.get("ok"):

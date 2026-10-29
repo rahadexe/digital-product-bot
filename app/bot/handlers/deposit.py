@@ -1597,8 +1597,8 @@ async def execute_deposit_submission(
     data = await state.get_data()
     method_id = data.get("method_id")
     raw_amount = float(data.get("manual_amount") or data.get("binance_usdt") or 0.0)
-    pay_amount = float(data.get("pay_amount") or raw_amount)
-    clean_tx = data.get("manual_txid") or ""
+    pay_amount = float(data.get("pay_amount") or 0.0)
+    clean_tx = (data.get("manual_txid") or "").strip().upper()
     method_name = data.get("method_name", "Payment")
     account_info = data.get("account_info", "")
     account_type = data.get("account_type", "personal")
@@ -1606,12 +1606,19 @@ async def execute_deposit_submission(
     is_binance = data.get("is_binance", False) or "binance" in method_name.lower() or data.get("auto_verify") == "binance_pay"
 
     if is_binance:
-        credit_amount = raw_amount
-        actual_pay = raw_amount
+        credit_amount = raw_amount if raw_amount > 0 else pay_amount
+        actual_pay = credit_amount
         amt_display = f"{credit_amount:g} USDT"
     else:
-        credit_amount = round(pay_amount / rate, 4)
-        actual_pay = pay_amount
+        if pay_amount > 0:
+            actual_pay = pay_amount
+            credit_amount = round(actual_pay / rate, 4)
+        elif raw_amount > 0:
+            credit_amount = raw_amount
+            actual_pay = round(credit_amount * rate, 2)
+        else:
+            actual_pay = 0.0
+            credit_amount = 0.0
         amt_display = f"{actual_pay:g} ৳ → ${credit_amount:.2f} USD"
 
     user_msg = event.message if isinstance(event, CallbackQuery) else event
@@ -1961,13 +1968,15 @@ async def execute_deposit_submission(
             await state.clear()
             dep_id = res.get("deposit_id") or 0
             lang = await services.users.get_language(user_id)
-            keyboard = get_deposit_status_keyboard(dep_id=dep_id, status="pending", can_fix_trx=False, lang=lang)
+            keyboard = get_deposit_status_keyboard(dep_id=dep_id, status="pending", can_fix_trx=True, lang=lang)
+            detail = res.get("detail") or res.get("error_msg")
             text = format_deposit_status_card(
                 dep_id=dep_id,
                 method_name=method_name,
                 amount_str=amt_display,
                 txid=clean_tx,
                 status="pending",
+                error_note=detail,
                 lang=lang,
             )
             await _safe_edit_or_answer(status_msg, user_msg, text, reply_markup=keyboard)
