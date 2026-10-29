@@ -251,26 +251,15 @@ def format_deposit_success_card(
     lang: str = "en",
 ) -> str:
     clean_tx = (txid or "").strip()
-    if lang == "bn":
-        lines = [
-            "✅ <b>ডিপোজিট সফল হয়েছে!</b>\n",
-            f"মেথড: <b>{escape(provider)}</b> (<code>{amount_display}</code>)",
-        ]
-        if clean_tx:
-            lines.append(f"TrxID: <code>{escape(clean_tx)}</code>")
-        if credited_display:
-            lines.append(f"যোগ হয়েছে: <code>{credited_display}</code>")
-        lines.append(f"বর্তমান ব্যালেন্স: <code>{balance_display}</code>")
-    else:
-        lines = [
-            "✅ <b>Deposit Successful!</b>\n",
-            f"Method: <b>{escape(provider)}</b> (<code>{amount_display}</code>)",
-        ]
-        if clean_tx:
-            lines.append(f"TrxID: <code>{escape(clean_tx)}</code>")
-        if credited_display:
-            lines.append(f"Credited: <code>{credited_display}</code>")
-        lines.append(f"Current Balance: <code>{balance_display}</code>")
+    lines = [
+        "✅ <b>Deposit Successful!</b>\n",
+        f"Method: <b>{escape(provider)}</b> (<code>{amount_display}</code>)",
+    ]
+    if clean_tx:
+        lines.append(f"TrxID: <code>{escape(clean_tx)}</code>")
+    if credited_display:
+        lines.append(f"Credited: <code>{credited_display}</code>")
+    lines.append(f"Current Balance: <code>{balance_display}</code>")
     return "\n".join(lines)
 
 
@@ -1719,20 +1708,12 @@ async def execute_deposit_submission(
         return
 
     # Status message while verifying
-    if lang == "bn":
-        checking_txt = (
-            f"⏳ <b>পেমেন্ট চেক করা হচ্ছে...</b>\n\n"
-            f"মেথড: <b>{escape(method_name)}</b>\n"
-            f"পরিমাণ: <b>{amt_display}</b>\n"
-            f"TrxID: <code>{escape(clean_tx)}</code>"
-        )
-    else:
-        checking_txt = (
-            f"⏳ <b>Checking payment...</b>\n\n"
-            f"Method: <b>{escape(method_name)}</b>\n"
-            f"Amount: <b>{amt_display}</b>\n"
-            f"TrxID: <code>{escape(clean_tx)}</code>"
-        )
+    checking_txt = (
+        f"⏳ <b>Checking payment...</b>\n\n"
+        f"Method: <b>{escape(method_name)}</b>\n"
+        f"Amount: <b>{amt_display}</b>\n"
+        f"TrxID: <code>{escape(clean_tx)}</code>"
+    )
 
     if isinstance(event, CallbackQuery) and event.message:
         status_msg = event.message
