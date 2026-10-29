@@ -106,11 +106,9 @@ async def _show_preview(message: Message, text: str, services: Services, state: 
     await state.update_data(broadcast_text=text, recipient_count=recipients)
 
     preview_body = (
-        "📢 <b>Broadcast Preview</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
+        "📢 <b>Broadcast Preview</b>\n\n"
         f"{text}\n\n"
-        f"• <b>Total Recipients:</b> <code>{recipients}</code>\n\n"
-        "<i>Ready to send to all registered customers? Tap below to confirm:</i>"
+        f"Recipients: <code>{recipients}</code>"
     )
 
     if panel_msg_id:
@@ -155,10 +153,8 @@ async def cmd_broadcast(message: Message, state: FSMContext, services: Services)
     await state.set_state(BroadcastStates.waiting_for_message)
     await message.answer(
         "📢 <b>Broadcast Message</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        "Send or forward the message you want to broadcast.\n"
-        "<i>Supports text, photos & HTML formatting.</i>\n\n"
-        "<i>Tap below to cancel and return to admin panel:</i>",
+        "Send or forward the message to broadcast.\n"
+        "<i>Supports text, photos & HTML formatting.</i>",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(text="◀️ Back to Admin", callback_data="bc_cancel")
         ]])
@@ -255,10 +251,8 @@ async def handle_bc_confirm(query: CallbackQuery, state: FSMContext, services: S
             with suppress(TelegramBadRequest):
                 await query.message.edit_text(
                     "📢 <b>Broadcast Queued</b>\n"
-                    "━━━━━━━━━━━━━━━━━━━━\n"
-                    f"• <b>Job ID:</b> <code>#{result['id']}</code>\n"
-                    f"• <b>Recipients:</b> <code>{result['total']}</code>\n\n"
-                    "<i>Sending in the background. Tap below to track progress:</i>",
+                    f"Job: <code>#{result['id']}</code> · Recipients: <code>{result['total']}</code>\n"
+                    "<i>Sending in the background.</i>",
                     reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                         [
                             InlineKeyboardButton(text="📊 Broadcast Status", callback_data="adm_view_bcstatus"),
@@ -323,19 +317,17 @@ async def build_admin_dashboard(services: Services) -> tuple[str, InlineKeyboard
         needs_parts.append(f"{pending} deposit{'s' if pending != 1 else ''}")
     if waiting:
         needs_parts.append(f"{waiting} order{'s' if waiting != 1 else ''}")
-    needs_str = " · ".join(needs_parts) if needs_parts else "All caught up"
+    needs_str = " · ".join(needs_parts)
 
-    text = (
-        "⚙️ <b>Admin Panel</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        f"• <b>Store Status:</b> {status_emoji} <b>{status_str}</b>\n"
-        f"• <b>Action Needed:</b> <code>{needs_str}</code>\n"
-        f"• <b>Today Sales:</b> <code>{today_orders}</code> orders ({_fmt(today_rev)})\n"
-        f"• <b>All-Time Sales:</b> <code>{total_orders}</code> orders ({_fmt(total_rev)})\n"
-        f"• <b>Stock Status:</b> {stock_str}\n"
-        f"• <b>Total Customers:</b> <code>{total_users}</code> registered\n\n"
-        "<i>Quick management dashboard for daily store operations.</i>"
-    )
+    lines = [
+        "⚙️ <b>Admin Panel</b>",
+        f"Status: {status_emoji} <b>{status_str}</b>",
+    ]
+    if needs_str:
+        lines.append(f"Action: <code>{needs_str}</code>")
+    lines.append(f"Today: <code>{today_orders}</code> orders ({_fmt(today_rev)})")
+    lines.append(f"Total: <code>{total_orders}</code> orders · <code>{total_users}</code> users")
+    text = "\n".join(lines)
 
     pause_text = "▶️ Resume Store" if paused else "⏸ Pause Store"
     pause_style = "success" if paused else "danger"
@@ -379,29 +371,24 @@ async def build_store_status_view(services: Services) -> tuple[str, InlineKeyboa
     low = [p for p in stats.get("stock_summary", []) if int(p.get("stock") or 0) <= 2][:5]
     low_line = "\n".join(
         f"   • {html.escape(p['title'])[:30]} — <code>{int(p['stock'] or 0)}</code>" for p in low
-    ) or "   • <i>All items have healthy stock</i>"
+    )
 
     waiting = stats.get("waiting_orders", 0)
     pending = stats.get("pending_deposits", 0)
-    jobs = [f"{pending} deposit(s) to review"] if pending else []
-    if waiting:
-        jobs.append(f"{waiting} order(s) to deliver")
-    needs_you = " · ".join(jobs) or "All clear! Nothing waiting"
 
     status_icon = "⏸️ Paused" if paused else "🟢 Active"
 
-    text = (
-        "📊 <b>Store Analytics & Status</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        f"• <b>Store Status:</b> {status_icon}\n"
-        f"• <b>Needs Attention:</b> <code>{needs_you}</code>\n\n"
-        "<b>Sales Summary:</b>\n"
-        f"• <b>Today:</b> <code>{int(today['orders'] or 0)}</code> orders · <code>{float(today['revenue'] or 0):.2f} {symbol}</code>\n"
-        f"• <b>Pending Deposits:</b> <code>{pending}</code> (<code>{pending_amount:.2f} {symbol}</code>)\n"
-        f"• <b>All-Time:</b> <code>{stats.get('total_orders', 0)}</code> orders · <code>{float(stats.get('total_revenue') or 0):.2f} {symbol}</code>\n"
-        f"• <b>Registered Customers:</b> <code>{stats.get('total_users', 0)}</code>\n\n"
-        f"<b>Low Stock Watchlist:</b>\n{low_line}"
-    )
+    status_lines = [
+        "📊 <b>Store Status</b>",
+        f"Status: {status_icon}",
+        f"Today: <code>{int(today['orders'] or 0)}</code> orders ({float(today['revenue'] or 0):.2f} {symbol})",
+        f"Pending: <code>{pending}</code> deposits ({pending_amount:.2f} {symbol}) · <code>{waiting}</code> orders",
+        f"All-Time: <code>{stats.get('total_orders', 0)}</code> orders · <code>{stats.get('total_users', 0)}</code> users",
+    ]
+    if low_line:
+        status_lines.append(f"\n<b>Low Stock:</b>\n{low_line}")
+    text = "\n".join(status_lines)
+
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="🔄 Refresh", callback_data="adm_view_status"),
@@ -421,26 +408,18 @@ async def build_bcstatus_view(services: Services) -> tuple[str, InlineKeyboardMa
     ])
 
     if not recent:
-        text = (
-            "📢 <b>Broadcast Status</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
-            "<i>No broadcast history found.</i>"
-        )
+        text = "📢 <b>Broadcast Status</b>\n<i>No broadcast history found.</i>"
         return text, keyboard
 
     latest = recent[0]
     snippet = latest["text"][:120] + "..." if len(latest["text"]) > 120 else latest["text"]
     is_pending = latest["pending"] > 0
-    status_title = "⏳ Sending in progress" if is_pending else "✅ Completed"
+    status_title = "⏳ Sending" if is_pending else "✅ Completed"
 
     text = (
-        f"📢 <b>Broadcast #{latest['id']} · {status_title}</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"📢 <b>Broadcast #{latest['id']}</b> ({status_title})\n"
         f"<i>\"{html.escape(snippet)}\"</i>\n\n"
-        f"• <b>Total Recipients:</b> <code>{latest['total']}</code>\n"
-        f"• <b>Delivered:</b> <code>{latest['success']}</code>\n"
-        f"• <b>Failed:</b> <code>{latest['failed']}</code>\n"
-        f"• <b>Pending:</b> <code>{latest['pending']}</code>"
+        f"Sent: <b>{latest['success']}/{latest['total']}</b> · Failed: <b>{latest['failed']}</b> · Pending: <b>{latest['pending']}</b>"
     )
     return text, keyboard
 
@@ -513,12 +492,9 @@ async def adm_cb_toggle_pause(query: CallbackQuery, services: Services):
     paused = await services.settings.flag("store_paused")
     if not paused:
         text = (
-            "⏸️ <b>Confirm Store Pause</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
-            "<b>While the store is paused:</b>\n"
-            "• Customers cannot view or purchase products.\n"
-            "• New deposits and checkouts are temporarily suspended.\n\n"
-            "<i>Are you sure you want to pause store operations?</i>"
+            "⏸️ <b>Pause Store?</b>\n"
+            "Customers won't be able to buy or deposit.\n"
+            "Existing orders and wallet balances remain safe."
         )
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
@@ -589,12 +565,10 @@ async def adm_cb_start_broadcast(query: CallbackQuery, state: FSMContext, servic
         await state.update_data(panel_msg_id=query.message.message_id)
         with suppress(TelegramBadRequest):
             await query.message.edit_text(
-                "📢 <b>Broadcast Announcement</b>\n"
-                "━━━━━━━━━━━━━━━━━━━━\n"
-                f"• <b>Active Recipients:</b> <code>{recipients}</code>\n\n"
-                "Send or forward the message you want to broadcast.\n"
-                "<i>Supports text, photos & HTML formatting.</i>\n\n"
-                "<i>Tap below to cancel and return:</i>",
+                "📢 <b>Broadcast Message</b>\n"
+                f"Recipients: <code>{recipients}</code>\n\n"
+                "Send or forward the message to broadcast.\n"
+                "<i>Supports text, photos & HTML formatting.</i>",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
                     InlineKeyboardButton(text="◀️ Back to Admin", callback_data="adm_dashboard")
                 ]])
@@ -608,17 +582,15 @@ async def build_admin_settings_view(services: Services) -> tuple[str, InlineKeyb
     support = values.get("support_username", "None")
     is_paused = values.get("store_paused") == "1"
     banner_file_id = (values.get("welcome_banner_file_id") or "").strip()
-    status_str = "⏸️ Paused" if is_paused else "🟢 Active"
-    banner_str = "Active (Telegram CDN)" if banner_file_id else "None (Clean Text)"
+    status_emoji = "⏸️" if is_paused else "🟢"
+    status_str = "Paused" if is_paused else "Active"
+    banner_str = "Active" if banner_file_id else "None"
     text = (
-        "⚙️ <b>Store Settings</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        f"• <b>Store Name:</b> <b>{html.escape(store_name)}</b>\n"
-        f"• <b>Status:</b> <code>{status_str}</code>\n"
-        f"• <b>Currency:</b> <code>{html.escape(currency)}</code>\n"
-        f"• <b>Support:</b> <code>{html.escape(support)}</code>\n"
-        f"• <b>Home Banner:</b> <code>{banner_str}</code>\n\n"
-        "<i>Use the button below to update your home welcome banner:</i>"
+        "⚙️ <b>Settings</b>\n"
+        f"Store: <b>{html.escape(store_name)}</b>\n"
+        f"Status: {status_emoji} {status_str}\n"
+        f"Currency: <code>{html.escape(currency)}</code> · Support: <code>{html.escape(support)}</code>\n"
+        f"Banner: <code>{banner_str}</code>"
     )
     rows = [
         [
@@ -664,10 +636,8 @@ async def adm_cb_prompt_banner(query: CallbackQuery, state: FSMContext, services
         with suppress(TelegramBadRequest):
             await query.message.edit_text(
                 "🖼️ <b>Upload Welcome Banner</b>\n"
-                "━━━━━━━━━━━━━━━━━━━━\n"
-                "Please send or forward any photo now.\n\n"
-                "The photo will be saved and served directly from Telegram's cloud CDN.\n\n"
-                "<i>Tap below to cancel and return:</i>",
+                "Send or forward a photo for the welcome message.\n"
+                "<i>Photo is saved via Telegram CDN.</i>",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
                     InlineKeyboardButton(text="◀️ Back to Settings", callback_data="adm_cancel_settings")
                 ]])
@@ -740,9 +710,7 @@ async def adm_cb_start_find(query: CallbackQuery, state: FSMContext, services: S
         with suppress(TelegramBadRequest):
             await query.message.edit_text(
                 "🔍 <b>Find Customer</b>\n"
-                "━━━━━━━━━━━━━━━━━━━━\n"
-                "Send Telegram ID (e.g. <code>100200300</code>) or <code>@username</code>.\n\n"
-                "<i>Tap below to cancel and return:</i>",
+                "Send Telegram ID (<code>100200300</code>) or <code>@username</code>:",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
                     InlineKeyboardButton(text="◀️ Back to Admin", callback_data="adm_dashboard"),
                 ]])
@@ -961,23 +929,18 @@ def _format_deposit_card(deposit: dict, symbol: str, back_cb: str = "adm_queue_d
     }.get(status_raw, status_raw.title())
 
     created_at = deposit.get("created_at")
-    time_str = created_at.strftime("%d %b %Y, %I:%M %p") if hasattr(created_at, "strftime") else ""
-    time_line = f"\n• <b>Submitted:</b> <code>{time_str}</code>" if time_str else ""
+    time_str = created_at.strftime("%d %b, %I:%M %p") if hasattr(created_at, "strftime") else ""
+    time_line = f" · <code>{time_str}</code>" if time_str else ""
 
     text = (
-        f"💳 <b>Deposit Details {format_deposit_id(dep_id)}</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        f"• <b>Customer:</b> {cust_handle}\n"
-        f"• <b>Customer ID:</b> <code>{deposit['tg_user_id']}</code>\n"
-        f"• <b>Method:</b> {method_name}\n"
-        f"• <b>Amount:</b> <code>{amount}</code>\n"
+        f"💳 <b>Deposit {format_deposit_id(dep_id)}</b>\n"
+        f"Customer: {cust_handle} (<code>{deposit['tg_user_id']}</code>)\n"
+        f"Amount: <b>{amount}</b> ({method_name})\n"
         f"{pay_line}"
-        f"• <b>TrxID:</b> <code>{trx_id}</code>\n"
-        f"• <b>Status:</b> {status_badge}"
-        f"{time_line}"
+        f"TrxID: <code>{trx_id}</code> · {status_badge}{time_line}"
     )
     if deposit.get("admin_note"):
-        text += f"\n\n<b>Note:</b> <i>{html.escape(deposit['admin_note'])}</i>"
+        text += f"\nNote: <i>{html.escape(deposit['admin_note'])}</i>"
 
     from app.core.config import get_settings
     console = get_settings().console_url
@@ -1048,29 +1011,25 @@ def _format_order_card(order: dict, symbol: str, back_cb: str = "adm_queue_ord")
     status = str(order.get("status") or "completed")
 
     created_at = order.get("created_at")
-    time_str = created_at.strftime("%d %b %Y, %I:%M %p") if hasattr(created_at, "strftime") else ""
-    time_line = f"\n• <b>Ordered:</b> <code>{time_str}</code>" if time_str else ""
+    time_str = created_at.strftime("%d %b, %I:%M %p") if hasattr(created_at, "strftime") else ""
+    time_line = f" · <code>{time_str}</code>" if time_str else ""
 
     sup_info = ""
     if order.get("supplier_code"):
-        sup_info += f"\n• <b>Supplier:</b> <code>{html.escape(str(order['supplier_code']))}</code>"
+        sup_info += f"\nSupplier: <code>{html.escape(str(order['supplier_code']))}</code>"
     if order.get("supplier_error"):
-        sup_info += f"\n• <b>Supplier Issue:</b> <code>{html.escape(str(order['supplier_error']))}</code>"
+        sup_info += f"\nIssue: <code>{html.escape(str(order['supplier_error']))}</code>"
 
     cust_input_line = ""
     if order.get("customer_input"):
-        cust_input_line = f"\n• <b>Customer Info:</b> <code>{html.escape(str(order['customer_input']))}</code>"
+        cust_input_line = f"\nInfo: <code>{html.escape(str(order['customer_input']))}</code>"
 
     text = (
-        f"📦 <b>Order Details {format_order_id(order_id)}</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        f"• <b>Customer:</b> {cust_handle}\n"
-        f"• <b>Customer ID:</b> <code>{order['tg_user_id']}</code>\n"
-        f"• <b>Product:</b> {product_title}\n"
-        f"• <b>Price:</b> <code>{amount}</code>"
-        f"{cust_input_line}\n"
-        f"• <b>Status:</b> <code>{status.title()}</code>\n"
-        f"• <b>Delivery:</b> <code>{fulfillment.title()}</code>"
+        f"📦 <b>Order {format_order_id(order_id)}</b>\n"
+        f"Customer: {cust_handle} (<code>{order['tg_user_id']}</code>)\n"
+        f"Product: <b>{product_title}</b> · <code>{amount}</code>\n"
+        f"Status: <code>{status.title()}</code> · Delivery: <code>{fulfillment.title()}</code>"
+        f"{cust_input_line}"
         f"{sup_info}"
         f"{time_line}"
     )
@@ -1173,14 +1132,11 @@ async def adm_deposit_ask(query: CallbackQuery, services: Services):
 
     if action == "approve":
         text = (
-            "💳 <b>Confirm Deposit Approval</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
-            f"• <b>Customer:</b> {cust_handle}\n"
-            f"• <b>Customer ID:</b> <code>{deposit['tg_user_id']}</code>\n"
-            f"• <b>Method:</b> {method_name}\n"
-            f"• <b>Amount:</b> <code>{amount}</code>\n"
-            f"• <b>TrxID:</b> <code>{trx_id}</code>\n\n"
-            "⚠️ <i>Please verify funds have safely arrived before approving.</i>"
+            f"💳 <b>Approve Deposit {format_deposit_id(raw_id)}?</b>\n"
+            f"Customer: {cust_handle} (<code>{deposit['tg_user_id']}</code>)\n"
+            f"Amount: <code>{amount}</code> · Method: {method_name}\n"
+            f"TrxID: <code>{trx_id}</code>\n\n"
+            "<i>Verify funds arrived before confirming.</i>"
         )
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [
@@ -1192,14 +1148,11 @@ async def adm_deposit_ask(query: CallbackQuery, services: Services):
         ])
     else:
         text = (
-            "💳 <b>Confirm Deposit Rejection</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
-            f"• <b>Customer:</b> {cust_handle}\n"
-            f"• <b>Customer ID:</b> <code>{deposit['tg_user_id']}</code>\n"
-            f"• <b>Method:</b> {method_name}\n"
-            f"• <b>Amount:</b> <code>{amount}</code>\n"
-            f"• <b>TrxID:</b> <code>{trx_id}</code>\n\n"
-            "⚠️ <i>Customer will be notified that the transaction could not be verified.</i>"
+            f"💳 <b>Reject Deposit {format_deposit_id(raw_id)}?</b>\n"
+            f"Customer: {cust_handle} (<code>{deposit['tg_user_id']}</code>)\n"
+            f"Amount: <code>{amount}</code> · Method: {method_name}\n"
+            f"TrxID: <code>{trx_id}</code>\n\n"
+            "<i>Customer will be notified of rejection.</i>"
         )
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [
@@ -1278,12 +1231,9 @@ async def adm_deposit_do(query: CallbackQuery, services: Services):
 
         text = (
             f"{header}\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
-            f"• <b>Customer:</b> {cust_handle}\n"
-            f"• <b>Customer ID:</b> <code>{deposit['tg_user_id']}</code>\n"
-            f"• <b>Method:</b> {method_name}\n"
-            f"• <b>Amount:</b> <code>{amount}</code>\n"
-            f"• <b>TrxID:</b> <code>{trx_id}</code>\n\n"
+            f"Customer: {cust_handle} (<code>{deposit['tg_user_id']}</code>)\n"
+            f"Amount: <code>{amount}</code> · Method: {method_name}\n"
+            f"TrxID: <code>{trx_id}</code>\n"
             f"<i>{html.escape(message)}</i>"
         )
         reply_markup = InlineKeyboardMarkup(inline_keyboard=[
@@ -1326,10 +1276,9 @@ async def adm_order_deliver(query: CallbackQuery, state: FSMContext, services: S
         with suppress(TelegramBadRequest):
             await query.message.edit_text(
                 f"📦 <b>Deliver Order {format_order_id(order_id)}</b>\n"
-                "━━━━━━━━━━━━━━━━━━━━\n"
-                f"• <b>Product:</b> {html.escape(order['product_title'])}\n\n"
-                "Send the accounts, keys, or credentials below to fulfill this order.\n"
-                "<i>The message will be delivered immediately to the customer.</i>",
+                f"Product: <b>{html.escape(order['product_title'])}</b>\n\n"
+                "Send accounts, keys, or credentials below.\n"
+                "<i>Delivered immediately to customer.</i>",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
                     InlineKeyboardButton(text="◀️ Back", callback_data=back_cb),
                 ]])
@@ -1453,8 +1402,7 @@ async def adm_order_deliver_send(message: Message, state: FSMContext, services: 
 
     conf_text = (
         f"✅ <b>Order {format_order_id(order_id)} Delivered</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        "<i>Item delivered to customer successfully.</i>"
+        "<i>Delivered to customer successfully.</i>"
     )
     conf_keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
@@ -1497,11 +1445,8 @@ async def _handle_find_customer(message: Message, term: str, services: Services,
     if not term:
         text = (
             "🔍 <b>Find Customer</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
-            "Please provide a customer ID or @username to search.\n"
-            "• Example: <code>/find 100200300</code>\n"
-            "• Example: <code>/find @username</code>\n\n"
-            "<i>Tap below to return to admin panel:</i>"
+            "Provide customer ID or username.\n"
+            "Example: <code>/find 100200300</code> or <code>/find @user</code>"
         )
         reply_markup = InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(text="◀️ Back to Admin", callback_data="adm_dashboard"),
@@ -1526,9 +1471,7 @@ async def _handle_find_customer(message: Message, term: str, services: Services,
     if not row:
         text = (
             "🔍 <b>Customer Not Found</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
-            f"No customer matches <code>{html.escape(term)}</code>.\n"
-            "Please check the ID or username and try again."
+            f"No customer matches <code>{html.escape(term)}</code>."
         )
         reply_markup = InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(text="🔍 Search Again", callback_data="adm_start_find"),
@@ -1549,9 +1492,7 @@ async def _handle_find_customer(message: Message, term: str, services: Services,
     if not found:
         text = (
             "⚠️ <b>Customer Profile Error</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
-            f"Could not read records for user <code>{row['tg_user_id']}</code>.\n"
-            "Please try again or inspect in the admin console."
+            f"Could not read records for user <code>{row['tg_user_id']}</code>."
         )
         reply_markup = InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(text="◀️ Back to Admin", callback_data="adm_dashboard"),
@@ -1588,16 +1529,13 @@ async def _handle_find_customer(message: Message, term: str, services: Services,
         InlineKeyboardButton(text="◀️ Back to Admin", callback_data="adm_dashboard"),
     ])
 
+    admin_tag = " · 🛡️ Admin" if is_admin_target else ""
     text = (
         "👤 <b>Customer Profile</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        f"• <b>Name:</b> {name} ({handle})\n"
-        f"• <b>Customer ID:</b> <code>{user['tg_user_id']}</code>\n"
-        f"• <b>Rank:</b> <code>{html.escape(user.get('rank') or 'Standard')}</code>{banned_tag}\n"
-        f"• <b>Wallet Balance:</b> <code>{float(user.get('balance') or 0):.2f} {symbol}</code>\n"
-        f"• <b>Total Orders:</b> <code>{found['order_count']}</code>\n"
-        f"• <b>Total Spent:</b> <code>{float(found['total_spent'] or 0):.2f} {symbol}</code>"
-        + ("\n\n🛡️ <i>Administrator account.</i>" if is_admin_target else "")
+        f"Name: {name} ({handle})\n"
+        f"ID: <code>{user['tg_user_id']}</code> · Rank: <code>{html.escape(user.get('rank') or 'Standard')}</code>{banned_tag}{admin_tag}\n"
+        f"Balance: <code>{float(user.get('balance') or 0):.2f} {symbol}</code>\n"
+        f"Orders: <code>{found['order_count']}</code> · Spent: <code>{float(found['total_spent'] or 0):.2f} {symbol}</code>"
     )
     reply_markup = InlineKeyboardMarkup(inline_keyboard=buttons)
     if panel_msg_id:
@@ -1720,18 +1658,7 @@ async def build_queue_view(services: Services, kind: str = "all", page: int = 0)
             InlineKeyboardButton(text="◀️ Back to Admin", callback_data="adm_dashboard"),
         ])
 
-        if deposits:
-            text = (
-                f"💳 <b>Pending Deposits ({len(deposits)})</b>\n"
-                "━━━━━━━━━━━━━━━━━━━━\n"
-                "<i>Select a deposit to review full details and take action:</i>"
-            )
-        else:
-            text = (
-                "💳 <b>Pending Deposits (0)</b>\n"
-                "━━━━━━━━━━━━━━━━━━━━\n"
-                "✅ All clear! Nothing waiting on you."
-            )
+        text = f"💳 <b>Pending Deposits ({len(deposits)})</b>" if deposits else "💳 <b>Pending Deposits (0)</b> · All clear"
         return text, InlineKeyboardMarkup(inline_keyboard=rows)
 
     elif kind == "orders":
@@ -1769,18 +1696,7 @@ async def build_queue_view(services: Services, kind: str = "all", page: int = 0)
             InlineKeyboardButton(text="◀️ Back to Admin", callback_data="adm_dashboard"),
         ])
 
-        if orders:
-            text = (
-                f"📦 <b>Pending Deliveries ({len(orders)})</b>\n"
-                "━━━━━━━━━━━━━━━━━━━━\n"
-                "<i>Select an order to review full details and deliver or refund:</i>"
-            )
-        else:
-            text = (
-                "📦 <b>Pending Deliveries (0)</b>\n"
-                "━━━━━━━━━━━━━━━━━━━━\n"
-                "✅ All clear! Nothing waiting on you."
-            )
+        text = f"📦 <b>Pending Deliveries ({len(orders)})</b>" if orders else "📦 <b>Pending Deliveries (0)</b> · All clear"
         return text, InlineKeyboardMarkup(inline_keyboard=rows)
 
     else:
@@ -1813,18 +1729,14 @@ async def build_queue_view(services: Services, kind: str = "all", page: int = 0)
                     )
                 ])
         if not deposits and not orders:
-            lines.append("✅ All clear! Nothing waiting on you.")
+            lines.append("All clear! Nothing waiting on you.")
 
         rows.append([
             InlineKeyboardButton(text="🔄 Refresh", callback_data="adm_queue"),
             InlineKeyboardButton(text="◀️ Back to Admin", callback_data="adm_dashboard"),
         ])
 
-        text = (
-            "⚡ <b>Action Needed Queue</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
-            + "\n".join(lines)
-        )
+        text = "⚡ <b>Needs Attention</b>\n" + "\n".join(lines)
         return text, InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -1928,12 +1840,10 @@ async def adm_order_refund_ask(query: CallbackQuery, services: Services):
     if query.message:
         with suppress(TelegramBadRequest):
             await query.message.edit_text(
-                "🔄 <b>Confirm Order Refund</b>\n"
-                "━━━━━━━━━━━━━━━━━━━━\n"
-                f"• <b>Order:</b> <code>{format_order_id(order_id)}</code>\n"
-                f"• <b>Product:</b> {html.escape(order['product_title'])}\n"
-                f"• <b>Refund Amount:</b> <code>{amount}</code>\n\n"
-                "⚠️ <i>Amount will be immediately refunded to customer's wallet balance.</i>",
+                f"🔄 <b>Refund Order {format_order_id(order_id)}?</b>\n"
+                f"Product: <b>{html.escape(order['product_title'])}</b>\n"
+                f"Amount: <code>{amount}</code>\n\n"
+                "<i>Amount will be refunded to customer's wallet.</i>",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                     [
                         InlineKeyboardButton(text="🔄 Confirm Refund", callback_data=f"adm_ord_ref_do_{order_id}",
@@ -1958,7 +1868,6 @@ async def adm_order_refund_do(query: CallbackQuery, services: Services):
             header = f"✅ <b>Order {format_order_id(order_id)} Refunded</b>" if ok else f"⚠️ <b>Order {format_order_id(order_id)}</b>"
             await query.message.edit_text(
                 f"{header}\n"
-                "━━━━━━━━━━━━━━━━━━━━\n"
                 f"<i>{html.escape(message)}</i>",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                     [
@@ -2066,12 +1975,7 @@ async def build_stock_overview_view(services: Services, page: int = 0) -> tuple[
 
     text = (
         "📋 <b>Stock Management</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        f"• <b>Total Products:</b> <code>{len(products)}</code>\n"
-        f"• <b>Out of Stock:</b> <code>{len(out_of_stock)}</code>\n"
-        f"• <b>Low Stock:</b> <code>{len(low_stock)}</code>\n"
-        f"• <b>Healthy Stock:</b> <code>{len(healthy_stock)}</code>\n\n"
-        "<i>Select a product below to view or add inventory:</i>"
+        f"Total: <code>{len(products)}</code> · Out: <code>{len(out_of_stock)}</code> · Low: <code>{len(low_stock)}</code> · In Stock: <code>{len(healthy_stock)}</code>"
     )
     return text, InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -2136,21 +2040,10 @@ async def adm_stock_ask(query: CallbackQuery, state: FSMContext, services: Servi
 
         text = (
             "📋 <b>Add Product Stock</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
-            f"• <b>Product:</b> {html.escape(product['title'])}\n"
-            f"• <b>Price:</b> {price_str}\n"
-            f"• <b>Current Stock:</b> {stock_str}\n"
-            f"• <b>Visibility:</b> {status_str}\n\n"
-            "<b>How to add stock:</b>\n"
-            "1. <b>Paste text:</b> Send accounts, keys or codes — one item per line.\n"
-            "2. <b>Upload file:</b> Send a <code>.txt</code> file directly.\n\n"
-            "<b>Shared items?</b> Add <code>uses:N</code> as the first line.\n\n"
-            "<b>Example (single use):</b>\n"
-            "<code>user1@email.com:pass1</code>\n"
-            "<code>user2@email.com:pass2</code>\n\n"
-            "<b>Example (shared, 3 users each):</b>\n"
-            "<code>uses:3</code>\n"
-            "<code>user1@email.com:pass1</code>"
+            f"Product: <b>{html.escape(product['title'])}</b>\n"
+            f"Stock: {stock_str} · Price: {price_str}\n\n"
+            "Send text or a <code>.txt</code> file (one item per line).\n"
+            "<i>For shared accounts, put <code>uses:N</code> on line 1.</i>"
         )
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [
@@ -2200,12 +2093,9 @@ async def adm_cb_stock_items(query: CallbackQuery, services: Services):
         lines.append("<i>No items currently in stock.</i>")
 
     text = (
-        "📋 <b>Stock Items Preview</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        f"• <b>Product:</b> {html.escape(product['title'])}\n"
-        f"• <b>Available Units:</b> <code>{summary.get('available_units', 0)}</code>\n"
-        f"• <b>Total Sold:</b> <code>{summary.get('sold_units', 0)}</code>\n\n"
-        "<b>Available items (up to 8):</b>\n"
+        "📋 <b>Stock Items</b>\n"
+        f"Product: <b>{html.escape(product['title'])}</b>\n"
+        f"Available: <code>{summary.get('available_units', 0)}</code> · Sold: <code>{summary.get('sold_units', 0)}</code>\n\n"
         + "\n".join(lines)
     )
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -2348,14 +2238,10 @@ async def adm_stock_save(message: Message, state: FSMContext, services: Services
     uses_line = f"\n• <b>Max Uses:</b> <code>{max_uses}</code> per item" if max_uses > 1 else ""
 
     stock_conf_text = (
-        "✅ <b>Stock Added Successfully</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        f"• <b>Product:</b> {html.escape((product or {}).get('title') or 'Product')}\n"
-        f"• <b>Items Processed:</b> <code>{len(items)}</code>\n"
-        f"• <b>Added:</b> <code>+{added}</code>\n"
-        f"• <b>Duplicates Skipped:</b> <code>{skipped}</code>"
-        f"{uses_line}\n\n"
-        f"• <b>Total Stock Now:</b> <code>{stock_count}</code> units"
+        "✅ <b>Stock Added</b>\n"
+        f"Product: <b>{html.escape((product or {}).get('title') or 'Product')}</b>\n"
+        f"Added: <code>+{added}</code> · Skipped: <code>{skipped}</code>{uses_line}\n"
+        f"Total Stock: <code>{stock_count}</code> units"
     )
 
     stock_conf_keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -2501,13 +2387,10 @@ async def adm_upstream_status(message: Message, services: Services):
     sym = account.get("currency_symbol", "৳")
 
     text = (
-        "🌐 <b>Upstream Supplier API Status</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        f"• <b>Account Name:</b> {html.escape(str(name))}\n"
-        f"• <b>Reseller ID:</b> <code>{tg_id}</code>\n"
-        f"• <b>Balance:</b> <code>{sym}{bal:.2f} {curr}</code>\n"
-        f"• <b>Endpoint:</b> <code>{reseller.base_url}</code>\n\n"
-        "<i>Tap below to sync catalog with upstream provider:</i>"
+        "🌐 <b>Supplier API Status</b>\n"
+        f"Account: <b>{html.escape(str(name))}</b> (<code>{tg_id}</code>)\n"
+        f"Balance: <code>{sym}{bal:.2f} {curr}</code>\n"
+        f"Endpoint: <code>{reseller.base_url}</code>"
     )
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [
@@ -2565,16 +2448,14 @@ def _format_reseller_app_card(app: dict[str, Any], back_cb: str = "adm_queue_res
 
     text = (
         f"💎 <b>Reseller Application #{app['id']}</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        f"• <b>Status:</b> <b>{status_badge}</b>\n"
-        f"• <b>Applicant:</b> <code>{html.escape(app['full_name'])}</code>\n"
-        f"• <b>Telegram:</b> <code>{html.escape(app['telegram_handle'])}</code> (ID: <code>{app['tg_user_id']}</code>)\n"
-        f"• <b>Phone / WhatsApp:</b> <code>{html.escape(app['phone_number'])}</code>\n"
-        f"• <b>Channel / Store:</b> {html.escape(app['channel_link'])}\n"
-        f"• <b>Submitted:</b> <code>{created}</code>\n"
+        f"Status: <b>{status_badge}</b> · Submitted: <code>{created}</code>\n"
+        f"Applicant: <code>{html.escape(app['full_name'])}</code>\n"
+        f"Telegram: <code>{html.escape(app['telegram_handle'])}</code> (ID: <code>{app['tg_user_id']}</code>)\n"
+        f"Phone: <code>{html.escape(app['phone_number'])}</code>\n"
+        f"Channel: {html.escape(app['channel_link'])}"
     )
     if app.get("admin_notes"):
-        text += f"\n• <b>Admin Note:</b> <i>{html.escape(app['admin_notes'])}</i>\n"
+        text += f"\nNote: <i>{html.escape(app['admin_notes'])}</i>"
 
     rows: list[list[InlineKeyboardButton]] = []
     if status == "pending":
@@ -2633,11 +2514,7 @@ async def adm_queue_reseller_cb(query: CallbackQuery, services: Services):
     summary = await services.reseller_applications.get_summary()
     text = (
         f"💎 <b>Reseller Applications ({summary['total']})</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        f"• <b>Pending Review:</b> <code>{summary['pending']}</code>\n"
-        f"• <b>Approved:</b> <code>{summary['approved']}</code>\n"
-        f"• <b>Rejected:</b> <code>{summary['rejected']}</code>\n\n"
-        "<i>Select an application below to view details and approve or reject:</i>"
+        f"Pending: <code>{summary['pending']}</code> · Approved: <code>{summary['approved']}</code> · Rejected: <code>{summary['rejected']}</code>"
     )
     with suppress(TelegramBadRequest):
         await query.answer()
