@@ -326,10 +326,10 @@ class DepositService:
                 if pay_amount is not None:
                     actual_pay_amount = money(pay_amount, positive=True)
                     is_crypto = is_binance_pay_method(method)
-                    rate = 1.0 if is_crypto else float(values.get("usd_rate") or 125)
+                    rate = 1.0 if is_crypto else float(quoted_rate or values.get("usd_rate") or 125)
                     actual_amount = amount
                     expected_amount = round(actual_pay_amount if is_crypto else actual_pay_amount / rate, 4)
-                    if expected_amount != actual_amount:
+                    if abs(expected_amount - actual_amount) > 0.001:
                         raise InvalidInputError("The payment amount and USD wallet credit do not match the current rate.")
                     min_dep = float(method["min_deposit"] or 0.0)
                     minimum_paid = actual_amount if is_crypto else actual_pay_amount

@@ -201,6 +201,7 @@ def format_deposit_status_card(
     status: str,
     current_balance: str | None = None,
     lang: str = "en",
+    error_note: str | None = None,
 ) -> str:
     st = (status or "").lower()
     dep_prefix = format_deposit_id(dep_id) if dep_id else "---"
@@ -219,6 +220,8 @@ def format_deposit_status_card(
         )
         if current_balance and st in ("approved", "completed"):
             card += f"\nবর্তমান ব্যালেন্স: <code>{current_balance}</code>"
+        if error_note and st not in ("approved", "completed"):
+            card += f"\n\nℹ️ <i>{escape(error_note)}</i>"
     else:
         st_display = "⏳ <code>Pending</code>"
         if st in ("approved", "completed"):
@@ -234,6 +237,8 @@ def format_deposit_status_card(
         )
         if current_balance and st in ("approved", "completed"):
             card += f"\nCurrent Balance: <code>{current_balance}</code>"
+        if error_note and st not in ("approved", "completed"):
+            card += f"\n\nℹ️ <i>{escape(error_note)}</i>"
     return card
 
 
@@ -1499,8 +1504,17 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         await state.set_state(DepositStates.waiting_for_amount)
         unit = "USDT" if is_binance else "BDT"
         example = max(float(data.get("min_deposit") or 1.0), 1.0 if is_binance else 50.0)
+        user_lang = await services.users.get_language(message.from_user.id) if message.from_user else "en"
+        if user_lang == "bn":
+            amount_prompt = (
+                f"💳 <b>পেমেন্ট ভেরিফিকেশন</b>\n\n"
+                f"TrxID: <code>{escape(clean_tx)}</code>\n\n"
+                f"অটো-ভেরিফাই করার জন্য আপনি <b>কত টাকা পাঠিয়েছেন</b> তা লিখুন (যেমন: {example:g}):"
+            )
+        else:
+            amount_prompt = f"Enter the amount you sent in {unit}, e.g. {example:g}."
         await _send_input_prompt(
-            message, state, f"Enter the amount you sent in {unit}, e.g. {example:g}.",
+            message, state, amount_prompt,
             field="amount_prompt_id", placeholder=f"Amount in {unit}",
         )
         return
@@ -1593,7 +1607,9 @@ async def execute_deposit_submission(
     state: FSMContext,
     services: Services,
 ):
+    status_msg = None
     user_id = event.from_user.id
+    lang = await services.users.get_language(user_id) if user_id else "en"
     data = await state.get_data()
     method_id = data.get("method_id")
     raw_amount = float(data.get("manual_amount") or data.get("binance_usdt") or 0.0)
@@ -1651,88 +1667,6 @@ async def execute_deposit_submission(
                 await event.answer(expired_msg)
         return
 
-    # 1. Fast pre-check: active pending deposit
-    existing_pending = await services.deposits.pending_for(user_id)
-    if existing_pending:
-        existing_tx = str(existing_pending.get("transaction_id") or "").strip().upper()
-        if existing_tx and clean_tx and existing_tx == clean_tx and hasattr(services, "zinipay") and await services.zinipay.is_enabled():
-            try:
-                credited = await services.zinipay._finish_awaiting(existing_pending)
-                if credited:
-                    await services.deposits.clear_verification_failures(user_id)
-                    await state.clear()
-                    user = await services.users.get(user_id)
-                    user_balance = float(user.get("balance", 0.0)) if user else 0.0
-                    provider = method_name
-                    lang = await services.users.get_language(user_id)
-                    balance_display = format_dual_price(user_balance, usd_rate=rate, lang=lang)
-                    keyboard = get_deposit_status_keyboard(dep_id=existing_pending["id"], status="approved", lang=lang)
-                    text = (
-                        f"✅ <b>ডিপোজিট সফল হয়েছে!</b>\n"
-                        f"মেথড: <b>{escape(provider)}</b> (<code>{amt_display}</code>)\n"
-                        f"বর্তমান ব্যালেন্স: <code>{balance_display}</code>"
-                    ) if lang == "bn" else (
-                        f"✅ <b>Deposit Successful!</b>\n"
-                        f"Method: <b>{escape(provider)}</b> (<code>{amt_display}</code>)\n"
-                        f"Current Balance: <code>{balance_display}</code>"
-                    )
-                    await _safe_edit_or_answer(status_msg, user_msg, text, reply_markup=keyboard)
-                    return
-            except Exception as exc:
-                logger.warning("Retry finish awaiting error: %s", exc)
-
-        await state.clear()
-        kb = [
-            [InlineKeyboardButton(text="🔄 Check Again", callback_data=f"dep_refresh_{existing_pending['id']}")],
-            [InlineKeyboardButton(text="✏️ Fix TrxID", callback_data=f"dep_fix_trx_{existing_pending['id']}")],
-            [InlineKeyboardButton(text="📊 Balance History", callback_data="open_deposits")],
-        ]
-        text = "⏳ A deposit of yours is still being checked. Please wait for it to finish."
-        if isinstance(event, CallbackQuery) and event.message:
-            with suppress(TelegramBadRequest):
-                await event.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
-        else:
-            edited = False
-            if target_msg_id and getattr(event, "bot", None) and chat_id:
-                try:
-                    await event.bot.edit_message_text(chat_id=chat_id, message_id=target_msg_id, text=text, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
-                    edited = True
-                except Exception:
-                    edited = False
-            if not edited:
-                await event.answer(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
-        return
-
-    # 2. Rate limiting / attempts check
-    now = time.time()
-    fails = await services.deposits.verification_failures(user_id)
-    if len(fails) >= MAX_VERIFY_ATTEMPTS:
-        remaining_sec = int(VERIFY_COOLDOWN_SECONDS - (now - fails[0]))
-        rem_min = max(1, (remaining_sec + 59) // 60)
-        await state.clear()
-        support_user = await services.settings.get("support_username")
-        kb = []
-        if support_user:
-            clean_sup = support_user.lstrip("@")
-            kb.append([InlineKeyboardButton(text="💬 Support", url=f"https://t.me/{clean_sup}")])
-        text = f"❌ Too many wrong TrxIDs entered. Try again in {rem_min} minute(s)."
-        if isinstance(event, CallbackQuery) and event.message:
-            with suppress(TelegramBadRequest):
-                await event.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
-        else:
-            edited = False
-            if target_msg_id and getattr(event, "bot", None) and chat_id:
-                try:
-                    await event.bot.edit_message_text(chat_id=chat_id, message_id=target_msg_id, text=text, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
-                    edited = True
-                except Exception:
-                    edited = False
-            if not edited:
-                await event.answer(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
-        return
-
-    lang = await services.users.get_language(user_id) if user_id else "en"
-
     # Status message while verifying
     if lang == "bn":
         checking_txt = (
@@ -1749,7 +1683,6 @@ async def execute_deposit_submission(
             f"TrxID: <code>{escape(clean_tx)}</code>"
         )
 
-    status_msg = None
     if isinstance(event, CallbackQuery) and event.message:
         status_msg = event.message
         with suppress(TelegramBadRequest):
@@ -1774,6 +1707,69 @@ async def execute_deposit_submission(
                 if sent_id:
                     remember_menu_message(chat_id, sent_id)
                     await state.update_data(card_msg_id=sent_id, card_chat_id=chat_id)
+
+    # 1. Fast pre-check: active pending deposit
+    existing_pending = await services.deposits.pending_for(user_id)
+    if existing_pending:
+        existing_tx = str(existing_pending.get("transaction_id") or "").strip().upper()
+        if existing_tx and clean_tx and existing_tx == clean_tx and hasattr(services, "zinipay") and await services.zinipay.is_enabled():
+            try:
+                credited = await services.zinipay._finish_awaiting(existing_pending)
+                if credited:
+                    await services.deposits.clear_verification_failures(user_id)
+                    await state.clear()
+                    user = await services.users.get(user_id)
+                    user_balance = float(user.get("balance", 0.0)) if user else 0.0
+                    provider = method_name
+                    balance_display = format_dual_price(user_balance, usd_rate=rate, lang=lang)
+                    keyboard = get_deposit_status_keyboard(dep_id=existing_pending["id"], status="approved", lang=lang)
+                    text = (
+                        f"✅ <b>ডিপোজিট সফল হয়েছে!</b>\n"
+                        f"মেথড: <b>{escape(provider)}</b> (<code>{amt_display}</code>)\n"
+                        f"বর্তমান ব্যালেন্স: <code>{balance_display}</code>"
+                    ) if lang == "bn" else (
+                        f"✅ <b>Deposit Successful!</b>\n"
+                        f"Method: <b>{escape(provider)}</b> (<code>{amt_display}</code>)\n"
+                        f"Current Balance: <code>{balance_display}</code>"
+                    )
+                    await _safe_edit_or_answer(status_msg, user_msg, text, reply_markup=keyboard)
+                    return
+            except Exception as exc:
+                logger.warning("Retry finish awaiting error: %s", exc)
+
+        await state.clear()
+        kb = [
+            [InlineKeyboardButton(text="🔄 Check Again", callback_data=f"dep_refresh_{existing_pending['id']}")],
+            [InlineKeyboardButton(text="✏️ Fix TrxID", callback_data=f"dep_fix_trx_{existing_pending['id']}")],
+            [InlineKeyboardButton(text="📊 Balance History", callback_data="open_deposits")],
+        ]
+        text = (
+            f"⏳ <b>আপনার পূর্বের একটি ডিপোজিট (TrxID: <code>{escape(existing_tx or clean_tx)}</code>) এখনও যাচাই হচ্ছে।</b>\n\nঅনুগ্রহ করে অপেক্ষা করুন অথবা রিফ্রেশ চাপুন।"
+            if lang == "bn"
+            else "⏳ A deposit of yours is still being checked. Please wait for it to finish."
+        )
+        await _safe_edit_or_answer(status_msg, user_msg, text, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
+        return
+
+    # 2. Rate limiting / attempts check
+    now = time.time()
+    fails = await services.deposits.verification_failures(user_id)
+    if len(fails) >= MAX_VERIFY_ATTEMPTS:
+        remaining_sec = int(VERIFY_COOLDOWN_SECONDS - (now - fails[0]))
+        rem_min = max(1, (remaining_sec + 59) // 60)
+        await state.clear()
+        support_user = await services.settings.get("support_username")
+        kb = []
+        if support_user:
+            clean_sup = support_user.lstrip("@")
+            kb.append([InlineKeyboardButton(text="💬 Support", url=f"https://t.me/{clean_sup}")])
+        text = (
+            f"❌ পরপর ভুল TrxID দেওয়ার কারণে সাময়িকভাবে ব্লক করা হয়েছে। {rem_min} মিনিট পর চেষ্টা করুন।"
+            if lang == "bn"
+            else f"❌ Too many wrong TrxIDs entered. Try again in {rem_min} minute(s)."
+        )
+        await _safe_edit_or_answer(status_msg, user_msg, text, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
+        return
 
     # 3. Binance Flow
     if is_binance:
@@ -2070,6 +2066,17 @@ async def execute_deposit_submission(
         await state.clear()
         await _safe_edit_or_answer(status_msg, user_msg, f"❌ {escape(str(exc))}")
         return
+    except Exception as exc:
+        logger.exception("execute_deposit_submission error: %s", exc)
+        await state.clear()
+        lang = await services.users.get_language(user_id)
+        err_msg = (
+            "❌ <b>পেমেন্ট প্রসেস করার সময় একটি ত্রুটি হয়েছে।</b>\nঅনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন বা সাপোর্টে জানান।"
+            if lang == "bn"
+            else "❌ <b>An error occurred while processing your payment.</b>\nPlease try again shortly or contact support."
+        )
+        await _safe_edit_or_answer(status_msg, user_msg, err_msg)
+        return
 
     await state.clear()
     lang = await services.users.get_language(user_id)
@@ -2133,6 +2140,17 @@ async def claim_binance_payment(
     except (InvalidInputError, ValueError) as exc:
         await state.clear()
         await _safe_edit_or_answer(status_msg, user_msg, f"❌ {escape(str(exc))}")
+        return
+    except Exception as exc:
+        logger.exception("execute_deposit_submission error: %s", exc)
+        await state.clear()
+        lang = await services.users.get_language(user_id)
+        err_msg = (
+            "❌ <b>পেমেন্ট প্রসেস করার সময় একটি ত্রুটি হয়েছে।</b>\nঅনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন বা সাপোর্টে জানান।"
+            if lang == "bn"
+            else "❌ <b>An error occurred while processing your payment.</b>\nPlease try again shortly or contact support."
+        )
+        await _safe_edit_or_answer(status_msg, user_msg, err_msg)
         return
 
     if result.get("error") in ("not_found", "already_used"):
