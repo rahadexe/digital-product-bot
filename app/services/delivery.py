@@ -46,9 +46,10 @@ def waiting_notice(order: dict[str, Any], lang: str = "en") -> str:
     order_id = int(order.get('order_id', order.get('id')) or 0)
     title = escape(str(order.get('product_title', 'Purchase')))
     return (
-        f"⏳ <b>Preparing delivery · {format_order_id(order_id)}</b>\n\n"
-        f"<b>Product:</b> {title}\n"
-        "Payment received. Details will arrive here shortly."
+        "⏳ <b>Order Preparing</b>\n\n"
+        f"Product: <b>{title}</b>\n"
+        f"Order ID: <code>{format_order_id(order_id)}</code>\n\n"
+        "Payment received. Your order is being prepared and will arrive shortly."
     )
 
 
@@ -63,9 +64,10 @@ def receipt(order: dict[str, Any], lang: str = "en") -> str:
 
     raw_content = str(order.get('delivered_item', '')).strip()
     lines = [
-        f"✅ <b>Delivered · {format_order_id(order_id)}</b>\n",
-        f"<b>Product:</b> {title}",
-        f"<b>Paid:</b> <code>{price_str}</code>\n",
+        "📦 <b>Order Delivered</b>\n",
+        f"Product: <b>{title}</b>",
+        f"Order ID: <code>{format_order_id(order_id)}</code>",
+        f"Paid: <code>{price_str}</code>\n",
         "<b>Delivery:</b>",
         format_credential_lines(raw_content),
     ]
