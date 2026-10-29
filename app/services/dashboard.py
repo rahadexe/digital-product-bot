@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from app.db import Database
@@ -16,7 +17,9 @@ SELECT
     (SELECT COALESCE(SUM(max_uses - uses), 0) FROM inventory_items WHERE status = 'available'
        AND (expires_at IS NULL OR expires_at > now())) AS available_stock,
     (SELECT COUNT(*) FROM deposits WHERE status = 'pending') AS pending_deposits,
-    (SELECT COUNT(*) FROM orders WHERE status = 'completed' AND fulfillment = 'waiting') AS waiting_orders
+    (SELECT COUNT(*) FROM orders WHERE status = 'completed' AND fulfillment = 'waiting') AS waiting_orders,
+    (SELECT COUNT(*) FROM orders WHERE status = 'completed' AND created_at >= CURRENT_DATE) AS today_orders,
+    (SELECT COALESCE(SUM(price), 0) FROM orders WHERE status = 'completed' AND created_at >= CURRENT_DATE) AS today_revenue
 """
 RECENT_ORDERS_SQL = """
 SELECT o.id, o.tg_user_id, o.product_title, o.price, o.status, o.fulfillment, o.source, o.created_at,
@@ -52,18 +55,26 @@ ORDER BY d.day ASC
 class DashboardService:
     def __init__(self, db: Database):
         self.db = db
+        self._stats_cache: tuple[float, dict[str, Any]] | None = None
+        self.CACHE_TTL = 3.0
 
-    async def stats(self) -> dict[str, Any]:
+    async def stats(self, use_cache: bool = True) -> dict[str, Any]:
+        now = time.monotonic()
+        if use_cache and self._stats_cache and now - self._stats_cache[0] < self.CACHE_TTL:
+            return dict(self._stats_cache[1])
+
         # All four reads share one connection so the dashboard never saturates the pool.
         async with self.db.connect() as conn:
             totals = [dict(r) for r in await conn.fetch(TOTALS_SQL)]
             recent_orders = [dict(r) for r in await conn.fetch(RECENT_ORDERS_SQL)]
             stock_summary = [dict(r) for r in await conn.fetch(LOW_STOCK_SQL)]
             chart_data = [dict(r) for r in await conn.fetch(CHART_SQL)]
-        return {
+        res = {
             **totals[0],
             "total_revenue": round(totals[0]["total_revenue"], 2),
             "recent_orders": recent_orders,
             "stock_summary": stock_summary,
             "chart_data": chart_data,
         }
+        self._stats_cache = (now, res)
+        return res

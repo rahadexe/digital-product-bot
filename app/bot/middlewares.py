@@ -219,13 +219,20 @@ class AuditActor(BaseMiddleware):
 class FastCallback(BaseMiddleware):
     """Instantly acknowledges inline navigation clicks so Telegram removes the button spinner in <50ms."""
 
-    NAV_PREFIXES = (
-        "open_", "mcat_", "cat_", "back_", "catpage_",
-        "orders_page_", "catval_", "close_menu", "shop_all", "search_again",
-        "prod_", "adm_", "lang_", "val_", "pay_", "cancel_", "sub_", "reseller_",
-        "vord_", "vdep_", "dep_page_", "notif_",
-        "sprod_", "sback_", "qty_set_", "qty_custom_", "qpad_", "faq_",
-        "binance_help_order_id", "dep_method_", "dep_instant", "shop_uncat"
+    # Handlers that explicitly display alerts via query.answer(..., show_alert=True)
+    # MUST NOT be pre-answered here, or their alerts would fail with 'query is too old'.
+    ALERT_PREFIXES = (
+        "gate_verify",
+        "inst_chk_",
+        "dep_verify",
+        "buy_",
+        "conf_buy_",
+        "adm_ban_ask_",
+        "adm_ban_do_",
+        "adm_ord_deliver_",
+        "adm_dep_do_",
+        "adm_ord_ref_do_",
+        "reseller_submit_confirm",
     )
 
     @staticmethod
@@ -238,7 +245,7 @@ class FastCallback(BaseMiddleware):
     async def __call__(self, handler, event, data):
         if isinstance(event, CallbackQuery):
             data_str = event.data or ""
-            if any(data_str.startswith(p) for p in self.NAV_PREFIXES):
+            if not any(data_str.startswith(p) for p in self.ALERT_PREFIXES):
                 asyncio.create_task(self._safe_answer(event))
         return await handler(event, data)
 

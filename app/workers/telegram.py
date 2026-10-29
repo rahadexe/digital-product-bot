@@ -18,7 +18,7 @@ class TelegramInboxWorker:
         async with self.services.db.connect() as conn:
             return await conn.fetchrow(
                 "UPDATE telegram_inbox SET status='processing',attempts=attempts+1, "
-                "next_attempt=now()+interval '120 seconds',lease_token=$1 WHERE update_id=("
+                "next_attempt=now()+interval '30 seconds',lease_token=$1 WHERE update_id=("
                 "SELECT i.update_id FROM telegram_inbox i WHERE i.status IN ('pending','processing') "
                 "AND i.next_attempt<=now() AND NOT EXISTS (SELECT 1 FROM telegram_inbox earlier "
                 "WHERE earlier.customer_id=i.customer_id AND earlier.update_id<>i.update_id "
@@ -58,13 +58,19 @@ class TelegramInboxWorker:
                 raise
             except Exception:
                 logger.exception("Telegram inbox temporarily unavailable")
+            self.services.runtime.inbox_wake.clear()
             try:
-                await asyncio.wait_for(self.services.runtime.inbox_wake.wait(), timeout=1)
+                await asyncio.wait_for(self.services.runtime.inbox_wake.wait(), timeout=0.05)
             except TimeoutError:
                 pass
-            self.services.runtime.inbox_wake.clear()
 
     async def run(self) -> None:
+        # Reset any stale processing rows left over from previous container restarts
+        try:
+            async with self.services.db.connect() as conn:
+                await conn.execute("UPDATE telegram_inbox SET status='pending', next_attempt=now() WHERE status='processing'")
+        except Exception:
+            pass
         workers = max(1, min(4, self.services.config.db_pool_size // 3))
         async with asyncio.TaskGroup() as group:
             for _ in range(workers):

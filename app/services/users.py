@@ -152,9 +152,11 @@ class UserService:
         return {"referrer_id": referrer_id, "amount": reward_amount}
 
     async def get(self, tg_user_id: int) -> dict[str, Any] | None:
-        # Wallet, rank and ban state can change in another service or replica.
-        # A profile cache must never authorize access or show an old balance.
         now = time.monotonic()
+        cached = self._user_cache.get(tg_user_id)
+        if cached and now - cached[0] < 3.0:
+            return dict(cached[1]) if cached[1] else None
+
         async with self.db.connect() as conn:
             row = await conn.fetchrow("SELECT * FROM users WHERE tg_user_id = $1", tg_user_id)
             res = dict(row) if row else None

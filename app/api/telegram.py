@@ -38,15 +38,12 @@ async def telegram_webhook(request: Request) -> JSONResponse:
         except ValueError:
             pass
 
-    body = bytearray()
     try:
-        async with asyncio.timeout(15):
-            async for chunk in request.stream():
-                body.extend(chunk)
-                if len(body) > MAX_BODY_BYTES:
-                    return JSONResponse(status_code=413, content={"detail": "Request body is too large."})
-    except TimeoutError:
-        return JSONResponse(status_code=408, content={"detail": "Request timed out."})
+        body = await request.body()
+        if len(body) > MAX_BODY_BYTES:
+            return JSONResponse(status_code=413, content={"detail": "Request body is too large."})
+    except Exception:
+        return JSONResponse(status_code=400, content={"detail": "Could not read request body."})
 
     # 4. JSON -> Update.model_validate(data, context={"bot": bot}); invalid -> 400.
     try:

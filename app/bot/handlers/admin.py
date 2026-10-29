@@ -308,20 +308,8 @@ async def build_admin_dashboard(services: Services) -> tuple[str, InlineKeyboard
             return f"${amt:.2f}"
         return f"{amt:.2f} {symbol}"
 
-    today_orders = 0
-    today_rev = 0.0
-    db = getattr(services, "db", None)
-    if db:
-        try:
-            async with db.connect() as conn:
-                today = await conn.fetchrow(
-                    "SELECT COUNT(*) AS orders, COALESCE(SUM(price), 0) AS revenue FROM orders "
-                    "WHERE status = 'completed' AND created_at >= CURRENT_DATE"
-                )
-            today_orders = int(today["orders"] or 0) if today else 0
-            today_rev = float(today["revenue"] or 0) if today else 0.0
-        except Exception:
-            pass
+    today_orders = int(stats.get("today_orders", 0) or 0)
+    today_rev = float(stats.get("today_revenue", 0.0) or 0.0)
 
     status_emoji = "⏸️" if paused else "🟢"
     status_str = "Paused" if paused else "Active"
