@@ -178,7 +178,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "deposit_not_found": "Top-up not found. Open Balance to check History.",
         "deposit_detail_title": "<b>Top-up {id}</b>",
         "status_approved_msg": "Payment verified. Your balance is updated.",
-        "status_rejected_msg": "Top-up not approved. Contact Support if you have already paid.",
+        "status_rejected_msg": "Deposit not approved. Contact Support if you have already paid.",
         "status_pending_msg": "Your payment details are awaiting verification. Do not pay again.",
         "deposit_amount": "Amount",
         "deposit_method": "Method",
