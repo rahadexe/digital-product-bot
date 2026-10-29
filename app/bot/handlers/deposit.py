@@ -1661,6 +1661,8 @@ async def execute_deposit_submission(
     rate = float(data.get("rate") or 1.0)
     is_binance = data.get("is_binance", False) or "binance" in method_name.lower() or data.get("auto_verify") == "binance_pay"
 
+    curr = await resolve_user_currency(services, user_id)
+
     if is_binance:
         credit_amount = raw_amount if raw_amount > 0 else pay_amount
         actual_pay = credit_amount
@@ -1675,7 +1677,7 @@ async def execute_deposit_submission(
         else:
             actual_pay = 0.0
             credit_amount = 0.0
-        amt_display = f"{actual_pay:g} ৳ → ${credit_amount:.2f} USD"
+        amt_display = f"{actual_pay:g} ৳"
 
     user_msg = event.message if isinstance(event, CallbackQuery) else event
     chat = getattr(event, "chat", None) or (getattr(user_msg, "chat", None) if user_msg else None)
@@ -1753,7 +1755,7 @@ async def execute_deposit_submission(
                     user = await services.users.get(user_id)
                     user_balance = float(user.get("balance", 0.0)) if user else 0.0
                     provider = method_name
-                    balance_display = format_dual_price(user_balance, usd_rate=rate, lang=lang)
+                    balance_display = format_dual_price(user_balance, usd_rate=rate, lang=lang, currency=curr, show_usd=False)
                     keyboard = get_deposit_status_keyboard(dep_id=existing_pending["id"], status="approved", lang=lang)
                     text = format_deposit_success_card(
                         provider=provider,
@@ -1813,7 +1815,7 @@ async def execute_deposit_submission(
         rate = float(data.get("rate") or 125.0)
         credit_amount = round(auto_amt / rate, 4)
         actual_pay = auto_amt
-        amt_display = f"{actual_pay:g} ৳ → ${credit_amount:.2f} USD"
+        amt_display = f"{actual_pay:g} ৳"
 
         try:
             dep_id = await services.deposits.create_request(
@@ -1837,7 +1839,7 @@ async def execute_deposit_submission(
                 await state.clear()
                 user = await services.users.get(user_id)
                 user_balance = float(user.get("balance", 0.0)) if user else 0.0
-                balance_display = format_dual_price(user_balance, usd_rate=rate, lang=lang)
+                balance_display = format_dual_price(user_balance, usd_rate=rate, lang=lang, currency=curr, show_usd=False)
                 keyboard = get_deposit_status_keyboard(dep_id=dep_id, status="approved", lang=lang)
                 success_txt = format_deposit_success_card(
                     provider=method_name,
@@ -1958,7 +1960,7 @@ async def execute_deposit_submission(
             user_balance = float(user.get("balance", 0.0)) if user else 0.0
             provider = res.get("provider") or method_name
             lang = await services.users.get_language(user_id)
-            balance_display = format_dual_price(user_balance, usd_rate=rate, lang=lang)
+            balance_display = format_dual_price(user_balance, usd_rate=rate, lang=lang, currency=curr, show_usd=False)
             keyboard = get_deposit_status_keyboard(dep_id=0, status="approved", lang=lang)
             text = format_deposit_success_card(
                 provider=provider,
@@ -2197,8 +2199,9 @@ async def claim_binance_payment(
         coin = result.get("coin", "USDT")
         credited_amount = result.get("amount", 0.0)
         usd_rate = await services.settings.number("usd_rate")
-        balance_display = format_dual_price(user_balance, usd_rate=usd_rate, lang=lang)
-        credited_display = format_dual_price(credited_amount, usd_rate=usd_rate, lang=lang)
+        curr = await resolve_user_currency(services, user_msg.from_user.id)
+        balance_display = format_dual_price(user_balance, usd_rate=usd_rate, lang=lang, currency=curr, show_usd=False)
+        credited_display = format_dual_price(credited_amount, usd_rate=usd_rate, lang=lang, currency=curr, show_usd=False)
 
         keyboard = get_deposit_status_keyboard(dep_id=0, status="approved", lang=lang)
         text = format_deposit_success_card(
