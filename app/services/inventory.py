@@ -101,7 +101,9 @@ class InventoryService:
                             self.notifier.in_background(
                                 self.notifier.send(
                                     uid,
-                                    f"<b>Back in stock</b>\n{escape(title)}",
+                                    f"🔔 <b>Back in Stock!</b>\n\n"
+                                    f"<b>Product:</b> {escape(title)}\n"
+                                    f"Good news! This product is now back in stock and ready to order.",
                                     keyboard=kb,
                                 )
                             )

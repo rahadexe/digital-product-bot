@@ -756,12 +756,12 @@ class DepositService:
             self._notify_customer(
                 tg_user_id,
                 lambda symbol: (
-                    f"⚠️ <b>Top-up not approved · {format_deposit_id(deposit_id)}</b>\n"
-                    f"<blockquote>Method: <b>{method_name}</b>\n"
-                    f"Amount: <code>{amount:.2f} {symbol}</code>\n"
-                    f"TrxID: <code>{trx_id}</code>\n"
-                    f"Reason: {escape(admin_note) or 'Payment could not be verified.'}</blockquote>\n\n"
-                    "Contact Support if you have already paid."
+                    f"⚠️ <b>Top-up not approved · {format_deposit_id(deposit_id)}</b>\n\n"
+                    f"<b>Method:</b> {method_name}\n"
+                    f"<b>Amount:</b> <code>{amount:g} {symbol}</code>\n"
+                    + (f"<b>TrxID:</b> <code>{trx_id}</code>\n" if trx_id else "")
+                    + f"<b>Reason:</b> {escape(admin_note) or 'Payment could not be verified.'}\n\n"
+                    "<i>Contact Support if you have already paid.</i>"
                 ),
                 keyboard=support_kb,
             )

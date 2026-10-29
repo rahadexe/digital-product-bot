@@ -144,9 +144,9 @@ class UserService:
             self.notifier.in_background(
                 self.notifier.send(
                     referrer_id,
-                    f"🎁 <b>Referral reward</b>\n"
-                    f"<blockquote><b>{joined_name}</b> joined through your link.\n"
-                    f"Added: <code>+{reward_str}</code> to your wallet.</blockquote>",
+                    f"🎁 <b>Referral Reward!</b>\n\n"
+                    f"<b>Friend:</b> <b>{joined_name}</b> joined through your link.\n"
+                    f"<b>Added:</b> <code>+{reward_str}</code> to your wallet.",
                 )
             )
         return {"referrer_id": referrer_id, "amount": reward_amount}
@@ -387,14 +387,16 @@ class UserService:
 
     async def _notify_adjustment(self, tg_user_id: int, delta: float, balance: float, reason: str) -> None:
         symbol = escape(await self.settings.get("currency_symbol"))
-        header = "<b>Wallet updated</b>"
+        header = "💰 <b>Wallet Updated</b>"
         action_type = "Added" if delta >= 0 else "Deducted"
+        delta_str = f"{abs(delta):g} {symbol}"
+        balance_str = f"{balance:g} {symbol}"
         await self.notifier.send(
             tg_user_id,
-            f"{header}\n"
-            f"<blockquote>{action_type}: <code>{abs(delta):.2f} {symbol}</code>\n"
-            f"Balance: <code>{balance:.2f} {symbol}</code>\n"
-            f"Reason: {escape(reason or 'Admin adjustment')}</blockquote>",
+            f"{header}\n\n"
+            f"<b>{action_type}:</b> <code>{delta_str}</code>\n"
+            f"<b>Current Balance:</b> <code>{balance_str}</code>\n"
+            f"<b>Reason:</b> {escape(reason or 'Manual adjustment')}",
         )
 
     async def set_banned(self, tg_user_id: int, banned: bool | None = None) -> bool:

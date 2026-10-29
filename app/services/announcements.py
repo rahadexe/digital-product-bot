@@ -81,7 +81,7 @@ class AnnouncementService:
             f"<b>Product:</b> {icon_prefix}<b>{title}</b>\n"
             f"{duration_line}"
             f"<b>Added:</b> <code>+{added_count}</code> (Total: <code>{product['stock']}</code>)\n"
-            f"<b>Price:</b> <code>{format_dual_price(product['price'], symbol)}</code>",
+            f"<b>Price:</b> <code>{format_dual_price(product['price'], symbol, show_usd=False)}</code>",
             event="restock",
             keyboard=button,
         )
@@ -99,7 +99,7 @@ class AnnouncementService:
                 f"{duration_line}"
                 f"<b>Fresh Stock:</b> <code>{added_count} units</code>\n"
                 f"<b>Available:</b> <code>{product['stock']}</code>\n"
-                f"<b>Price:</b> <code>{format_dual_price(product['price'], symbol)}</code>\n"
+                f"<b>Price:</b> <code>{format_dual_price(product['price'], symbol, show_usd=False)}</code>\n"
                 f"<b>Delivery:</b> Instant (Automatic)",
                 button,
             )
@@ -130,13 +130,13 @@ class AnnouncementService:
 
         if is_drop:
             heading = "📉 <b>Price Drop Alert</b>"
-            diff_line = f"<b>Old Price:</b> <code><s>{format_dual_price(old_price, symbol)}</s></code>\n"
-            price_line = f"<b>Price:</b> <code>{format_dual_price(new_price, symbol)}</code> (-{pct}% OFF)\n"
+            diff_line = f"<b>Old Price:</b> <code><s>{format_dual_price(old_price, symbol, show_usd=False)}</s></code>\n"
+            price_line = f"<b>Price:</b> <code>{format_dual_price(new_price, symbol, show_usd=False)}</code> (-{pct}% OFF)\n"
             btn_text = f"Buy {product['title']}"
         else:
             heading = "📈 <b>Price Update Alert</b>"
-            diff_line = f"<b>Old Price:</b> <code><s>{format_dual_price(old_price, symbol)}</s></code>\n"
-            price_line = f"<b>Price:</b> <code>{format_dual_price(new_price, symbol)}</code> (+{pct}%)\n"
+            diff_line = f"<b>Old Price:</b> <code><s>{format_dual_price(old_price, symbol, show_usd=False)}</s></code>\n"
+            price_line = f"<b>Price:</b> <code>{format_dual_price(new_price, symbol, show_usd=False)}</code> (+{pct}%)\n"
             btn_text = f"View {product['title']}"
 
         button = await self._buy_button(product, btn_text)
@@ -199,7 +199,7 @@ class AnnouncementService:
             f"{duration_line}"
             f"{desc}"
             f"<b>Available Stock:</b> <code>{product['stock']} units</code>\n"
-            f"<b>Price:</b> <code>{format_dual_price(product['price'], symbol)}</code>\n"
+            f"<b>Price:</b> <code>{format_dual_price(product['price'], symbol, show_usd=False)}</code>\n"
             f"{delivery_line}"
         )
 
