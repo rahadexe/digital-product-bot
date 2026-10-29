@@ -69,14 +69,13 @@ def _build_preview_keyboard() -> InlineKeyboardMarkup:
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="Send Now",
+                    text="📢 Send Now",
                     callback_data="bc_confirm",
                     style="success",
                 ),
                 InlineKeyboardButton(
                     text="Cancel",
                     callback_data="bc_cancel",
-                    style="danger",
                 ),
             ]
         ]
@@ -159,7 +158,7 @@ async def cmd_broadcast(message: Message, state: FSMContext, services: Services)
         "<i>Supports text, photos & HTML formatting.</i>\n\n"
         "Tap Cancel below to abort.",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger")
+            InlineKeyboardButton(text="Cancel", callback_data="close_menu")
         ]])
     )
 
@@ -211,7 +210,7 @@ async def process_broadcast_input(message: Message, state: FSMContext, services:
             "<b>Invalid input:</b> Bot commands cannot be broadcast.\n\n"
             "Please send the message you want to broadcast, or tap Cancel below to abort.",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-                InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger")
+                InlineKeyboardButton(text="Cancel", callback_data="close_menu")
             ]])
         )
         return
@@ -221,7 +220,7 @@ async def process_broadcast_input(message: Message, state: FSMContext, services:
         await message.answer(
             "Please send a text message or tap Cancel below.",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-                InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger")
+                InlineKeyboardButton(text="Cancel", callback_data="close_menu")
             ]])
         )
         return
@@ -261,7 +260,7 @@ async def handle_bc_confirm(query: CallbackQuery, state: FSMContext, services: S
                     reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                         [
                             InlineKeyboardButton(text="BC Status", callback_data="adm_view_bcstatus"),
-                            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger"),
+                            InlineKeyboardButton(text="Close", callback_data="close_menu"),
                         ],
                         [
                             InlineKeyboardButton(text="Back", callback_data="adm_dashboard"),
@@ -345,9 +344,9 @@ async def build_admin_dashboard(services: Services) -> tuple[str, InlineKeyboard
     rows: list[list[InlineKeyboardButton]] = [
         [
             InlineKeyboardButton(text=deposits_text, callback_data="adm_queue_dep",
-                                 style="danger" if pending else "primary"),
+                                 style="primary" if pending else None),
             InlineKeyboardButton(text=orders_text, callback_data="adm_queue_ord",
-                                 style="danger" if waiting else "primary"),
+                                 style="primary" if waiting else None),
         ],
         [
             InlineKeyboardButton(text="📋 Stock", callback_data="adm_start_stock"),
@@ -403,7 +402,7 @@ async def build_store_status_view(services: Services) -> tuple[str, InlineKeyboa
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="Refresh", callback_data="adm_view_status"),
-            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger"),
+            InlineKeyboardButton(text="Close", callback_data="close_menu"),
         ],
         [
             InlineKeyboardButton(text="Back", callback_data="adm_dashboard"),
@@ -417,7 +416,7 @@ async def build_bcstatus_view(services: Services) -> tuple[str, InlineKeyboardMa
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="Refresh", callback_data="adm_view_bcstatus"),
-            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger"),
+            InlineKeyboardButton(text="Close", callback_data="close_menu"),
         ],
         [
             InlineKeyboardButton(text="Back", callback_data="adm_dashboard"),
@@ -599,7 +598,7 @@ async def adm_cb_start_broadcast(query: CallbackQuery, state: FSMContext, servic
                 "Tap Cancel below to abort.",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
                     InlineKeyboardButton(text="Back", callback_data="adm_dashboard"),
-                    InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger")
+                    InlineKeyboardButton(text="Cancel", callback_data="close_menu")
                 ]])
             )
 
@@ -636,7 +635,7 @@ async def build_admin_settings_view(services: Services) -> tuple[str, InlineKeyb
         ])
     rows.append([
         InlineKeyboardButton(text="Back", callback_data="adm_dashboard"),
-        InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger"),
+        InlineKeyboardButton(text="Close", callback_data="close_menu"),
     ])
     keyboard = InlineKeyboardMarkup(inline_keyboard=rows)
     return text, keyboard
@@ -671,7 +670,7 @@ async def adm_cb_prompt_banner(query: CallbackQuery, state: FSMContext, services
                 "The photo will be saved and served directly from Telegram's cloud CDN.\n\n"
                 "<i>Tap Cancel below to abort.</i>",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-                    InlineKeyboardButton(text="Cancel", callback_data="adm_cancel_settings", style="danger")
+                    InlineKeyboardButton(text="Cancel", callback_data="adm_cancel_settings")
                 ]])
             )
 
@@ -725,7 +724,7 @@ async def adm_invalid_banner_input(message: Message):
     await message.reply(
         "❌ Please send a <b>photo</b> image file, or tap Cancel below.",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text="Cancel", callback_data="adm_cancel_settings", style="danger")
+            InlineKeyboardButton(text="Cancel", callback_data="adm_cancel_settings")
         ]])
     )
 
@@ -747,7 +746,7 @@ async def adm_cb_start_find(query: CallbackQuery, state: FSMContext, services: S
                 "Tap Cancel below to abort.",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
                     InlineKeyboardButton(text="Back", callback_data="adm_dashboard"),
-                    InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger")
+                    InlineKeyboardButton(text="Cancel", callback_data="close_menu")
                 ]])
             )
 
@@ -987,12 +986,12 @@ def _format_deposit_card(deposit: dict, symbol: str, back_cb: str = "adm_queue_d
     if status_raw == "pending":
         rows.append([
             InlineKeyboardButton(
-                text="Approve",
+                text="✅ Approve",
                 callback_data=f"adm_dep_ask_approve_{dep_id}",
                 style="success",
             ),
             InlineKeyboardButton(
-                text="Reject",
+                text="❌ Reject",
                 callback_data=f"adm_dep_ask_reject_{dep_id}",
                 style="danger",
             ),
@@ -1008,7 +1007,6 @@ def _format_deposit_card(deposit: dict, symbol: str, back_cb: str = "adm_queue_d
         InlineKeyboardButton(
             text="Back",
             callback_data=back_cb,
-            style="primary",
         )
     ])
     return text, InlineKeyboardMarkup(inline_keyboard=rows)
@@ -1089,12 +1087,12 @@ def _format_order_card(order: dict, symbol: str, back_cb: str = "adm_queue_ord")
             ])
         rows.append([
             InlineKeyboardButton(
-                text="Deliver Manually",
+                text="📦 Deliver Manually",
                 callback_data=f"adm_ord_deliver_{order_id}",
                 style="success",
             ),
             InlineKeyboardButton(
-                text="Refund",
+                text="🔄 Refund",
                 callback_data=f"adm_ord_ref_ask_{order_id}",
                 style="danger",
             ),
@@ -1110,7 +1108,6 @@ def _format_order_card(order: dict, symbol: str, back_cb: str = "adm_queue_ord")
         InlineKeyboardButton(
             text="Back",
             callback_data=back_cb,
-            style="primary",
         )
     ])
     return text, InlineKeyboardMarkup(inline_keyboard=rows)
@@ -1179,7 +1176,7 @@ async def adm_deposit_ask(query: CallbackQuery, services: Services):
         )
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [
-                InlineKeyboardButton(text="Confirm", callback_data=f"adm_dep_do_approve_{raw_id}", style="success"),
+                InlineKeyboardButton(text="✅ Confirm Approve", callback_data=f"adm_dep_do_approve_{raw_id}", style="success"),
             ],
             [
                 InlineKeyboardButton(text="Back", callback_data=back_cb),
@@ -1198,7 +1195,7 @@ async def adm_deposit_ask(query: CallbackQuery, services: Services):
         )
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [
-                InlineKeyboardButton(text="Confirm", callback_data=f"adm_dep_do_reject_{raw_id}", style="danger"),
+                InlineKeyboardButton(text="❌ Confirm Reject", callback_data=f"adm_dep_do_reject_{raw_id}", style="danger"),
             ],
             [
                 InlineKeyboardButton(text="Back", callback_data=back_cb),
@@ -1330,7 +1327,7 @@ async def adm_order_deliver(query: CallbackQuery, state: FSMContext, services: S
                 "<i>(Tap Cancel below to stop)</i>",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
                     InlineKeyboardButton(text="Back", callback_data=back_cb),
-                    InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger")
+                    InlineKeyboardButton(text="Cancel", callback_data="close_menu")
                 ]])
             )
 
@@ -1431,7 +1428,7 @@ async def adm_order_deliver_send(message: Message, state: FSMContext, services: 
         await message.answer(
             "Send the credentials as text, or tap Cancel below.",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-                InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger")
+                InlineKeyboardButton(text="Cancel", callback_data="close_menu")
             ]])
         )
         return
@@ -1503,7 +1500,7 @@ async def _handle_find_customer(message: Message, term: str, services: Services,
         )
         reply_markup = InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(text="Back", callback_data="adm_dashboard"),
-            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger"),
+            InlineKeyboardButton(text="Close", callback_data="close_menu"),
         ]])
         if panel_msg_id:
             with suppress(Exception):
@@ -1552,7 +1549,7 @@ async def _handle_find_customer(message: Message, term: str, services: Services,
         )
         reply_markup = InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(text="Back", callback_data="adm_dashboard"),
-            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger"),
+            InlineKeyboardButton(text="Close", callback_data="close_menu"),
         ]])
         if panel_msg_id:
             with suppress(Exception):
@@ -1576,14 +1573,14 @@ async def _handle_find_customer(message: Message, term: str, services: Services,
     if not is_admin_target:
         buttons.append([
             InlineKeyboardButton(
-                text="Unban Customer" if is_banned else "Ban Customer",
+                text="✅ Unban Customer" if is_banned else "🚫 Ban Customer",
                 callback_data=f"adm_ban_ask_{user['tg_user_id']}",
                 style="success" if is_banned else "danger",
             )
         ])
     buttons.append([
         InlineKeyboardButton(text="Back", callback_data="adm_dashboard"),
-        InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger"),
+        InlineKeyboardButton(text="Close", callback_data="close_menu"),
     ])
 
     text = (
@@ -1714,7 +1711,7 @@ async def build_queue_view(services: Services, kind: str = "all", page: int = 0)
         rows.append([
             InlineKeyboardButton(text="Refresh", callback_data=f"adm_queue_dep_page_{page}"),
             InlineKeyboardButton(text="Back", callback_data="adm_dashboard"),
-            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger"),
+            InlineKeyboardButton(text="Close", callback_data="close_menu"),
         ])
 
         if deposits:
@@ -1762,7 +1759,7 @@ async def build_queue_view(services: Services, kind: str = "all", page: int = 0)
         rows.append([
             InlineKeyboardButton(text="Refresh", callback_data=f"adm_queue_ord_page_{page}"),
             InlineKeyboardButton(text="Back", callback_data="adm_dashboard"),
-            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger"),
+            InlineKeyboardButton(text="Close", callback_data="close_menu"),
         ])
 
         if orders:
@@ -1812,7 +1809,7 @@ async def build_queue_view(services: Services, kind: str = "all", page: int = 0)
         rows.append([
             InlineKeyboardButton(text="Refresh", callback_data="adm_queue"),
             InlineKeyboardButton(text="Back", callback_data="adm_dashboard"),
-            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger"),
+            InlineKeyboardButton(text="Close", callback_data="close_menu"),
         ])
 
         text = (
@@ -1929,7 +1926,7 @@ async def adm_order_refund_ask(query: CallbackQuery, services: Services):
                 "<i>Amount will be refunded to customer's wallet.</i>",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                     [
-                        InlineKeyboardButton(text="Confirm", callback_data=f"adm_ord_ref_do_{order_id}",
+                        InlineKeyboardButton(text="🔄 Confirm Refund", callback_data=f"adm_ord_ref_do_{order_id}",
                                              style="danger"),
                     ],
                     [
@@ -2056,7 +2053,7 @@ async def build_stock_overview_view(services: Services, page: int = 0) -> tuple[
     rows.append([
         InlineKeyboardButton(text="Refresh", callback_data=f"adm_stock_page_{page}"),
         InlineKeyboardButton(text="Back", callback_data="adm_dashboard"),
-        InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger"),
+        InlineKeyboardButton(text="Close", callback_data="close_menu"),
     ])
 
     text = (
@@ -2154,7 +2151,7 @@ async def adm_stock_ask(query: CallbackQuery, state: FSMContext, services: Servi
             ],
             [
                 InlineKeyboardButton(text="Back", callback_data="adm_start_stock"),
-                InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger"),
+                InlineKeyboardButton(text="Close", callback_data="close_menu"),
             ],
         ])
         with suppress(TelegramBadRequest):
@@ -2207,11 +2204,11 @@ async def adm_cb_stock_items(query: CallbackQuery, services: Services):
     )
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="Add Stock", callback_data=f"adm_stock_{product_id}", style="success"),
+            InlineKeyboardButton(text="➕ Add Stock", callback_data=f"adm_stock_{product_id}", style="success"),
         ],
         [
             InlineKeyboardButton(text="Back", callback_data="adm_start_stock"),
-            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger"),
+            InlineKeyboardButton(text="Close", callback_data="close_menu"),
         ],
     ])
     if query.message:
@@ -2306,7 +2303,7 @@ async def adm_stock_save(message: Message, state: FSMContext, services: Services
         await message.answer(
             "No valid stock lines found. Send the items, one per line, upload a .txt file, or tap Cancel below.",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-                InlineKeyboardButton(text="Cancel", callback_data="close_menu", style="danger")
+                InlineKeyboardButton(text="Cancel", callback_data="close_menu")
             ]])
         )
         return
@@ -2358,12 +2355,12 @@ async def adm_stock_save(message: Message, state: FSMContext, services: Services
 
     stock_conf_keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="Add More", callback_data=f"adm_stock_{product_id}", style="success"),
+            InlineKeyboardButton(text="➕ Add More", callback_data=f"adm_stock_{product_id}", style="success"),
             InlineKeyboardButton(text="View Items", callback_data=f"adm_stock_items_{product_id}"),
         ],
         [
             InlineKeyboardButton(text="Back", callback_data="adm_start_stock"),
-            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger"),
+            InlineKeyboardButton(text="Close", callback_data="close_menu"),
         ],
     ])
 
@@ -2426,14 +2423,14 @@ async def adm_ban_cancel(query: CallbackQuery, services: Services):
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                     [
                         InlineKeyboardButton(
-                            text="Unban Customer" if is_banned else "Ban Customer",
+                            text="✅ Unban Customer" if is_banned else "🚫 Ban Customer",
                             callback_data=f"adm_ban_ask_{tg_user_id}",
                             style="success" if is_banned else "danger",
                         )
                     ],
                     [
                         InlineKeyboardButton(text="Back", callback_data="adm_dashboard"),
-                        InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger"),
+                        InlineKeyboardButton(text="Close", callback_data="close_menu"),
                     ]
                 ])
             )
@@ -2462,14 +2459,14 @@ async def adm_ban_do(query: CallbackQuery, services: Services):
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                     [
                         InlineKeyboardButton(
-                            text="Unban Customer" if banned else "Ban Customer",
+                            text="✅ Unban Customer" if banned else "🚫 Ban Customer",
                             callback_data=f"adm_ban_ask_{tg_user_id}",
                             style="success" if banned else "danger",
                         )
                     ],
                     [
                         InlineKeyboardButton(text="Back", callback_data="adm_dashboard"),
-                        InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger"),
+                        InlineKeyboardButton(text="Close", callback_data="close_menu"),
                     ]
                 ])
             )
@@ -2508,11 +2505,11 @@ async def adm_upstream_status(message: Message, services: Services):
     )
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="Sync Catalog Now", callback_data="adm_do_sync_upstream", style="success"),
+            InlineKeyboardButton(text="🔄 Sync Catalog Now", callback_data="adm_do_sync_upstream", style="success"),
         ],
         [
             InlineKeyboardButton(text="Back", callback_data="adm_dashboard"),
-            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger"),
+            InlineKeyboardButton(text="Close", callback_data="close_menu"),
         ],
     ])
     await message.answer(text, reply_markup=kb)
@@ -2576,8 +2573,8 @@ def _format_reseller_app_card(app: dict[str, Any], back_cb: str = "adm_queue_res
     rows: list[list[InlineKeyboardButton]] = []
     if status == "pending":
         rows.append([
-            InlineKeyboardButton(text="Approve", callback_data=f"adm_appr_res_{app['id']}", style="success"),
-            InlineKeyboardButton(text="Reject", callback_data=f"adm_rej_res_{app['id']}", style="danger"),
+            InlineKeyboardButton(text="✅ Approve", callback_data=f"adm_appr_res_{app['id']}", style="success"),
+            InlineKeyboardButton(text="❌ Reject", callback_data=f"adm_rej_res_{app['id']}", style="danger"),
         ])
     rows.append([
         InlineKeyboardButton(text="Back", callback_data=back_cb),
@@ -2607,10 +2604,10 @@ async def adm_queue_reseller_cb(query: CallbackQuery, services: Services):
     rows: list[list[InlineKeyboardButton]] = []
     for a in apps:
         st = a.get("status", "pending")
-        btn_text = f"#{a['id']} {a['full_name'][:18]} ({a['telegram_handle'][:15]})"
-        btn_style = "danger" if st == "pending" else "primary"
+        st_icon = "⏳" if st == "pending" else ("✅" if st == "approved" else "❌")
+        btn_text = f"{st_icon} #{a['id']} {a['full_name'][:18]} ({a['telegram_handle'][:15]})"
         rows.append([
-            InlineKeyboardButton(text=btn_text, callback_data=f"adm_view_res_app_{a['id']}", style=btn_style)
+            InlineKeyboardButton(text=btn_text, callback_data=f"adm_view_res_app_{a['id']}")
         ])
 
     if total_pages > 1:
