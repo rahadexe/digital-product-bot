@@ -32,6 +32,18 @@ async def run(role: str, config: Settings) -> None:
         # Supplier credentials live in settings, never source-code defaults.
         await services.suppliers.load_config()
 
+        # Align MFS deposit methods with active gateway
+        if hasattr(services, "zinipay") and await services.zinipay.is_enabled():
+            try:
+                async with services.db.connect() as conn:
+                    await conn.execute(
+                        "UPDATE deposit_methods SET auto_verify='zinipay' "
+                        "WHERE auto_verify='none' AND account_type IN ('personal','agent','merchant') "
+                        "AND (lower(name) LIKE '%bkash%' OR lower(name) LIKE '%nagad%' OR lower(name) LIKE '%rocket%' OR lower(name) LIKE '%upay%')"
+                    )
+            except Exception:
+                pass
+
         if role in ("all", "web") and services.notifier.bot is not None:
             from app.bot.app import create_dispatcher
 

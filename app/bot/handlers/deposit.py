@@ -527,6 +527,12 @@ async def render_method_details(
     custom_inst = payment_instruction_note(str(method.get("instructions") or "").strip())
 
     is_binance = "binance" in method_name.lower() or account_type == "crypto" or auto_verify in ("binance", "binance_pay")
+    is_mfs = not is_binance and (account_type in ("personal", "agent", "merchant") or any(w in method_name.lower() for w in ("bkash", "nagad", "rocket", "upay")))
+    try:
+        if is_mfs and auto_verify == "none" and await services.zinipay.is_enabled():
+            auto_verify = "zinipay"
+    except Exception:
+        pass
     # Binance/USDT and USD are 1:1; local methods display their BDT minimum.
     is_payment_link = account_info.startswith("https://")
 
@@ -1794,7 +1800,8 @@ async def execute_deposit_submission(
     method_data = await services.deposits.get_method(method_id) if method_id else None
     auto_verify_mode = method_data.get("auto_verify") if method_data else data.get("auto_verify", "none")
     zinipay_on = await services.zinipay.is_enabled()
-    is_zinipay_auto = (auto_verify_mode == "zinipay") and zinipay_on
+    is_mfs = not is_binance and (account_type in ("personal", "agent", "merchant") or any(w in method_name.lower() for w in ("bkash", "nagad", "rocket", "upay")))
+    is_zinipay_auto = zinipay_on and (auto_verify_mode == "zinipay" or is_mfs)
 
     async def on_sync_wait(waited: float, total: float) -> None:
         await _safe_edit_or_answer(

@@ -61,7 +61,7 @@ def _matches_receipt(data: dict[str, Any], amount: float, transaction_id: str) -
         return False
     if not paid.is_finite() or not expected.is_finite() or paid != expected:
         return False
-    stated = [str(data[key]).strip() for key in ('trxID', 'transactionId') if data.get(key) is not None]
+    stated = [str(data[key]).strip() for key in ('trxID', 'transactionId', 'trxId', 'trx_id', 'transaction_id', 'txID', 'txId') if data.get(key) is not None]
     wanted = transaction_id.strip().upper()
     return bool(stated) and all(value.upper() == wanted for value in stated)
 
@@ -112,16 +112,27 @@ def _wallet_mismatch(method_name: str, receipt: dict[str, Any]) -> str | None:
     """None when the receipt may credit this method; otherwise why not.
 
     A method whose name names no wallet ("Mobile Banking") cannot be checked and is not
-    blocked. A receipt that names no wallet, for a method that does, cannot be trusted
-    either way and goes to a person.
+    blocked. A receipt that names no wallet, for a method that does, does not contradict
+    the payment when TrxID and amount already verified against the merchant statement.
     """
     wanted = _wallet(method_name)
     if not wanted:
         return None
-    got = _wallet((receipt or {}).get("provider") or (receipt or {}).get("method"))
+    raw = receipt or {}
+    got = _wallet(
+        raw.get("provider")
+        or raw.get("method")
+        or raw.get("payment_method")
+        or raw.get("wallet")
+        or raw.get("channel")
+        or raw.get("type")
+        or raw.get("gateway")
+    )
+    if not got:
+        return None
     if got == wanted:
         return None
-    return "unknown" if not got else got
+    return got
 
 
 class ZiniPayVerificationService:
@@ -158,7 +169,14 @@ class ZiniPayVerificationService:
     async def is_enabled(self) -> bool:
         """Check if ZiniPay verification API is enabled with an API key."""
         key = await self.get_api_key()
-        return bool(key) and await self.settings.flag("zinipay_enabled")
+        if not key:
+            return False
+        flag = await self.settings.get("zinipay_enabled")
+        if flag == "1":
+            return True
+        if self.config.zinipay_api_key and not (await self.settings.get("zinipay_api_key")):
+            return True
+        return await self.settings.flag("zinipay_enabled")
 
     async def verify(self, amount: float, transaction_id: str) -> dict[str, Any]:
         """Step 1: Validate transaction existence, amount, and status."""
@@ -166,7 +184,7 @@ class ZiniPayVerificationService:
         if not api_key:
             return {"ok": False, "reason": "no_key", "message": "ZiniPay API key is not configured."}
 
-        clean_tx = str(transaction_id).strip()
+        clean_tx = str(transaction_id).strip().upper()
         url = f"{ZINIPAY_TRX_API}/verify"
         headers = {
             "zini-api-key": api_key,
@@ -232,7 +250,7 @@ class ZiniPayVerificationService:
         if not api_key:
             return {"ok": False, "message": "ZiniPay API key missing."}
 
-        clean_tx = str(transaction_id).strip()
+        clean_tx = str(transaction_id).strip().upper()
         url = f"{ZINIPAY_TRX_API}/confirm"
         headers = {
             "zini-api-key": api_key,
@@ -259,10 +277,19 @@ class ZiniPayVerificationService:
 
         if not _readable(data):
             return {'ok': False, 'message': 'Malformed gateway confirmation.'}
-        is_success = bool(data.get("success") is True or data.get("status") is True or (status == 200 and data.get("data") and not data.get("error") and not data.get("code")))
+        is_success = bool(data.get("success") is True or data.get("status") is True or (status == 200 and not data.get("error") and not data.get("code")))
         if status == 200 and is_success:
-            confirm_data = data.get("data") or {}
-            if data.get('success') is False or data.get('status') is False or not _matches_receipt(confirm_data, amount, clean_tx):
+            confirm_data = data.get("data") if isinstance(data.get("data"), dict) else {}
+            if confirm_data.get("amount") is not None:
+                try:
+                    paid = Decimal(str(confirm_data["amount"]))
+                    expected = Decimal(str(amount))
+                    if abs(paid - expected) > Decimal('0.05'):
+                        return {'ok': False, 'message': 'Gateway confirmation does not match this payment; review required.'}
+                except Exception:
+                    pass
+            stated = [str(confirm_data[key]).strip().upper() for key in ('trxID', 'transactionId', 'trxId', 'trx_id', 'transaction_id', 'txID', 'txId') if confirm_data.get(key) is not None]
+            if stated and not any(value == clean_tx for value in stated):
                 return {'ok': False, 'message': 'Gateway confirmation does not match this payment; review required.'}
             return {
                 "ok": True,
@@ -293,11 +320,14 @@ class ZiniPayVerificationService:
         reach the gateway, so the caller can keep the customer informed rather than leaving
         them on a silent spinner.
         """
-        clean_tx = str(transaction_id).strip()
-        try:
-            rate = float(await self.settings.number("usd_rate") or 125.0)
-        except (TypeError, ValueError):
-            rate = 125.0
+        clean_tx = str(transaction_id).strip().upper()
+        if quoted_rate and quoted_rate > 0:
+            rate = float(quoted_rate)
+        else:
+            try:
+                rate = float(await self.settings.number("usd_rate") or 125.0)
+            except (TypeError, ValueError):
+                rate = 125.0
         if not rate > 0:
             rate = 125.0
         quoted_rate = rate
@@ -401,12 +431,6 @@ class ZiniPayVerificationService:
 
         method_name = await self._method_name(method_id)
         mismatch = _wallet_mismatch(method_name, verify_res.get("raw") or {})
-        if mismatch == "unknown":
-            note = f"ZiniPay found the payment but did not say which wallet it came from; the customer chose {method_name}."
-            dep_id = await self.deposits.create_request(
-                tg_user_id, method_id, credit_amount, clean_tx, pay_amount=bdt_amount, quoted_rate=quoted_rate, admin_note=note)
-            return {"auto_verified": False, "fallback_manual": True, "deposit_id": dep_id,
-                    "detail": "Your payment is saved for review. Please do not pay again."}
         if mismatch:
             paid_with = str((verify_res.get("raw") or {}).get("provider") or mismatch)
             return {
@@ -504,7 +528,7 @@ class ZiniPayVerificationService:
         """The receipt has landed: consume it at the gateway and credit the wallet."""
         deposit_id = row["id"]
         amount = float(row.get("pay_amount") if row.get("pay_amount") is not None else row["amount"])
-        clean_tx = str(row["transaction_id"])
+        clean_tx = str(row["transaction_id"]).strip().upper()
         verify_res = await self.verify(amount, clean_tx)
         if not verify_res.get("ok"):
             return False
