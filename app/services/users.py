@@ -392,12 +392,13 @@ class UserService:
         action_type = "Added" if delta >= 0 else "Deducted"
         delta_str = f"{abs(delta):g} {symbol}"
         balance_str = f"{balance:g} {symbol}"
+        clean_reason = escape(reason.strip()) if reason and reason.strip() else "Admin adjustment"
         await self.notifier.send(
             tg_user_id,
             f"{header}\n\n"
-            f"<b>{action_type}:</b> <code>{delta_str}</code>\n"
-            f"<b>Current Balance:</b> <code>{balance_str}</code>\n"
-            f"<b>Reason:</b> {escape(reason or 'Manual adjustment')}",
+            f"{action_type}: <code>{delta_str}</code>\n"
+            f"Current Balance: <code>{balance_str}</code>\n"
+            f"Reason: <i>{clean_reason}</i>",
         )
 
     async def set_banned(self, tg_user_id: int, banned: bool | None = None) -> bool:

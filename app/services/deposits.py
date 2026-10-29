@@ -11,6 +11,7 @@ import time
 from collections.abc import Callable
 from html import escape
 from typing import Any
+from urllib.parse import quote
 
 import asyncpg
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
@@ -745,8 +746,11 @@ class DepositService:
         sup_url = resolve_support_url(support_user)
         support_kb = None
         if sup_url:
+            clean_url = sup_url.split("?")[0]
+            prefill = quote(f"Hello, I need help with my deposit {format_deposit_id(deposit_id)}.")
+            btn_url = f"{clean_url}?text={prefill}"
             support_kb = InlineKeyboardMarkup(inline_keyboard=[[
-                InlineKeyboardButton(text="💬 Contact Support", url=sup_url)
+                InlineKeyboardButton(text="💬 Contact Support", url=btn_url)
             ]])
         else:
             support_kb = InlineKeyboardMarkup(inline_keyboard=[[
@@ -758,10 +762,11 @@ class DepositService:
                 tg_user_id,
                 lambda symbol: (
                     "⚠️ <b>Deposit Not Approved</b>\n\n"
+                    f"Deposit ID: <code>{format_deposit_id(deposit_id)}</code>\n"
                     f"Method: <b>{method_name}</b>\n"
                     f"Amount: <code>{amount:g} {symbol}</code>\n"
                     + (f"TrxID: <code>{trx_id}</code>\n" if trx_id else "")
-                    + f"Reason: <i>{escape(admin_note) or 'Payment could not be verified.'}</i>"
+                    + f"Reason: <i>{escape(admin_note) or 'Could not be verified'}</i>"
                 ),
                 keyboard=support_kb,
             )
