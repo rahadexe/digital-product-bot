@@ -68,13 +68,12 @@ def _catalog_button_name(name: str, icon: str, custom_id: str) -> str:
 
 
 def _customer_menu(lang: str = "en", show_icons: bool = True) -> list[tuple[str, str]]:
-    """Five customer actions in the primary menu; secondary settings stay available separately."""
+    """Four customer actions in a symmetric 2x2 primary menu."""
     items = [
         ("🛍", "Shop", "open_categories"),
         ("💰", "Balance", "open_deposit"),
-        ("📦", "Orders", "open_orders"),
-        ("🎁", "Refer", "open_referral"),
         ("💬", "Help", "open_help"),
+        ("👤", "Account", "open_account"),
     ]
     return [
         (f"{icon} {label}" if show_icons else label, callback)
@@ -83,7 +82,7 @@ def _customer_menu(lang: str = "en", show_icons: bool = True) -> list[tuple[str,
 
 
 def _admin_panel_label(lang: str = "en", show_icons: bool = True) -> str:
-    return f"🛡 {ADMIN_PANEL_TEXT}" if show_icons else ADMIN_PANEL_TEXT
+    return f"⚙️ {ADMIN_PANEL_TEXT}" if show_icons else ADMIN_PANEL_TEXT
 
 
 def get_main_inline_keyboard(
@@ -96,16 +95,17 @@ def get_main_inline_keyboard(
     currency_symbol: str = "$",
     usd_rate: float | None = None,
     show_usd: bool = False,
+    currency: str = "BDT",
 ) -> InlineKeyboardMarkup:
-    """2+3 customer actions, with an admin-only action when authorized."""
-    menu = _customer_menu(lang)
-    customer_buttons = [
-        InlineKeyboardButton(text=label, callback_data=callback)
-        for label, callback in menu
+    """Home screen quick utilities: 1-tap currency toggle & referral."""
+    curr_label = "💱 Currency: ৳ BDT" if currency == "BDT" else "💱 Currency: $ USD"
+    refer_label = "🎁 Referral"
+    rows: list[list[InlineKeyboardButton]] = [
+        [
+            InlineKeyboardButton(text=curr_label, callback_data="home_toggle_currency"),
+            InlineKeyboardButton(text=refer_label, callback_data="home_referral"),
+        ]
     ]
-    rows = [customer_buttons[:2], customer_buttons[2:]]
-    if is_admin:
-        rows.append([InlineKeyboardButton(text=_admin_panel_label(lang), callback_data="adm_dashboard")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -443,7 +443,7 @@ def get_validity_selector_keyboard(
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def get_gate_keyboard(channels: List[Dict[str, Any]]) -> InlineKeyboardMarkup:
+def get_gate_keyboard(channels: List[Dict[str, Any]], product_id: int | None = None) -> InlineKeyboardMarkup:
     """Keyboard for mandatory force-join verification with standard icons."""
     buttons = []
     for ch in channels:
@@ -457,10 +457,11 @@ def get_gate_keyboard(channels: List[Dict[str, Any]]) -> InlineKeyboardMarkup:
             )
         ])
 
+    verify_callback = f"gate_verify_prod_{product_id}" if product_id else "gate_verify"
     buttons.append([
         InlineKeyboardButton(
             text="✅ I've Joined",
-            callback_data="gate_verify",
+            callback_data=verify_callback,
             style="success",
         )
     ])
@@ -564,10 +565,10 @@ def get_help_faq_keyboard(
     rows: List[List[InlineKeyboardButton]] = []
 
     faq_buttons = [
-        ("faq_buy", "Buying"),
-        ("faq_deposit", "Payments"),
-        ("faq_delivery", "Delivery"),
-        ("faq_referral", "Referrals"),
+        ("faq_deposit", "How to deposit balance?"),
+        ("faq_buy", "How to buy products?"),
+        ("faq_delivery", "How does delivery work?"),
+        ("faq_referral", "How does referral work?"),
     ]
     tech_label = "Support"
     chan_label = "Updates"
@@ -602,9 +603,6 @@ def get_help_faq_keyboard(
                         url=ch["url"],
                     )
                 ])
-
-    back_label = "Back"
-    rows.append([InlineKeyboardButton(text=back_label, callback_data="back_to_main")])
 
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -678,10 +676,16 @@ def get_products_keyboard(
         all_label = f"✅ {all_name}" if is_all_active else all_name
         top_chips.append(InlineKeyboardButton(text=all_label, callback_data="shop_p_all_1"))
 
-        for c in categories[:5]:
+        visible_cats = [c for c in categories if c.get("id")]
+        has_overflow = len(visible_cats) > 5
+        shown_cats = visible_cats[:4] if has_overflow else visible_cats[:5]
+        if has_overflow and category_id and not any(str(c.get("id")) == str(category_id) for c in shown_cats):
+            active_match = next((c for c in visible_cats[4:] if str(c.get("id")) == str(category_id)), None)
+            if active_match and shown_cats:
+                shown_cats = shown_cats[:3] + [active_match]
+
+        for c in shown_cats:
             c_id = c.get("id")
-            if not c_id:
-                continue
             is_active_cat = str(category_id) == str(c_id)
             name = (c.get("name") or "").strip()
             icon = (c.get("icon") or "").strip()
@@ -690,6 +694,10 @@ def get_products_keyboard(
             else:
                 label = f"{icon} {name}".strip() if icon and not name.startswith(icon) else name
             top_chips.append(InlineKeyboardButton(text=label[:18], callback_data=f"cat_{c_id}"))
+
+        if has_overflow:
+            more_label = "📂 More" if lang != "bn" else "📂 আরও"
+            top_chips.append(InlineKeyboardButton(text=more_label, callback_data="catpage_1"))
 
         cat_rows = [top_chips[i:i + 3] for i in range(0, len(top_chips), 3)]
     if category_id == "uncategorized":
@@ -778,8 +786,12 @@ def get_products_keyboard(
     btn_next = t("btn_next", lang) or "Next"
     btn_prev = t("btn_prev", lang) or "Prev"
 
-    effective_back = back_target or "back_to_main"
-    if effective_back.startswith("catval_menu_"):
+    effective_back = (
+        back_target
+        if (back_target and back_target not in {"back_to_main", "none"})
+        else None
+    )
+    if effective_back and effective_back.startswith("catval_menu_"):
         back_text = "⏱️ Filter" if lang != "bn" else "⏱️ ফিল্টার"
     else:
         back_text = "Back" if lang != "bn" else "ব্যাক"
@@ -863,7 +875,7 @@ def get_quantity_selector_keyboard(
             ),
             InlineKeyboardButton(
                 text=f"{quantity}",
-                callback_data="noop",
+                callback_data=f"qty_custom_{product_id}",
             ),
             InlineKeyboardButton(
                 text="➕",
@@ -871,18 +883,21 @@ def get_quantity_selector_keyboard(
             ),
         ]
         buttons.append(row1)
+        buttons.append([
+            InlineKeyboardButton(
+                text="✏️ Set Custom Quantity",
+                callback_data=f"qty_custom_{product_id}",
+            )
+        ])
 
     # Row 2: Instant 1-Click Buy / Add Shortfall to Wallet / Out of Stock
     if not is_manual and not is_upstream and max_stock <= 0:
-        out_of_stock_text = "❌ Out of Stock" if lang != "bn" else "❌ স্টক শেষ"
+        out_of_stock_text = "❌ Out of Stock"
         buttons.append([
             InlineKeyboardButton(text=out_of_stock_text, callback_data="noop", style="danger")
         ])
     elif user_balance >= total_price:
-        if lang == "bn":
-            buy_text = f"⚡ কিনুন · {price_formatted}" if quantity == 1 else f"⚡ {quantity}টি কিনুন · {price_formatted}"
-        else:
-            buy_text = f"Buy · {price_formatted}" if quantity == 1 else f"Buy {quantity} · {price_formatted}"
+        buy_text = f"Buy · {price_formatted}" if quantity == 1 else f"Buy {quantity} · {price_formatted}"
         buttons.append([
             InlineKeyboardButton(
                 text=buy_text[:64],
@@ -911,18 +926,16 @@ def get_quantity_selector_keyboard(
     # Row 3: Description and shareable link
     extras = []
     if has_description:
-        desc_btn_text = "Details" if lang != "bn" else "📝 বিবরণ"
         extras.append(
             InlineKeyboardButton(
-                text=desc_btn_text,
+                text="📖 Details",
                 callback_data=f"prod_desc_{product_id}",
             )
         )
     if product_link:
-        copy_btn_text = "📋 Copy Link" if lang != "bn" else "📋 লিংক কপি"
         extras.append(
             InlineKeyboardButton(
-                text=copy_btn_text,
+                text="📋 Copy Link",
                 copy_text=CopyTextButton(text=product_link[:256]),
             )
         )
@@ -1023,7 +1036,26 @@ def get_deposit_methods_keyboard(
     """Inline keyboard for choosing a deposit method or opening wallet history."""
     buttons: List[List[InlineKeyboardButton]] = []
 
-    # Payment methods first, followed by the hosted instant option, grouped 2-per-row.
+    # Featured instant payment gateway at the top
+    if instant_label:
+        inst_text = str(instant_label).strip()
+        _, clean_inst = extract_emoji_and_name(inst_text)
+        btn_label = clean_inst or strip_leading_emoji(inst_text).strip()
+        if btn_label:
+            if "zinipay" in btn_label.lower():
+                display_label = "⚡ Instant Pay · ZiniPay"
+            elif not btn_label.startswith("⚡"):
+                display_label = f"⚡ {btn_label}"
+            else:
+                display_label = btn_label
+            buttons.append([
+                InlineKeyboardButton(
+                    text=display_label,
+                    callback_data="dep_instant",
+                )
+            ])
+
+    # Payment methods grouped 2-per-row
     method_btns: List[InlineKeyboardButton] = []
     for m in methods:
         name = str(m.get("name") or "Method").strip()
@@ -1041,36 +1073,27 @@ def get_deposit_methods_keyboard(
             )
         )
 
-    if instant_label:
-        inst_text = str(instant_label).strip()
-        _, clean_inst = extract_emoji_and_name(inst_text)
-        btn_label = clean_inst or strip_leading_emoji(inst_text).strip()
-        if btn_label:
-            method_btns.append(
-                InlineKeyboardButton(
-                    text=btn_label,
-                    callback_data="dep_instant",
-                )
-            )
-
     for index in range(0, len(method_btns), 2):
         buttons.append(method_btns[index : index + 2])
 
-    if back_target and back_target != "back_to_main":
+    if show_history:
+        history_text = "📜 Deposit History"
         buttons.append([
             InlineKeyboardButton(
-                text="\U0001F519 Back",
+                text=history_text,
+                callback_data="open_deposits",
+            )
+        ])
+
+    if back_target and back_target != "back_to_main":
+        back_text = "🔙 Back"
+        buttons.append([
+            InlineKeyboardButton(
+                text=back_text,
                 callback_data=back_target,
             )
         ])
 
-    if show_history:
-        buttons.append([
-            InlineKeyboardButton(
-                text="\U0001F4DC Deposit History",
-                callback_data="open_deposits",
-            )
-        ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
@@ -1170,12 +1193,11 @@ def get_manual_deposit_invoice_keyboard(
     destination = str(account_info or "").strip()
     buttons = []
     if destination.startswith("https://"):
-        pay_text = "Open Payment" if lang != "bn" else "🌐 পেমেন্ট পেজ খুলুন"
-        buttons.append([InlineKeyboardButton(text=pay_text, url=destination)])
-    paid_text = "✅ Payment Done" if lang != "bn" else "✅ পেমেন্ট করেছি"
-    back_text = "🔙 Back" if lang != "bn" else "🔙 ফিরে যান"
+        buttons.append([InlineKeyboardButton(text="Open Payment", url=destination)])
+    paid_text = "✅ Payment Done"
+    back_text = "🔙 Back"
     buttons.append([
-        InlineKeyboardButton(text=paid_text, callback_data=f"dep_paid_{method_id}" if method_id else "dep_paid"),
+        InlineKeyboardButton(text=paid_text, callback_data=f"dep_paid_{method_id}" if method_id else "dep_paid", style="success"),
     ])
     buttons.append([
         InlineKeyboardButton(text=back_text, callback_data="dep_methods"),
@@ -1196,10 +1218,7 @@ def get_deposit_input_inline_keyboard(
     buttons = []
     if destination and not destination.startswith("https://"):
         is_bin = is_binance or "binance" in method_name.lower()
-        if lang != "bn":
-            label = "📋 Copy Binance ID" if is_bin else "📋 Copy payment details"
-        else:
-            label = "📋 Binance ID কপি করুন" if is_bin else "📋 পেমেন্ট নম্বর কপি করুন"
+        label = "📋 Copy Binance ID" if is_bin else "📋 Copy payment details"
         buttons.append([
             InlineKeyboardButton(
                 text=label,
@@ -1207,16 +1226,14 @@ def get_deposit_input_inline_keyboard(
             )
         ])
     if change_amount:
-        ch_text = "✏️ Change amount" if lang != "bn" else "✏️ অ্যামাউন্ট পরিবর্তন"
-        buttons.append([InlineKeyboardButton(text=ch_text, callback_data="dep_paid")])
-    back_text = "🔙 Payment details" if lang != "bn" else "🔙 পেমেন্ট ডিটেইলস"
-    buttons.append([InlineKeyboardButton(text=back_text, callback_data="dep_invoice")])
+        buttons.append([InlineKeyboardButton(text="✏️ Change amount", callback_data="dep_paid")])
+    buttons.append([InlineKeyboardButton(text="🔙 Payment details", callback_data="dep_invoice")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
 def get_cancel_keyboard(back_target: str | None = "open_deposit", lang: str = "en") -> InlineKeyboardMarkup:
     effective_back = back_target or "back_to_main"
-    back_text = "🔙 Back" if lang != "bn" else "🔙 ব্যাক"
+    back_text = "🔙 Back"
     buttons = []
     if effective_back:
         buttons.append([

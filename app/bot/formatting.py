@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import math
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
@@ -145,8 +146,9 @@ def format_dual_price(
     usd_rate: float | None = None,
     show_usd: bool | None = None,
     lang: str | None = None,
+    currency: str | None = None,
 ) -> str:
-    """Format a canonical USD amount; Bangladesh display locale also sees the BDT equivalent."""
+    """Format a canonical USD amount into user currency or dual equivalent."""
     try:
         usd = float(amount)
         if not math.isfinite(usd):
@@ -155,10 +157,54 @@ def format_dual_price(
         usd = 0.0
     usd_text = f"${_money_text(usd)}"
     rate = usd_rate if usd_rate is not None else _DEFAULT_USD_RATE
+
+    # If explicit user currency is set:
+    if currency:
+        curr_upper = currency.strip().upper()
+        if curr_upper == "BDT" and rate and rate > 0:
+            bdt_text = f"{_money_text(usd * rate)} ৳"
+            if show_usd is True:
+                return f"{bdt_text} (≈{usd_text})"
+            return bdt_text
+        elif curr_upper == "USD":
+            return usd_text
+
+    # Legacy locale-based formatting:
     if (lang or "").lower() in {"bn", "en-bd"} and rate and rate > 0:
-        bdt_text = f"৳{_money_text(usd * rate)}"
+        bdt_text = f"{_money_text(usd * rate)} ৳"
         return f"{bdt_text} (≈{usd_text})"
+
     return usd_text
+
+
+async def resolve_user_currency(services: Any, tg_user_id: int) -> str:
+    """Safely get user currency ('BDT' or 'USD') with mock and fallback tolerance."""
+    users_svc = getattr(services, "users", None)
+    if users_svc:
+        get_curr = getattr(users_svc, "get_currency", None)
+        if callable(get_curr):
+            try:
+                res = get_curr(tg_user_id)
+                if inspect.isawaitable(res):
+                    val = await res
+                    if isinstance(val, str) and val.upper() in {"BDT", "USD"}:
+                        return val.upper()
+                elif isinstance(res, str) and res.upper() in {"BDT", "USD"}:
+                    return res.upper()
+            except Exception:
+                pass
+        get_lang = getattr(users_svc, "get_language", None)
+        if callable(get_lang):
+            try:
+                res = get_lang(tg_user_id)
+                if inspect.isawaitable(res):
+                    lang_val = await res
+                else:
+                    lang_val = str(res)
+                return "USD" if str(lang_val).lower() == "en" else "BDT"
+            except Exception:
+                pass
+    return "BDT"
 
 
 def price(

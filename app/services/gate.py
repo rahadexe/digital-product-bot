@@ -26,6 +26,22 @@ FAILED_CHECK_CACHE_SECONDS = 2.0
 MEMBERSHIP_TIMEOUT_SECONDS = 4.0
 
 
+def _normalize_channel_target(raw: str | None) -> str:
+    val = (raw or "").strip()
+    if not val:
+        return ""
+    if "t.me/" in val.lower():
+         idx = val.lower().find("t.me/") + 5
+         slug = val[idx:].split("/")[0].split("?")[0].strip()
+         if slug and not slug.startswith("+") and slug.lower() != "joinchat":
+            val = slug
+    if val.lstrip("-").isdigit():
+        return val
+    if not val.startswith("@") and "://" not in val and "/" not in val:
+        return f"@{val}"
+    return val
+
+
 class GateService:
     CACHE_SECONDS = 30.0
 
@@ -85,22 +101,25 @@ class GateService:
         return [dict(row) for row in rows]
 
     async def add(self, channel_username: str, title: str, invite_link: str, chat_id: str = "", is_active: int = 1) -> int:
+        clean_username = _normalize_channel_target(channel_username)
         async with self.db.transaction() as conn:
             channel_id = await conn.fetchval(
                 "INSERT INTO gate_channels (channel_username, chat_id, title, invite_link, is_active) "
                 "VALUES ($1, $2, $3, $4, $5) RETURNING id",
-                channel_username.strip(),
+                clean_username,
                 chat_id.strip(),
                 title.strip(),
                 invite_link.strip(),
                 is_active,
             )
-            await record(conn, "gate_channel_added", f"Channel #{channel_id}: {channel_username}")
+            await record(conn, "gate_channel_added", f"Channel #{channel_id}: {clean_username}")
         self._invalidate()
         return channel_id
 
     async def update(self, channel_id: int, **fields: Any) -> bool:
         updates = {key: value for key, value in fields.items() if key in CHANNEL_FIELDS}
+        if "channel_username" in updates and isinstance(updates["channel_username"], str):
+            updates["channel_username"] = _normalize_channel_target(updates["channel_username"])
         if not updates:
             return False
         columns = ", ".join(f"{key} = ${index}" for index, key in enumerate(updates, start=1))
@@ -167,7 +186,7 @@ class GateService:
 
     async def _check_channels(self, tg_user_id: int, channels: list[dict[str, Any]]) -> list[dict[str, Any]]:
         async def _check_one(channel: dict[str, Any]) -> bool:
-            target = channel.get("chat_id") or channel.get("channel_username")
+            target = _normalize_channel_target(channel.get("chat_id") or channel.get("channel_username"))
             cooldown = self._unavailable.get(str(target))
             if cooldown and time.monotonic() < cooldown[0]:
                 channel['verification_unavailable'] = True

@@ -106,7 +106,7 @@ class AdminKeyboard(unittest.IsolatedAsyncioTestCase):
         markup = next(i['markup'] for i in sent if isinstance(i['markup'], ReplyKeyboardMarkup))
         self.assertEqual([[b.text for b in row] for row in markup.keyboard], [
             ["🛍 Shop", "💰 Balance"], ["📦 Orders", "🎁 Refer", "💬 Help"],
-            ["🛡 Admin Panel"],
+            ["⚙️ Admin Panel"],
         ])
 
 
@@ -115,7 +115,7 @@ class AdminKeyboard(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(any("Admin Panel" in button for button in buttons), buttons)
 
     async def test_it_opens_the_panel(self):
-        sent = await self.tap(OWNER, text="🛡 Admin Panel")
+        sent = await self.tap(OWNER, text="⚙️ Admin Panel")
         self.assertTrue(any('Admin Panel' in i['text'] for i in sent), sent)
 
     async def test_a_customer_typing_the_words_gets_nothing(self):

@@ -20,6 +20,7 @@ from aiogram.types import CallbackQuery, ForceReply, InlineKeyboardButton, Inlin
 from app.bot.deposit_input import parse_deposit_amount, payment_instruction_note
 from app.bot.formatting import (
     format_dual_price,
+    resolve_user_currency,
     callback_int,
     get_last_menu_message,
     price,
@@ -257,20 +258,51 @@ async def cancel_deposit_flow(query: CallbackQuery, state: FSMContext):
 
 
 @router.callback_query(F.data == "open_deposit")
+@router.callback_query(F.data == "open_wallet")
 @router.callback_query(F.data == "dep_methods")
 @router.callback_query(F.data == "dep_back")
 @router.callback_query(F.data.startswith("open_deposit_prod_"))
 async def show_deposit_methods(event: Message | CallbackQuery, state: FSMContext, services: Services):
     """Show the current balance and payment options in an inline keyboard."""
+    prior_data: dict[str, Any] = {}
+    if hasattr(state, "get_data"):
+        maybe_data = state.get_data()
+        if inspect.isawaitable(maybe_data):
+            res = await maybe_data
+            if isinstance(res, dict):
+                prior_data = res
     await state.clear()
     user = event.from_user
     if not user:
         return
 
+    bot_obj = getattr(event, "bot", None) or (getattr(getattr(event, "message", None), "bot", None))
+    ev_chat = getattr(event, "chat", None) or getattr(getattr(event, "message", None), "chat", None)
+    ev_chat_id = getattr(ev_chat, "id", None) or prior_data.get("card_chat_id")
+    if bot_obj and ev_chat_id and isinstance(prior_data, dict):
+        for prompt_key in ("reference_prompt_id", "amount_prompt_id"):
+            pid = prior_data.get(prompt_key)
+            if isinstance(pid, int) and pid != prior_data.get("card_msg_id"):
+                with suppress(Exception):
+                    await bot_obj.delete_message(chat_id=ev_chat_id, message_id=pid)
+
     back_target: str | None = "back_to_main"
+    target_prod_id: int | None = None
     if isinstance(event, CallbackQuery) and event.data and event.data.startswith("open_deposit_prod_"):
         prod_id = event.data.removeprefix("open_deposit_prod_")
         back_target = f"prod_{prod_id}"
+        if prod_id.isdigit():
+            target_prod_id = int(prod_id)
+    elif isinstance(event, CallbackQuery) and event.data in ("dep_methods", "dep_back") and isinstance(prior_data, dict):
+        saved_prod_id = prior_data.get("target_prod_id")
+        if saved_prod_id is not None:
+            target_prod_id = int(saved_prod_id)
+            back_target = f"prod_{target_prod_id}"
+
+    if target_prod_id is not None and hasattr(state, "update_data"):
+        maybe_upd = state.update_data(target_prod_id=target_prod_id)
+        if inspect.isawaitable(maybe_upd):
+            await maybe_upd
 
     paused_msg = await services.settings.paused_message()
     if paused_msg:
@@ -286,38 +318,39 @@ async def show_deposit_methods(event: Message | CallbackQuery, state: FSMContext
     )
     displayed_methods = list(all_methods)
 
+    curr = await resolve_user_currency(services, user.id)
     lang = await services.users.get_language(user.id)
     usd_rate = await services.settings.number("usd_rate")
     user_balance = float(user_data.get("balance", 0.0)) if user_data else 0.0
-    balance_display = format_dual_price(user_balance, usd_rate=usd_rate, lang=lang)
+    balance_display = format_dual_price(user_balance, usd_rate=usd_rate, lang=lang, currency=curr, show_usd=False)
 
     if pending:
         if lang == "bn":
             text = (
-                f"<blockquote>💰 <b>ব্যালেন্স:</b> <code>{balance_display}</code></blockquote>\n"
+                f"💰 <b>ব্যালেন্স:</b> <code>{balance_display}</code>\n\n"
                 f"⏳ ডিপোজিট {format_deposit_id(pending['id'])} যাচাই হচ্ছে। যাচাই শেষ হলে ব্যালেন্স যোগ হবে।"
             )
         else:
             text = (
-                f"<blockquote>💰 <b>Balance:</b> <code>{balance_display}</code></blockquote>\n"
+                f"💰 <b>Balance:</b> <code>{balance_display}</code>\n\n"
                 f"Top-up {format_deposit_id(pending['id'])} is being verified. Do not pay again."
             )
         keyboard = get_deposit_methods_keyboard([], instant_label=None, show_history=True, lang=lang, back_target=back_target)
     else:
         if lang == "bn":
             prompt = (
-                "আপনার ওয়ালেটে ব্যালেন্স যোগ করুন:"
+                "পেমেন্ট মেথড নির্বাচন করুন:"
                 if displayed_methods or instant
                 else "এই মুহূর্তে কোনো পেমেন্ট মেথড চালু নেই।"
             )
-            text = f"<blockquote>💰 <b>ব্যালেন্স:</b> <code>{balance_display}</code></blockquote>\n\n{prompt}"
+            text = f"💰 <b>ব্যালেন্স:</b> <code>{balance_display}</code>\n\n{prompt}"
         else:
             prompt = (
-                "Add funds to your balance:"
+                "Choose a payment method:"
                 if displayed_methods or instant
                 else "No payment methods are available right now."
             )
-            text = f"<blockquote>💰 <b>Balance:</b> <code>{balance_display}</code></blockquote>\n\n{prompt}"
+            text = f"💰 <b>Balance:</b> <code>{balance_display}</code>\n\n{prompt}"
         keyboard = get_deposit_methods_keyboard(
             displayed_methods,
             instant_label=instant["label"] if instant else None,
@@ -459,6 +492,15 @@ async def render_method_details(
         with suppress(TelegramBadRequest):
             await event.answer()
 
+    prior_data: dict[str, Any] = {}
+    if hasattr(state, "get_data"):
+        maybe_data = state.get_data()
+        if inspect.isawaitable(maybe_data):
+            res = await maybe_data
+            if isinstance(res, dict):
+                prior_data = res
+    target_prod_id = prior_data.get("target_prod_id") if isinstance(prior_data, dict) else None
+
     await state.clear()
     await state.set_state(DepositStates.method_selected)
 
@@ -491,7 +533,7 @@ async def render_method_details(
     # USD wallet credit converts at one global rate; Binance USDT is 1:1.
     rate = 1.0 if is_binance else float(usd_rate or 125.0)
 
-    await state.set_data({
+    state_payload: dict[str, Any] = {
         "method_id": method["id"],
         "method_name": method_name,
         "account_info": account_info,
@@ -500,25 +542,50 @@ async def render_method_details(
         "rate": rate,
         "auto_verify": auto_verify,
         "is_binance": is_binance,
-    })
+    }
+    if target_prod_id is not None:
+        state_payload["target_prod_id"] = int(target_prod_id)
+    await state.set_data(state_payload)
 
     user_id = event.from_user.id if event.from_user else 0
     lang = await services.users.get_language(user_id) if user_id else "en"
 
+    shortfall_usd = 0.0
+    get_prod_fn = getattr(getattr(services, "catalog", None), "product", None) or getattr(getattr(services, "catalog", None), "get_product", None)
+    if target_prod_id is not None and user_id and get_prod_fn:
+        try:
+            prod_coro = get_prod_fn(int(target_prod_id))
+            user_coro = services.users.get(user_id) if hasattr(services.users, "get") else None
+            prod_row = await prod_coro if asyncio.iscoroutine(prod_coro) or hasattr(prod_coro, "__await__") else prod_coro
+            user_row = (await user_coro if asyncio.iscoroutine(user_coro) or hasattr(user_coro, "__await__") else user_coro) if user_coro is not None else None
+            if isinstance(prod_row, dict) and prod_row.get("price") is not None:
+                bal = float(user_row.get("balance", 0.0)) if isinstance(user_row, dict) else 0.0
+                shortfall_usd = round(max(0.0, float(prod_row["price"]) - bal), 2)
+        except Exception:
+            shortfall_usd = 0.0
+
     _, action = get_account_type_labels(account_type)
     heading = method_name if is_binance else f"{method_name} ({action})"
+    custom_eid = str(method.get("custom_emoji_id") or "").strip()
+    heading_prefix = f'<tg-emoji emoji-id="{custom_eid}">💳</tg-emoji> ' if custom_eid.isdigit() else ""
     destination_label = "Pay ID" if is_binance else "Number"
     destination = "Open the payment page below." if is_payment_link else f"{destination_label}: <code>{escape(account_info)}</code>"
-    minimum = f"{min_dep:g} USDT" if is_binance else f"৳{min_dep:g}"
+    minimum = f"{min_dep:g} USDT" if is_binance else f"{min_dep:g} ৳"
 
     card_lines = [
         f"⚠️ Minimum: <b>{minimum}</b>",
     ]
     if not is_binance and rate > 1:
-        card_lines.append(f"Rate: 1 USD = ৳{rate:g} BDT")
+        card_lines.append(f"Rate: 1 USD = {rate:g} ৳")
+    if shortfall_usd > 0:
+        if is_binance:
+            card_lines.append(f"Amount needed: <b>{shortfall_usd:.2f} USDT</b>")
+        else:
+            shortfall_bdt = math.ceil(shortfall_usd * rate)
+            card_lines.append(f"Amount needed: <b>{shortfall_bdt:g} ৳</b> (${shortfall_usd:.2f})")
 
     lines = [
-        f"<b>{escape(heading)}</b>",
+        f"{heading_prefix}<b>{escape(heading)}</b>",
         "",
         "<blockquote>" + "\n".join(card_lines) + "</blockquote>",
         "",
@@ -642,6 +709,7 @@ async def create_instant_payment(message: Message, state: FSMContext, services: 
         await message.answer(f"{ICON_WARNING} {escape(str(exc))}", reply_markup=get_cancel_keyboard())
         return
     text, keyboard = await _render_instant_invoice(invoice, services)
+    await state.clear()
     sent = await message.answer(text, reply_markup=keyboard)
     if sent and invoice.get("reference"):
         await services.payments.bind_telegram_message(invoice["reference"], sent.chat.id, sent.message_id)
@@ -967,14 +1035,14 @@ async def handle_deposit_quick_amount(query: CallbackQuery, state: FSMContext, s
             tx_prompt = (
                 f"<b>{escape(method_name)} {type_display}</b>\n"
                 f"নম্বর: <code>{escape(account_info)}</code>\n"
-                f"পরিমাণ: <b>৳{amount_num:g} (USD equivalent: ${usd_amount:.2f})</b>\n\n"
+                f"পরিমাণ: <b>{amount_num:g} ৳ (USD equivalent: ${usd_amount:.2f})</b>\n\n"
                 "পেমেন্টের TrxID নিচে লিখুন:"
             )
         else:
             tx_prompt = (
                 f"<b>{escape(method_name)} {type_display}</b>\n"
                 f"Number: <code>{escape(account_info)}</code>\n"
-                f"Amount: <b>৳{amount_num:g} (USD equivalent: ${usd_amount:.2f})</b>\n\n"
+                f"Amount: <b>{amount_num:g} ৳ (USD equivalent: ${usd_amount:.2f})</b>\n\n"
                 "Enter TrxID below:"
             )
 
@@ -1259,14 +1327,14 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
             tx_prompt = (
                 f"<b>{escape(method_name)} {type_display}</b>\n"
                 f"নম্বর: <code>{escape(account_info)}</code>\n"
-                f"পরিমাণ: <b>৳{amount_num:g} (USD equivalent: ${usd_amount:.2f})</b>\n\n"
+                f"পরিমাণ: <b>{amount_num:g} ৳ (USD equivalent: ${usd_amount:.2f})</b>\n\n"
                 "পেমেন্টের TrxID নিচে লিখুন:"
             )
         else:
             tx_prompt = (
                 f"<b>{escape(method_name)} {type_display}</b>\n"
                 f"Number: <code>{escape(account_info)}</code>\n"
-                f"Amount: <b>৳{amount_num:g} (USD equivalent: ${usd_amount:.2f})</b>\n\n"
+                f"Amount: <b>{amount_num:g} ৳ (USD equivalent: ${usd_amount:.2f})</b>\n\n"
                 "Enter TrxID below:"
             )
 
@@ -1322,6 +1390,14 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
 
     clean_tx = re.sub(r"^(uid|order\s*id|order|txid|trxid|trx\s*id|ref)[\s:#=]*", "", raw_text, flags=re.IGNORECASE).strip()
     clean_tx = clean_tx.strip("<>#[](){}\"':; \t\r\n")
+    if " " in clean_tx and not is_binance:
+        sms_tx_match = re.search(
+            r"\b(?:trx\s*id|tx\s*n\s*id|transaction\s*id)[\s:#=]*([A-Za-z0-9]{5,30})\b",
+            raw_text,
+            re.IGNORECASE,
+        )
+        if sms_tx_match:
+            clean_tx = sms_tx_match.group(1).strip()
 
     back_kb = get_deposit_trxid_prompt_keyboard(lang=lang)
 
@@ -1370,14 +1446,14 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                 tx_err_card = (
                     f"<b>{escape(method_name)} {type_display}</b>\n"
                     f"নম্বর: <code>{escape(account_info)}</code>\n"
-                    f"পরিমাণ: <b>৳{pay_amount:g} (USD equivalent: ${usd_amount:.2f})</b>\n\n"
+                    f"পরিমাণ: <b>{pay_amount:g} ৳ (USD equivalent: ${usd_amount:.2f})</b>\n\n"
                     f"⚠️ <b>{err_msg}</b>"
                 )
             else:
                 tx_err_card = (
                     f"<b>{escape(method_name)} {type_display}</b>\n"
                     f"Number: <code>{escape(account_info)}</code>\n"
-                    f"Amount: <b>৳{pay_amount:g} (USD equivalent: ${usd_amount:.2f})</b>\n\n"
+                    f"Amount: <b>{pay_amount:g} ৳ (USD equivalent: ${usd_amount:.2f})</b>\n\n"
                     f"⚠️ <b>{err_msg}</b>"
                 )
 
@@ -1530,12 +1606,19 @@ async def execute_deposit_submission(
     else:
         credit_amount = round(pay_amount / rate, 4)
         actual_pay = pay_amount
-        amt_display = f"৳{actual_pay:g} → ${credit_amount:.2f} USD"
+        amt_display = f"{actual_pay:g} ৳ → ${credit_amount:.2f} USD"
 
     user_msg = event.message if isinstance(event, CallbackQuery) else event
     chat = getattr(event, "chat", None) or (getattr(user_msg, "chat", None) if user_msg else None)
     chat_id = getattr(chat, "id", None)
     target_msg_id = data.get("card_msg_id") or (get_last_menu_message(chat_id) if chat_id else None)
+    bot_obj = getattr(event, "bot", None) or (getattr(user_msg, "bot", None) if user_msg else None)
+    if bot_obj and chat_id:
+        for prompt_key in ("reference_prompt_id", "amount_prompt_id"):
+            pid = data.get(prompt_key)
+            if isinstance(pid, int) and pid != target_msg_id:
+                with suppress(Exception):
+                    await bot_obj.delete_message(chat_id=chat_id, message_id=pid)
 
     if not method_id or not clean_tx or (credit_amount <= 0 and actual_pay <= 0):
         await state.clear()
@@ -1662,7 +1745,7 @@ async def execute_deposit_submission(
         rate = float(data.get("rate") or 125.0)
         credit_amount = round(auto_amt / rate, 4)
         actual_pay = auto_amt
-        amt_display = f"৳{actual_pay:g} → ${credit_amount:.2f} USD"
+        amt_display = f"{actual_pay:g} ৳ → ${credit_amount:.2f} USD"
 
         try:
             dep_id = await services.deposits.create_request(
@@ -2095,7 +2178,7 @@ async def refresh_deposit_status(query: CallbackQuery, services: Services):
     if is_bin:
         amt_str = f"{pay_amt or amt:g} USDT → ${amt:.2f} USD"
     else:
-        amt_str = f"৳{pay_amt:g} → ${amt:.2f} USD" if pay_amt > 0 else f"${amt:.2f} USD"
+        amt_str = f"{pay_amt:g} ৳ → ${amt:.2f} USD" if pay_amt > 0 else f"${amt:.2f} USD"
 
     user_balance_str = None
     if status in ("approved", "completed"):
@@ -2179,7 +2262,7 @@ async def back_to_deposit_request(query: CallbackQuery, services: Services):
     if is_bin:
         amt_str = f"{pay_amt or amt:g} USDT → ${amt:.2f} USD"
     else:
-        amt_str = f"৳{pay_amt:g} → ${amt:.2f} USD" if pay_amt > 0 else f"${amt:.2f} USD"
+        amt_str = f"{pay_amt:g} ৳ → ${amt:.2f} USD" if pay_amt > 0 else f"${amt:.2f} USD"
 
     user_balance_str = None
     if status in ("approved", "completed"):

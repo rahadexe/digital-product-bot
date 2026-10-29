@@ -236,7 +236,12 @@ class PurchaseService:
                                     self.notifier.in_background(supplier.check_low_balance(self.notifier))
                             else:
                                 await db.execute("ROLLBACK")
-                                return False, f"⚠️ Provider notice: {err_msg}", None
+                                customer_notice = (
+                                    "This item is temporarily unavailable. Your balance was not charged."
+                                    if "supplier" in str(err_msg).lower()
+                                    else str(err_msg)
+                                )
+                                return False, customer_notice, None
                         else:
                             supplier_order_id = str(upstream_resp.get("order_id") or "")
                             charged_cost = float(upstream_resp.get("total_price") or upstream_resp.get("unit_price") or 0.0)

@@ -44,18 +44,16 @@ async def test_admin_dashboard_groups_existing_controls_into_consistent_rows():
     text, keyboard = await admin.build_admin_dashboard(services)
 
     assert "Admin Panel" in text
-    assert [len(row) for row in keyboard.inline_keyboard] == [2, 2, 2, 2, 1, 2]
+    assert [len(row) for row in keyboard.inline_keyboard] == [2, 2, 2]
     assert [[button.callback_data for button in row] for row in keyboard.inline_keyboard] == [
-        ["adm_view_status", "adm_start_broadcast"],
         ["adm_queue_dep", "adm_queue_ord"],
-        ["adm_start_stock", "adm_queue_reseller"],
-        ["adm_start_find", "adm_start_settings"],
-        ["adm_toggle_pause"],
-        ["back_to_main", "close_menu"],
+        ["adm_start_stock", "adm_start_settings"],
+        ["adm_start_broadcast", "adm_toggle_pause"],
     ]
-    assert keyboard.inline_keyboard[1][0].text == "Deposits (1)"
-    assert keyboard.inline_keyboard[1][1].text == "Orders (2)"
-    assert keyboard.inline_keyboard[2][1].text == "Reseller Apps (3)"
+    assert keyboard.inline_keyboard[0][0].text == "💳 Deposits (1)"
+    assert keyboard.inline_keyboard[0][1].text == "📦 Orders (2)"
+    assert keyboard.inline_keyboard[1][0].text == "📋 Stock"
+    assert keyboard.inline_keyboard[1][1].text == "⚙️ Settings"
 
 
 @pytest.mark.asyncio

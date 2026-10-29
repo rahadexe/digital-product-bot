@@ -377,8 +377,8 @@ class PaymentService:
                 )
             self.notifier.in_background(
                 self.notifier.send_admin(
-                    f"â ï¸ <b>ZiniPay Gateway Warning</b>\n\n{escape(str(exc))}\n\n"
-                    "<i>Check the API key in Settings â Payments.</i>",
+                    f"⚠️ <b>ZiniPay Gateway Warning</b>\n\n{escape(str(exc))}\n\n"
+                    "<i>Check the API key in Settings → Payments.</i>",
                     event="system_error",
                 )
             )
@@ -524,7 +524,7 @@ class PaymentService:
         if alert:
             self.notifier.in_background(
                 self.notifier.send_admin(
-                    f"â ï¸ <b>Automatic Payment Verification Issue</b>\n\n"
+                    f"⚠️ <b>Automatic Payment Verification Issue</b>\n\n"
                     f"<b>Reference:</b> <code>{escape(row['reference'])}</code>\n"
                     f"<b>Customer ID:</b> <code>{row['tg_user_id']}</code>\n"
                     f"<b>Error:</b> {escape(reason)}\n\n"
@@ -567,7 +567,7 @@ class PaymentService:
             # ZiniPay answers with its own invoice UUID and with val_id, the reference we
             # gave it. Creation only ever told us the reference, so the UUID never matched
             # what was stored and a paid invoice was failed with "the verified invoice does
-            # not match" â the customer paid and got nothing. Either name identifying this
+            # not match" — the customer paid and got nothing. Either name identifying this
             # invoice is proof it is ours; only an answer that names neither is refused.
             if not ref_match and not inv_match:
                 problems.append(
@@ -701,7 +701,7 @@ class PaymentService:
             pass
 
         await self.notifier.send_admin(
-            f"â <b>Automatic Deposit Â· {format_deposit_id(deposit_id)}</b>\n\n"
+            f"✅ <b>Automatic Deposit · {format_deposit_id(deposit_id)}</b>\n\n"
             f"<b>Customer:</b> {customer_name}\n"
             f"<b>Customer ID:</b> <code>{row['tg_user_id']}</code>\n"
             f"<b>Method:</b> {escape(row['payment_method'] or 'ZiniPay')}\n"

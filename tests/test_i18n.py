@@ -36,8 +36,8 @@ def test_guide_copy_and_support_action_are_english():
 def test_language_specific_currency_formatting():
     from app.bot.formatting import format_dual_price, price
     # Bangladesh locale keeps the English UI and shows the local equivalent.
-    assert format_dual_price(44.0, "৳", usd_rate=125.0, lang="en-BD") == "৳5,500 (≈$44)"
-    assert price("৳", 44.0, usd_rate=125.0, lang="en-BD") == "৳5,500 (≈$44)"
+    assert format_dual_price(44.0, "৳", usd_rate=125.0, lang="en-BD") == "5,500 ৳ (≈$44)"
+    assert price("৳", 44.0, usd_rate=125.0, lang="en-BD") == "5,500 ৳ (≈$44)"
 
     # English uses the canonical USD amount directly; exchange-rate settings do not rescale it.
     assert format_dual_price(125.0, "৳", usd_rate=125.0, lang="en") == "$125"
@@ -46,21 +46,20 @@ def test_language_specific_currency_formatting():
 
 def test_customer_keyboards_are_english_and_more_is_removed():
     main_kb = get_main_inline_keyboard(lang="en-BD", is_admin=False)
-    assert len(main_kb.inline_keyboard) == 2
+    assert len(main_kb.inline_keyboard) == 1
     assert [button.text for row in main_kb.inline_keyboard for button in row] == [
-        "🛍 Shop", "💰 Balance", "📦 Orders", "🎁 Refer", "💬 Help",
+        "💱 Currency: ৳ BDT", "🎁 Referral",
     ]
 
     admin_kb = get_main_inline_keyboard(lang="en-BD", is_admin=True)
-    assert len(admin_kb.inline_keyboard) == 3
-    assert admin_kb.inline_keyboard[-1][0].text == "🛡 Admin Panel"
+    assert len(admin_kb.inline_keyboard) == 1
     kb = get_persistent_reply_keyboard(is_reseller=False, is_admin=False, lang="en-BD")
     assert len(kb.keyboard) == 2
     assert kb.is_persistent is False
     assert kb.resize_keyboard is True
     kb_admin = get_persistent_reply_keyboard(is_reseller=False, is_admin=True, lang="bn")
     assert len(kb_admin.keyboard) == 3
-    assert kb_admin.keyboard[-1][0].text == "🛡 Admin Panel"
+    assert kb_admin.keyboard[-1][0].text == "⚙️ Admin Panel"
     kb_cats = get_persistent_reply_keyboard(pinned_categories=[{"name": "VPN", "icon": "🛡️"}], lang="bn")
     assert len(kb_cats.keyboard) == 2
 
@@ -69,6 +68,7 @@ def test_navigation_texts_only_include_active_routes():
         "Back": "cancel", "back": "cancel", "Cancel": "cancel", "cancel": "cancel",
         "❌ Cancel": "cancel", "🛍 Shop": "other_products", "Shop": "other_products",
         "💰 Balance": "deposit", "Balance": "deposit", "Add Balance": "deposit", "💰 Add Balance": "deposit",
+        "👤 Account": "account", "Account": "account",
         "📦 Orders": "orders", "Orders": "orders",
         "🎁 Refer": "referral", "Refer": "referral",
         "🎁 Referral": "referral", "Referral": "referral",

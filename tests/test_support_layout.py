@@ -10,7 +10,7 @@ from app.bot.keyboards import (
 )
 
 
-EMOJI_ICONS = "⚡💳📦🎁🛍️👤⏱️💡🧑‍💻💬📢🎬🔙"
+EMOJI_ICONS = ["⚡", "💳", "📦", "🎁", "🛍️", "👤", "⏱️", "💡", "🧑‍💻", "💬", "📢", "🎬", "🔙"]
 
 
 @pytest.mark.parametrize(
@@ -19,25 +19,23 @@ EMOJI_ICONS = "⚡💳📦🎁🛍️👤⏱️💡🧑‍💻💬📢🎬🔙"
         (
             "en",
             [
-                ["Buying"],
-                ["Payments"],
-                ["Delivery"],
-                ["Referrals"],
+                ["How to deposit balance?"],
+                ["How to buy products?"],
+                ["How does delivery work?"],
+                ["How does referral work?"],
                 ["Support"],
                 ["Updates"],
-                ["Back"],
             ],
         ),
         (
             "bn",
             [
-                ["Buying"],
-                ["Payments"],
-                ["Delivery"],
-                ["Referrals"],
+                ["How to deposit balance?"],
+                ["How to buy products?"],
+                ["How does delivery work?"],
+                ["How does referral work?"],
                 ["Support"],
                 ["Updates"],
-                ["Back"],
             ],
         ),
     ],
@@ -53,8 +51,8 @@ def test_help_keyboard_uses_text_only_stacked_topics(lang, expected_rows):
     assert all(not any(icon in button.text for icon in EMOJI_ICONS)
                for row in keyboard.inline_keyboard for button in row)
     # Direct clickable URL buttons
-    assert keyboard.inline_keyboard[-3][0].url == "https://t.me/support_team"
-    assert keyboard.inline_keyboard[-2][0].url == "https://t.me/news"
+    assert keyboard.inline_keyboard[-2][0].url == "https://t.me/support_team"
+    assert keyboard.inline_keyboard[-1][0].url == "https://t.me/news"
 
 
 def test_help_keyboard_omits_unconfigured_support_and_channels():
@@ -66,7 +64,7 @@ def test_help_keyboard_omits_unconfigured_support_and_channels():
     labels = [button.text for row in keyboard.inline_keyboard for button in row]
     assert "Support" not in labels
     assert "Updates" not in labels
-    assert len(labels) == 5
+    assert len(labels) == 4
 
 
 def test_faq_answers_have_no_decorative_icons():
@@ -118,17 +116,16 @@ async def test_technical_support_detail_has_plain_text_and_action():
     assert not any(icon in text for icon in EMOJI_ICONS)
     buttons = kwargs["reply_markup"].inline_keyboard
     assert buttons[0][0].text == "Message support"
-    assert buttons[-1][0].text == "Back to help"
-    assert all(not any(icon in button.text for icon in EMOJI_ICONS)
-               for row in buttons for button in row)
+    assert buttons[-1][0].text == "🔙 Back to Help"
+    assert not any(icon in buttons[0][0].text for icon in EMOJI_ICONS)
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("lang", "expected_text"),
     [
-        ("en", "Choose a topic."),
-        ("bn", "Choose a topic."),
+        ("en", "<b>Most common questions:</b>"),
+        ("bn", "<b>Most common questions:</b>"),
     ],
 )
 async def test_show_help_faq_hub_heading_text(lang, expected_text):

@@ -30,7 +30,7 @@ ZINIPAY_TRX_API = "https://api.zinipay.com/v1/trx"
 def _readable(body: Any) -> bool:
     """True when the body is something the error parsing below can read.
 
-    ZiniPay answers every failure with ``"data": null`` â not found, amount mismatch,
+    ZiniPay answers every failure with ``"data": null`` — not found, amount mismatch,
     already used, out of credits, all of them. Requiring ``data`` to be an object threw
     all of that away and reported "Malformed gateway response" instead, so the caller
     never saw ``not_found`` and never waited for the receipt SMS to sync. A null payload
@@ -80,8 +80,8 @@ SMS_SYNC_RETRY_DELAYS = (3.0, 5.0, 7.0)
 SMS_SYNC_WINDOW_SECONDS = sum(SMS_SYNC_RETRY_DELAYS)
 
 # When the fifteen seconds run out the receipt is usually still on its way, not missing.
-# Saying "transaction not found" then â and spending one of the customer's three attempts
-# on it â was wrong about the most ordinary case there is, and left them retyping a TrxID
+# Saying "transaction not found" then — and spending one of the customer's three attempts
+# on it — was wrong about the most ordinary case there is, and left them retyping a TrxID
 # they had already typed correctly. The deposit is filed instead and the background worker
 # keeps asking. Ten minutes is long enough for a slow merchant SIM; past that the likeliest
 # remaining explanation is a mistyped TrxID, which is a person's job to judge.
@@ -317,8 +317,8 @@ class ZiniPayVerificationService:
                 raise DuplicateTransactionError("This Transaction ID has already been credited.")
             if existing.get("tg_user_id") == tg_user_id and existing.get("status") == "pending":
                 raise InvalidInputError("You already submitted this Transaction ID. It is awaiting review.")
-            # Any other earlier use â another customer's request, or one an admin already
-            # rejected â is answered now. It used to go to the gateway and, finding
+            # Any other earlier use — another customer's request, or one an admin already
+            # rejected — is answered now. It used to go to the gateway and, finding
             # nothing, made the customer sit through the fifteen-second receipt wait, only
             # for the insert to fail anyway: deposit_transaction_unique allows a
             # transaction id once, whatever became of the deposit that used it.

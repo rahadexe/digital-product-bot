@@ -173,14 +173,18 @@ class UserService:
         return {"total": row["total"], "earned": row["earned"]}
 
     async def get_language(self, tg_user_id: int) -> str:
-        """Return English UI locale, retaining the legacy Bangladesh price-display marker."""
+        """Return English UI locale, retaining the Bangladesh price-display marker."""
         cached_user = self._user_cache.get(tg_user_id)
         if (
             cached_user
             and cached_user[1]
             and time.monotonic() - cached_user[0] < self._cache_ttl
         ):
-            locale = self._display_locale(str(cached_user[1].get("language") or ""))
+            curr = str(cached_user[1].get("currency") or "").strip().upper()
+            if curr in {"BDT", "USD"}:
+                locale = "en" if curr == "USD" else "en-BD"
+            else:
+                locale = self._display_locale(str(cached_user[1].get("language") or ""))
             self._lang_cache[tg_user_id] = (time.monotonic(), locale)
             return locale
         cached = self._lang_cache.get(tg_user_id)
@@ -192,6 +196,58 @@ class UserService:
         locale = self._display_locale(raw or "")
         self._lang_cache[tg_user_id] = (time.monotonic(), locale)
         return locale
+
+    async def get_currency(self, tg_user_id: int) -> str:
+        """Return the user's currency preference ('BDT' or 'USD'). Default is 'BDT'."""
+        cached_user = self._user_cache.get(tg_user_id)
+        if (
+            cached_user
+            and cached_user[1]
+            and time.monotonic() - cached_user[0] < self._cache_ttl
+        ):
+            val = str(cached_user[1].get("currency") or "").strip().upper()
+            if val in {"BDT", "USD"}:
+                return val
+            lang_val = str(cached_user[1].get("language") or "").strip().lower()
+            return "USD" if lang_val == "en" else "BDT"
+
+        async with self.db.connect() as conn:
+            row = await conn.fetchrow(
+                "SELECT currency, language FROM users WHERE tg_user_id = $1", tg_user_id
+            )
+            if row:
+                curr = str(row["currency"] or "").strip().upper()
+                if curr in {"BDT", "USD"}:
+                    return curr
+                lang_val = str(row["language"] or "").strip().lower()
+                return "USD" if lang_val == "en" else "BDT"
+        return "BDT"
+
+    async def toggle_currency(self, tg_user_id: int) -> str:
+        """Toggle currency between 'BDT' and 'USD'; returns the newly selected currency."""
+        current = await self.get_currency(tg_user_id)
+        new_curr = "USD" if current == "BDT" else "BDT"
+        new_lang = "en" if new_curr == "USD" else "en-BD"
+        async with self.db.transaction() as conn:
+            await conn.execute(
+                "UPDATE users SET currency = $1, language = $2, updated_at = now() WHERE tg_user_id = $3",
+                new_curr, new_lang, tg_user_id
+            )
+        self.invalidate_cache(tg_user_id)
+        self._lang_cache[tg_user_id] = (time.monotonic(), new_lang)
+        return new_curr
+
+    async def set_currency(self, tg_user_id: int, currency: str) -> str:
+        clean = "USD" if str(currency).strip().upper() == "USD" else "BDT"
+        clean_lang = "en" if clean == "USD" else "en-BD"
+        async with self.db.transaction() as conn:
+            await conn.execute(
+                "UPDATE users SET currency = $1, language = $2, updated_at = now() WHERE tg_user_id = $3",
+                clean, clean_lang, tg_user_id
+            )
+        self.invalidate_cache(tg_user_id)
+        self._lang_cache[tg_user_id] = (time.monotonic(), clean_lang)
+        return clean
 
     @staticmethod
     def _display_locale(language: str) -> str:
@@ -366,9 +422,10 @@ class UserService:
 
     async def set_language(self, tg_user_id: int, language: str) -> str:
         """Keep legacy callers compatible while enforcing the English-only bot."""
-        clean_lang = "en"
+        clean_lang = "en-BD" if str(language).strip().lower() in {"bn", "en-bd", "bdt"} else "en"
+        clean_curr = "BDT" if clean_lang == "en-BD" else "USD"
         async with self.db.transaction() as conn:
-            await conn.execute("UPDATE users SET language = $1, updated_at = now() WHERE tg_user_id = $2", clean_lang, tg_user_id)
+            await conn.execute("UPDATE users SET language = $1, currency = $2, updated_at = now() WHERE tg_user_id = $3", clean_lang, clean_curr, tg_user_id)
         self.invalidate_cache(tg_user_id)
         self._lang_cache[tg_user_id] = (time.monotonic(), clean_lang)
         return clean_lang

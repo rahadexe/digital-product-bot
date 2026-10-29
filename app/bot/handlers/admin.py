@@ -293,12 +293,20 @@ async def handle_bc_cancel(query: CallbackQuery, state: FSMContext, services: Se
 async def build_admin_dashboard(services: Services) -> tuple[str, InlineKeyboardMarkup]:
     paused = await services.settings.flag("store_paused")
     stats = await services.dashboard.stats()
-    waiting = stats.get("waiting_orders", 0)
-    pending = stats.get("pending_deposits", 0)
+    waiting = int(stats.get("waiting_orders", 0) or 0)
+    pending = int(stats.get("pending_deposits", 0) or 0)
+    total_orders = int(stats.get("total_orders", 0) or 0)
+    total_rev = float(stats.get("total_revenue", 0.0) or 0.0)
+    total_users = int(stats.get("total_users", 0) or 0)
 
     get_fn = getattr(services.settings, "get", None)
     raw_symbol = await get_fn("currency_symbol") if get_fn else "৳"
     symbol = html.escape(raw_symbol or "৳")
+
+    def _fmt(amt: float) -> str:
+        if symbol == "$":
+            return f"${amt:.2f}"
+        return f"{amt:.2f} {symbol}"
 
     today_orders = 0
     today_rev = 0.0
@@ -315,31 +323,38 @@ async def build_admin_dashboard(services: Services) -> tuple[str, InlineKeyboard
         except Exception:
             pass
 
+    status_emoji = "⏸️" if paused else "🟢"
     status_str = "Paused" if paused else "Active"
 
+    stock_summary = stats.get("stock_summary", [])
+    low_stock = [p for p in stock_summary if int(p.get("stock") or 0) <= 2]
+    stock_str = f"⚠️ {len(low_stock)} item(s) running low" if low_stock else "✅ All items in stock"
+
+    needs_parts = []
+    if pending:
+        needs_parts.append(f"{pending} deposit{'s' if pending != 1 else ''}")
+    if waiting:
+        needs_parts.append(f"{waiting} order{'s' if waiting != 1 else ''}")
+    needs_str = " · ".join(needs_parts) if needs_parts else "All caught up"
+
     text = (
-        "<b>Admin Panel</b>\n\n"
-        f"<b>Status:</b> {status_str}\n"
-        f"<b>Today:</b> {today_orders} orders ({today_rev:.2f} {symbol})\n"
-        f"<b>Pending Deposits:</b> {pending}\n"
-        f"<b>Waiting Orders:</b> {waiting}\n"
-        f"<b>Total Customers:</b> {stats.get('total_users', 0)}"
+        "⚙️ <b>Admin Panel</b>\n\n"
+        f"• <b>Store Status:</b> {status_emoji} {status_str}\n"
+        f"• <b>Action Needed:</b> {needs_str}\n"
+        f"• <b>Today Sales:</b> {today_orders} orders ({_fmt(today_rev)})\n"
+        f"• <b>All-Time Sales:</b> {total_orders} orders ({_fmt(total_rev)})\n"
+        f"• <b>Stock Status:</b> {stock_str}\n"
+        f"• <b>Total Customers:</b> {total_users} registered\n\n"
+        "<i>Quick management dashboard for daily store operations.</i>"
     )
 
-    pause_text = "Resume Store" if paused else "Pause Store"
+    pause_text = "▶️ Resume Store" if paused else "⏸ Pause Store"
     pause_style = "success" if paused else "danger"
 
-    deposits_text = f"Deposits ({pending})" if pending else "Deposits"
-    orders_text = f"Orders ({waiting})" if waiting else "Orders"
+    deposits_text = f"💳 Deposits ({pending})" if pending else "💳 Deposits"
+    orders_text = f"📦 Orders ({waiting})" if waiting else "📦 Orders"
 
-    pending_reseller = await services.reseller_applications.count_applications(status="pending")
-    reseller_apps_text = f"Reseller Apps ({pending_reseller})" if pending_reseller else "Reseller Apps"
-
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="Store Status", callback_data="adm_view_status"),
-            InlineKeyboardButton(text="Broadcast", callback_data="adm_start_broadcast"),
-        ],
+    rows: list[list[InlineKeyboardButton]] = [
         [
             InlineKeyboardButton(text=deposits_text, callback_data="adm_queue_dep",
                                  style="danger" if pending else "primary"),
@@ -347,22 +362,16 @@ async def build_admin_dashboard(services: Services) -> tuple[str, InlineKeyboard
                                  style="danger" if waiting else "primary"),
         ],
         [
-            InlineKeyboardButton(text="Stock", callback_data="adm_start_stock"),
-            InlineKeyboardButton(text=reseller_apps_text, callback_data="adm_queue_reseller",
-                                 style="danger" if pending_reseller else "primary"),
+            InlineKeyboardButton(text="📋 Stock", callback_data="adm_start_stock"),
+            InlineKeyboardButton(text="⚙️ Settings", callback_data="adm_start_settings"),
         ],
         [
-            InlineKeyboardButton(text="Find Customer", callback_data="adm_start_find"),
-            InlineKeyboardButton(text="Settings", callback_data="adm_start_settings"),
-        ],
-        [
+            InlineKeyboardButton(text="📢 Broadcast", callback_data="adm_start_broadcast"),
             InlineKeyboardButton(text=pause_text, callback_data="adm_toggle_pause", style=pause_style),
         ],
-        [
-            InlineKeyboardButton(text="Back to Store", callback_data="back_to_main", style="primary"),
-            InlineKeyboardButton(text="Close", callback_data="close_menu", style="danger"),
-        ],
-    ])
+    ]
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=rows)
     return text, keyboard
 
 
@@ -463,9 +472,9 @@ _last_admin_panels: dict[int, int] = {}
 
 @router.message(Command("admin"))
 @router.message(F.text.in_({
-    ADMIN_PANEL_TEXT, f"👑 {ADMIN_PANEL_TEXT}",
+    ADMIN_PANEL_TEXT, f"⚙️ {ADMIN_PANEL_TEXT}", f"🛡 {ADMIN_PANEL_TEXT}", f"👑 {ADMIN_PANEL_TEXT}",
+    "⚙️ Admin Panel", "🛡 Admin Panel", "👑 Admin Panel", "Admin Panel",
     "ADMIN PANEL", "👑 ADMIN PANEL",
-    "Admin Panel", "👑 Admin Panel",
     "অ্যাডমিন প্যানেল", "👑 অ্যাডমিন প্যানেল",
 }))
 async def cmd_admin_help(message: Message, state: FSMContext | Services | None = None, services: Services | None = None):
@@ -845,6 +854,24 @@ async def on_bot_chat_member_updated(event: ChatMemberUpdated, services: Service
         except Exception:
             logger.exception("Failed to load gate channels for chat authorization check")
 
+        # Update / support channels
+        if hasattr(services, "update_channels"):
+            try:
+                upd_list = await services.update_channels.channels(active_only=False)
+                for u in upd_list:
+                    link = (u.get("channel_link") or u.get("invite_link") or u.get("channel_username") or "").strip().lower()
+                    if "t.me/" in link:
+                        slug = link.split("t.me/", 1)[1].split("/")[0].split("?")[0].strip().lstrip("@")
+                        if slug and not slug.startswith("+"):
+                            authorized_chats.add(slug)
+                            authorized_chats.add(f"@{slug}")
+                    elif link:
+                        authorized_chats.add(link)
+                        if link.startswith("@"):
+                            authorized_chats.add(link[1:])
+            except Exception:
+                logger.exception("Failed to load update channels for chat authorization check")
+
         chat_id_str = str(chat.id)
         chat_user = (chat.username or "").lower()
 
@@ -929,6 +956,15 @@ async def adm_cancel(query: CallbackQuery, state: FSMContext, services: Services
 def _format_deposit_card(deposit: dict, symbol: str, back_cb: str = "adm_queue_dep") -> tuple[str, InlineKeyboardMarkup]:
     cust_handle = f"@{html.escape(deposit['username'])}" if deposit.get("username") else "No username"
     amount = f"{float(deposit['amount']):.2f} {symbol}"
+    pay_amount_raw = deposit.get("pay_amount")
+    pay_line = ""
+    if pay_amount_raw is not None:
+        try:
+            pay_val = float(pay_amount_raw)
+            if pay_val > 0 and abs(pay_val - float(deposit["amount"])) > 0.01:
+                pay_line = f"<b>Customer paid:</b> <code>৳{pay_val:.2f} BDT</code>\n"
+        except (ValueError, TypeError):
+            pass
     method_name = html.escape(str(deposit.get("method_name") or "N/A"))
     trx_id = html.escape(str(deposit.get("transaction_id") or "N/A"))
     dep_id = deposit["id"]
@@ -949,6 +985,7 @@ def _format_deposit_card(deposit: dict, symbol: str, back_cb: str = "adm_queue_d
         f"<b>Customer ID:</b> <code>{deposit['tg_user_id']}</code>\n"
         f"<b>Method:</b> {method_name}\n"
         f"<b>Amount:</b> <code>{amount}</code>\n"
+        f"{pay_line}"
         f"<b>TrxID:</b> <code>{trx_id}</code>\n"
         f"<b>Status:</b> {status_badge}"
         f"{time_line}"
@@ -1002,7 +1039,7 @@ async def _order_summary(services: Services, order_id: int) -> dict | None:
     async with services.db.connect() as conn:
         row = await conn.fetchrow(
             "SELECT o.id, o.product_title, o.price, o.status, o.fulfillment, o.source, "
-            "o.supplier_code, o.supplier_error, o.product_id, "
+            "o.supplier_code, o.supplier_error, o.product_id, o.customer_input, "
             "o.tg_user_id, o.created_at, u.username "
             "FROM orders o LEFT JOIN users u ON u.tg_user_id = o.tg_user_id "
             "WHERE o.id = $1",
@@ -1415,7 +1452,13 @@ async def adm_order_deliver_send(message: Message, state: FSMContext, services: 
     try:
         await services.purchases.fulfill_manually(order_id, text)
     except Exception as exc:
-        await message.answer(f"Could not deliver: {html.escape(str(exc))}")
+        await state.clear()
+        await message.answer(
+            f"Could not deliver: {html.escape(str(exc))}",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text="Back to Admin", callback_data="adm_dashboard")
+            ]])
+        )
         return
     await state.clear()
 
@@ -2446,7 +2489,7 @@ async def adm_ban_do(query: CallbackQuery, services: Services):
 
 @router.message(Command("upstream", "sync_reseller"))
 async def adm_upstream_status(message: Message, services: Services):
-    if await _deny(message, services):
+    if not message.from_user or not await _is_admin(message.from_user.id, services):
         return
     reseller = services.upstream_reseller
     if reseller:
@@ -2647,9 +2690,12 @@ async def adm_approve_reseller_cb(query: CallbackQuery, services: Services):
         "• Exclusive wholesale reseller prices on all products.\n"
         "• Direct REST API Key access for bot/store automation.\n"
         "• Priority automated delivery.\n\n"
-        "Tap <b>Reseller Panel</b> on the keyboard below to view your stats and generate your API key!"
+        "Tap the button below or use <code>/reseller</code> to view your stats and generate your API key!"
     )
-    await services.notifier.send_message(app["tg_user_id"], user_notify_text)
+    reseller_kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="💎 Reseller & API Hub", callback_data="open_reseller_hub")
+    ]])
+    await services.notifier.send_message(app["tg_user_id"], user_notify_text, reply_markup=reseller_kb)
 
     updated = await services.reseller_applications.get_application(app_id)
     if updated and query.message:

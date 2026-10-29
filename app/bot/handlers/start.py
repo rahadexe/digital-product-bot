@@ -20,6 +20,7 @@ from aiogram.types import (
 
 from app.bot.formatting import (
     format_dual_price,
+    resolve_user_currency,
     AUTO_DELETE_ENABLED,
     _quiet_delete,
     clean_previous_menu,
@@ -51,13 +52,21 @@ def build_welcome_text(
     balance_str: str = "",
     order_count: int = 0,
     support_username: str = "",
+    currency: str = "BDT",
 ) -> str:
     prefix = t("maintenance_notice", lang, icon_warning=ICON_WARNING, notice=escape(paused_notice)) + "\n\n" if paused_notice else ""
     support = f"@{support_username.lstrip('@')}" if support_username else "@support"
     balance = balance_str or "$0.00"
     orders = f"Orders: <code>{order_count}</code>" if order_count else "Orders: <code>0</code>"
-    card = "<blockquote>" + "\n".join((f"Balance: <code>{balance}</code>", orders)) + "</blockquote>"
-    return prefix + "\n".join(("Welcome! 🤝", "", card, "", f"Support: {support}"))
+    curr_label = "৳ BDT" if currency == "BDT" else "$ USD"
+    card = "<blockquote>" + "\n".join((
+        f"💰 Balance: <code>{balance}</code>",
+        f"📦 {orders}",
+        f"💱 Currency: <code>{curr_label}</code>",
+    )) + "</blockquote>"
+    tip = "💡 <i>Switch currency & refer friends to earn in <b>👤 Account</b></i>"
+    tagline = "⚡ <i>Instant Delivery · 24/7 Active</i>"
+    return prefix + "\n".join(("Welcome! 🤝", "", card, "", tip, tagline, f"💬 Support: {support}"))
 
 
 router = Router(name="start_router")
@@ -74,7 +83,8 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
 
     usd_rate = float(values.get("usd_rate") or 125) if isinstance(values, dict) else 125.0
     user_balance = float(user.get("balance", 0.0)) if user and isinstance(user, dict) else 0.0
-    balance_str = format_dual_price(user_balance, usd_rate=usd_rate, lang=lang)
+    curr = await resolve_user_currency(services, tg_user_id)
+    balance_str = format_dual_price(user_balance, usd_rate=usd_rate, lang=lang, currency=curr, show_usd=False)
     banner_file_id = (values.get("welcome_banner_file_id") or "").strip() if isinstance(values, dict) else ""
     support_username = (values.get("support_username") or "").strip() if isinstance(values, dict) else ""
     order_count = 0
@@ -92,6 +102,7 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
         balance_str=balance_str,
         order_count=order_count,
         support_username=support_username,
+        currency=curr,
     )
 
     is_admin = tg_user_id in admin_ids
@@ -107,6 +118,7 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
         is_reseller=is_reseller,
         is_admin=is_admin,
         lang=lang,
+        currency=curr,
     )
 
     chat = getattr(message, "chat", None)
@@ -116,7 +128,7 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
     if edit and message:
         if getattr(message, "photo", None) and banner_file_id:
             try:
-                await message.edit_caption(caption=text, reply_markup=main_inline_kb)
+                await message.edit_caption(caption=text, reply_markup=None)
                 if chat_id and message.message_id:
                     remember_menu_message(chat_id, message.message_id)
                 return
@@ -125,7 +137,7 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
                     return
         elif not banner_file_id and not getattr(message, "photo", None):
             try:
-                await message.edit_text(text, reply_markup=main_inline_kb)
+                await message.edit_text(text, reply_markup=None)
                 if chat_id and message.message_id:
                     remember_menu_message(chat_id, message.message_id)
                 return
@@ -241,7 +253,7 @@ async def handle_start(message: Message, state: FSMContext, services: Services):
             clean_previous_menu(bot, chat_id)
         sent = await message.answer(
             gate_text(missing, store_name),
-            reply_markup=get_gate_keyboard(missing),
+            reply_markup=get_gate_keyboard(missing, product_id=product_id),
             link_preview_options=LinkPreviewOptions(is_disabled=True),
         )
         if sent and chat_id:
@@ -275,11 +287,19 @@ async def handle_start(message: Message, state: FSMContext, services: Services):
 
 
 @router.callback_query(F.data == "gate_verify")
+@router.callback_query(F.data.startswith("gate_verify_prod_"))
 async def handle_gate_verify(query: CallbackQuery, state: FSMContext, services: Services):
     await state.clear()
     tg_user = query.from_user
     if not tg_user:
         return
+    raw_data = query.data or ""
+    product_id = None
+    if raw_data.startswith("gate_verify_prod_"):
+        pid_str = raw_data.removeprefix("gate_verify_prod_")
+        if pid_str.isdigit() and len(pid_str) <= 18:
+            product_id = int(pid_str)
+
     passed, missing = await services.gate.check(tg_user.id)
     if not passed:
         unjoined = [c for c in missing if not c.get("verification_unavailable")]
@@ -304,6 +324,14 @@ async def handle_gate_verify(query: CallbackQuery, state: FSMContext, services: 
     with suppress(TelegramBadRequest):
         await query.answer("✅ Verified successfully!")
     if query.message:
+        if product_id:
+            product = await services.catalog.product(product_id)
+            if product and product.get("is_active"):
+                forget_search_origin(tg_user.id, product["id"])
+                text, keyboard = await product_view(services, product, tg_user.id)
+                with suppress(TelegramBadRequest):
+                    await query.message.edit_text(text, reply_markup=keyboard)
+                return
         await render_main_dashboard(query.message, services, tg_user.id, edit=True)
 
 
@@ -340,3 +368,16 @@ async def handle_back_to_main(event: Message | CallbackQuery, state: FSMContext,
             await render_main_dashboard(event.message, services, tg_user.id, edit=True)
     else:
         await render_main_dashboard(event, services, tg_user.id, edit=False)
+
+
+@router.callback_query(F.data == "home_toggle_currency")
+async def handle_home_toggle_currency(query: CallbackQuery, state: FSMContext, services: Services):
+    tg_user = query.from_user
+    if not tg_user:
+        return
+    new_curr = await services.users.toggle_currency(tg_user.id)
+    with suppress(TelegramBadRequest):
+        toast_msg = "Currency switched to ৳ BDT" if new_curr == "BDT" else "Currency switched to $ USD"
+        await query.answer(toast_msg)
+    if query.message:
+        await render_main_dashboard(query.message, services, tg_user.id, edit=True)

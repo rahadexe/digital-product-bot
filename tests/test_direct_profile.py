@@ -19,9 +19,101 @@ def test_only_current_customer_commands_are_routed():
 
 
 def test_removed_profile_and_more_labels_are_not_menu_routes():
-    for label in ["Profile", "👤 Profile", "Account", "Wallet", "More", "Settings", "Price List", "My Balance"]:
+    for label in ["Profile", "👤 Profile", "Wallet", "More", "Settings", "Price List", "My Balance"]:
         assert not is_navigation(label)
         assert label not in NAVIGATION_TEXTS
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("label", ["Account", "👤 Account"])
+async def test_account_button_opens_account_hub(label):
+    state = SimpleNamespace(get_state=AsyncMock(return_value=None), clear=AsyncMock())
+    message = SimpleNamespace(from_user=SimpleNamespace(id=2))
+    services = SimpleNamespace()
+    with patch("app.bot.handlers.profile.show_account_hub", new_callable=AsyncMock) as open_account:
+        await navigate(label, message, state, services)
+    open_account.assert_awaited_once_with(message, state, services)
+
+
+@pytest.mark.asyncio
+async def test_show_account_hub_renders_card_and_three_hub_actions():
+    from app.bot.handlers.profile import show_account_hub
+
+    state = SimpleNamespace(clear=AsyncMock())
+    message = SimpleNamespace(from_user=SimpleNamespace(id=123456, full_name="Rahad"))
+    services = SimpleNamespace(
+        users=SimpleNamespace(
+            get=AsyncMock(return_value={"id": 123456, "balance": 12.50, "is_reseller": 0, "language": "en"}),
+            get_language=AsyncMock(return_value="en"),
+            ensure=AsyncMock(),
+        ),
+        purchases=SimpleNamespace(customer_orders=AsyncMock(return_value=([{}], 3))),
+        settings=SimpleNamespace(
+            number=AsyncMock(return_value=125.0),
+            get=AsyncMock(return_value="$"),
+            flag=AsyncMock(return_value=True),
+        ),
+    )
+    with patch("app.bot.handlers.profile.respond", new_callable=AsyncMock) as mock_respond:
+        await show_account_hub(message, state, services)
+
+    mock_respond.assert_awaited_once()
+    text = mock_respond.call_args[0][1]
+    kb = mock_respond.call_args[0][2]
+    assert "Rahad" in text
+    assert "Your Referral Link" in text
+    assert "123456" in text
+    assert "$12.5" in text
+    assert [[btn.callback_data for btn in row] for row in kb.inline_keyboard] == [
+        ["acct_orders"],
+        ["acct_referral", "open_alerts"],
+        ["open_api_hub", "open_reseller_hub"],
+        ["acct_toggle_currency"],
+    ]
+    assert kb.inline_keyboard[0][0].text == "📦 My Orders (3)"
+    assert kb.inline_keyboard[1][0].text == "🎁 Refer"
+    assert kb.inline_keyboard[1][1].text == "🔔 Alerts"
+    assert kb.inline_keyboard[2][0].text == "🔑 API"
+    assert kb.inline_keyboard[2][1].text == "💎 Reseller"
+    assert "Currency" in kb.inline_keyboard[3][0].text
+
+
+@pytest.mark.asyncio
+async def test_alerts_submenu_renders_and_toggles_options():
+    from app.bot.handlers.profile import show_alerts_hub, toggle_account_alert_item
+
+    state = SimpleNamespace(clear=AsyncMock())
+    query = SimpleNamespace(
+        from_user=SimpleNamespace(id=777888),
+        data="acct_toggle_alert_restock",
+        answer=AsyncMock(),
+    )
+    services = SimpleNamespace(
+        users=SimpleNamespace(
+            get_notification_preferences=AsyncMock(return_value={"notify_news": True}),
+            toggle_notification_preference=AsyncMock(return_value={"notify_news": False}),
+            get_language=AsyncMock(return_value="en"),
+        ),
+    )
+
+    with patch("app.bot.handlers.profile.respond", new_callable=AsyncMock) as mock_respond:
+        await show_alerts_hub(query, state, services)
+        kb1 = mock_respond.call_args[0][2]
+        assert [row[0].text for row in kb1.inline_keyboard] == [
+            "🎁 Promotions: ✅ ON",
+            "🔄 Stock Alerts: ✅ ON",
+            "🏷 Price Drops: ✅ ON",
+            "Back",
+        ]
+
+        await toggle_account_alert_item(query, state, services)
+        kb2 = mock_respond.call_args[0][2]
+        assert [row[0].text for row in kb2.inline_keyboard] == [
+            "🎁 Promotions: ✅ ON",
+            "🔄 Stock Alerts: 🔕 OFF",
+            "🏷 Price Drops: ✅ ON",
+            "Back",
+        ]
 
 
 @pytest.mark.asyncio

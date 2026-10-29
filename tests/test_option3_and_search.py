@@ -17,18 +17,16 @@ def test_main_inline_keyboard_five_action_layout():
 
     kb = get_main_inline_keyboard(pinned_categories=cats, is_admin=False, lang="en")
     rows = kb.inline_keyboard
-    assert len(rows) == 2
+    assert len(rows) == 1
 
-    assert [button.callback_data for button in rows[0]] == ["open_categories", "open_deposit"]
-    assert [button.callback_data for button in rows[1]] == ["open_orders", "open_referral", "open_help"]
+    assert [button.callback_data for button in rows[0]] == ["home_toggle_currency", "home_referral"]
     assert [button.text for row in rows for button in row] == [
-        "🛍 Shop", "💰 Balance", "📦 Orders", "🎁 Refer", "💬 Help",
+        "💱 Currency: ৳ BDT", "🎁 Referral",
     ]
 
-    # Admin remains on a separate row; reseller tools are reached via /reseller.
+    # Inline keyboard stays focused on customer utilities; admin tools are on persistent dock
     kb_admin = get_main_inline_keyboard(pinned_categories=cats, is_admin=True, lang="en")
-    assert len(kb_admin.inline_keyboard) == 3
-    assert kb_admin.inline_keyboard[-1][0].callback_data == "adm_dashboard"
+    assert len(kb_admin.inline_keyboard) == 1
 
 
 def test_search_prompt_keyboard_back_target():

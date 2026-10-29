@@ -406,7 +406,7 @@ async def process_submit_confirmation(query: CallbackQuery, state: FSMContext, s
             [
                 InlineKeyboardButton(
                     text="🔙 Back",
-                    callback_data="back_to_main",
+                    callback_data="open_reseller_hub",
                 )
             ]
         ]

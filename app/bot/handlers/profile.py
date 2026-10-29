@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import inspect
 import math
 from contextlib import suppress
 from datetime import datetime
@@ -19,7 +21,7 @@ from aiogram.types import (
     Message,
 )
 
-from app.bot.formatting import format_dual_price, price, respond
+from app.bot.formatting import format_dual_price, price, resolve_user_currency, respond
 from app.core.identifiers import format_deposit_id, format_order_id
 from app.bot.icons import (
     ICON_CHECK,
@@ -63,7 +65,206 @@ def reseller_api_links(config) -> tuple[str, list[list[InlineKeyboardButton]]]:
 
 
 
+_EXTRA_ALERT_PREFS: dict[int, dict[str, bool]] = {}
+
+
+@router.callback_query(F.data == "open_account")
+async def show_account_hub(event: Message | CallbackQuery, state: FSMContext, services: Services):
+    await state.clear()
+    tg_user = event.from_user
+    if not tg_user:
+        return
+
+    user, lang, usd_rate, orders_res, user_currency = await asyncio.gather(
+        services.users.get(tg_user.id),
+        services.users.get_language(tg_user.id),
+        services.settings.number("usd_rate"),
+        services.purchases.customer_orders(tg_user.id, limit=1, offset=0),
+        resolve_user_currency(services, tg_user.id),
+    )
+    total_orders = int(orders_res[1]) if isinstance(orders_res, tuple) and len(orders_res) == 2 else 0
+    user_balance = float(user.get("balance", 0.0)) if isinstance(user, dict) else 0.0
+    is_reseller = (user.get("rank") or "").strip().lower() in {"reseller", "reseller partner"} if isinstance(user, dict) else False
+    balance_str = format_dual_price(user_balance, usd_rate=usd_rate, lang=lang, currency=user_currency, show_usd=False)
+
+    curr_label = "৳ BDT" if user_currency == "BDT" else "$ USD"
+    curr_btn_label = f"💱 Currency: ৳ BDT" if user_currency == "BDT" else f"💱 Currency: $ USD"
+
+    ref_earned = 0.0
+    if hasattr(services.users, "referral_summary"):
+        try:
+            summary = await services.users.referral_summary(tg_user.id)
+            if isinstance(summary, dict):
+                ref_earned = float(summary.get("earned") or 0.0)
+        except Exception:
+            ref_earned = 0.0
+    ref_earned_str = format_dual_price(ref_earned, usd_rate=usd_rate, lang=lang, currency=user_currency, show_usd=False)
+
+    user_name = escape(tg_user.full_name or tg_user.first_name or "Account")
+
+    bot_user = ""
+    notifier = getattr(services, "notifier", None)
+    if notifier and hasattr(notifier, "bot_username"):
+        try:
+            bu = notifier.bot_username()
+            bot_user = (await bu) if inspect.isawaitable(bu) else str(bu)
+        except Exception:
+            bot_user = ""
+    if not bot_user:
+        bot_user = "bot"
+    ref_link = f"https://t.me/{bot_user}?start={tg_user.id}"
+
+    if lang == "bn":
+        lines = [
+            f"• ব্যালেন্স: <code>{balance_str}</code>",
+            f"• মোট অর্ডার: <code>{total_orders}</code>",
+            f"• রেফার আয়: <code>{ref_earned_str}</code>",
+            f"• কারেন্সি: <code>{curr_label}</code>",
+        ]
+        if is_reseller:
+            lines.append("• টিয়ার: <b>রিসেলার পার্টনার</b>")
+        text = f"👤 <b>{user_name}</b>\n\n" + "\n".join(lines) + f"\n\n🔗 <b>আপনার রেফারেল লিংক:</b>\n<code>{ref_link}</code>"
+        orders_label = f"📦 আমার অর্ডার ({total_orders})" if total_orders > 0 else "📦 আমার অর্ডার"
+        refer_label = "🎁 রেফার"
+        alerts_label = "🔔 অ্যালার্টস"
+        api_label = "🔑 এপিআই"
+        reseller_label = "💎 রিসেলার"
+    else:
+        lines = [
+            f"• Balance: <code>{balance_str}</code>",
+            f"• Total Orders: <code>{total_orders}</code>",
+            f"• Referral Earned: <code>{ref_earned_str}</code>",
+            f"• Currency: <code>{curr_label}</code>",
+        ]
+        if is_reseller:
+            lines.append("• Tier: <b>Reseller Partner</b>")
+        text = f"👤 <b>{user_name}</b>\n\n" + "\n".join(lines) + f"\n\n🔗 <b>Your Referral Link:</b>\n<code>{ref_link}</code>"
+        orders_label = f"📦 My Orders ({total_orders})" if total_orders > 0 else "📦 My Orders"
+        refer_label = "🎁 Refer"
+        alerts_label = "🔔 Alerts"
+        api_label = "🔑 API"
+        reseller_label = "💎 Reseller"
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=orders_label, callback_data="acct_orders")],
+            [
+                InlineKeyboardButton(text=refer_label, callback_data="acct_referral"),
+                InlineKeyboardButton(text=alerts_label, callback_data="open_alerts"),
+            ],
+            [
+                InlineKeyboardButton(text=api_label, callback_data="open_api_hub"),
+                InlineKeyboardButton(text=reseller_label, callback_data="open_reseller_hub"),
+            ],
+            [
+                InlineKeyboardButton(text=curr_btn_label, callback_data="acct_toggle_currency"),
+            ],
+        ]
+    )
+    await respond(event, text, kb)
+
+
+@router.callback_query(F.data == "acct_toggle_currency")
+async def toggle_user_currency(query: CallbackQuery, state: FSMContext, services: Services):
+    tg_user = query.from_user
+    if not tg_user:
+        return
+    new_curr = await services.users.toggle_currency(tg_user.id)
+    with suppress(TelegramBadRequest):
+        toast_msg = "Currency switched to ৳ BDT" if new_curr == "BDT" else "Currency switched to $ USD"
+        await query.answer(toast_msg)
+    await show_account_hub(query, state, services)
+
+
+@router.callback_query(F.data == "open_alerts")
+async def show_alerts_hub(event: Message | CallbackQuery, state: FSMContext, services: Services):
+    await state.clear()
+    tg_user = event.from_user
+    if not tg_user:
+        return
+
+    get_prefs = getattr(services.users, "get_notification_preferences", None)
+    prefs = await get_prefs(tg_user.id) if callable(get_prefs) else {"notify_news": True}
+    lang = await services.users.get_language(tg_user.id)
+
+    promos_on = bool(prefs.get("notify_news", True)) if isinstance(prefs, dict) else True
+    extra = _EXTRA_ALERT_PREFS.setdefault(tg_user.id, {"restock": True, "price_drop": True})
+    restock_on = bool(extra.get("restock", True))
+    price_drop_on = bool(extra.get("price_drop", True))
+
+    if lang == "bn":
+        promo_status = "চালু ✅" if promos_on else "বন্ধ 🔕"
+        restock_status = "চালু ✅" if restock_on else "বন্ধ 🔕"
+        price_status = "চালু ✅" if price_drop_on else "বন্ধ 🔕"
+        text = (
+            "<b>🔔 নোটিফিকেশন</b>\n\n"
+            "<blockquote>অর্ডার ও পেমেন্ট: <b>সর্বদা চালু 🔒</b>\n"
+            f"প্রমোশন ও অফার: <b>{promo_status}</b>\n"
+            f"স্টক অ্যালার্ট: <b>{restock_status}</b>\n"
+            f"প্রাইস ড্রপ: <b>{price_status}</b></blockquote>"
+        )
+        promo_btn = f"🎁 প্রমোশন ও অফার: {'✅ চালু' if promos_on else '🔕 বন্ধ'}"
+        restock_btn = f"🔄 স্টক অ্যালার্ট: {'✅ চালু' if restock_on else '🔕 বন্ধ'}"
+        price_btn = f"🏷 প্রাইস ড্রপ: {'✅ চালু' if price_drop_on else '🔕 বন্ধ'}"
+        back_btn = "ব্যাক"
+    else:
+        promo_status = "On ✅" if promos_on else "Off 🔕"
+        restock_status = "On ✅" if restock_on else "Off 🔕"
+        price_status = "On ✅" if price_drop_on else "Off 🔕"
+        text = (
+            "<b>🔔 Notifications</b>\n\n"
+            "<blockquote>Orders & Wallet: <b>Always On 🔒</b>\n"
+            f"Promotions: <b>{promo_status}</b>\n"
+            f"Stock Alerts: <b>{restock_status}</b>\n"
+            f"Price Drops: <b>{price_status}</b></blockquote>"
+        )
+        promo_btn = f"🎁 Promotions: {'✅ ON' if promos_on else '🔕 OFF'}"
+        restock_btn = f"🔄 Stock Alerts: {'✅ ON' if restock_on else '🔕 OFF'}"
+        price_btn = f"🏷 Price Drops: {'✅ ON' if price_drop_on else '🔕 OFF'}"
+        back_btn = "Back"
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=promo_btn, callback_data="acct_toggle_alert_promos")],
+            [InlineKeyboardButton(text=restock_btn, callback_data="acct_toggle_alert_restock")],
+            [InlineKeyboardButton(text=price_btn, callback_data="acct_toggle_alert_price")],
+            [InlineKeyboardButton(text=back_btn, callback_data="open_account")],
+        ]
+    )
+    await respond(event, text, kb)
+
+
+@router.callback_query(F.data.startswith("acct_toggle_alert_"))
+async def toggle_account_alert_item(query: CallbackQuery, state: FSMContext, services: Services):
+    tg_user = query.from_user
+    if not tg_user:
+        return
+
+    kind = (query.data or "").removeprefix("acct_toggle_alert_")
+    extra = _EXTRA_ALERT_PREFS.setdefault(tg_user.id, {"restock": True, "price_drop": True})
+
+    if kind == "promos":
+        prefs = await services.users.toggle_notification_preference(tg_user.id, "notify_news")
+        now_on = bool(prefs.get("notify_news", True))
+        label = "Promotions"
+    elif kind == "restock":
+        now_on = not bool(extra.get("restock", True))
+        extra["restock"] = now_on
+        label = "Stock Alerts"
+    else:
+        now_on = not bool(extra.get("price_drop", True))
+        extra["price_drop"] = now_on
+        label = "Price Drops"
+
+    toast = f"{label}: On" if now_on else f"{label}: Off"
+    with suppress(TelegramBadRequest):
+        await query.answer(toast)
+    await show_alerts_hub(query, state, services)
+
+
 @router.callback_query(F.data == "open_referral")
+@router.callback_query(F.data == "acct_referral")
+@router.callback_query(F.data == "home_referral")
 async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, services: Services):
     await state.clear()
     tg_user = event.from_user
@@ -72,13 +273,14 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
 
     user = await services.users.get(tg_user.id)
     lang = await services.users.get_language(tg_user.id) if tg_user else "en"
+    curr = await resolve_user_currency(services, tg_user.id)
 
     symbol = await services.settings.get("currency_symbol")
     reward_amount = await services.settings.number("referral_reward_amount")
     reward_enabled = await services.settings.flag("referral_enabled")
     usd_rate = await services.settings.number("usd_rate")
 
-    reward_str = format_dual_price(reward_amount, symbol, usd_rate=usd_rate, lang=lang)
+    reward_str = format_dual_price(reward_amount, symbol, usd_rate=usd_rate, lang=lang, currency=curr, show_usd=False)
 
     async with services.db.connect() as conn:
         row = await conn.fetchrow(
@@ -94,7 +296,7 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
         total_invited = row["total_invited"] if row else 0
         total_earned = float(row["total_earned"]) if row else 0.0
 
-    total_earned_str = format_dual_price(total_earned, symbol, usd_rate=usd_rate, lang=lang)
+    total_earned_str = format_dual_price(total_earned, symbol, usd_rate=usd_rate, lang=lang, currency=curr, show_usd=False)
 
     bot_user = await services.notifier.bot_username()
     ref_link = f"https://t.me/{bot_user}?start={tg_user.id}"
@@ -148,6 +350,22 @@ async def show_referral_info(event: Message | CallbackQuery, state: FSMContext, 
             ),
         ],
     ]
+    if isinstance(event, CallbackQuery):
+        cb_data = getattr(event, "data", "")
+        if cb_data == "home_referral":
+            buttons.append([
+                InlineKeyboardButton(
+                    text="Back" if lang != "bn" else "ব্যাক",
+                    callback_data="back_to_main",
+                )
+            ])
+        elif cb_data == "acct_referral":
+            buttons.append([
+                InlineKeyboardButton(
+                    text="Back" if lang != "bn" else "ব্যাক",
+                    callback_data="open_account",
+                )
+            ])
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
     await respond(event, text, kb)
 
@@ -181,32 +399,27 @@ async def show_reseller_hub(event: Message | CallbackQuery, state: FSMContext | 
         if lang != "bn":
             text = (
                 "<b>Reseller</b>\n\n"
-                "Status: Active\n"
-                "Reseller pricing is enabled.\n"
-                f"Orders: <b>{stats['total_orders']}</b>\n"
-                f"Spent: <b>{recent_spend_str}</b>\n"
-                f"Balance: <b>{balance_str}</b>"
+                "<blockquote>Status: <b>Active</b>\n"
+                "Pricing: <b>Wholesale Discount</b>\n"
+                f"Orders: <code>{stats['total_orders']}</code> · Spent: <code>{recent_spend_str}</code>\n"
+                f"Balance: <code>{balance_str}</code></blockquote>"
             )
-            api_btn_text = "API"
             refresh_btn_text = "Refresh"
             back_btn_text = "Back"
         else:
             text = (
-                "<b>রিসেলার পার্টনার</b>\n\n"
-                "স্ট্যাটাস: <b>সক্রিয় পার্টনার</b>\n"
-                "টিয়ার: পাইকারি ডিসকাউন্ট চালু\n"
-                f"অর্ডার: <b>{stats['total_orders']}</b>\n"
-                f"খরচ: <b>{recent_spend_str}</b>\n"
-                f"ব্যালেন্স: <b>{balance_str}</b>"
+                "<b>রিসেলার</b>\n\n"
+                "<blockquote>স্ট্যাটাস: <b>সক্রিয় পার্টনার</b>\n"
+                "টিয়ার: <b>পাইকারি ডিসকাউন্ট</b>\n"
+                f"অর্ডার: <code>{stats['total_orders']}</code> · খরচ: <code>{recent_spend_str}</code>\n"
+                f"ব্যালেন্স: <code>{balance_str}</code></blockquote>"
             )
-            api_btn_text = "ডেভেলপার এপিআই"
             refresh_btn_text = "রিফ্রেশ"
             back_btn_text = "ব্যাক"
 
-        rows.append([InlineKeyboardButton(text=api_btn_text, callback_data="open_api_hub")])
         rows.append([
             InlineKeyboardButton(text=refresh_btn_text, callback_data="open_reseller_hub"),
-            InlineKeyboardButton(text=back_btn_text, callback_data="back_to_main"),
+            InlineKeyboardButton(text=back_btn_text, callback_data="open_account"),
         ])
     else:
         # Check pending applications
@@ -238,7 +451,7 @@ async def show_reseller_hub(event: Message | CallbackQuery, state: FSMContext | 
             rows.append([InlineKeyboardButton(text=cancel_btn_text, callback_data="reseller_cancel_pending")])
             if handle:
                 rows.append([InlineKeyboardButton(text=contact_btn_text, url=f"https://t.me/{handle}")])
-            rows.append([InlineKeyboardButton(text=back_btn_text, callback_data="back_to_main")])
+            rows.append([InlineKeyboardButton(text=back_btn_text, callback_data="open_account")])
         else:
             # Fetch up to 3 active products with configured reseller discounts
             async with services.db.connect() as conn:
@@ -263,13 +476,13 @@ async def show_reseller_hub(event: Message | CallbackQuery, state: FSMContext | 
 
             comp_block = ""
             if comparison_lines:
-                comp_header = "<b>Price Comparison:</b>" if lang != "bn" else "<b>মূল্য তুলনা:</b>"
-                comp_block = f"\n\n{comp_header}\n" + "\n".join(comparison_lines)
+                comp_header = "<b>Wholesale Discounts:</b>" if lang != "bn" else "<b>পাইকারি মূল্য তুলনা:</b>"
+                comp_block = f"\n\n{comp_header}\n<blockquote>" + "\n".join(comparison_lines) + "</blockquote>"
 
             if lang != "bn":
                 text = (
                     "<b>Reseller Program</b>\n\n"
-                    "Apply for reseller pricing on eligible products."
+                    "Apply for wholesale pricing across the catalog."
                     f"{comp_block}"
                 )
                 apply_btn_text = "Apply"
@@ -278,7 +491,7 @@ async def show_reseller_hub(event: Message | CallbackQuery, state: FSMContext | 
             else:
                 text = (
                     "<b>রিসেলার প্রোগ্রাম</b>\n\n"
-                    "আমাদের সম্পূর্ণ ক্যাটালগে আকর্ষণীয় পাইকারি ডিসকাউন্ট রেট উপভোগ করুন এবং প্রতিটি বিক্রয়ে সর্বোচ্চ মুনাফা নিশ্চিত করুন।"
+                    "সম্পূর্ণ ক্যাটালগে পাইকারি ডিসকাউন্ট রেট আনলক করুন।"
                     f"{comp_block}"
                 )
                 apply_btn_text = "রিসেলার আবেদন করুন"
@@ -289,7 +502,7 @@ async def show_reseller_hub(event: Message | CallbackQuery, state: FSMContext | 
             if handle:
                 prefill = f"Hello, I would like to inquire about becoming a Reseller at {store_name}."
                 rows.append([InlineKeyboardButton(text=contact_btn_text, url=f"https://t.me/{handle}?text={quote(prefill)}")])
-            rows.append([InlineKeyboardButton(text=back_btn_text, callback_data="back_to_main")])
+            rows.append([InlineKeyboardButton(text=back_btn_text, callback_data="open_account")])
 
     kb = InlineKeyboardMarkup(inline_keyboard=rows)
     await respond(event, text, kb)
@@ -344,10 +557,11 @@ async def show_api_hub(event: Message | CallbackQuery, state: FSMContext | None,
 
     if lang != "bn":
         text = (
-            f"Status: <b>{status_line}</b> ({tier_label})\n"
+            "<b>API Access</b>\n\n"
+            f"<blockquote>Status: <b>{status_line}</b>\n"
             f"API Key: {key_display}\n"
-            f"Balance: <b>{balance_str}</b>\n"
-            f"Orders: <b>{stats['total_orders']}</b>\n\n"
+            f"Balance: <code>{balance_str}</code>\n"
+            f"Orders: <code>{stats['total_orders']}</code></blockquote>\n\n"
             "Endpoint:\n"
             f"{endpoint_text}"
         )
@@ -355,10 +569,11 @@ async def show_api_hub(event: Message | CallbackQuery, state: FSMContext | None,
         back_text = "Back"
     else:
         text = (
-            f"স্ট্যাটাস: <b>{status_line}</b> ({tier_label})\n"
+            "<b>এপিআই অ্যাক্সেস</b>\n\n"
+            f"<blockquote>স্ট্যাটাস: <b>{status_line}</b>\n"
             f"এপিআই কি: {key_display}\n"
-            f"ব্যালেন্স: <b>{balance_str}</b>\n"
-            f"অর্ডার: <b>{stats['total_orders']}</b>\n\n"
+            f"ব্যালেন্স: <code>{balance_str}</code>\n"
+            f"অর্ডার: <code>{stats['total_orders']}</code></blockquote>\n\n"
             "এন্ডপয়েন্ট:\n"
             f"{endpoint_text}"
         )
@@ -367,26 +582,21 @@ async def show_api_hub(event: Message | CallbackQuery, state: FSMContext | None,
 
     rows = []
     if key:
+        toggle_label = (
+            ("Disable API" if lang != "bn" else "এপিআই বন্ধ")
+            if is_connected
+            else ("Enable API" if lang != "bn" else "এপিআই চালু")
+        )
         rows.append([
             InlineKeyboardButton(
                 text="Regenerate Key" if lang != "bn" else "কি পুনরায় তৈরি",
                 callback_data="reseller_regen_prompt",
-            )
+            ),
+            InlineKeyboardButton(
+                text=toggle_label,
+                callback_data="reseller_toggle_active",
+            ),
         ])
-        if is_connected:
-            rows.append([
-                InlineKeyboardButton(
-                    text="Disable API" if lang != "bn" else "এপিআই বন্ধ করুন",
-                    callback_data="reseller_toggle_active",
-                )
-            ])
-        else:
-            rows.append([
-                InlineKeyboardButton(
-                    text="Enable API" if lang != "bn" else "এপিআই চালু করুন",
-                    callback_data="reseller_toggle_active",
-                )
-            ])
     else:
         rows.append([
             InlineKeyboardButton(
@@ -401,7 +611,7 @@ async def show_api_hub(event: Message | CallbackQuery, state: FSMContext | None,
         rows.append([docs_btn])
 
     rows.append([
-        InlineKeyboardButton(text=back_text, callback_data="back_to_main"),
+        InlineKeyboardButton(text=back_text, callback_data="open_account"),
     ])
     kb = InlineKeyboardMarkup(inline_keyboard=rows)
     await respond(event, text, kb)
@@ -471,7 +681,8 @@ async def reseller_generate_key_handler(event: CallbackQuery, services: Services
         ]
     )
     if event.message:
-        await event.message.edit_text(text, reply_markup=kb)
+        with suppress(TelegramBadRequest):
+            await event.message.edit_text(text, reply_markup=kb)
 
 
 @router.callback_query(F.data == "reseller_reveal_key")
@@ -514,7 +725,8 @@ async def reseller_reveal_key_handler(event: CallbackQuery, services: Services):
         ]
     )
     if event.message:
-        await event.message.edit_text(text, reply_markup=kb)
+        with suppress(TelegramBadRequest):
+            await event.message.edit_text(text, reply_markup=kb)
 
 
 @router.callback_query(F.data == "reseller_regen_prompt")
@@ -542,7 +754,8 @@ async def reseller_regen_prompt_handler(event: CallbackQuery):
         ]
     )
     if event.message:
-        await event.message.edit_text(text, reply_markup=kb)
+        with suppress(TelegramBadRequest):
+            await event.message.edit_text(text, reply_markup=kb)
 
 
 @router.callback_query(F.data == "reseller_regen_confirm")
@@ -582,7 +795,8 @@ async def reseller_regen_confirm_handler(event: CallbackQuery, services: Service
         ]
     )
     if event.message:
-        await event.message.edit_text(text, reply_markup=kb)
+        with suppress(TelegramBadRequest):
+            await event.message.edit_text(text, reply_markup=kb)
 
 
 @router.callback_query(F.data == "reseller_quick_guide")
@@ -623,7 +837,8 @@ async def reseller_quick_guide_handler(event: CallbackQuery, services: Services)
     ])
     kb = InlineKeyboardMarkup(inline_keyboard=rows)
     if event.message:
-        await event.message.edit_text(text, reply_markup=kb)
+        with suppress(TelegramBadRequest):
+            await event.message.edit_text(text, reply_markup=kb)
 
 
 @router.callback_query(F.data == "reseller_web_docs_notice")
@@ -636,7 +851,9 @@ async def reseller_web_docs_notice_handler(event: CallbackQuery, services: Servi
 
 
 @router.callback_query(F.data == "open_orders")
+@router.callback_query(F.data == "acct_orders")
 @router.callback_query(F.data.startswith("orders_page_"))
+@router.callback_query(F.data.startswith("acct_orders_page_"))
 async def show_order_history(event: Message | CallbackQuery, state: FSMContext, services: Services):
     await state.clear()
     tg_user = event.from_user
@@ -646,13 +863,18 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
     lang = await services.users.get_language(tg_user.id)
 
     page = 1
-    if isinstance(event, CallbackQuery) and event.data and event.data.startswith("orders_page_"):
-        suffix = event.data[len("orders_page_") :]
-        if suffix.isdigit():
-            page = max(1, int(suffix))
+    if isinstance(event, CallbackQuery) and event.data:
+        if event.data.startswith("acct_orders_page_"):
+            suffix = event.data[len("acct_orders_page_") :]
+            if suffix.isdigit():
+                page = max(1, int(suffix))
+        elif event.data.startswith("orders_page_"):
+            suffix = event.data[len("orders_page_") :]
+            if suffix.isdigit():
+                page = max(1, int(suffix))
 
-    back_target = "back_to_main"
-    page_prefix = "orders_page_"
+    back_target = "open_account"
+    page_prefix = "acct_orders_page_"
 
     orders, total = await services.purchases.customer_orders(tg_user.id, limit=ORDERS_PAGE_SIZE, offset=(page - 1) * ORDERS_PAGE_SIZE)
     symbol = await services.settings.get("currency_symbol")
@@ -660,7 +882,9 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
 
     if not orders:
         text = "📦 No orders yet." if lang != "bn" else "📦 এখনো কোনো অর্ডার নেই।"
-        keyboard = None
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="Back" if lang != "bn" else "ব্যাক", callback_data="open_account")]]
+        )
     else:
         total_pages = max(1, math.ceil(total / ORDERS_PAGE_SIZE)) if total > 0 else 1
         page = min(page, total_pages)
@@ -765,10 +989,15 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
 
 
 @router.callback_query(F.data.startswith("vord_"))
+@router.callback_query(F.data.startswith("view_order_"))
 async def view_order_detail(query: CallbackQuery, state: FSMContext, services: Services):
     await state.clear()
     lang = await services.users.get_language(query.from_user.id)
-    parts = query.data.removeprefix("vord_").split("_")
+    raw_data = query.data or ""
+    if raw_data.startswith("view_order_"):
+        parts = raw_data.removeprefix("view_order_").split("_")
+    else:
+        parts = raw_data.removeprefix("vord_").split("_")
     order_id = int(parts[0]) if parts and parts[0].isdigit() else None
     page = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 1
 
@@ -819,10 +1048,11 @@ async def view_order_detail(query: CallbackQuery, state: FSMContext, services: S
 
     has_credentials = bool(order.get("delivered_item") and order.get("fulfillment") != "waiting")
     if has_credentials:
-        cred_header = "Delivered Credentials" if lang != "bn" else "ডেলিভারিকৃত ক্রেডেনশিয়াল"
+        from app.services.delivery import format_credential_lines
+        cred_header = "Delivered Credentials" if lang != "bn" else "ডেলিভারি ডিটেইলস"
         text += (
             f"\n\n<b>{cred_header}:</b>\n"
-            f"<code>{escape(order['delivered_item'])}</code>"
+            f"{format_credential_lines(str(order['delivered_item']))}"
         )
 
     back_cb = f"orders_page_{page}" if page > 1 else "open_orders"

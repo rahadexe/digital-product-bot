@@ -21,7 +21,7 @@ from aiogram.types import (
     Message,
 )
 
-from app.bot.formatting import callback_int, forget_menu_message, format_dual_price, respond
+from app.bot.formatting import callback_int, forget_menu_message, format_dual_price, resolve_user_currency, respond
 from app.core.identifiers import format_order_id
 from app.bot.handlers import search
 from app.bot.handlers.navigation import is_navigation, navigate
@@ -160,7 +160,7 @@ async def show_category_or_validity(
     cat_id = category["id"]
     if category.get("has_validity_filter") == 1:
         validities = await services.catalog.category_validities(cat_id)
-        if validities:
+        if validities and len(validities) > 1:
             kb = get_validity_selector_keyboard(
                 category_id=cat_id,
                 validities=validities,
@@ -328,7 +328,7 @@ async def handle_buy_now_by_text(message: Message, state: FSMContext, services: 
         return
 
     orders_kb = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="View order", callback_data=f"view_order_{order.get('order_id', order.get('id'))}")
+        InlineKeyboardButton(text="View order", callback_data=f"vord_{order.get('order_id', order.get('id'))}_1")
     ]])
     order_id = order.get("order_id", order.get("id"))
     creds = order.get("delivered_item") or order.get("credentials_delivered") or ""
@@ -388,7 +388,7 @@ async def paginate_categories(query: CallbackQuery, state: FSMContext, services:
     lang = await services.users.get_language(tg_user.id) if tg_user else "en"
 
     categories = await services.catalog.categories(active_only=True, with_products=False)
-    kb = get_categories_keyboard(categories, show_all_option=True, page=page, lang=lang, back_target="back_to_main")
+    kb = get_categories_keyboard(categories, show_all_option=True, page=page, lang=lang, back_target="shop_p_all_1")
     title = t("btn_all_products", lang).replace("🛍️ ", "").strip()
     text = f"{ICON_SHOP} <b>{title}:</b>"
     try:
@@ -436,6 +436,7 @@ async def product_view(
     tg_user_id: int,
     quantity: int = 1,
     back_target: str | None = None,
+    show_helper: bool = True,
 ) -> tuple[str, InlineKeyboardMarkup]:
     user = await services.users.get(tg_user_id)
     balance = user["balance"] if user else 0.0
@@ -469,23 +470,36 @@ async def product_view(
     reseller_price = product.get("reseller_price")
     has_reseller_rate = is_reseller and reseller_price is not None and float(reseller_price) > 0
 
+    curr = await resolve_user_currency(services, tg_user_id)
+
     unit_price = unit_price_for(product, user)
     total_price = round(unit_price * quantity, 2)
 
-    unit_price_str = format_dual_price(unit_price, symbol, usd_rate=usd_rate, lang=lang)
-    total_price_str = format_dual_price(total_price, symbol, usd_rate=usd_rate, lang=lang)
+    unit_price_str = format_dual_price(unit_price, symbol, usd_rate=usd_rate, lang=lang, currency=curr, show_usd=False)
+    total_price_str = format_dual_price(total_price, symbol, usd_rate=usd_rate, lang=lang, currency=curr, show_usd=False)
+    user_balance_str = format_dual_price(balance, symbol, usd_rate=usd_rate, lang=lang, currency=curr, show_usd=False)
+    bal_label = "Your Balance"
 
-    text = f"{prod_icon_display + ' ' if prod_icon_display else ''}<b>{clean_title}</b>\n"
+    lines = [
+        f"{prod_icon_display + ' ' if prod_icon_display else ''}<b>{clean_title}</b>",
+        "",
+    ]
     if duration and duration.lower() not in {"instant", "none", "n/a", ""}:
-        text += f"{t('product_validity', lang)}: {duration}\n"
+        lines.append(f"• Validity: {duration}")
     if warranty and warranty.lower() not in {"instant", "none", "n/a"}:
-        text += f"{t('product_warranty', lang)}: {warranty}\n"
-    text += f"\n{t('product_price', lang)}: <b>{unit_price_str}</b>"
-    if has_reseller_rate:
-        text += f" · {t('rank_reseller', lang)}"
-    text += f"\n{stock_text}"
-    if available:
-        text += f" · {delivery_text}"
+        lines.append(f"• Warranty: {warranty}")
+    lines.append(f"• Status: {stock_text}")
+
+    lines.append("")
+    if quantity > 1:
+        lines.append(f"💵 Price: {unit_price_str} × {quantity} = <b>{total_price_str}</b>")
+    else:
+        price_line = f"💵 Price: <b>{unit_price_str}</b>"
+        if has_reseller_rate:
+            price_line += " · <i>Reseller</i>"
+        lines.append(price_line)
+
+    lines.append(f"💰 {bal_label}: <b>{user_balance_str}</b>")
 
     # The description lives behind its own button rather than in the card, so a
     # long one does not push the price and the quantity controls off the screen.
@@ -496,12 +510,11 @@ async def product_view(
         and not is_redundant_description(product["title"], desc)
     )
 
-    if quantity > 1:
-        text += f"\n{t('product_quantity', lang)}: {quantity} · {t('product_total', lang)}: <b>{total_price_str}</b>"
-    if balance < total_price and available:
-        short = round(total_price - balance, 2)
-        short_str = format_dual_price(short, symbol, usd_rate=usd_rate, lang=lang)
-        text += f"\n\n{t('product_shortfall', lang, amount=short_str)}"
+    if show_helper:
+        lines.append("")
+        lines.append("<i>Use ➕/➖ or Set Custom Quantity\nto choose your desired amount.</i>")
+
+    text = "\n".join(lines)
 
     if not back_target:
         back_target = f"cat_{cat_id}" if cat_id else "shop_uncat"
@@ -799,6 +812,8 @@ async def paginate_products(query: CallbackQuery, state: FSMContext, services: S
 
     if cat and cat.get("has_validity_filter") == 1:
         back_target = f"catval_menu_{cat['id']}"
+    elif category_id is not None:
+        back_target = "shop_p_all_1"
     else:
         back_target = "back_to_main"
 
@@ -906,8 +921,11 @@ async def show_product(query: CallbackQuery, state: FSMContext, services: Servic
     await state.clear()
     if category_back and product_id is not None:
         search.forget_search_origin(query.from_user.id, product_id)
-    if back_target and product_id is not None:
-        await state.update_data(**{f"back_target_{product_id}": back_target})
+    if product_id is not None:
+        upd = {"active_product_id": product_id}
+        if back_target:
+            upd[f"back_target_{product_id}"] = back_target
+        await state.update_data(**upd)
     product = await services.catalog.product(product_id) if product_id is not None else None
     if not product or not product["is_active"]:
         with suppress(TelegramBadRequest):
@@ -944,7 +962,7 @@ async def show_product_description(query: CallbackQuery, state: FSMContext, serv
     desc = (product.get("description") or "").strip()
     if not desc:
         with suppress(TelegramBadRequest):
-            await query.answer("No description for this product.", show_alert=False)
+            await query.answer("No details available for this product.", show_alert=False)
         return
 
     data = await state.get_data()
@@ -957,15 +975,18 @@ async def show_product_description(query: CallbackQuery, state: FSMContext, serv
         icon = tg_icon(None, icon)
     description_title, _, _ = product_display_labels(product)
 
-    text = (
-        f"{ICON_NOTE} <b>Description</b>\n\n"
-        f"{icon + ' ' if icon else ''}<b>{escape(description_title)}</b>\n\n"
-        f"{escape(desc)}"
-    )
+    lines = [
+        f"{ICON_NOTE} <b>Product Details</b>",
+        "",
+        f"{icon + ' ' if icon else ''}<b>{escape(description_title)}</b>",
+        "",
+        f"{escape(desc)}",
+    ]
+    text = "\n".join(lines)
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[[
             InlineKeyboardButton(
-                text="🔙 Back to product",
+                text="🔙 Back to Product",
                 callback_data=f"qty_set_{product_id}_{quantity}",
             )
         ]]
@@ -1024,7 +1045,8 @@ async def get_keypad_view_text(
     tg_user_id: int,
     buffer: str = "1",
 ) -> str:
-    text, _ = await product_view(services, product, tg_user_id)
+    qty_val = int(buffer) if buffer.isdigit() and int(buffer) > 0 else 1
+    text, _ = await product_view(services, product, tg_user_id, quantity=qty_val, show_helper=False)
     return (
         f"{text}\n\n"
         f"Quantity: <code>{escape(buffer)}</code>\n"
@@ -1084,10 +1106,16 @@ async def handle_keypad_action(query: CallbackQuery, state: FSMContext, services
 
     if action == "back":
         back_target = data.get(f"back_target_{product_id}")
-        await state.clear()
+        await state.set_state(None)
+        qty = int(buffer) if buffer.isdigit() and int(buffer) >= 1 else 1
+        qty = min(max(1, qty), upper_bound)
+        await state.update_data({
+            f"qty_{product_id}": qty,
+            f"back_target_{product_id}": back_target,
+            "active_product_id": product_id,
+        })
         with suppress(TelegramBadRequest):
             await query.answer()
-        qty = int(buffer) if buffer.isdigit() and int(buffer) >= 1 else 1
         text, kb = await product_view(services, product, query.from_user.id, quantity=qty, back_target=back_target)
         if query.message:
             with suppress(TelegramBadRequest):
@@ -1096,11 +1124,16 @@ async def handle_keypad_action(query: CallbackQuery, state: FSMContext, services
 
     if action == "confirm":
         back_target = data.get(f"back_target_{product_id}")
-        await state.clear()
-        with suppress(TelegramBadRequest):
-            await query.answer()
+        await state.set_state(None)
         qty = int(buffer) if buffer.isdigit() and int(buffer) >= 1 else 1
         qty = min(max(1, qty), upper_bound)
+        await state.update_data({
+            f"qty_{product_id}": qty,
+            f"back_target_{product_id}": back_target,
+            "active_product_id": product_id,
+        })
+        with suppress(TelegramBadRequest):
+            await query.answer()
         text, kb = await product_view(services, product, query.from_user.id, quantity=qty, back_target=back_target)
         if query.message:
             with suppress(TelegramBadRequest):
@@ -1108,7 +1141,11 @@ async def handle_keypad_action(query: CallbackQuery, state: FSMContext, services
         return
 
     if action == "del":
-        buffer = buffer[:-1] if len(buffer) > 1 else "1"
+        if len(buffer) > 1:
+            buffer = buffer[:-1]
+        else:
+            buffer = "1"
+            has_typed = False
     elif action == "clr":
         buffer = "1"
         has_typed = False
@@ -1181,6 +1218,31 @@ async def process_custom_quantity(message: Message, state: FSMContext, services:
         qty = stock
         await message.answer(f"{ICON_WARNING} Quantity adjusted to available stock: {stock}")
 
+    view_text, keyboard = await product_view(services, product, message.from_user.id, quantity=qty, back_target=back_target)
+    await message.answer(view_text, reply_markup=keyboard)
+
+
+@router.message(F.text.func(lambda text: bool(text and text.strip().isdigit() and 1 <= int(text.strip()) <= 1000)))
+async def handle_direct_quantity_input(message: Message, state: FSMContext, services: Services):
+    """Allows user to simply type a number (e.g. '5' or '25') while viewing a product to change quantity."""
+    cur_state = await state.get_state()
+    if cur_state is not None:
+        return
+    data = await state.get_data()
+    product_id = data.get("active_product_id") or data.get("product_id")
+    if not product_id:
+        return
+    product = await services.catalog.product(product_id)
+    if not product or not product.get("is_active"):
+        return
+    qty = int(message.text.strip())
+    is_manual = product.get("delivery_type") == "manual"
+    is_upstream = bool(product.get("upstream_product_id"))
+    stock = product.get("stock", 0)
+    if not is_manual and not is_upstream and stock > 0 and qty > stock:
+        qty = stock
+    back_target = data.get(f"back_target_{product_id}")
+    await state.update_data(**{f"qty_{product_id}": qty, "active_product_id": product_id})
     view_text, keyboard = await product_view(services, product, message.from_user.id, quantity=qty, back_target=back_target)
     await message.answer(view_text, reply_markup=keyboard)
 
@@ -1263,8 +1325,9 @@ async def execute_quantity_purchase(query: CallbackQuery, state: FSMContext, ser
         query.from_user.id, product_id, quantity=quantity, request_id=f"bot-{token}"
     )
     if not success or not order:
+        clean_msg = str(message or "").lstrip("⚠️ ").strip()
         with suppress(TelegramBadRequest):
-            await query.answer(f"⚠️ {message}", show_alert=True)
+            await query.answer(f"⚠️ {clean_msg}", show_alert=True)
         return
 
     lang = await services.users.get_language(query.from_user.id)
@@ -1344,8 +1407,9 @@ async def execute_legacy_purchase(query: CallbackQuery, state: FSMContext, servi
         query.from_user.id, prod_id, quantity=1, request_id=f"bot-{parts[2]}"
     )
     if not success or not order:
+        clean_msg = str(message or "").lstrip("⚠️ ").strip()
         with suppress(TelegramBadRequest):
-            await query.answer(f"⚠️ {message}", show_alert=True)
+            await query.answer(f"⚠️ {clean_msg}", show_alert=True)
         return
 
     lang = await services.users.get_language(query.from_user.id)
@@ -1428,7 +1492,7 @@ async def process_customer_input_purchase(message: Message, state: FSMContext, s
 
     order_id = order.get("order_id", order.get("id"))
     orders_kb = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="My Orders" if lang != "bn" else "আমার অর্ডার", callback_data=f"view_order_{order_id}")
+        InlineKeyboardButton(text="My Orders" if lang != "bn" else "আমার অর্ডার", callback_data=f"vord_{order_id}_1")
     ]])
     await message.answer(
         f"{success_title}\n\n"

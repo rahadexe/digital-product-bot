@@ -109,6 +109,17 @@ class Notifier:
             logger.warning("Could not send Telegram message to %s: %s", chat_id, type(exc).__name__)
             return False
 
+    async def send_message(
+        self,
+        chat_id: int | str,
+        text: str,
+        keyboard: InlineKeyboardMarkup | None = None,
+        *,
+        reply_markup: InlineKeyboardMarkup | None = None,
+        clears_after: int = 0,
+    ) -> bool:
+        return await self.send(chat_id, text, keyboard=keyboard or reply_markup, clears_after=clears_after)
+
     async def _clear_later(self, chat_id: int | str, message_id: int, seconds: int) -> None:
         """Telegram only lets a bot delete its own message for 48 hours; well within that."""
         await asyncio.sleep(seconds)

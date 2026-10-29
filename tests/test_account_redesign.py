@@ -36,13 +36,14 @@ class AccountRedesignTests(unittest.TestCase):
         self.assertEqual(
             [[button.text for button in row] for row in methods_kb.inline_keyboard],
             [
+                ["⚡ Jinpay Checkout"],
                 ["bKash", "Nagad"],
-                ["Binance Pay", "Jinpay Checkout"],
+                ["Binance Pay"],
                 ["📜 Deposit History"],
             ],
         )
         self.assertEqual(
-            methods_kb.inline_keyboard[1][0].icon_custom_emoji_id,
+            methods_kb.inline_keyboard[2][0].icon_custom_emoji_id,
             "5796345694969140339",
         )
 
@@ -351,3 +352,53 @@ class AccountScreenTests(unittest.IsolatedAsyncioTestCase):
         claim_kb = query_claim.message.edit_text.call_args[1]["reply_markup"]
         claim_back_btn = [btn for row in claim_kb.inline_keyboard for btn in row if "Back" in btn.text][0]
         self.assertEqual(claim_back_btn.callback_data, "vord_1005_1")
+
+    async def test_account_currency_toggle_and_display(self):
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock, MagicMock
+        from aiogram.types import CallbackQuery, Message, User
+        from app.bot.handlers.profile import show_account_hub, toggle_user_currency
+
+        user_pref = {"currency": "BDT"}
+        async def mock_get_curr(uid):
+            return user_pref["currency"]
+        async def mock_toggle(uid):
+            user_pref["currency"] = "USD" if user_pref["currency"] == "BDT" else "BDT"
+            return user_pref["currency"]
+
+        services = SimpleNamespace(
+            users=SimpleNamespace(
+                get=AsyncMock(return_value={"id": 123, "balance": 10.0, "rank": "standard"}),
+                get_language=AsyncMock(return_value="en-BD"),
+                get_currency=AsyncMock(side_effect=mock_get_curr),
+                toggle_currency=AsyncMock(side_effect=mock_toggle),
+            ),
+            settings=SimpleNamespace(
+                number=AsyncMock(return_value=125.0),
+            ),
+            purchases=SimpleNamespace(
+                customer_orders=AsyncMock(return_value=([], 0)),
+            ),
+        )
+
+        query = MagicMock(spec=CallbackQuery)
+        query.from_user = User(id=123, is_bot=False, first_name="Test")
+        query.message = MagicMock(spec=Message)
+        query.message.edit_text = AsyncMock()
+        query.answer = AsyncMock()
+        state = MagicMock()
+        state.clear = AsyncMock()
+
+        # 1. Default BDT display
+        await show_account_hub(query, state, services)
+        text = query.message.edit_text.call_args[0][0]
+        kb = query.message.edit_text.call_args[1]["reply_markup"]
+        self.assertIn("1,250 ৳", text)
+        curr_btn = [btn for row in kb.inline_keyboard for btn in row if "Currency" in btn.text][0]
+        self.assertEqual(curr_btn.text, "💱 Currency: ৳ BDT")
+        self.assertEqual(curr_btn.callback_data, "acct_toggle_currency")
+
+        # 2. Toggle to USD
+        await toggle_user_currency(query, state, services)
+        self.assertEqual(user_pref["currency"], "USD")
+        query.answer.assert_any_call("Currency switched to $ USD")

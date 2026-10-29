@@ -7,6 +7,7 @@ send it again, but never charges the customer again.
 
 from __future__ import annotations
 
+import re
 import time
 import uuid
 from html import escape
@@ -21,6 +22,24 @@ from app.services.audit import record
 from app.services.errors import NotFoundError
 
 LEASE_SECONDS = 120
+_LABELED_CRED_RE = re.compile(r"^([A-Za-z][A-Za-z0-9 /\-_]{1,24}):\s+(.+)$")
+
+
+def format_credential_lines(raw_content: str) -> str:
+    """Format credential lines so labeled values (e.g. 'Email: x') wrap only the value in <code>."""
+    stripped = (raw_content or "").strip()
+    raw_lines = [line.strip() for line in stripped.splitlines() if line.strip()]
+    if not raw_lines:
+        return f"<code>{escape(stripped)}</code>"
+    formatted: list[str] = []
+    for line in raw_lines:
+        match = _LABELED_CRED_RE.match(line)
+        if match and not match.group(1).lower().startswith(("http", "ftp")):
+            label, value = match.group(1), match.group(2)
+            formatted.append(f"{escape(label)}: <code>{escape(value)}</code>")
+        else:
+            formatted.append(f"<code>{escape(line)}</code>")
+    return "\n".join(formatted)
 
 
 def waiting_notice(order: dict[str, Any], lang: str = "en") -> str:
@@ -49,14 +68,8 @@ def receipt(order: dict[str, Any], lang: str = "en") -> str:
         f"<blockquote><b>{title}</b>",
         f"Paid: <code>{price_str}</code></blockquote>\n",
         "<b>Delivery:</b>",
+        format_credential_lines(raw_content),
     ]
-
-    cred_items = [escape(it.strip()) for it in raw_content.splitlines() if it.strip()]
-    if cred_items:
-        for it in cred_items:
-            lines.append(f"<code>{it}</code>")
-    else:
-        lines.append(f"<code>{escape(raw_content)}</code>")
 
     return "\n".join(lines)
 

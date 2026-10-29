@@ -30,48 +30,45 @@ router = Router(name="help_guide_router")
 
 
 FAQ_ITEMS: dict[str, dict[str, Any]] = {
-    "buy": {
-        "answer": {
-            "en": (
-                "<b>How to buy</b>\n\n"
-                "1. Open Products and choose a category.\n"
-                "2. Choose a product, select validity if shown, and set the quantity.\n"
-                "3. Check the total, then select Buy to pay from your wallet balance.\n"
-                "4. If your balance is low, add funds anytime from Balance."
-            ),
-        },
-    },
     "deposit": {
         "answer": {
             "en": (
-                "<b>Add funds to your balance</b>\n\n"
-                "1. Open Balance and choose a payment method.\n"
-                "2. Pay the displayed account, then tap Payment Done.\n"
-                "3. Reply with your TrxID or Binance Order ID, then the amount sent.\n"
-                "Hosted checkout has its own payment steps.\n\n"
-                "Balance is added after verification. Open History for status."
+                "<b>How to deposit balance?</b>\n\n"
+                "1️⃣ Open <b>Balance</b> from the bottom menu.\n"
+                "2️⃣ Choose a payment method (bKash, Nagad, Binance).\n"
+                "3️⃣ Pay the displayed account, then tap Payment Done.\n"
+                "4️⃣ Send your TrxID or Binance Order ID to verify instantly."
+            ),
+        },
+    },
+    "buy": {
+        "answer": {
+            "en": (
+                "<b>How to buy products?</b>\n\n"
+                "1️⃣ Open <b>Shop</b> from the bottom menu.\n"
+                "2️⃣ Choose your desired category and product.\n"
+                "3️⃣ Select validity and quantity, then tap Buy.\n"
+                "4️⃣ Paid from balance and delivery details arrive instantly in this chat."
             ),
         },
     },
     "delivery": {
         "answer": {
             "en": (
-                "<b>How delivery works</b>\n\n"
-                "• Automatic items: Credentials/keys are delivered instantly in this chat right after purchase.\n"
-                "• Manual items: The bot confirms the order is being prepared, and the delivery arrives in a separate message when ready.\n"
-                "• Order history: Open Orders to find past orders and delivered details."
+                "<b>How does delivery work?</b>\n\n"
+                "1️⃣ <b>Instant items:</b> Credentials or keys are delivered in this chat right after purchase.\n"
+                "2️⃣ <b>Manual items:</b> Order is prepared and delivered in this chat when ready.\n"
+                "3️⃣ <b>Order history:</b> Open <b>Account ➔ My Orders</b> to view all past deliveries."
             ),
         },
     },
     "referral": {
         "answer": {
             "en": (
-                "<b>How referrals work</b>\n\n"
-                "Open Refer and share your link.\n"
-                "A new friend must start the bot through your link and complete any required channel check.\n\n"
-                "When rewards are enabled, you earn once per eligible friend. "
-                "Rewards are for eligible friends, not for link clicks. "
-                "Successful invites counts rewarded friends."
+                "<b>How does referral work?</b>\n\n"
+                "1️⃣ Open <b>Account</b> and copy your personal referral link.\n"
+                "2️⃣ Share your link with friends.\n"
+                "3️⃣ When a new friend starts the bot and completes any required channel check, rewards are earned once per eligible friend (rewards are for eligible friends, not for link clicks)."
             ),
         },
     },
@@ -89,7 +86,7 @@ async def show_help_faq_hub(event: Message | CallbackQuery, state: FSMContext, s
     handle = (settings_map.get("support_username") or "").lstrip("@")
     channels = await services.update_channels.channels(active_only=True)
 
-    text = "Choose a topic."
+    text = "<b>Most common questions:</b>"
     kb = get_help_faq_keyboard(support_handle=handle, channels=channels, lang=lang)
 
     if isinstance(event, CallbackQuery):
@@ -162,7 +159,7 @@ async def show_faq_answer(query: CallbackQuery, state: FSMContext, services: Ser
             ])
 
     # Back button to return to Most common questions list
-    back_label = "Back to help"
+    back_label = "🔙 Back to Help"
     rows.append([
         InlineKeyboardButton(
             text=back_label,

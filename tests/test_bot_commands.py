@@ -14,12 +14,11 @@ def test_customer_command_menu_lists_start_api_and_reseller():
 def test_customer_keyboard_places_orders_referral_and_support_on_second_row():
     inline_rows = get_main_inline_keyboard().inline_keyboard
     assert [[button.callback_data for button in row] for row in inline_rows] == [
-        ["open_categories", "open_deposit"],
-        ["open_orders", "open_referral", "open_help"],
+        ["home_toggle_currency", "home_referral"],
     ]
 
     reply_rows = get_persistent_reply_keyboard(show_icons=False).keyboard
     assert [[button.text for button in row] for row in reply_rows] == [
         ["Shop", "Balance"],
-        ["Orders", "Refer", "Help"],
+        ["Help", "Account"],
     ]

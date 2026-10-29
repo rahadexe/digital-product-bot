@@ -402,7 +402,7 @@ function TopUps({
           <dl className="record-details">
             {[
               ['Customer', who(selectedDeposit)],
-              ['Wallet credit (BDT)', `${money(selectedDeposit.amount)} BDT`],
+              ['Wallet credit (USD)', `$${money(selectedDeposit.amount)} USD`],
               ['Method', selectedDeposit.method_name || 'Not set'],
               ['Transaction ID', selectedDeposit.transaction_id || 'Not set'],
               ['Status', selectedDeposit.status],

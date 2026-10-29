@@ -32,7 +32,7 @@ def test_persistent_reply_keyboard_five_action_layout():
     assert kb.resize_keyboard is True
     assert [[button.text for button in row] for row in rows] == [
         ["🛍 Shop", "💰 Balance"],
-        ["📦 Orders", "🎁 Refer", "💬 Help"],
+        ["💬 Help", "👤 Account"],
     ]
 
 
@@ -44,11 +44,10 @@ def test_inline_keyboard_customer_actions_are_english_only():
     kb = get_main_inline_keyboard(pinned_categories=cats, is_admin=False, is_reseller=False, lang="bn")
     rows = kb.inline_keyboard
 
-    assert len(rows) == 2
-    assert [button.callback_data for button in rows[0]] == ["open_categories", "open_deposit"]
-    assert [button.callback_data for button in rows[1]] == ["open_orders", "open_referral", "open_help"]
+    assert len(rows) == 1
+    assert [button.callback_data for button in rows[0]] == ["home_toggle_currency", "home_referral"]
     assert [button.text for row in rows for button in row] == [
-        "🛍 Shop", "💰 Balance", "📦 Orders", "🎁 Refer", "💬 Help",
+        "💱 Currency: ৳ BDT", "🎁 Referral",
     ]
 
 
@@ -59,9 +58,7 @@ def test_admin_gets_fifth_inline_button_on_its_own_row():
     ]
     kb = get_main_inline_keyboard(pinned_categories=cats, is_admin=True, is_reseller=True, lang="en")
     assert [[button.callback_data for button in row] for row in kb.inline_keyboard] == [
-        ["open_categories", "open_deposit"],
-        ["open_orders", "open_referral", "open_help"],
-        ["adm_dashboard"],
+        ["home_toggle_currency", "home_referral"],
     ]
 
 
@@ -76,9 +73,8 @@ def test_featured_products_do_not_expand_compact_main_menu():
     kb_bn = get_main_inline_keyboard(pinned_categories=pinned, featured_products=prods, is_admin=False, lang="bn")
     rows = kb_bn.inline_keyboard
 
-    assert len(rows) == 2
-    assert [button.callback_data for button in rows[0]] == ["open_categories", "open_deposit"]
-    assert [button.callback_data for button in rows[1]] == ["open_orders", "open_referral", "open_help"]
+    assert len(rows) == 1
+    assert [button.callback_data for button in rows[0]] == ["home_toggle_currency", "home_referral"]
 
 
 def test_product_list_separates_validity_from_legacy_title():
@@ -98,7 +94,7 @@ def test_product_list_separates_validity_from_legacy_title():
         lang="bn",
     )
 
-    assert keyboard.inline_keyboard[0][0].text == "Netflix · 30d (Full Warranty) · ৳31,250 (≈$250)"
+    assert keyboard.inline_keyboard[0][0].text == "Netflix · 30d (Full Warranty) · 31,250 ৳ (≈$250)"
 
 
 def test_product_list_extracts_legacy_validity_when_field_is_empty():
@@ -111,7 +107,7 @@ def test_product_list_extracts_legacy_validity_when_field_is_empty():
         lang="bn",
     )
 
-    assert keyboard.inline_keyboard[0][0].text == "YouTube Premium · 1mo · ৳40,000 (≈$320)"
+    assert keyboard.inline_keyboard[0][0].text == "YouTube Premium · 1mo · 40,000 ৳ (≈$320)"
 
 
 def test_product_list_separates_legacy_warranty_from_product_name():
@@ -130,7 +126,7 @@ def test_product_list_separates_legacy_warranty_from_product_name():
         lang="bn",
     )
 
-    assert keyboard.inline_keyboard[0][0].text == "ChatGPT Plus · 30d (FW) · ৳56,250 (≈$450)"
+    assert keyboard.inline_keyboard[0][0].text == "ChatGPT Plus · 30d (FW) · 56,250 ৳ (≈$450)"
 
 
 def test_product_warranty_is_optional_in_admin_payloads():
@@ -247,11 +243,11 @@ def test_product_buttons_render_basic_or_custom_icon_without_duplicate_title_emo
     )
     buttons = [row[0] for row in keyboard.inline_keyboard[:3]]
 
-    assert buttons[0].text == "🌐 Netflix · ৳31,250 (≈$250)"
+    assert buttons[0].text == "🌐 Netflix · 31,250 ৳ (≈$250)"
     assert buttons[0].icon_custom_emoji_id is None
-    assert buttons[1].text == "ChatGPT Plus · ৳56,250 (≈$450)"
+    assert buttons[1].text == "ChatGPT Plus · 56,250 ৳ (≈$450)"
     assert buttons[1].icon_custom_emoji_id == "5796345694969140339"
-    assert buttons[2].text == "Prime · ৳12,500 (≈$100)"
+    assert buttons[2].text == "Prime · 12,500 ৳ (≈$100)"
     assert buttons[2].icon_custom_emoji_id is None
     assert [button.style for button in buttons] == ["success"] * 3
     assert all(button.style is None for button in keyboard.inline_keyboard[-1])
@@ -334,7 +330,7 @@ def test_long_warranty_label_does_not_hide_price_or_exceed_telegram_limit():
 
     label = keyboard.inline_keyboard[0][0].text
     assert label.startswith("Premium")
-    assert label.endswith("৳56,250 (≈$450)")
+    assert label.endswith("56,250 ৳ (≈$450)")
     assert len(label) <= 64
 
 
@@ -346,9 +342,7 @@ def test_legacy_language_dock_shows_admin_action_on_home():
     pinned = [{"id": 8, "name": "Streaming", "icon": "🎬"}]
     kb = get_main_inline_keyboard(pinned_categories=pinned, featured_products=prods, is_admin=True, is_reseller=True, lang="bn")
     assert [[button.callback_data for button in row] for row in kb.inline_keyboard] == [
-        ["open_categories", "open_deposit"],
-        ["open_orders", "open_referral", "open_help"],
-        ["adm_dashboard"],
+        ["home_toggle_currency", "home_referral"],
     ]
 
 

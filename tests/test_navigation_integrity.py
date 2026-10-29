@@ -276,3 +276,87 @@ async def test_category_products_pagination_page_size_7():
     prod_buttons_2 = [btn for row in kb_page_2.inline_keyboard for btn in row if btn.callback_data.startswith("prod_p_")]
     assert len(prod_buttons_2) == 4
 
+
+def test_smart_credential_formatting_isolates_values_for_tap_to_copy():
+    from app.services.delivery import format_credential_lines
+
+    raw = "Email: buyer@example.com\nPassword: Secret#123\nPIN: 4455\nRAW-VOUCHER-CODE-999"
+    formatted = format_credential_lines(raw)
+    lines = formatted.splitlines()
+    assert lines[0] == "Email: <code>buyer@example.com</code>"
+    assert lines[1] == "Password: <code>Secret#123</code>"
+    assert lines[2] == "PIN: <code>4455</code>"
+    assert lines[3] == "<code>RAW-VOUCHER-CODE-999</code>"
+
+
+def test_quantity_selector_and_category_overflow_and_gate_deeplink():
+    from app.bot.keyboards import (
+        get_gate_keyboard,
+        get_products_keyboard,
+        get_quantity_selector_keyboard,
+    )
+
+    qty_kb = get_quantity_selector_keyboard(
+        product_id=77, quantity=2, max_stock=10, unit_price=5.0, user_balance=100.0
+    )
+    center_btn = qty_kb.inline_keyboard[0][1]
+    assert center_btn.callback_data == "qty_custom_77"
+
+    cats = [{"id": i, "name": f"Cat {i}"} for i in range(1, 8)]
+    prods = [{"id": 1, "title": "Item 1", "price": 2.0, "stock": 3}]
+    prod_kb = get_products_keyboard(prods, category_id=1, page=1, total_pages=1, categories=cats)
+    chip_callbacks = [btn.callback_data for row in prod_kb.inline_keyboard for btn in row]
+    assert "catpage_1" in chip_callbacks
+
+    gate_kb = get_gate_keyboard([{"name": "News", "url": "https://t.me/test"}], product_id=42)
+    verify_btn = gate_kb.inline_keyboard[-1][0]
+    assert verify_btn.callback_data == "gate_verify_prod_42"
+
+
+@pytest.mark.asyncio
+async def test_shortfall_deposit_shows_bdt_needed_on_method_card():
+    from aiogram.fsm.context import FSMContext
+    from aiogram.fsm.storage.base import StorageKey
+    from aiogram.fsm.storage.memory import MemoryStorage
+    from aiogram.types import Chat, Message, User
+    from app.bot.handlers.deposit import render_method_details
+
+    storage = MemoryStorage()
+    state = FSMContext(storage=storage, key=StorageKey(bot_id=1, chat_id=10, user_id=20))
+    await state.update_data(target_prod_id=42)
+
+    msg = MagicMock(spec=Message)
+    msg.from_user = User(id=20, is_bot=False, first_name="Buyer")
+    msg.chat = Chat(id=10, type="private")
+    msg.answer = AsyncMock()
+
+    services = SimpleNamespace(
+        deposits=SimpleNamespace(pending_for=AsyncMock(return_value=None)),
+        users=SimpleNamespace(
+            get_language=AsyncMock(return_value="en"),
+            get=AsyncMock(return_value={"balance": 1.0}),
+        ),
+        settings=SimpleNamespace(
+            get=AsyncMock(return_value="৳"),
+            number=AsyncMock(return_value=125.0),
+        ),
+        catalog=SimpleNamespace(
+            get_product=AsyncMock(return_value={"id": 42, "title": "Netflix", "price": 3.0}),
+        ),
+    )
+    method = {
+        "id": 1,
+        "name": "bKash",
+        "account_type": "personal",
+        "account_info": "01700000000",
+        "min_deposit": 50.0,
+        "rate_to_currency": 125.0,
+        "auto_verify": "none",
+        "instructions": "",
+    }
+
+    await render_method_details(msg, state, services, method)
+    rendered = msg.answer.call_args.args[0]
+    assert "Amount needed: <b>250 ৳</b> ($2.00)" in rendered
+
+

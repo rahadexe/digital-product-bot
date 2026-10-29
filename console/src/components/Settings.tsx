@@ -133,7 +133,8 @@ export function Settings({
       ((values.store_name ?? '') !== (saved.store_name ?? '') ||
         (values.max_deposit_limit ?? '') !== (saved.max_deposit_limit ?? '') ||
         (values.referral_reward_amount ?? '') !== (saved.referral_reward_amount ?? '') ||
-        (values.usd_rate ?? '') !== (saved.usd_rate ?? ''))
+        (values.usd_rate ?? '') !== (saved.usd_rate ?? '') ||
+        (values.maintenance_message ?? '') !== (saved.maintenance_message ?? ''))
   );
 
   const isSupportDirty = Boolean(
@@ -241,6 +242,7 @@ export function Settings({
         max_deposit_limit: String(depositLimitNum),
         referral_reward_amount: String(referralNum),
         usd_rate: String(usdRateNum),
+        maintenance_message: values.maintenance_message?.trim() || '',
       };
       await api.updateSettings(payload);
       setSaved((cur) => ({ ...(cur ?? {}), ...payload }));
@@ -347,6 +349,18 @@ export function Settings({
                       }
                     />
                   </label>
+                  {(values.maintenance_message ?? '') !== (saved.maintenance_message ?? '') ? (
+                    <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-end' }}>
+                      <button
+                        type="button"
+                        className="btn primary"
+                        disabled={savingLimits}
+                        onClick={() => void saveLimits()}
+                      >
+                        {savingLimits ? 'Saving...' : 'Save message'}
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               )}
 

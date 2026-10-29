@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from fastapi import APIRouter, HTTPException, Query
 
 from app.api.admin.auth import WRITE
@@ -42,9 +43,12 @@ async def approve_reseller_application(
         f"• Exclusive wholesale reseller prices on all products.\n"
         f"• Direct REST API Key access for bot/store automation.\n"
         f"• Priority automated delivery.\n\n"
-        f"👉 Tap <b>Reseller Panel</b> on the keyboard below to view your stats and generate your API key!"
+        f"👉 Tap the button below or use <code>/reseller</code> to view your stats and generate your API key!"
     )
-    await services.notifier.send_message(app["tg_user_id"], user_notify_text)
+    reseller_kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="💎 Reseller & API Hub", callback_data="open_reseller_hub")
+    ]])
+    await services.notifier.send_message(app["tg_user_id"], user_notify_text, reply_markup=reseller_kb)
 
     return {"success": True, "message": "Application approved successfully."}
 

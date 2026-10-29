@@ -84,11 +84,13 @@ async def zinipay_webhook(request: Request, services: ServicesDep):
 async def sms_statement_webhook(request: Request, services: ServicesDep):
     """Inbound webhook for Android SMS Forwarder apps and statement sync."""
     configured_secret = (await services.settings.get("sms_webhook_secret") or "").strip()
-    if configured_secret:
+    is_prod = getattr(getattr(services, "config", None), "app_env", "development") == "production"
+    if configured_secret or is_prod:
         header_secret = request.headers.get("x-webhook-secret") or request.headers.get("authorization", "").removeprefix("Bearer ").strip()
         query_secret = request.query_params.get("secret")
         provided_secret = header_secret or query_secret
-        if not provided_secret or not secrets.compare_digest(provided_secret, configured_secret):
+        expected = configured_secret or getattr(getattr(services, "config", None), "webhook_secret", "")
+        if not provided_secret or not expected or not secrets.compare_digest(provided_secret, expected):
             return JSONResponse({"ok": False, "error": "Unauthorized"}, status_code=401)
 
     raw_body: dict[str, Any] = {}

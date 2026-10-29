@@ -46,7 +46,7 @@ async def test_wallet_shows_balance_and_inline_payment_actions():
     text = message.answer.call_args.args[0]
     keyboard = message.answer.call_args.kwargs["reply_markup"]
     assert "<b>Balance:</b>" in text
-    assert "Add funds to your balance:" in text
+    assert "Choose a payment method:" in text
     assert "💰" in text
     assert "45" in text
     assert "User:" not in text
@@ -155,8 +155,8 @@ async def test_render_method_details_flow():
     text = call[0][0]
     assert "bKash (Send Money)" in text
     assert "01700000000" in text
-    assert "Minimum: <b>৳50</b>" in text
-    assert "Rate: 1 USD = ৳125 BDT" in text
+    assert "Minimum: <b>50 ৳</b>" in text
+    assert "Rate: 1 USD = 125 ৳" in text
     assert "Send Money to this personal number" in text
 
     kb = call[1]["reply_markup"]
@@ -246,7 +246,7 @@ async def test_process_deposit_amount_validation():
     new_state = await state.get_state()
     assert new_state == DepositStates.waiting_for_txid.state
     resp_text = message.answer.call_args[0][0]
-    assert "৳100 (USD equivalent: $0.80)" in resp_text
+    assert "100 ৳ (USD equivalent: $0.80)" in resp_text
     assert "Enter TrxID below:" in resp_text
 
 
@@ -359,7 +359,7 @@ async def test_process_deposit_txid_direct_submission():
     status_text = status_msg.edit_text.call_args[0][0]
     assert "Top-up D42" in status_text
     assert "bKash" in status_text
-    assert "৳100" in status_text
+    assert "100 ৳" in status_text
     assert "BL12345678" in status_text
     assert "Pending" in status_text
     status_kb = status_msg.edit_text.call_args[1]["reply_markup"]
@@ -411,7 +411,7 @@ async def test_quick_amount_selection_flow():
     text = msg.edit_text.call_args[0][0]
     assert "bKash Personal (Send Money)" in text
     assert "01700000000" in text
-    assert "৳500 (USD equivalent: $4.00)" in text
+    assert "500 ৳ (USD equivalent: $4.00)" in text
     assert "Enter TrxID below:" in text
     kb = msg.edit_text.call_args[1]["reply_markup"]
     assert [b.callback_data for row in kb.inline_keyboard for b in row] == ["dep_change_amt", "dep_methods"]
@@ -453,7 +453,7 @@ async def test_deposit_refresh_callback():
     text = msg.edit_text.call_args[0][0]
     assert "Top-up D42" in text
     assert "Approved" in text
-    assert "৳500 → $4.00 USD" in text
+    assert "500 ৳ → $4.00 USD" in text
     assert "Current Balance: <code>$750</code>" in text
     kb = msg.edit_text.call_args[1]["reply_markup"]
     assert [b.callback_data for row in kb.inline_keyboard for b in row] == ["open_shop", "open_deposit"]
@@ -495,8 +495,8 @@ async def test_exchange_rate_and_dollar_conversion_flow():
     screen1_text = message.answer.call_args_list[0][0][0]
     assert "bKash (Send Money)" in screen1_text
     assert "Number: <code>01700000000</code>" in screen1_text
-    assert "Minimum: <b>৳50</b>" in screen1_text
-    assert "Rate: 1 USD = ৳125 BDT" in screen1_text
+    assert "Minimum: <b>50 ৳</b>" in screen1_text
+    assert "Rate: 1 USD = 125 ৳" in screen1_text
     assert "<b>✅ Payment Done</b>" in screen1_text
 
     # Screen 2: User enters 500
@@ -506,7 +506,7 @@ async def test_exchange_rate_and_dollar_conversion_flow():
     screen2_text = message.answer.call_args[0][0]
     assert "bKash Personal (Send Money)" in screen2_text
     assert "Number: <code>01700000000</code>" in screen2_text
-    assert "Amount: <b>৳500 (USD equivalent: $4.00)</b>" in screen2_text
+    assert "Amount: <b>500 ৳ (USD equivalent: $4.00)</b>" in screen2_text
     assert "Enter TrxID below:" in screen2_text
 
     # Screen 3: User enters TrxID
@@ -530,7 +530,7 @@ async def test_exchange_rate_and_dollar_conversion_flow():
     status_card = status_mock.edit_text.call_args[0][0]
     assert "Top-up D99" in status_card
     assert "bKash" in status_card
-    assert "৳500" in status_card
+    assert "500 ৳" in status_card
     assert "BLA7X8Y9Z0" in status_card
     assert "Pending" in status_card
 
@@ -578,7 +578,7 @@ async def test_process_deposit_amount_in_place_edit():
     edit_kwargs = bot.edit_message_text.call_args.kwargs
     assert edit_kwargs["chat_id"] == 456
     assert edit_kwargs["message_id"] == 555
-    assert "৳500 (USD equivalent: $4.00)" in edit_kwargs["text"]
+    assert "500 ৳ (USD equivalent: $4.00)" in edit_kwargs["text"]
     assert "Enter TrxID below:" in edit_kwargs["text"]
 
     # 2. No new message was sent via message.answer!
@@ -664,7 +664,7 @@ async def test_process_deposit_txid_in_place_edit():
     status_text = card_msg_mock.edit_text.call_args[0][0]
     assert "Top-up D101" in status_text
     assert "bKash" in status_text
-    assert "৳500" in status_text
+    assert "500 ৳" in status_text
     assert "BLA7X8Y9Z0" in status_text
     assert "Pending" in status_text
 
@@ -777,7 +777,7 @@ async def test_process_deposit_txid_invalid_keeps_full_card():
     text = kwargs["text"]
     assert "bKash Personal (Send Money)" in text
     assert "01700000000" in text
-    assert "৳500 (USD equivalent: $4.00)" in text
+    assert "500 ৳ (USD equivalent: $4.00)" in text
     assert "Enter valid TrxID:" in text
 
 

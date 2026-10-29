@@ -29,6 +29,8 @@ NAVIGATION_TEXTS = {
     "Balance": "deposit",
     "Add Balance": "deposit",
     "💰 Add Balance": "deposit",
+    "👤 Account": "account",
+    "Account": "account",
     "📦 Orders": "orders",
     "Orders": "orders",
     "🎁 Refer": "referral",
@@ -94,7 +96,7 @@ async def navigate(text: str, message: Message, state: FSMContext, services: Ser
 
     current_state = await state.get_state()
     if clean in {"🔙 Back", "Back", "Cancel", "❌ Cancel", "back", "cancel"}:
-        if current_state and ("DepositStates" in str(current_state) or "deposit" in str(current_state).lower() or "waiting_for_" in str(current_state)):
+        if current_state and ("DepositStates" in str(current_state) or "deposit" in str(current_state).lower()):
             await state.clear()
             await deposit.show_deposit_methods(message, state, services)
             return
@@ -123,6 +125,7 @@ async def navigate(text: str, message: Message, state: FSMContext, services: Ser
         "api": "profile.show_api_hub",
         "reseller": "profile.show_reseller_hub",
         "other_products": "shop.show_other_products_hub",
+        "account": "profile.show_account_hub",
         "referral": "profile.show_referral_info",
         "deposit": "deposit.show_deposit_methods",
         "orders": "profile.show_order_history",
