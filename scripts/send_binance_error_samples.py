@@ -14,7 +14,10 @@ from app.bot.icons import (
     ICON_WARNING,
     Icons,
 )
+from app.bot.formatting import resolve_support_url
 from app.core.config import get_settings
+from app.db import Database
+from app.services.settings import SettingsService
 
 ADMIN_CHAT_ID = 6775546602
 
@@ -22,6 +25,10 @@ async def main():
     load_dotenv()
     cfg = get_settings()
     bot = Bot(cfg.bot_token)
+    db = Database(cfg.database_url)
+    settings_svc = SettingsService(db, cfg)
+    support_user = await settings_svc.get("support_username")
+    support_url = resolve_support_url(support_user) or "https://t.me/rahadhasanrafi"
     console_url = cfg.console_url or "http://localhost:3000"
 
     # 1. Admin Alert for Binance Server Error
@@ -56,7 +63,7 @@ async def main():
     customer_kb = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="Check Status", callback_data="open_deposits", style="primary", icon_custom_emoji_id=Icons.TIMER),
-            InlineKeyboardButton(text="Contact Support", url="https://t.me/PremiumHavenSupport", icon_custom_emoji_id=Icons.SUPPORT),
+            InlineKeyboardButton(text="Contact Support", url=support_url, icon_custom_emoji_id=Icons.SUPPORT),
         ],
         [
             InlineKeyboardButton(text="Main Menu", callback_data="back_to_main", style="primary", icon_custom_emoji_id=Icons.BACK),

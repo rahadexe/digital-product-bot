@@ -16,6 +16,7 @@ import asyncpg
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from app.bot.customer_copy import wallet_updated
+from app.bot.formatting import resolve_support_url
 from app.bot.icons import (
     ICON_ACCOUNT,
     ICON_BALANCE,
@@ -741,15 +742,15 @@ class DepositService:
         u_handle = f"@{escape(user_row['username'])}" if user_row and user_row.get("username") else (escape(user_row["first_name"]) if user_row and user_row.get("first_name") else "Customer")
 
         support_user = await self.settings.get("support_username")
+        sup_url = resolve_support_url(support_user)
         support_kb = None
-        if support_user:
-            clean_sup = support_user.lstrip("@")
+        if sup_url:
             support_kb = InlineKeyboardMarkup(inline_keyboard=[[
-                InlineKeyboardButton(text="Contact Support", url=f"https://t.me/{clean_sup}")
+                InlineKeyboardButton(text="💬 Contact Support", url=sup_url)
             ]])
         else:
             support_kb = InlineKeyboardMarkup(inline_keyboard=[[
-                InlineKeyboardButton(text="Contact Support", callback_data="open_support")
+                InlineKeyboardButton(text="💬 Contact Support", callback_data="open_support")
             ]])
 
         self.notifier.in_background(

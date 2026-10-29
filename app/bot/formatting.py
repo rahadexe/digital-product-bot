@@ -217,6 +217,21 @@ def price(
     return format_dual_price(amount, symbol="$", usd_rate=usd_rate, show_usd=show_usd, lang=lang)
 
 
+def resolve_support_url(support_handle: str | None) -> str | None:
+    """Normalize a support username or link into a direct Telegram HTTPS URL."""
+    if not support_handle:
+        return None
+    val = str(support_handle).strip()
+    if not val:
+        return None
+    if val.startswith("https://t.me/") or val.startswith("http://t.me/"):
+        return val
+    if val.startswith("t.me/"):
+        return f"https://{val}"
+    clean = val.lstrip("@").strip()
+    return f"https://t.me/{clean}" if clean else None
+
+
 def callback_int(data: str | None, prefix: str) -> int | None:
     """The integer after ``prefix``. Modified clients can send any callback data, so anything else is None."""
     if not data or not data.startswith(prefix):

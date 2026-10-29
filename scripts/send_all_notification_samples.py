@@ -35,7 +35,10 @@ from app.bot.icons import (
     ICON_WARNING,
     Icons,
 )
+from app.bot.formatting import resolve_support_url
 from app.core.config import get_settings
+from app.db import Database
+from app.services.settings import SettingsService
 
 ADMIN_CHAT_ID = 6775546602
 
@@ -45,6 +48,10 @@ async def main():
     bot = Bot(cfg.bot_token)
     me = await bot.get_me()
     bot_username = me.username or "PremiumHaven24Bot"
+    db = Database(cfg.database_url)
+    settings_svc = SettingsService(db, cfg)
+    support_user = await settings_svc.get("support_username")
+    support_url = resolve_support_url(support_user) or "https://t.me/rahadhasanrafi"
     console_url = cfg.console_url or "http://localhost:3000"
 
     print(f"Connecting to bot ({bot_username}) and dispatching all notification samples to admin {ADMIN_CHAT_ID}...", flush=True)
@@ -254,7 +261,7 @@ async def main():
             f"{ICON_KEY} <b>TrxID:</b> <code>9H7B3X92A1</code>\n"
             f"{ICON_NOTE} <b>Reason:</b> Invalid TrxID (Not found on statement)",
             InlineKeyboardMarkup(inline_keyboard=[[
-                InlineKeyboardButton(text="Contact Support", url="https://t.me/PremiumHavenSupport", icon_custom_emoji_id=Icons.SUPPORT)
+                InlineKeyboardButton(text="Contact Support", url=support_url, icon_custom_emoji_id=Icons.SUPPORT)
             ]])
         ),
         (

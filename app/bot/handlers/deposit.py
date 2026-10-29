@@ -25,6 +25,7 @@ from app.bot.formatting import (
     get_last_menu_message,
     price,
     remember_menu_message,
+    resolve_support_url,
     respond,
 )
 from app.core.identifiers import format_deposit_id
@@ -1792,9 +1793,9 @@ async def execute_deposit_submission(
         await state.clear()
         support_user = await services.settings.get("support_username")
         kb = []
-        if support_user:
-            clean_sup = support_user.lstrip("@")
-            kb.append([InlineKeyboardButton(text="💬 Support", url=f"https://t.me/{clean_sup}")])
+        sup_url = resolve_support_url(support_user)
+        if sup_url:
+            kb.append([InlineKeyboardButton(text="💬 Contact Support", url=sup_url)])
         text = (
             f"❌ পরপর ভুল TrxID দেওয়ার কারণে সাময়িকভাবে ব্লক করা হয়েছে। {rem_min} মিনিট পর চেষ্টা করুন।"
             if lang == "bn"

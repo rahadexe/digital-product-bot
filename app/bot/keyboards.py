@@ -12,7 +12,7 @@ from aiogram.types import (
     ReplyKeyboardMarkup,
 )
 
-from app.bot.formatting import format_dual_price
+from app.bot.formatting import format_dual_price, resolve_support_url
 from app.core.i18n import t
 
 ADMIN_PANEL_TEXT = "Admin Panel"
@@ -1172,10 +1172,10 @@ def get_deposit_status_keyboard(
         # receipt remains permanently as a standalone receipt in chat history without being overwritten.
         return InlineKeyboardMarkup(inline_keyboard=[])
     else:  # rejected, failed, cancelled
-        if support_username:
-            clean_sup = support_username.lstrip("@")
-            sup_text = "💬 Support" if lang != "bn" else "💬 সাপোর্ট"
-            buttons.append([InlineKeyboardButton(text=sup_text, url=f"https://t.me/{clean_sup}")])
+        sup_url = resolve_support_url(support_username)
+        if sup_url:
+            sup_text = "💬 Contact Support" if lang != "bn" else "💬 সাপোর্ট"
+            buttons.append([InlineKeyboardButton(text=sup_text, url=sup_url)])
         wallet_text = "🔙 Back to Balance" if lang != "bn" else "🔙 ওয়ালেট"
         buttons.append([InlineKeyboardButton(text=wallet_text, callback_data="open_deposit")])
 
