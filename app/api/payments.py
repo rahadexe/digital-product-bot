@@ -54,15 +54,23 @@ async def zinipay_webhook(request: Request, services: ServicesDep):
         if isinstance(body, dict):
             # 1. Statement sync event from ZiniPay (SMS automation webhook)
             event = str(body.get("event") or "")
-            if event == "billing.payment_received" or ("transactionId" in body and "amount" in body):
-                trx_id = str(body.get("transactionId") or body.get("transaction_id") or "").strip()
-                try:
-                    amt = float(body.get("amount") or 0.0)
-                except (ValueError, TypeError):
-                    amt = 0.0
+            if event == "billing.payment_received" or any(k in body for k in ("transactionId", "transaction_id", "trxID", "trxId", "amount")):
+                trx_id = str(body.get("transactionId") or body.get("transaction_id") or body.get("trxID") or body.get("trxId") or "").strip()
+                amount_val = body.get("amount")
                 provider = str(body.get("provider") or "bKash")
                 sender = str(body.get("senderNumber") or body.get("sender") or "")
                 raw_msg = str(body.get("message") or "")
+                if raw_msg and (not trx_id or not amount_val):
+                    parsed = parse_mfs_sms(raw_msg, sender_hint=sender)
+                    if parsed:
+                        trx_id = parsed["transaction_id"]
+                        amount_val = parsed["amount"]
+                        provider = provider or parsed["provider"]
+                        sender = parsed["sender_number"] or sender
+                try:
+                    amt = float(amount_val or 0.0)
+                except (ValueError, TypeError):
+                    amt = 0.0
                 if trx_id and amt > 0:
                     await services.deposits.record_received_transaction(
                         transaction_id=trx_id,

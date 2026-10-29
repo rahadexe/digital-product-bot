@@ -44,13 +44,11 @@ def _readable(body: Any) -> bool:
     return payload is None or isinstance(payload, dict)
 
 
-def _matches_receipt(data: dict[str, Any], amount: float, transaction_id: str) -> bool:
+def _matches_receipt(data: dict[str, Any], amount: float | None, transaction_id: str) -> bool:
     """A receipt must state what was paid and which transaction paid it.
 
-    Silence is not agreement. This previously compared only the fields the
-    response happened to carry, so a body that mentioned neither the amount nor
-    the transaction id agreed with everything and credited the wallet on no
-    evidence at all. A response that cannot name both now goes to review.
+    Silence is not agreement. A response that cannot name both goes to review.
+    When amount is None, receipt must state a valid positive amount and matching TrxID.
     """
     if not isinstance(data, dict):
         return False
@@ -60,11 +58,19 @@ def _matches_receipt(data: dict[str, Any], amount: float, transaction_id: str) -
         return False
     try:
         paid = Decimal(str(data['amount']))
-        expected = Decimal(str(amount))
     except (InvalidOperation, ValueError, TypeError):
         return False
-    if not paid.is_finite() or not expected.is_finite() or paid != expected:
+    if not paid.is_finite() or paid <= 0:
         return False
+
+    if amount is not None and float(amount) > 0:
+        try:
+            expected = Decimal(str(amount))
+        except (InvalidOperation, ValueError, TypeError):
+            return False
+        if not expected.is_finite() or paid != expected:
+            return False
+
     stated = [str(data[key]).strip() for key in ('trxID', 'transactionId', 'trxId', 'trx_id', 'transaction_id', 'txID', 'txId') if data.get(key) is not None]
     wanted = transaction_id.strip().upper()
     return bool(stated) and all(value.upper() == wanted for value in stated)
@@ -195,14 +201,13 @@ class ZiniPayVerificationService:
             pass
         return True
 
-    async def verify(self, amount: float, transaction_id: str) -> dict[str, Any]:
+    async def verify(self, amount: float | None, transaction_id: str) -> dict[str, Any]:
         """Step 1: Validate transaction existence, amount, and status."""
         api_key = await self.get_api_key()
         if not api_key:
             return {"ok": False, "reason": "no_key", "message": "ZiniPay API key is not configured."}
 
         clean_tx = str(transaction_id).strip().upper()
-        clean_amt = int(round(amount)) if abs(amount - round(amount)) < 1e-4 else round(amount, 2)
         url = f"{ZINIPAY_TRX_API}/verify"
         headers = {
             "zini-api-key": api_key,
@@ -210,10 +215,12 @@ class ZiniPayVerificationService:
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
-        payload = {
+        payload: dict[str, Any] = {
             "transactionId": clean_tx,
-            "amount": clean_amt,
         }
+        if amount is not None and float(amount) > 0:
+            clean_amt = int(round(amount)) if abs(amount - round(amount)) < 1e-4 else round(amount, 2)
+            payload["amount"] = clean_amt
 
         try:
             res = await self.http.post(url, json=payload, headers=headers)
@@ -235,11 +242,12 @@ class ZiniPayVerificationService:
             trx_data = data.get("data") if isinstance(data.get("data"), dict) else data
             if data.get('success') is False or data.get('status') is False or not _matches_receipt(trx_data, amount, clean_tx):
                 return {'ok': False, 'reason': 'error', 'message': 'Gateway receipt does not match this payment.'}
+            receipt_amount = float(trx_data.get("amount") or amount or 0.0)
             return {
                 "ok": True,
                 "id": trx_data.get("id") or data.get("id"),
                 "trx_id": trx_data.get("trxID") or trx_data.get("transactionId") or clean_tx,
-                "amount": float(trx_data.get("amount") or amount),
+                "amount": receipt_amount,
                 "provider": trx_data.get("provider") or trx_data.get("method") or "bKash/Nagad",
                 "sender": trx_data.get("sender") or trx_data.get("senderNumber") or trx_data.get("masked_sender") or "",
                 "status": trx_data.get("status"),
@@ -252,6 +260,8 @@ class ZiniPayVerificationService:
 
         if "amount must be equal" in msg.lower() or "amount mismatch" in msg.lower():
             return {"ok": False, "reason": "amount_mismatch", "message": msg}
+        elif "amount is required" in msg.lower() or ("amount" in msg.lower() and "required" in msg.lower()) or "must be greater than 0" in msg.lower():
+            return {"ok": False, "reason": "amount_required", "message": msg}
         elif "already used" in msg.lower():
             return {"ok": False, "reason": "already_used", "message": msg}
         elif "not enabled" in msg.lower():

@@ -1500,7 +1500,26 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             await execute_deposit_submission(message, state, services)
             return
 
-        # 2. Safe fallback: prompt for the amount if statement has not arrived yet
+        # 2. Try direct ZiniPay auto-verify with only TrxID if enabled
+        try:
+            if hasattr(services, "zinipay") and callable(getattr(services.zinipay, "is_enabled", None)):
+                is_on = services.zinipay.is_enabled()
+                if inspect.isawaitable(is_on):
+                    is_on = await is_on
+                if is_on:
+                    probe = await services.zinipay.verify(amount=None, transaction_id=clean_tx)
+                    if probe.get("ok"):
+                        auto_amt = float(probe.get("amount") or 0.0)
+                        if auto_amt > 0:
+                            rate = float(data.get("rate") or 125.0)
+                            usd_amt = round(auto_amt / rate, 4)
+                            await state.update_data(manual_amount=usd_amt, pay_amount=auto_amt, usd_amount=usd_amt)
+                            await execute_deposit_submission(message, state, services)
+                            return
+        except Exception as exc:
+            logger.debug("TrxID-only verify probe: %s", exc)
+
+        # 3. Safe fallback: prompt for the amount if statement has not arrived yet and TrxID-only lookup requires amount
         await state.set_state(DepositStates.waiting_for_amount)
         unit = "USDT" if is_binance else "BDT"
         example = max(float(data.get("min_deposit") or 1.0), 1.0 if is_binance else 50.0)

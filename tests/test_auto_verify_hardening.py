@@ -30,6 +30,9 @@ class TestZiniPayHardening(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(_matches_receipt({"amount": 500, "transaction_id": "BL123456"}, 500.0, "BL123456"))
         self.assertTrue(_matches_receipt({"data": {"amount": 500, "trxID": "BL123456"}}, 500.0, "BL123456"))
         self.assertFalse(_matches_receipt({"amount": 400, "trxID": "BL123456"}, 500.0, "BL123456"))
+        # When amount is None (single TrxID verify probe)
+        self.assertTrue(_matches_receipt({"amount": 500, "trxID": "BL123456"}, None, "BL123456"))
+        self.assertFalse(_matches_receipt({"trxID": "BL123456"}, None, "BL123456"))
 
     async def test_env_api_key_enables_zinipay(self):
         db = MagicMock()
