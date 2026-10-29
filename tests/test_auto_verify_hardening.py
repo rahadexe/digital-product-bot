@@ -19,15 +19,25 @@ class TestZiniPayHardening(unittest.IsolatedAsyncioTestCase):
         # Same wallet must match
         receipt_bkash = {"id": 123, "amount": 500, "trxID": "BL123456", "provider": "bKash"}
         self.assertIsNone(_wallet_mismatch("bKash Personal", receipt_bkash))
+        self.assertIsNone(_wallet_mismatch("বিকাশ (পার্সোনাল)", receipt_bkash))
+
+        # Bengali method name mismatch
+        self.assertEqual(_wallet_mismatch("নগদ (পার্সোনাল)", receipt_bkash), "bkash")
 
     def test_matches_receipt_trx_variations(self):
         self.assertTrue(_matches_receipt({"amount": 500, "trxId": "BL123456"}, 500.0, "bl123456"))
         self.assertTrue(_matches_receipt({"amount": 500, "trx_id": "BL123456"}, 500.0, "BL123456"))
         self.assertTrue(_matches_receipt({"amount": 500, "transaction_id": "BL123456"}, 500.0, "BL123456"))
+        self.assertTrue(_matches_receipt({"data": {"amount": 500, "trxID": "BL123456"}}, 500.0, "BL123456"))
         self.assertFalse(_matches_receipt({"amount": 400, "trxID": "BL123456"}, 500.0, "BL123456"))
 
     async def test_env_api_key_enables_zinipay(self):
         db = MagicMock()
+        db.connect = MagicMock()
+        mock_conn = AsyncMock()
+        mock_conn.fetchval = AsyncMock(return_value=None)
+        db.connect.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+        db.connect.return_value.__aexit__ = AsyncMock(return_value=None)
         settings = MagicMock()
         settings.get = AsyncMock(return_value="")
         settings.flag = AsyncMock(return_value=False)

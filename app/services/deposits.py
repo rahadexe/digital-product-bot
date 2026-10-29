@@ -643,9 +643,7 @@ class DepositService:
         async with self.db.transaction() as conn:
             cancelled = await conn.fetchval(
                 "UPDATE deposits SET status='rejected', admin_note=$3, reviewed_at=now() "
-                "WHERE id=$1 AND tg_user_id=$2 AND status='pending' AND EXISTS ("
-                "  SELECT 1 FROM payment_verification_attempts a "
-                "  WHERE a.deposit_id=deposits.id AND a.status='awaiting_sms') RETURNING id",
+                "WHERE id=$1 AND tg_user_id=$2 AND status='pending' RETURNING id",
                 deposit_id, tg_user_id, "Cancelled by the customer to correct the transaction ID.",
             )
             if cancelled:

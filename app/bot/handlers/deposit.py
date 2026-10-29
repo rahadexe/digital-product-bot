@@ -1647,8 +1647,37 @@ async def execute_deposit_submission(
     # 1. Fast pre-check: active pending deposit
     existing_pending = await services.deposits.pending_for(user_id)
     if existing_pending:
+        existing_tx = str(existing_pending.get("transaction_id") or "").strip().upper()
+        if existing_tx and clean_tx and existing_tx == clean_tx and hasattr(services, "zinipay") and await services.zinipay.is_enabled():
+            try:
+                credited = await services.zinipay._finish_awaiting(existing_pending)
+                if credited:
+                    await services.deposits.clear_verification_failures(user_id)
+                    await state.clear()
+                    user = await services.users.get(user_id)
+                    user_balance = float(user.get("balance", 0.0)) if user else 0.0
+                    provider = method_name
+                    lang = await services.users.get_language(user_id)
+                    balance_display = format_dual_price(user_balance, usd_rate=rate, lang=lang)
+                    keyboard = get_deposit_status_keyboard(dep_id=existing_pending["id"], status="approved", lang=lang)
+                    text = (
+                        f"✅ <b>ডিপোজিট সফল হয়েছে!</b>\n"
+                        f"মেথড: <b>{escape(provider)}</b> (<code>{amt_display}</code>)\n"
+                        f"বর্তমান ব্যালেন্স: <code>{balance_display}</code>"
+                    ) if lang == "bn" else (
+                        f"✅ <b>Deposit Successful!</b>\n"
+                        f"Method: <b>{escape(provider)}</b> (<code>{amt_display}</code>)\n"
+                        f"Current Balance: <code>{balance_display}</code>"
+                    )
+                    await _safe_edit_or_answer(status_msg, user_msg, text, reply_markup=keyboard)
+                    return
+            except Exception as exc:
+                logger.warning("Retry finish awaiting error: %s", exc)
+
         await state.clear()
         kb = [
+            [InlineKeyboardButton(text="🔄 Check Again", callback_data=f"dep_refresh_{existing_pending['id']}")],
+            [InlineKeyboardButton(text="✏️ Fix TrxID", callback_data=f"dep_fix_trx_{existing_pending['id']}")],
             [InlineKeyboardButton(text="📊 Balance History", callback_data="open_deposits")],
         ]
         text = "⏳ A deposit of yours is still being checked. Please wait for it to finish."
@@ -2167,6 +2196,14 @@ async def refresh_deposit_status(query: CallbackQuery, services: Services):
     lang = await services.users.get_language(user.id)
     support_username = await services.settings.get("support_username")
     status = (dep.get("status") or "pending").lower()
+
+    if status == "pending" and hasattr(services, "zinipay") and await services.zinipay.is_enabled():
+        try:
+            if await services.zinipay._finish_awaiting(dep):
+                dep = await services.deposits.get_for_customer(user.id, dep_id) or dep
+                status = (dep.get("status") or "approved").lower()
+        except Exception:
+            pass
 
     if status in ("approved", "completed"):
         toast = "✅ ডিপোজিট অনুমোদিত হয়েছে!" if lang == "bn" else "✅ Deposit Approved!"

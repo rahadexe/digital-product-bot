@@ -52,7 +52,11 @@ def _matches_receipt(data: dict[str, Any], amount: float, transaction_id: str) -
     the transaction id agreed with everything and credited the wallet on no
     evidence at all. A response that cannot name both now goes to review.
     """
-    if not isinstance(data, dict) or data.get('amount') is None:
+    if not isinstance(data, dict):
+        return False
+    if "data" in data and isinstance(data["data"], dict):
+        data = data["data"]
+    if data.get('amount') is None:
         return False
     try:
         paid = Decimal(str(data['amount']))
@@ -99,13 +103,21 @@ AWAITING_SMS_GAVE_UP = (
 # checks that itself, after verify and before confirm (verify spends nothing, confirm
 # consumes the transaction for good). Without this a customer who chose bKash could be
 # credited for a Nagad transaction, and the two statements would stop reconciling.
-_WALLETS = ("bkash", "nagad", "rocket", "upay")
+_WALLET_MAP = {
+    "bkash": ("bkash", "বিকাশ"),
+    "nagad": ("nagad", "নগদ"),
+    "rocket": ("rocket", "রকেট"),
+    "upay": ("upay", "উপায়", "উপায়"),
+}
 
 
 def _wallet(name: Any) -> str:
     """The wallet a method or receipt names, as one lowercase word, or "" if none."""
-    letters = "".join(ch for ch in str(name or "").lower() if ch.isalpha())
-    return next((w for w in _WALLETS if w in letters), "")
+    text = str(name or "").lower()
+    for canonical, aliases in _WALLET_MAP.items():
+        if any(alias in text for alias in aliases):
+            return canonical
+    return ""
 
 
 def _wallet_mismatch(method_name: str, receipt: dict[str, Any]) -> str | None:
@@ -171,6 +183,13 @@ class ZiniPayVerificationService:
         key = await self.get_api_key()
         if not key:
             return False
+        try:
+            async with self.db.connect() as conn:
+                row = await conn.fetchval("SELECT value FROM bot_settings WHERE key = 'zinipay_enabled'")
+                if row is not None and str(row).strip():
+                    return str(row).strip() == "1"
+        except Exception:
+            pass
         flag = await self.settings.get("zinipay_enabled")
         if flag == "1":
             return True
@@ -185,6 +204,7 @@ class ZiniPayVerificationService:
             return {"ok": False, "reason": "no_key", "message": "ZiniPay API key is not configured."}
 
         clean_tx = str(transaction_id).strip().upper()
+        clean_amt = int(round(amount)) if abs(amount - round(amount)) < 1e-4 else round(amount, 2)
         url = f"{ZINIPAY_TRX_API}/verify"
         headers = {
             "zini-api-key": api_key,
@@ -194,7 +214,8 @@ class ZiniPayVerificationService:
         }
         payload = {
             "transactionId": clean_tx,
-            "amount": amount,
+            "trxID": clean_tx,
+            "amount": clean_amt,
         }
 
         try:
@@ -211,14 +232,14 @@ class ZiniPayVerificationService:
         if not _readable(data):
             return {'ok': False, 'reason': 'error', 'message': 'Malformed gateway response.'}
         # Handle successful verification
-        is_success = bool(data.get("success") is True or data.get("status") is True or (status == 200 and data.get("data") and not data.get("error") and not data.get("code")))
+        is_success = bool(data.get("success") is True or data.get("status") is True or (status == 200 and not data.get("error") and not data.get("code")))
         if status == 200 and is_success:
-            trx_data = data.get("data") or {}
+            trx_data = data.get("data") if isinstance(data.get("data"), dict) else data
             if data.get('success') is False or data.get('status') is False or not _matches_receipt(trx_data, amount, clean_tx):
                 return {'ok': False, 'reason': 'error', 'message': 'Gateway receipt does not match this payment.'}
             return {
                 "ok": True,
-                "id": trx_data.get("id"),
+                "id": trx_data.get("id") or data.get("id"),
                 "trx_id": trx_data.get("trxID") or trx_data.get("transactionId") or clean_tx,
                 "amount": float(trx_data.get("amount") or amount),
                 "provider": trx_data.get("provider") or trx_data.get("method") or "bKash/Nagad",
@@ -251,6 +272,7 @@ class ZiniPayVerificationService:
             return {"ok": False, "message": "ZiniPay API key missing."}
 
         clean_tx = str(transaction_id).strip().upper()
+        clean_amt = int(round(amount)) if abs(amount - round(amount)) < 1e-4 else round(amount, 2)
         url = f"{ZINIPAY_TRX_API}/confirm"
         headers = {
             "zini-api-key": api_key,
@@ -260,7 +282,7 @@ class ZiniPayVerificationService:
         }
         payload = {
             "transactionId": clean_tx,
-            "amount": amount,
+            "amount": clean_amt,
             "id": verify_id,
         }
 
@@ -279,7 +301,7 @@ class ZiniPayVerificationService:
             return {'ok': False, 'message': 'Malformed gateway confirmation.'}
         is_success = bool(data.get("success") is True or data.get("status") is True or (status == 200 and not data.get("error") and not data.get("code")))
         if status == 200 and is_success:
-            confirm_data = data.get("data") if isinstance(data.get("data"), dict) else {}
+            confirm_data = data.get("data") if isinstance(data.get("data"), dict) else data
             if confirm_data.get("amount") is not None:
                 try:
                     paid = Decimal(str(confirm_data["amount"]))
@@ -346,6 +368,16 @@ class ZiniPayVerificationService:
             if existing.get("status") == "approved":
                 raise DuplicateTransactionError("This Transaction ID has already been credited.")
             if existing.get("tg_user_id") == tg_user_id and existing.get("status") == "pending":
+                if await self._finish_awaiting(existing):
+                    return {
+                        "auto_verified": True,
+                        "credited": True,
+                        "deposit_id": existing["id"],
+                        "amount": float(existing["amount"]),
+                        "pay_amount": float(existing.get("pay_amount") or bdt_amount),
+                        "transaction_id": clean_tx,
+                        "detail": "Payment confirmed and wallet credited.",
+                    }
                 raise InvalidInputError("You already submitted this Transaction ID. It is awaiting review.")
             # Any other earlier use — another customer's request, or one an admin already
             # rejected — is answered now. It used to go to the gateway and, finding
@@ -552,11 +584,20 @@ class ZiniPayVerificationService:
             )
             if not pending:
                 return False
-            claimed = await conn.fetchval(
-                "UPDATE payment_verification_attempts SET status='confirming',verify_id=$2,updated_at=now() "
-                "WHERE deposit_id=$1 AND status='awaiting_sms' RETURNING deposit_id", deposit_id, str(verify_id),
+            attempt_row = await conn.fetchrow(
+                "SELECT status FROM payment_verification_attempts WHERE deposit_id=$1 FOR UPDATE", deposit_id
             )
-            if not claimed:
+            if attempt_row is None:
+                await conn.execute(
+                    "INSERT INTO payment_verification_attempts(deposit_id,provider,verify_id,status) VALUES($1,'zinipay',$2,'confirming')",
+                    deposit_id, str(verify_id),
+                )
+            elif attempt_row["status"] in ('awaiting_sms', 'review', 'reserved'):
+                await conn.execute(
+                    "UPDATE payment_verification_attempts SET status='confirming',verify_id=$2,updated_at=now() WHERE deposit_id=$1",
+                    deposit_id, str(verify_id),
+                )
+            else:
                 return False
         confirm_res = await self.confirm(amount, clean_tx, verify_id)
         provider = confirm_res.get("provider") or verify_res.get("provider") or "bKash/Nagad"

@@ -33,16 +33,20 @@ async def run(role: str, config: Settings) -> None:
         await services.suppliers.load_config()
 
         # Align MFS deposit methods with active gateway
-        if hasattr(services, "zinipay") and await services.zinipay.is_enabled():
+        if hasattr(services, "zinipay"):
             try:
-                async with services.db.connect() as conn:
-                    await conn.execute(
-                        "UPDATE deposit_methods SET auto_verify='zinipay' "
-                        "WHERE auto_verify='none' AND account_type IN ('personal','agent','merchant') "
-                        "AND (lower(name) LIKE '%bkash%' OR lower(name) LIKE '%nagad%' OR lower(name) LIKE '%rocket%' OR lower(name) LIKE '%upay%')"
-                    )
-            except Exception:
-                pass
+                key = await services.zinipay.get_api_key()
+                if key:
+                    async with services.db.connect() as conn:
+                        current_flag = await conn.fetchval("SELECT value FROM bot_settings WHERE key = 'zinipay_enabled'")
+                        if current_flag is None or current_flag == "":
+                            await conn.execute("INSERT INTO bot_settings(key, value) VALUES('zinipay_enabled', '1') ON CONFLICT (key) DO UPDATE SET value='1'")
+                        await conn.execute(
+                            "UPDATE deposit_methods SET auto_verify='zinipay' "
+                            "WHERE (auto_verify='none' OR auto_verify IS NULL) AND account_type IN ('personal','agent','merchant')"
+                        )
+            except Exception as exc:
+                logger.warning("Startup gateway alignment error: %s", exc)
 
         if role in ("all", "web") and services.notifier.bot is not None:
             from app.bot.app import create_dispatcher
