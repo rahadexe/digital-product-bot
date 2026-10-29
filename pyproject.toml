@@ -15,6 +15,7 @@ dev = ["ruff==0.16.8"]
 # The pytest console script does not add the repository root to sys.path.
 # Keep CI and `python -m pytest` consistent when importing the app package.
 pythonpath = ["."]
+testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 130

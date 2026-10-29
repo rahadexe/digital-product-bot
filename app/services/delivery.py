@@ -19,6 +19,7 @@ from app.bot.formatting import format_dual_price
 from app.core.identifiers import format_order_id
 from app.db import Database
 from app.services.audit import record
+from app.services.currency import preferred_currency
 from app.services.errors import NotFoundError
 
 LEASE_SECONDS = 120
@@ -60,7 +61,7 @@ def receipt(order: dict[str, Any], lang: str = "en") -> str:
     price_val = order.get('price', 0)
     symbol = order.get('currency_symbol', '৳')
     usd_rate = order.get('usd_rate')
-    price_str = format_dual_price(price_val, symbol=symbol, usd_rate=usd_rate, show_usd=False, lang=lang)
+    price_str = format_dual_price(price_val, symbol=symbol, usd_rate=usd_rate, show_usd=False, lang=lang, currency=order.get("currency"))
 
     raw_content = str(order.get('delivered_item', '')).strip()
     lines = [
@@ -83,11 +84,14 @@ class DeliveryService:
     async def enqueue_order(self, tg_user_id: int, order: dict[str, Any], *, conn: asyncpg.Connection | None = None) -> None:
         sql = "INSERT INTO outbox (tg_user_id, text, order_id) VALUES ($1, $2, $3) ON CONFLICT (order_id) DO NOTHING"
         # Customer-facing bot copy is English, including accounts with old saved languages.
-        text = receipt(order, lang="en")
         if conn is not None:
+            user = await conn.fetchrow("SELECT currency, language FROM users WHERE tg_user_id=$1", tg_user_id)
+            text = receipt({**order, "currency": preferred_currency(user)})
             await conn.execute(sql, tg_user_id, text, order['order_id'])
             return
         async with self.db.connect() as connection:
+            user = await connection.fetchrow("SELECT currency, language FROM users WHERE tg_user_id=$1", tg_user_id)
+            text = receipt({**order, "currency": preferred_currency(user)})
             await connection.execute(sql, tg_user_id, text, order['order_id'])
 
     async def enqueue_waiting_notice(self, tg_user_id: int, order: dict[str, Any], *, conn: asyncpg.Connection) -> None:
@@ -104,7 +108,7 @@ class DeliveryService:
         """Queue receipts for pending orders that have none (orders imported before the outbox existed)."""
         async with self.db.connect() as conn:
             rows = await conn.fetch(
-                "SELECT * FROM orders o WHERE o.status = 'completed' AND o.fulfillment = 'delivered' AND o.delivery_status = 'pending' "
+                "SELECT o.*, u.currency, u.language FROM orders o JOIN users u ON u.tg_user_id=o.tg_user_id WHERE o.status = 'completed' AND o.fulfillment = 'delivered' AND o.delivery_status = 'pending' "
                 "AND NOT EXISTS (SELECT 1 FROM outbox x WHERE x.order_id = o.id)"
             )
             if rows:

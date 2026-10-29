@@ -74,6 +74,7 @@ class TestSMSWebhookEndpoint(unittest.IsolatedAsyncioTestCase):
         # 1. Post raw SMS text
         res = client.post(
             "/api/payments/sms-webhook",
+            headers={"x-webhook-secret": "test-webhook-secret"},
             json={
                 "from": "bKash",
                 "message": "You have received Tk 500.00 from 01712345678. TrxID 9ABC123456 at 24/10/2026",
@@ -131,6 +132,7 @@ class TestSMSWebhookEndpoint(unittest.IsolatedAsyncioTestCase):
 
         res = client.post(
             "/api/payments/zinipay/webhook",
+            headers={"x-webhook-secret": "test-webhook-secret"},
             json={
                 "event": "billing.payment_received",
                 "amount": 750,
@@ -161,6 +163,7 @@ class TestBotDepositWithStatementSync(unittest.IsolatedAsyncioTestCase):
         from app.bot.handlers.deposit import DepositStates, process_deposit_txid
 
         services = MagicMock()
+        services.settings.number = AsyncMock(return_value=125)
         services.users.get_language = AsyncMock(return_value="en")
         services.users.get = AsyncMock(return_value={"id": 1, "balance": 901.0})
         services.deposits.get_method = AsyncMock(return_value={"id": 1, "name": "bKash", "is_active": 1, "auto_verify": "none", "min_deposit": 50})

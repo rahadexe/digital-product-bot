@@ -21,7 +21,7 @@ import httpx
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-from app.bot.customer_copy import wallet_updated
+from app.bot.customer_copy import payment_summary, wallet_updated
 from app.bot.icons import (
     ICON_ACCOUNT,
     ICON_BALANCE,
@@ -40,6 +40,7 @@ from app.core.identifiers import format_deposit_id
 from app.core.money import money
 from app.db import Database
 from app.services.audit import record
+from app.services.currency import customer_pricing
 from app.services.errors import InvalidInputError
 from app.services.http import gateway_http
 from app.services.notifications import Notifier
@@ -307,9 +308,9 @@ class PaymentService:
             raise InvalidInputError("Enter a valid amount, for example 10 or 25.50.") from None
         values = await self.settings.values()
         limit = float(values["max_deposit_limit"])
-        if credit > limit:
-            raise InvalidInputError(f"The maximum wallet credit is ${limit:.2f}.")
         rate = _decimal(values["usd_rate"]) * _decimal(values["zinipay_rate"])
+        if credit > limit:
+            raise InvalidInputError(f"The maximum payment is {float(_decimal(limit) * rate):g} BDT.")
         pay_amount = (_decimal(credit) * rate).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         if pay_amount < _decimal(options["min_amount"]):
             raise InvalidInputError(f"The minimum payment is BDT {options['min_amount']:.2f}.")
@@ -652,6 +653,7 @@ class PaymentService:
     async def _notify_completed(self, row: Any, balance: Any, deposit_id: int) -> None:
         symbol = escape(await self.settings.get("currency_symbol"))
         credit = float(row["credit_amount"])
+        pricing = await customer_pricing(self.db, self.settings, row["tg_user_id"])
 
         # Edit original invoice message if tracked
         row_dict = dict(row)
@@ -664,7 +666,7 @@ class PaymentService:
                 pay_amt = float(row_dict.get("pay_amount") or credit)
                 updated_text = (
                     f"<b>Payment verified{ref_suffix}</b>\n"
-                    f"<blockquote>Paid: <code>{pay_amt:.2f} {LOCAL_CURRENCY}</code>\n"
+                    f"<blockquote>{payment_summary(credit, pay_amt, is_binance=False, paid=True, **pricing)}\n"
                     "Your wallet has been updated.</blockquote>"
                 )
                 kb = InlineKeyboardMarkup(
@@ -687,7 +689,7 @@ class PaymentService:
         # Keep financial confirmations available when the customer returns to the chat.
         await self.notifier.send(
             row["tg_user_id"],
-            wallet_updated(credit, float(balance or 0), symbol, deposit_id),
+            wallet_updated(credit, float(balance or 0), symbol, deposit_id, **pricing),
         )
         pay_amt = float(row["pay_amount"] or 0)
         paid_line = f" (Paid {pay_amt:.2f} {LOCAL_CURRENCY})" if abs(credit - pay_amt) > 0.01 else ""

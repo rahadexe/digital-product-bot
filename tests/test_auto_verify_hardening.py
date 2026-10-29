@@ -88,6 +88,7 @@ class TestZiniPayHardening(unittest.IsolatedAsyncioTestCase):
         })
 
         mock_services = MagicMock()
+        mock_services.settings.number = AsyncMock(return_value=125)
         mock_services.users.get_language = AsyncMock(return_value="bn")
         mock_services.users.get = AsyncMock(return_value={"id": 1, "balance": 50.0})
         # Mock active pending deposit with matching TrxID

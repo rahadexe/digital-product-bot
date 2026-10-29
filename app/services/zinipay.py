@@ -370,7 +370,7 @@ class ZiniPayVerificationService:
             bdt_amount = round(float(pay_amount), 2)
             credit_amount = round(bdt_amount / rate, 4)
             if credit_amount != round(float(amount), 4):
-                raise InvalidInputError("The BDT payment and USD wallet credit do not match the current exchange rate.")
+                raise InvalidInputError("The payment amount does not match this request. Please start the deposit again.")
         else:
             credit_amount = round(float(amount), 4)
             bdt_amount = round(credit_amount * rate, 2)

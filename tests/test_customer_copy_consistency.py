@@ -78,10 +78,10 @@ def test_referral_help_does_not_equate_link_clicks_with_rewards():
 
 @pytest.mark.asyncio
 async def test_checkout_has_short_consistent_actions_without_instant_credit_promise():
-    services = SimpleNamespace(settings=SimpleNamespace(get=AsyncMock(return_value="৳")))
+    services = SimpleNamespace(settings=SimpleNamespace(get=AsyncMock(return_value="৳"), number=AsyncMock(return_value=125)))
     text, keyboard = await _render_instant_invoice(
         {"reference": "SM0123456789ABCDEF", "pay_amount": 500, "payment_url": "https://example.com/pay"},
-        services,
+        services, 101,
     )
     assert "Awaiting payment" in text
     assert "after verification" in text

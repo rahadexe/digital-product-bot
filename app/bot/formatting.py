@@ -155,7 +155,7 @@ def format_dual_price(
             usd = 0.0
     except (ValueError, TypeError):
         usd = 0.0
-    usd_text = f"${_money_text(usd)}"
+    usd_text = f"${_money_text(usd, digits=4)}"
     rate = usd_rate if usd_rate is not None else _DEFAULT_USD_RATE
 
     # If explicit user currency is set:
@@ -172,7 +172,7 @@ def format_dual_price(
     # Legacy locale-based formatting:
     if (lang or "").lower() in {"bn", "en-bd"} and rate and rate > 0:
         bdt_text = f"{_money_text(usd * rate)} ৳"
-        return f"{bdt_text} (≈{usd_text})"
+        return f"{bdt_text} (≈{usd_text})" if show_usd is True else bdt_text
 
     return usd_text
 

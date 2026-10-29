@@ -411,8 +411,8 @@ export interface RemoteSupplierCatalogResponse {
 
 
 const API_BASE =
-  typeof window !== 'undefined' && ['3000', '3001'].includes(window.location.port)
-    ? `${window.location.protocol}//${window.location.hostname}:8000`
+  typeof window !== 'undefined' && ['3000', '3001', '3002'].includes(window.location.port)
+    ? `${window.location.protocol}//${window.location.hostname}:8080`
     : '';
 
 /** A path on the API server, for images the console shows (the dev server runs on another port). */

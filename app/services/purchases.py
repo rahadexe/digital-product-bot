@@ -14,7 +14,7 @@ from typing import Any
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from app.bot.customer_copy import order_refunded
-from app.bot.formatting import price
+from app.bot.formatting import format_dual_price, price
 from app.bot.icons import (
     ICON_ACCOUNT,
     ICON_CHECK,
@@ -34,6 +34,7 @@ from app.core.money import money
 from app.db import Database
 from app.services.admin_jobs import enqueue as enqueue_admin_job
 from app.services.audit import record
+from app.services.currency import customer_pricing, preferred_currency
 from app.services.delivery import DeliveryService
 from app.services.errors import InvalidInputError, NotFoundError
 from app.services.inventory import InventoryService
@@ -158,8 +159,9 @@ class PurchaseService:
                 total_price = Decimal(str(unit_price)) * quantity
                 if not await db.fetchval('SELECT balance >= $1 FROM users WHERE id=$2', total_price, user['id']):
                     await db.execute("ROLLBACK")
-                    short = round(total_price - Decimal(str(user["balance"])), 2)
-                    return False, f"Insufficient balance. You need {short:.2f} more to purchase this item.", None
+                    short = total_price - Decimal(str(user["balance"]))
+                    short_text = format_dual_price(short, currency=preferred_currency(user), usd_rate=usd_rate)
+                    return False, f"Insufficient balance. You need {short_text} more to purchase this item.", None
 
                 # 3. Check delivery type & supplier routing
                 is_manual = product.get("delivery_type") == "manual"
@@ -762,8 +764,9 @@ class PurchaseService:
             return False, f"Refund failed: {type(exc).__name__}"
 
         symbol = escape(await self.settings.get("currency_symbol"))
+        pricing = await customer_pricing(self.db, self.settings, order["tg_user_id"])
         refund_customer_msg = order_refunded(
-            order_id, order["product_title"], order["price"], symbol
+            order_id, order["product_title"], order["price"], symbol, **pricing
         )
         self.notifier.in_background(
             self.notifier.send(order["tg_user_id"], refund_customer_msg)

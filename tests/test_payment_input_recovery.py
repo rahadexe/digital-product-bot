@@ -262,7 +262,7 @@ async def test_binance_reference_retry_keeps_the_valid_amount(error):
     svc = services()
     svc.binance = SimpleNamespace(claim=AsyncMock(return_value={"error": error}))
     status = SimpleNamespace(edit_text=AsyncMock())
-    await claim_binance_payment(incoming, state, svc, 3, "OLD-ORDER-1", expected_usdt=2, status_msg=status)
+    await claim_binance_payment(incoming, state, svc, 3, "OLD-ORDER-1", expected_usdt=2, status_msg=status, user_id=incoming.from_user.id)
     assert await state.get_state() == DepositStates.waiting_for_binance_ref.state
     assert (await state.get_data())["pay_amount"] == 2
     assert (await state.get_data())["manual_txid"] is None

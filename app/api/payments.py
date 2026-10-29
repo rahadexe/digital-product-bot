@@ -10,9 +10,20 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from app.api.deps import ServicesDep
+from app.core.money import money
 from app.services.sms_parser import parse_mfs_sms
 
 router = APIRouter(prefix="/api/payments", tags=["payments"])
+
+
+async def _statement_authorized(request: Request, services: ServicesDep) -> bool:
+    """Statements are payment evidence, unlike callbacks that only trigger API verification."""
+    configured = (await services.settings.get("sms_webhook_secret") or "").strip()
+    expected = configured or getattr(services.config, "webhook_secret", "")
+    provided = (request.headers.get("x-webhook-secret")
+                or request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+                or request.query_params.get("secret") or "")
+    return bool(expected and provided) and secrets.compare_digest(provided.encode(), expected.encode())
 
 
 @router.get('/return', response_class=HTMLResponse)
@@ -54,7 +65,12 @@ async def zinipay_webhook(request: Request, services: ServicesDep):
         if isinstance(body, dict):
             # 1. Statement sync event from ZiniPay (SMS automation webhook)
             event = str(body.get("event") or "")
-            if event == "billing.payment_received" or any(k in body for k in ("transactionId", "transaction_id", "trxID", "trxId", "amount")):
+            is_invoice = any(body.get(key) or data.get(key) for key in ("invoice_id", "invoiceId", "val_id"))
+            if not is_invoice and (event == "billing.payment_received" or any(
+                k in body for k in ("transactionId", "transaction_id", "trxID", "trxId", "amount")
+            )):
+                if not await _statement_authorized(request, services):
+                    return JSONResponse({"ok": False, "error": "Unauthorized"}, status_code=401)
                 trx_id = str(body.get("transactionId") or body.get("transaction_id") or body.get("trxID") or body.get("trxId") or "").strip()
                 amount_val = body.get("amount")
                 provider = str(body.get("provider") or "bKash")
@@ -68,9 +84,9 @@ async def zinipay_webhook(request: Request, services: ServicesDep):
                         provider = provider or parsed["provider"]
                         sender = parsed["sender_number"] or sender
                 try:
-                    amt = float(amount_val or 0.0)
+                    amt = money(amount_val, positive=True)
                 except (ValueError, TypeError):
-                    amt = 0.0
+                    return JSONResponse({"ok": False, "error": "Invalid amount"}, status_code=400)
                 if trx_id and amt > 0:
                     await services.deposits.record_received_transaction(
                         transaction_id=trx_id,
@@ -91,15 +107,8 @@ async def zinipay_webhook(request: Request, services: ServicesDep):
 @router.api_route("/sms-webhook", methods=["GET", "POST"])
 async def sms_statement_webhook(request: Request, services: ServicesDep):
     """Inbound webhook for Android SMS Forwarder apps and statement sync."""
-    configured_secret = (await services.settings.get("sms_webhook_secret") or "").strip()
-    is_prod = getattr(getattr(services, "config", None), "app_env", "development") == "production"
-    if configured_secret or is_prod:
-        header_secret = request.headers.get("x-webhook-secret") or request.headers.get("authorization", "").removeprefix("Bearer ").strip()
-        query_secret = request.query_params.get("secret")
-        provided_secret = header_secret or query_secret
-        expected = configured_secret or getattr(getattr(services, "config", None), "webhook_secret", "")
-        if not provided_secret or not expected or not secrets.compare_digest(provided_secret, expected):
-            return JSONResponse({"ok": False, "error": "Unauthorized"}, status_code=401)
+    if not await _statement_authorized(request, services):
+        return JSONResponse({"ok": False, "error": "Unauthorized"}, status_code=401)
 
     raw_body: dict[str, Any] = {}
     if request.method == "POST":
@@ -107,6 +116,8 @@ async def sms_statement_webhook(request: Request, services: ServicesDep):
             raw_body = await request.json()
         except Exception:
             raw_body = {}
+        if not isinstance(raw_body, dict):
+            return JSONResponse({"ok": False, "error": "Expected a JSON object"}, status_code=400)
 
     msg = str(raw_body.get("message") or raw_body.get("text") or raw_body.get("body") or request.query_params.get("message") or "").strip()
     sender = str(raw_body.get("from") or raw_body.get("sender") or request.query_params.get("from") or "").strip()
@@ -127,7 +138,7 @@ async def sms_statement_webhook(request: Request, services: ServicesDep):
         return JSONResponse({"ok": False, "error": "No transaction ID found in payload or SMS text"}, status_code=400)
 
     try:
-        amount = float(amount_val or 0.0)
+        amount = money(amount_val, positive=True)
     except (ValueError, TypeError):
         amount = 0.0
 

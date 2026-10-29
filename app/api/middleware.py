@@ -68,7 +68,7 @@ class SecurityBoundary:
         self.production = settings.app_env == 'production'
         self.allowed_origins = set(Settings.split(settings.allowed_origins))
         if not self.production:
-            self.allowed_origins |= {f'http://{host}:{port}' for host in ('localhost', '127.0.0.1') for port in (3000, 3001)}
+            self.allowed_origins |= {f'http://{host}:{port}' for host in ('localhost', '127.0.0.1') for port in (3000, 3001, 3002, 8000, 8080)}
         self.hits: OrderedDict[str, deque] = OrderedDict()
 
     def _headers(self, path: str, api: bool) -> list[tuple[bytes, bytes]]:
@@ -77,7 +77,7 @@ class SecurityBoundary:
             extra.append((b'cache-control', b'no-store'))
         if self.production:
             extra.append((b'strict-transport-security', b'max-age=31536000'))
-        connect = "'self'" if self.production else "'self' http://localhost:8000 http://127.0.0.1:8000"
+        connect = "'self'" if self.production else "'self' http://localhost:8000 http://127.0.0.1:8000 http://localhost:8080 http://127.0.0.1:8080"
         csp = (
             "default-src 'self'; script-src 'self' 'unsafe-inline' https://telegram.org; "
             "style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; "

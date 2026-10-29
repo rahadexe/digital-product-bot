@@ -7,6 +7,7 @@ from collections import OrderedDict
 from html import escape
 from typing import Any
 
+from app.bot.formatting import format_dual_price
 from app.bot.icons import (
     ICON_ACCOUNT,
     ICON_BALANCE,
@@ -137,10 +138,10 @@ class UserService:
             await conn.execute("UPDATE users SET referral_rewarded = 1, updated_at = now() WHERE tg_user_id = $1", tg_user_id)
             await record(conn, "referral_reward_paid", f"User #{referrer_id} received {reward_amount:.2f} for referring #{tg_user_id}")
 
-        symbol = await self.settings.get("currency_symbol")
         raw_first_name = str(user.get("first_name") or "").strip()
         friend_name = escape(raw_first_name) if raw_first_name else "A friend"
-        reward_str = f"{reward_amount:g} {symbol}" if reward_amount == int(reward_amount) else f"{reward_amount:.2f} {symbol}"
+        reward_str = format_dual_price(reward_amount, currency=await self.get_currency(referrer_id),
+                                       usd_rate=await self.settings.number("usd_rate"))
         if await self.settings.flag("notify_user_referral"):
             self.notifier.in_background(
                 self.notifier.send(
@@ -154,9 +155,8 @@ class UserService:
 
     async def get(self, tg_user_id: int) -> dict[str, Any] | None:
         now = time.monotonic()
-        cached = self._user_cache.get(tg_user_id)
-        if cached and now - cached[0] < 3.0:
-            return dict(cached[1]) if cached[1] else None
+        # Wallet credits, refunds and bans can be written by another worker.
+        # Never serve a cached financial/account-access snapshot.
 
         async with self.db.connect() as conn:
             row = await conn.fetchrow("SELECT * FROM users WHERE tg_user_id = $1", tg_user_id)
@@ -176,62 +176,32 @@ class UserService:
         return {"total": row["total"], "earned": row["earned"]}
 
     async def get_language(self, tg_user_id: int) -> str:
-        """Return English UI locale, retaining the Bangladesh price-display marker."""
-        cached_user = self._user_cache.get(tg_user_id)
-        if (
-            cached_user
-            and cached_user[1]
-            and time.monotonic() - cached_user[0] < self._cache_ttl
-        ):
-            curr = str(cached_user[1].get("currency") or "").strip().upper()
-            if curr in {"BDT", "USD"}:
-                locale = "en" if curr == "USD" else "en-BD"
-            else:
-                locale = self._display_locale(str(cached_user[1].get("language") or ""))
-            self._lang_cache[tg_user_id] = (time.monotonic(), locale)
-            return locale
-        cached = self._lang_cache.get(tg_user_id)
-        if cached and time.monotonic() - cached[0] < self._cache_ttl:
-            locale = self._display_locale(cached[1])
-            self._lang_cache[tg_user_id] = (time.monotonic(), locale)
-            return locale
-        raw = await self.get_raw_language(tg_user_id)
-        locale = self._display_locale(raw or "")
-        self._lang_cache[tg_user_id] = (time.monotonic(), locale)
-        return locale
+        """English copy with the current currency marker, shared across bot workers."""
+        return "en" if await self.get_currency(tg_user_id) == "USD" else "en-BD"
 
     async def get_currency(self, tg_user_id: int) -> str:
-        """Return the user's currency preference ('BDT' or 'USD'). Default is 'BDT'."""
-        cached_user = self._user_cache.get(tg_user_id)
-        if (
-            cached_user
-            and cached_user[1]
-            and time.monotonic() - cached_user[0] < self._cache_ttl
-        ):
-            val = str(cached_user[1].get("currency") or "").strip().upper()
-            if val in {"BDT", "USD"}:
-                return val
-            lang_val = str(cached_user[1].get("language") or "").strip().lower()
-            return "USD" if lang_val == "en" else "BDT"
+        """Read the current preference; another worker may have handled the switch."""
+        from app.services.currency import preferred_currency
 
         async with self.db.connect() as conn:
             row = await conn.fetchrow(
                 "SELECT currency, language FROM users WHERE tg_user_id = $1", tg_user_id
             )
-            if row:
-                curr = str(row["currency"] or "").strip().upper()
-                if curr in {"BDT", "USD"}:
-                    return curr
-                lang_val = str(row["language"] or "").strip().lower()
-                return "USD" if lang_val == "en" else "BDT"
-        return "BDT"
+        return preferred_currency(row)
 
     async def toggle_currency(self, tg_user_id: int) -> str:
         """Toggle currency between 'BDT' and 'USD'; returns the newly selected currency."""
-        current = await self.get_currency(tg_user_id)
-        new_curr = "USD" if current == "BDT" else "BDT"
-        new_lang = "en" if new_curr == "USD" else "en-BD"
         async with self.db.transaction() as conn:
+            row = await conn.fetchrow(
+                "SELECT currency, language FROM users WHERE tg_user_id = $1 FOR UPDATE", tg_user_id
+            )
+            if not row:
+                raise InvalidInputError("User not found.")
+            current = str(row["currency"] or "").strip().upper()
+            if current not in {"BDT", "USD"}:
+                current = "USD" if str(row["language"] or "").strip().lower() == "en" else "BDT"
+            new_curr = "USD" if current == "BDT" else "BDT"
+            new_lang = "en" if new_curr == "USD" else "en-BD"
             await conn.execute(
                 "UPDATE users SET currency = $1, language = $2, updated_at = now() WHERE tg_user_id = $3",
                 new_curr, new_lang, tg_user_id
@@ -387,11 +357,12 @@ class UserService:
         return dict(user)
 
     async def _notify_adjustment(self, tg_user_id: int, delta: float, balance: float, reason: str) -> None:
-        symbol = escape(await self.settings.get("currency_symbol"))
+        currency = await self.get_currency(tg_user_id)
+        rate = await self.settings.number("usd_rate")
         header = "💰 <b>Wallet Updated</b>"
         action_type = "Added" if delta >= 0 else "Deducted"
-        delta_str = f"{abs(delta):g} {symbol}"
-        balance_str = f"{balance:g} {symbol}"
+        delta_str = format_dual_price(abs(delta), usd_rate=rate, currency=currency)
+        balance_str = format_dual_price(balance, usd_rate=rate, currency=currency)
         clean_reason = escape(reason.strip()) if reason and reason.strip() else "Admin adjustment"
         await self.notifier.send(
             tg_user_id,

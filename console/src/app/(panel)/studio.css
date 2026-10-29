@@ -38,28 +38,28 @@ html:has(.console-root), body:has(.console-root) { background: #f5f7fb; }
 .operator-badge svg { color: var(--positive); }
 
 /* A compact, grouped sidebar; long store names wrap instead of widening it. */
-.console-root .rail { background: #141d32; color: #c4cee0; border: 0; padding: 25px 14px 16px; gap: 16px; align-items: stretch; z-index: 25; scrollbar-color: #3a4661 transparent; }
-.console-root .rail .brand { padding: 0 9px 18px; width: 100%; color: #fff; gap: 10px; }
+.console-root .rail { background: var(--surface); color: var(--text-dim); border-right: 1px solid var(--border); padding: 25px 14px 16px; gap: 16px; align-items: stretch; z-index: 25; scrollbar-color: var(--line-strong) transparent; }
+.console-root .rail .brand { padding: 0 9px 18px; width: 100%; color: var(--text); gap: 10px; }
 .console-root .brand-wordmark { font-size: 17px; letter-spacing: -.025em; overflow-wrap: anywhere; white-space: normal; min-width: 0; }
-.brand-symbol { width: 36px; height: 36px; display: inline-grid; place-items: center; flex: 0 0 36px; border-radius: 11px; background: #7367e8; color: white; box-shadow: 0 4px 12px #090e2420; }
+.brand-symbol { width: 36px; height: 36px; display: inline-grid; place-items: center; flex: 0 0 36px; border-radius: 11px; background: var(--accent); color: white; box-shadow: 0 4px 12px #090e2420; }
 .console-root .rail-items { display: grid; gap: 22px; }
 .nav-group { display: grid; gap: 4px; }
-.nav-group-label { margin: 0 12px 7px; color: #8998b5; font-size: 9px; font-weight: 750; letter-spacing: .14em; text-transform: uppercase; }
+.nav-group-label { margin: 0 12px 7px; color: var(--muted); font-size: 10px; font-weight: 750; letter-spacing: .14em; text-transform: uppercase; }
 .console-root .rail-items .nav-group > button, .console-root .drawer-nav .nav-group > button { display: flex; align-items: center; gap: 11px; min-height: 43px; padding: 10px 12px; border-radius: 9px; width: 100%; text-align: left; font-size: 12px; font-weight: 550; transition: background 140ms ease; }
-.console-root .rail-items .nav-group > button:hover { background: #ffffff0c; color: #fff; }
-.console-root .rail-items .nav-group > button { color: #c4cee0; }
-.console-root .rail-items .nav-group > button.active { background: #776aeb; color: #fff; box-shadow: 0 4px 12px #090f2826; }
-.console-root .rail .brand-wordmark { color: #fff; text-transform: none; }
-.console-root .rail .brand-wordmark-initial { color: #c6bfff; }
+.console-root .rail-items .nav-group > button:hover { background: var(--surface-2); color: var(--text); }
+.console-root .rail-items .nav-group > button { color: var(--text-dim); }
+.console-root .rail-items .nav-group > button.active { background: var(--accent-soft); color: var(--accent); box-shadow: none; }
+.console-root .rail .brand-wordmark { color: var(--text); text-transform: none; }
+.console-root .rail .brand-wordmark-initial { color: var(--accent); }
 .console-root .rail-items .nav-group > button.active::before { display: none; }
 .console-root .rail-items button > svg, .console-root .drawer-nav button > svg { flex-shrink: 0; opacity: .85; }
 .console-root .rail-items button > span:first-of-type, .console-root .drawer-nav button > span:first-of-type { min-width: 0; overflow-wrap: anywhere; }
 .nav-chevron, .console-root .rail .count, .console-root .drawer-nav .count { margin-left: auto; flex-shrink: 0; }
-.console-root .rail .count { background: #ffffff15; color: #fff; border-radius: 6px; font-size: 10px; padding: 2px 7px; }
-.console-root .rail-foot { width: 100%; padding: 14px 4px 0; border-top: 1px solid #ffffff15; }
-.console-root .rail .sign-out { display: flex; align-items: center; gap: 10px; padding: 10px; color: #b3c0d6; width: 100%; min-height: 44px; }
-.console-root .rail .sign-out:hover { background: #ffffff09; color: #fff; border-radius: 8px; }
-.console-root .rail > button:hover .brand-wordmark { color: #fff; }
+.console-root .rail .count { background: var(--accent-soft); color: var(--accent); border-radius: 6px; font-size: 10px; padding: 2px 7px; }
+.console-root .rail-foot { width: 100%; padding: 14px 4px 0; border-top: 1px solid var(--border); }
+.console-root .rail .sign-out { display: flex; align-items: center; gap: 10px; padding: 10px; color: var(--muted); width: 100%; min-height: 44px; }
+.console-root .rail .sign-out:hover { background: var(--surface-2); color: var(--danger); border-radius: 8px; }
+.console-root .rail > button:hover .brand-wordmark { color: var(--accent); }
 
 /* Shared controls and surfaces apply to catalog, payments and settings alike. */
 .console-root .btn { min-height: 42px; border-radius: 10px; font-size: 12px; font-weight: 650; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }

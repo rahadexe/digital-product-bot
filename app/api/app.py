@@ -16,7 +16,11 @@ from app.core.config import BASE_DIR, Settings
 from app.services import Services
 
 CONSOLE_OUT_DIR = BASE_DIR / "console" / "out"
-DEV_CONSOLE_ORIGINS = ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000", "http://127.0.0.1:3001"]
+DEV_CONSOLE_ORIGINS = [
+    "http://localhost:3000", "http://localhost:3001", "http://localhost:3002",
+    "http://127.0.0.1:3000", "http://127.0.0.1:3001", "http://127.0.0.1:3002",
+    "http://localhost:8080", "http://127.0.0.1:8080",
+]
 
 
 class ConsoleFiles(StaticFiles):

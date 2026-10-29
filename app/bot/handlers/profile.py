@@ -1219,10 +1219,7 @@ async def show_deposit_history(event: Message | CallbackQuery, state: FSMContext
     deposits = await services.deposits.history(tg_user.id, limit=DEPOSITS_PAGE_SIZE, offset=offset)
     symbol = await services.settings.get("currency_symbol")
     usd_rate = await services.settings.number("usd_rate")
-    try:
-        show_usd = await services.settings.flag("show_usd_price")
-    except Exception:
-        show_usd = False
+    show_usd = False
     back_cb = f"back_to_dep_req_{dep_id_ref}" if dep_id_ref else "open_deposit"
 
     if not deposits:

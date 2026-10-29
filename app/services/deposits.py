@@ -6,6 +6,7 @@ request stores the exchange rate and payable amount the customer was shown.
 
 from __future__ import annotations
 
+import math
 import re
 import time
 from collections.abc import Callable
@@ -17,7 +18,7 @@ import asyncpg
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from app.bot.customer_copy import wallet_updated
-from app.bot.formatting import resolve_support_url
+from app.bot.formatting import format_dual_price, resolve_support_url
 from app.bot.icons import (
     ICON_ACCOUNT,
     ICON_BALANCE,
@@ -37,6 +38,7 @@ from app.core.money import money
 from app.db import Database, affected
 from app.services.admin_jobs import enqueue as enqueue_admin_job
 from app.services.audit import record
+from app.services.currency import customer_pricing
 from app.services.errors import InvalidInputError
 from app.services.notifications import Notifier
 from app.services.settings import SettingsService
@@ -271,7 +273,7 @@ class DepositService:
             raise InvalidInputError(f"The minimum payment for this method is {currency}{minimum:.2f}.")
         limit = float(values.get("max_deposit_limit") or 0.0)
         if limit and amount > limit:
-            raise InvalidInputError(f"The maximum wallet credit is ${limit:.2f}. Contact support for larger payments.")
+            raise InvalidInputError(f"The maximum payment is {limit * rate:g} {'USDT' if is_crypto else 'BDT'}. Contact support for larger payments.")
         return {
             "method_id": method["id"],
             "method_name": method["name"],
@@ -328,11 +330,13 @@ class DepositService:
                 if pay_amount is not None:
                     actual_pay_amount = money(pay_amount, positive=True)
                     is_crypto = is_binance_pay_method(method)
-                    rate = 1.0 if is_crypto else float(quoted_rate or values.get("usd_rate") or 125)
+                    rate = 1.0 if is_crypto else float(quoted_rate if quoted_rate is not None else values.get("usd_rate") or 125)
+                    if not math.isfinite(rate) or rate <= 0:
+                        raise InvalidInputError("Invalid payment exchange rate. Please start the deposit again.")
                     actual_amount = amount
                     expected_amount = round(actual_pay_amount if is_crypto else actual_pay_amount / rate, 4)
-                    if abs(expected_amount - actual_amount) > 0.001:
-                        raise InvalidInputError("The payment amount and USD wallet credit do not match the current rate.")
+                    if expected_amount != actual_amount:
+                        raise InvalidInputError("The payment amount does not match this request. Please start the deposit again.")
                     min_dep = float(method["min_deposit"] or 0.0)
                     minimum_paid = actual_amount if is_crypto else actual_pay_amount
                     if minimum_paid < min_dep:
@@ -340,7 +344,7 @@ class DepositService:
                         raise InvalidInputError(f"The minimum payment for this method is {curr}{min_dep:g}.")
                     limit = float(values.get("max_deposit_limit") or 0.0)
                     if limit and actual_amount > limit:
-                        raise InvalidInputError(f"The maximum wallet credit is ${limit:g}. Contact support for larger payments.")
+                        raise InvalidInputError(f"The maximum payment is {limit * rate:g} {'USDT' if is_crypto else 'BDT'}. Contact support for larger payments.")
                     quote = {
                         "method_id": method["id"],
                         "method_name": method["name"],
@@ -468,10 +472,10 @@ class DepositService:
         )
 
     async def _notify_customer(
-        self, tg_user_id: int, text_for_symbol: Callable[[str], str], keyboard: InlineKeyboardMarkup | None = None
+        self, tg_user_id: int, text_for_symbol: Callable[[str, float], str], keyboard: InlineKeyboardMarkup | None = None
     ) -> None:
-        symbol = escape(await self.settings.get("currency_symbol"))
-        await self.notifier.send(tg_user_id, text_for_symbol(symbol), keyboard=keyboard)
+        pricing = await customer_pricing(self.db, self.settings, tg_user_id)
+        await self.notifier.send(tg_user_id, text_for_symbol(pricing["currency"], pricing["usd_rate"]), keyboard=keyboard)
 
     async def pending_for(self, tg_user_id: int) -> dict[str, Any] | None:
         async with self.db.connect() as conn:
@@ -528,6 +532,8 @@ class DepositService:
     ) -> dict[str, Any] | None:
         """Store an incoming payment statement received via SMS forwarder or statement webhook."""
         clean_tx = str(transaction_id).strip()
+        if not TRANSACTION_ID.fullmatch(clean_tx):
+            raise InvalidInputError("Invalid transaction ID.")
         amt = money(amount, positive=True)
         async with self.db.connect() as conn:
             row = await conn.fetchrow(
@@ -704,8 +710,8 @@ class DepositService:
             self.notifier.in_background(
                 self._notify_customer(
                     deposit["tg_user_id"],
-                    lambda symbol: (
-                        wallet_updated(amount, details["new_balance"], symbol, deposit_id)
+                    lambda currency, rate: (
+                        wallet_updated(amount, details["new_balance"], "$", deposit_id, currency=currency, usd_rate=rate)
                     ),
                 )
             )
@@ -760,11 +766,11 @@ class DepositService:
         self.notifier.in_background(
             self._notify_customer(
                 tg_user_id,
-                lambda symbol: (
+                lambda currency, rate: (
                     "⚠️ <b>Deposit Not Approved</b>\n\n"
                     f"Deposit ID: <code>{format_deposit_id(deposit_id)}</code>\n"
                     f"Method: <b>{method_name}</b>\n"
-                    f"Amount: <code>{amount:g} {symbol}</code>\n"
+                    f"Amount: <code>{format_dual_price(amount, currency=currency, usd_rate=rate)}</code>\n"
                     + (f"TrxID: <code>{trx_id}</code>\n" if trx_id else "")
                     + f"Reason: <i>{escape(admin_note) or 'Could not be verified'}</i>"
                 ),

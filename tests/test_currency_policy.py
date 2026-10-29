@@ -53,8 +53,8 @@ async def test_legacy_currency_settings_are_read_as_usd():
 
 def test_default_price_format_is_usd_and_bangla_shows_equivalent():
     assert format_dual_price(125) == "$125"
-    assert format_dual_price(0.8, usd_rate=125, lang="bn") == "100 ৳ (≈$0.8)"
-    assert format_dual_price(0.8, usd_rate=125, lang="en-BD") == "100 ৳ (≈$0.8)"
+    assert format_dual_price(0.8, usd_rate=125, lang="bn") == "100 ৳"
+    assert format_dual_price(0.8, usd_rate=125, lang="en-BD") == "100 ৳"
     assert format_dual_price(0.8, lang="en") == "$0.8"
 
 
