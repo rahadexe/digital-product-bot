@@ -138,15 +138,16 @@ class UserService:
             await record(conn, "referral_reward_paid", f"User #{referrer_id} received {reward_amount:.2f} for referring #{tg_user_id}")
 
         symbol = await self.settings.get("currency_symbol")
-        joined_name = escape(" ".join(filter(None, [user.get("first_name"), user.get("last_name")])) or (f"@{user['username']}" if user.get("username") else "A friend"))
+        raw_first_name = str(user.get("first_name") or "").strip()
+        friend_name = escape(raw_first_name) if raw_first_name else "A friend"
         reward_str = f"{reward_amount:g} {symbol}" if reward_amount == int(reward_amount) else f"{reward_amount:.2f} {symbol}"
         if await self.settings.flag("notify_user_referral"):
             self.notifier.in_background(
                 self.notifier.send(
                     referrer_id,
-                    f"🎁 <b>Referral Reward!</b>\n\n"
-                    f"<b>Friend:</b> <b>{joined_name}</b> joined through your link.\n"
-                    f"<b>Added:</b> <code>+{reward_str}</code> to your wallet.",
+                    "🎁 <b>Referral Reward!</b>\n\n"
+                    f"Friend: <b>{friend_name}</b>\n"
+                    f"Bonus: <code>+{reward_str}</code> added to your wallet.",
                 )
             )
         return {"referrer_id": referrer_id, "amount": reward_amount}
