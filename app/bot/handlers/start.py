@@ -65,38 +65,21 @@ def build_welcome_text(
     clean_user = escape(user_name.strip()) if user_name else ""
     clean_membership = escape(membership.strip() or "Standard")
 
-    if lang == "bn":
-        greeting = f"👋 <b>স্বাগতম, {clean_user}!</b> 🤝" if clean_user else "👋 <b>স্বাগতম!</b> 🤝"
-        subheading = f"<b>{clean_store}</b>-এ আপনাকে স্বাগতম — ডিজিটাল সার্ভিসের নির্ভরযোগ্য স্টোর।"
+    greeting = f"👋 <b>Welcome, {clean_user}!</b> 🤝" if clean_user else "👋 <b>Welcome!</b> 🤝"
+    subheading = f"Welcome to <b>{clean_store}</b> — your digital products store."
 
-        details_header = "👤 <b>কাস্টমার বিবরণ:</b>"
-        details_lines = []
-        if clean_user:
-            details_lines.append(f"• নাম: <b>{clean_user}</b>")
-        if user_id:
-            details_lines.append(f"• অ্যাকাউন্ট আইডি: <code>{user_id}</code>")
-        details_lines.append(f"• মেম্বারশিপ: <code>{clean_membership}</code>")
-        details_lines.append(f"• ওয়ালেট ব্যালেন্স: <code>{balance}</code>")
-        details_lines.append(f"• মোট ক্রয়: <code>{order_count} টি</code>")
+    details_header = "👤 <b>Customer Details:</b>"
+    details_lines = []
+    if clean_user:
+        details_lines.append(f"• Name: <b>{clean_user}</b>")
+    if user_id:
+        details_lines.append(f"• Account ID: <code>{user_id}</code>")
+    details_lines.append(f"• Membership: <code>{clean_membership}</code>")
+    details_lines.append(f"• Wallet Balance: <code>{balance}</code>")
+    details_lines.append(f"• Total Purchases: <code>{order_count}</code>")
 
-        support_line = f"💬 <b>কাস্টমার সাপোর্ট:</b> {support}"
-        cta = "👇 <i>শুরু করতে নিচের মেন্যু বাটনগুলো ব্যবহার করুন:</i>"
-    else:
-        greeting = f"👋 <b>Welcome, {clean_user}!</b> 🤝" if clean_user else "👋 <b>Welcome!</b> 🤝"
-        subheading = f"Welcome to <b>{clean_store}</b> — your digital products store."
-
-        details_header = "👤 <b>Customer Details:</b>"
-        details_lines = []
-        if clean_user:
-            details_lines.append(f"• Name: <b>{clean_user}</b>")
-        if user_id:
-            details_lines.append(f"• Account ID: <code>{user_id}</code>")
-        details_lines.append(f"• Membership: <code>{clean_membership}</code>")
-        details_lines.append(f"• Wallet Balance: <code>{balance}</code>")
-        details_lines.append(f"• Total Purchases: <code>{order_count}</code>")
-
-        support_line = f"💬 <b>Customer Support:</b> {support}"
-        cta = "👇 <i>Use the menu buttons below to continue:</i>"
+    support_line = f"💬 <b>Customer Support:</b> {support}"
+    cta = "👇 <i>Use the menu buttons below to continue:</i>"
 
     sections = [
         greeting,
