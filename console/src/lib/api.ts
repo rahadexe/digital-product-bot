@@ -631,7 +631,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ admin_note: adminNote }),
     }),
-  rejectDeposit: (id: number, adminNote = 'Invalid transaction ID') =>
+  rejectDeposit: (id: number, adminNote = 'Verification Failed') =>
     request<{ success: boolean; message: string }>(`/api/admin/deposits/${id}/reject`, {
       method: 'POST',
       body: JSON.stringify({ admin_note: adminNote }),

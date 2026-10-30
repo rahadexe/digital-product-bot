@@ -33,7 +33,7 @@ async def approve_deposit(deposit_id: int, payload: DepositReviewPayload, servic
 
 @router.post("/deposits/{deposit_id}/reject", dependencies=WRITE)
 async def reject_deposit(deposit_id: int, payload: DepositReviewPayload, services: ServicesDep):
-    success, message, _ = await services.deposits.reject(deposit_id, payload.admin_note or "Transaction could not be verified.")
+    success, message, _ = await services.deposits.reject(deposit_id, payload.admin_note or "Verification Failed")
     if not success:
         raise HTTPException(status_code=400, detail=message)
     return {"success": True, "message": message}

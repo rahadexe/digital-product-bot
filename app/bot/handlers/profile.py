@@ -1353,7 +1353,7 @@ async def view_deposit_detail(query: CallbackQuery, state: FSMContext, services:
     if st in ("approved", "completed"):
         lines.append("Status: ✅ <code>Approved</code>")
     elif st in ("rejected", "failed", "cancelled"):
-        clean_note = deposit.get("admin_note") or "Could not be verified"
+        clean_note = deposit.get("admin_note") or "Verification Failed"
         lines.append(f"Reason: <i>{escape(clean_note)}</i>")
     else:
         lines.append("Status: ⏳ <code>Pending</code>")

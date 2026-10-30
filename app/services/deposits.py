@@ -718,7 +718,7 @@ class DepositService:
         return True, "Deposit approved and user credited.", details
 
     async def reject(
-        self, deposit_id: int, admin_note: str = "Transaction could not be verified."
+        self, deposit_id: int, admin_note: str = "Verification Failed"
     ) -> tuple[bool, str, dict[str, Any] | None]:
         async with self.db.transaction() as conn:
             deposit = await conn.fetchrow("SELECT * FROM deposits WHERE id = $1 FOR UPDATE", deposit_id)
@@ -772,7 +772,7 @@ class DepositService:
                     f"Method: <b>{method_name}</b>\n"
                     f"Amount: <code>{format_dual_price(amount, currency=currency, usd_rate=rate)}</code>\n"
                     + (f"TrxID: <code>{trx_id}</code>\n" if trx_id else "")
-                    + f"Reason: <i>{escape(admin_note) or 'Could not be verified'}</i>"
+                    + f"Reason: <i>{escape(admin_note) or 'Verification Failed'}</i>"
                 ),
                 keyboard=support_kb,
             )

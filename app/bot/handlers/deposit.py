@@ -284,7 +284,7 @@ def format_deposit_status_card(
         lines.append(f"Amount: <code>{amount_str}</code>")
         if txid:
             lines.append(f"TrxID: <code>{escape(txid)}</code>")
-        clean_note = error_note or "Could not be verified"
+        clean_note = error_note or "Verification Failed"
         if any(x in str(clean_note) for x in ("HTTP", "401", "unavailable", "configured")):
             clean_note = "Submitted for manual admin review."
         lines.append(f"Reason: <i>{escape(clean_note)}</i>")

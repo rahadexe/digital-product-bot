@@ -1209,7 +1209,7 @@ async def adm_deposit_do(query: CallbackQuery, services: Services):
     if action == "approve":
         ok, message, _ = await services.deposits.approve(deposit_id, f"Approved from Telegram by {by}")
     else:
-        ok, message, _ = await services.deposits.reject(deposit_id, "Transaction could not be verified.")
+        ok, message, _ = await services.deposits.reject(deposit_id, "Verification Failed")
 
     with suppress(TelegramBadRequest):
         await query.answer(message[:180], show_alert=not ok)
