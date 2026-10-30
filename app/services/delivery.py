@@ -52,7 +52,7 @@ def waiting_notice(order: dict[str, Any], lang: str = "en") -> str:
         f"Product: <b>{title}</b>\n"
         f"Order ID: <code>{format_order_id(order_id)}</code>"
         "</blockquote>\n\n"
-        "Payment received. Your order is being prepared and will arrive shortly."
+        "Payment received. Your order is being prepared."
     )
 
 

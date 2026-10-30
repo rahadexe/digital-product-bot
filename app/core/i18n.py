@@ -20,8 +20,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         # Buttons
         "btn_shop": "Products",
         "btn_wallet": "💰 Balance",
-        "btn_deposit": "Top Up",
-        "btn_add_balance": "Top Up",
+        "btn_deposit": "Deposit",
+        "btn_add_balance": "Deposit",
         "btn_search": "🔍 Search",
         "btn_refer_earn": "Refer",
         "btn_support": "Contact Support",
@@ -126,7 +126,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         # Deposit
         "deposit_select_method": (
             "{icon_coin} <b>Balance:</b> <code>{balance}</code>\n"
-            "Choose a method to top up."
+            "Choose a deposit method."
         ),
         "deposit_pending_warning": (
             "{icon_timer} <b>Pending Deposit Request</b>\n\n"
@@ -150,7 +150,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "btn_open_payment_page": "Pay Now",
         "btn_support_chat": "Contact Support",
         "btn_guide": "Guide",
-        "btn_cancel_deposit": "Cancel Top-up",
+        "btn_cancel_deposit": "Cancel Deposit",
         "btn_browse_products": "Browse Products",
         "btn_back": "Back",
 
@@ -175,8 +175,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "balance_history_hint": "",
         "balance_history_empty": "📜 No deposits yet.",
         "balance_history_page": "<b>Deposit History</b>",
-        "deposit_not_found": "Top-up not found. Open Balance to check History.",
-        "deposit_detail_title": "<b>Top-up {id}</b>",
+        "deposit_not_found": "Deposit not found. Open Wallet to check history.",
+        "deposit_detail_title": "<b>Deposit {id}</b>",
         "status_approved_msg": "Payment verified. Your balance is updated.",
         "status_rejected_msg": "Deposit not approved. Contact Support if you have already paid.",
         "status_pending_msg": "Your payment details are awaiting verification. Do not pay again.",
@@ -198,7 +198,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
 
         "deposit_choose_method": (
             "💰 <b>Balance:</b> <code>{balance}</code>\n\n"
-            "Choose a method to top up."
+            "Choose a deposit method."
         ),
         "deposit_paused_title": "{icon_warning} <b>Deposits Temporarily Paused</b>",
         "deposit_pending_summary": (

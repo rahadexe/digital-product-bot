@@ -808,7 +808,7 @@ class DepositService:
                     + (f"TrxID: <code>{trx_id}</code>\n" if trx_id else "")
                     + f"Reason: <i>{escape(admin_note) or 'Verification Failed'}</i>"
                     "</blockquote>\n\n"
-                    "If you believe this was an error, please contact our support team."
+                    "Contact support if you need assistance."
                 ),
                 keyboard=support_kb,
             )

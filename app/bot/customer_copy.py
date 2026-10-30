@@ -29,7 +29,7 @@ def order_refunded(order_id: int, title: str, amount: float, symbol: str,
         f"Order ID: <code>{format_order_id(order_id)}</code>\n"
         f"Refunded: <code>{value}</code>"
         "</blockquote>\n\n"
-        "The refunded amount has been returned to your balance."
+        "Amount returned to your balance."
     )
 
 

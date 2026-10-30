@@ -73,39 +73,15 @@ class DeliveryWorker:
                 )
             else:
                 reply_markup = None
-                kb_rows = []
-                if order and order.get('delivered_item') and len(order['delivered_item']) <= 256:
-                    kb_rows.append([
-                        InlineKeyboardButton(
-                            text="Copy Credentials",
-                            copy_text=CopyTextButton(text=order['delivered_item']),
-                        )
-                    ])
-                if order and order.get('id'):
-                    order_id = order['id']
-                    actions_row = [
-                        InlineKeyboardButton(
-                            text="Report Issue",
-                            callback_data=f"claim_warranty_{order_id}",
-                        )
-                    ]
-                    if order.get('product_id'):
-                        actions_row.append(
-                            InlineKeyboardButton(
-                                text="Buy Again",
-                                callback_data=f"prod_{order['product_id']}",
-                            )
-                        )
-                    kb_rows.append(actions_row)
-                if not kb_rows and message.get('broadcast_id'):
-                    kb_rows.append([
+                # Order credentials in <code> blocks are 1-tap copyable in Telegram;
+                # redundant action buttons are omitted to maintain clean, clutter-free receipts.
+                if message.get('broadcast_id'):
+                    reply_markup = InlineKeyboardMarkup(inline_keyboard=[[
                         InlineKeyboardButton(
                             text="Shop Now",
                             callback_data="back_to_main",
                         )
-                    ])
-                if kb_rows:
-                    reply_markup = InlineKeyboardMarkup(inline_keyboard=kb_rows)
+                    ]])
                 await self.bot.send_message(message['tg_user_id'], message['text'], reply_markup=reply_markup)
 
         except TelegramRetryAfter as exc:

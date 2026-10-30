@@ -172,8 +172,11 @@ class UserService:
                 self.notifier.send(
                     referrer_id,
                     "🎁 <b>Referral Reward!</b>\n\n"
+                    "<blockquote>"
                     f"Friend: <b>{friend_name}</b>\n"
-                    f"Bonus: <code>+{reward_str}</code> added to your wallet.",
+                    f"Bonus: <code>+{reward_str}</code>"
+                    "</blockquote>\n\n"
+                    "Bonus added to your balance.",
                 )
             )
         return {"referrer_id": referrer_id, "amount": reward_amount}

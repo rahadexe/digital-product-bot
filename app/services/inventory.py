@@ -102,8 +102,10 @@ class InventoryService:
                                 self.notifier.send(
                                     uid,
                                     f"🔔 <b>Back in Stock!</b>\n\n"
-                                    f"<b>Product:</b> {escape(title)}\n"
-                                    f"Good news! This product is now back in stock and ready to order.",
+                                    "<blockquote>"
+                                    f"Product: <b>{escape(title)}</b>"
+                                    "</blockquote>\n\n"
+                                    "This product is now back in stock.",
                                     keyboard=kb,
                                 )
                             )
