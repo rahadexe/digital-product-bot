@@ -144,3 +144,23 @@ def test_dashboard_shows_balance_without_personal_identity():
     assert "Balance: <code>$3.50</code>" in text
     assert "ID:" not in text
     assert "Name:" not in text
+
+
+def test_dashboard_shows_personalized_customer_details():
+    text = build_welcome_text(
+        user_name="Rahad",
+        user_id=6775546602,
+        membership="Standard",
+        store_name="Premium Haven",
+        balance_str="0.00 ৳",
+        order_count=5,
+        support_username="admin_support",
+    )
+    assert "Welcome, Rahad!" in text
+    assert "Name: <b>Rahad</b>" in text
+    assert "Account ID: <code>6775546602</code>" in text
+    assert "Membership: <code>Standard</code>" in text
+    assert "Wallet Balance: <code>0.00 ৳</code>" in text
+    assert "Total Purchases: <code>5</code>" in text
+    assert "@admin_support" in text
+    assert "Use the menu buttons below to continue:" in text

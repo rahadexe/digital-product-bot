@@ -47,6 +47,10 @@ logger = logging.getLogger("app.bot.start")
 
 def build_welcome_text(
     *,
+    user_name: str = "",
+    user_id: int | str | None = None,
+    membership: str = "Standard",
+    store_name: str = "Premium Haven",
     paused_notice: str | None = None,
     lang: str = "en",
     balance_str: str = "",
@@ -56,17 +60,56 @@ def build_welcome_text(
 ) -> str:
     prefix = t("maintenance_notice", lang, icon_warning=ICON_WARNING, notice=escape(paused_notice)) + "\n\n" if paused_notice else ""
     support = f"@{support_username.lstrip('@')}" if support_username else "@support"
-    balance = balance_str or "$0.00"
-    orders = f"Orders: <code>{order_count}</code>" if order_count else "Orders: <code>0</code>"
-    curr_label = "৳ BDT" if currency == "BDT" else "$ USD"
-    card = "<blockquote>" + "\n".join((
-        f"💰 Balance: <code>{balance}</code>",
-        f"📦 {orders}",
-        f"💱 Currency: <code>{curr_label}</code>",
-    )) + "</blockquote>"
-    tip = "💡 <i>Switch currency & refer friends to earn in <b>👤 Account</b></i>"
-    tagline = "⚡ <i>Instant Delivery · 24/7 Active</i>"
-    return prefix + "\n".join(("Welcome! 🤝", "", card, "", tip, tagline, f"💬 Support: {support}"))
+    balance = balance_str or ("0.00 ৳" if currency == "BDT" else "$0.00")
+    clean_store = escape(store_name.strip() or "Premium Haven")
+    clean_user = escape(user_name.strip()) if user_name else ""
+    clean_membership = escape(membership.strip() or "Standard")
+
+    if lang == "bn":
+        greeting = f"👋 <b>স্বাগতম, {clean_user}!</b> 🤝" if clean_user else "👋 <b>স্বাগতম!</b> 🤝"
+        subheading = f"<b>{clean_store}</b>-এ আপনাকে স্বাগতম — ডিজিটাল সার্ভিসের নির্ভরযোগ্য স্টোর।"
+
+        details_header = "👤 <b>কাস্টমার বিবরণ:</b>"
+        details_lines = []
+        if clean_user:
+            details_lines.append(f"• নাম: <b>{clean_user}</b>")
+        if user_id:
+            details_lines.append(f"• অ্যাকাউন্ট আইডি: <code>{user_id}</code>")
+        details_lines.append(f"• মেম্বারশিপ: <code>{clean_membership}</code>")
+        details_lines.append(f"• ওয়ালেট ব্যালেন্স: <code>{balance}</code>")
+        details_lines.append(f"• মোট ক্রয়: <code>{order_count} টি</code>")
+
+        support_line = f"💬 <b>কাস্টমার সাপোর্ট:</b> {support}"
+        cta = "👇 <i>শুরু করতে নিচের মেন্যু বাটনগুলো ব্যবহার করুন:</i>"
+    else:
+        greeting = f"👋 <b>Welcome, {clean_user}!</b> 🤝" if clean_user else "👋 <b>Welcome!</b> 🤝"
+        subheading = f"Welcome to <b>{clean_store}</b> — your digital products store."
+
+        details_header = "👤 <b>Customer Details:</b>"
+        details_lines = []
+        if clean_user:
+            details_lines.append(f"• Name: <b>{clean_user}</b>")
+        if user_id:
+            details_lines.append(f"• Account ID: <code>{user_id}</code>")
+        details_lines.append(f"• Membership: <code>{clean_membership}</code>")
+        details_lines.append(f"• Wallet Balance: <code>{balance}</code>")
+        details_lines.append(f"• Total Purchases: <code>{order_count}</code>")
+
+        support_line = f"💬 <b>Customer Support:</b> {support}"
+        cta = "👇 <i>Use the menu buttons below to continue:</i>"
+
+    sections = [
+        greeting,
+        subheading,
+        "",
+        details_header,
+        "\n".join(details_lines),
+        "",
+        support_line,
+        "",
+        cta,
+    ]
+    return prefix + "\n".join(sections)
 
 
 router = Router(name="start_router")
@@ -87,6 +130,28 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
     balance_str = format_dual_price(user_balance, usd_rate=usd_rate, lang=lang, currency=curr, show_usd=False)
     banner_file_id = (values.get("welcome_banner_file_id") or "").strip() if isinstance(values, dict) else ""
     support_username = (values.get("support_username") or "").strip() if isinstance(values, dict) else ""
+    store_name = (values.get("store_name") or "Premium Haven").strip() if isinstance(values, dict) else "Premium Haven"
+
+    # User's first name
+    first_name = ""
+    if user and isinstance(user, dict):
+        first_name = (user.get("first_name") or "").strip()
+    if not first_name:
+        from_user = getattr(message, "from_user", None)
+        if from_user and getattr(from_user, "id", None) == tg_user_id:
+            first_name = (getattr(from_user, "first_name", "") or "").strip()
+    if not first_name:
+        first_name = "Customer"
+
+    is_admin = tg_user_id in admin_ids
+    raw_rank = (user.get("rank") or "").strip() if user and isinstance(user, dict) else ""
+    if is_admin:
+        membership = "Administrator"
+    elif raw_rank:
+        membership = raw_rank.title()
+    else:
+        membership = "Standard"
+
     order_count = 0
     if hasattr(services, "purchases") and hasattr(services.purchases, "customer_orders"):
         try:
@@ -97,6 +162,10 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
             order_count = 0
 
     text = build_welcome_text(
+        user_name=first_name,
+        user_id=tg_user_id,
+        membership=membership,
+        store_name=store_name,
         paused_notice=paused_notice,
         lang=lang,
         balance_str=balance_str,
