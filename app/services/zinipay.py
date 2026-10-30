@@ -187,7 +187,7 @@ class ZiniPayVerificationService:
     async def is_enabled(self) -> bool:
         """Check if ZiniPay verification API is enabled with an API key."""
         key = await self.get_api_key()
-        if not key:
+        if not key or key.startswith("zp_test_dummy"):
             return False
         # If API key is provided via env/config, always enabled
         if self.config.zinipay_api_key:

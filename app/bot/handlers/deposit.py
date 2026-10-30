@@ -147,6 +147,12 @@ async def _retry_payment_input(
             f"TrxID: <code>{escape(clean_tx)}</code>\n\n"
             f"{body_text}"
         )
+        retry_kb = InlineKeyboardMarkup(inline_keyboard=[
+            [
+                InlineKeyboardButton(text="✏️ Change TrxID", callback_data="dep_change_trxid"),
+                InlineKeyboardButton(text="Cancel", callback_data="dep_methods"),
+            ]
+        ])
     else:
         await state.update_data(manual_txid=None)
         await state.set_state(
@@ -162,10 +168,11 @@ async def _retry_payment_input(
         body_text = text if ("<" in text and ">" in text) else f"<b>{escape(text)}</b>"
         lines.append(f"\n{body_text}")
         card_text = "\n".join(lines)
+        retry_kb = get_deposit_trxid_prompt_keyboard(has_amount=(amt > 0))
 
     await _safe_edit_or_answer(
         status_msg, message, card_text,
-        reply_markup=get_deposit_trxid_prompt_keyboard(),
+        reply_markup=retry_kb,
     )
     await _send_input_prompt(message, state, text, field=field, placeholder=placeholder)
 
@@ -1808,7 +1815,10 @@ async def execute_deposit_submission(
         else:
             actual_pay = 0.0
             credit_amount = 0.0
-        amt_display = f"{actual_pay:g} ৳"
+        if curr in ("USD", "USDT") and credit_amount > 0:
+            amt_display = f"{actual_pay:g} ৳ (${credit_amount:.2f})"
+        else:
+            amt_display = f"{actual_pay:g} ৳"
 
     user_msg = event.message if isinstance(event, CallbackQuery) else event
     chat = getattr(event, "chat", None) or (getattr(user_msg, "chat", None) if user_msg else None)
