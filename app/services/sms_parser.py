@@ -53,32 +53,38 @@ def parse_mfs_sms(raw_text: str, sender_hint: str = "") -> dict[str, Any] | None
 
     # 2. Amount extraction
     # Common variants:
-    # bKash: "received Tk 500.00" / "received deposit of Tk 1,000.00" / "Cash In Tk 500.00"
-    # Nagad: "Amount: Tk 300.00" / "Amount: Tk. 300"
-    # Rocket: "Tk 200.00 received"
+    # bKash: "received Tk 500.00" / "received deposit of Tk 1,000.00" / "Cash In Tk 500.00" / "Send Money Tk 500.00"
+    # Nagad: "Amount: Tk 300.00" / "Amount: Tk. 300" / "Amount: ৳300"
+    # Rocket: "Tk 200.00 received" / "200 ৳ received"
     amount = 0.0
 
-    # Pattern A: Nagad / Upay explicit "Amount: Tk 300.00"
+    # Pattern A: Nagad / Upay explicit "Amount: Tk 300.00" / "Amount: ৳500"
     amount_match_a = re.search(
-        r"amount[\s:#=]*(?:tk|tk\.|bdt)?\s*([0-9,]+(?:\.[0-9]{1,2})?)",
+        r"amount[\s:#=]*(?:tk|tk\.|bdt|৳)?\s*([0-9,]+(?:\.[0-9]{1,2})?)",
         text,
         re.IGNORECASE,
     )
-    # Pattern B: bKash "received (deposit of )?Tk 500.00" or "Cash In Tk 500.00"
+    # Pattern B: bKash "received (deposit of )?Tk 500.00", "Cash In Tk 500", "Send Money Tk 500", "Payment Tk 500"
     amount_match_b = re.search(
-        r"(?:received(?:\s+deposit\s+of)?|cash\s*in)\s+(?:tk|tk\.|bdt)?\s*([0-9,]+(?:\.[0-9]{1,2})?)",
+        r"(?:received(?:\s+deposit\s+of)?|cash\s*in|send\s*money|payment)\s+(?:tk|tk\.|bdt|৳)?\s*([0-9,]+(?:\.[0-9]{1,2})?)",
         text,
         re.IGNORECASE,
     )
-    # Pattern C: Rocket "Tk 200.00 received"
+    # Pattern C: Rocket "Tk 200.00 received" or "200 ৳ received"
     amount_match_c = re.search(
-        r"(?:tk|tk\.|bdt)?\s*([0-9,]+(?:\.[0-9]{1,2})?)\s+received",
+        r"(?:tk|tk\.|bdt|৳)?\s*([0-9,]+(?:\.[0-9]{1,2})?)\s+(?:tk|tk\.|bdt|৳)?\s*received",
         text,
         re.IGNORECASE,
     )
-    # Pattern D: General fallback "(Tk|Tk.|BDT) 500.00"
+    # Pattern D: General prefix "(Tk|Tk.|BDT|৳) 500.00"
     amount_match_d = re.search(
-        r"(?:tk|tk\.|bdt)\s*([0-9,]+(?:\.[0-9]{1,2})?)",
+        r"(?:tk|tk\.|bdt|৳)\s*([0-9,]+(?:\.[0-9]{1,2})?)",
+        text,
+        re.IGNORECASE,
+    )
+    # Pattern E: General suffix "500.00 (Tk|Tk.|BDT|৳)"
+    amount_match_e = re.search(
+        r"([0-9,]+(?:\.[0-9]{1,2})?)\s*(?:tk|tk\.|bdt|৳)\b",
         text,
         re.IGNORECASE,
     )
@@ -101,6 +107,11 @@ def parse_mfs_sms(raw_text: str, sender_hint: str = "") -> dict[str, Any] | None
     elif amount_match_d:
         try:
             amount = clean_amount(amount_match_d.group(1))
+        except (ValueError, TypeError):
+            amount = 0.0
+    elif amount_match_e:
+        try:
+            amount = clean_amount(amount_match_e.group(1))
         except (ValueError, TypeError):
             amount = 0.0
 

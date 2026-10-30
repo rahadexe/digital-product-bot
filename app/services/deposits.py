@@ -6,6 +6,7 @@ request stores the exchange rate and payable amount the customer was shown.
 
 from __future__ import annotations
 
+import logging
 import math
 import re
 import time
@@ -42,6 +43,8 @@ from app.services.currency import customer_pricing
 from app.services.errors import InvalidInputError
 from app.services.notifications import Notifier
 from app.services.settings import SettingsService
+
+logger = logging.getLogger('app.services.deposits')
 
 TRANSACTION_ID = re.compile(r"[A-Za-z0-9_\-]{5,80}")
 
@@ -567,7 +570,40 @@ class DepositService:
                 sender_number,
                 raw_message,
             )
-            return dict(row) if row else None
+            inserted = dict(row) if row else None
+
+        # Auto-reconciliation: If a customer already submitted their deposit request
+        # and is waiting for SMS verification, auto-approve it immediately upon statement arrival!
+        try:
+            async with self.db.connect() as conn:
+                pending_dep = await conn.fetchrow(
+                    """
+                    SELECT id, tg_user_id, amount, pay_amount FROM deposits
+                    WHERE (lower(btrim(transaction_id)) = lower(btrim($1)) 
+                           OR lower(btrim(transaction_id)) = lower(btrim('0x' || $1)))
+                      AND status = 'pending'
+                    ORDER BY id DESC LIMIT 1
+                    """,
+                    clean_tx,
+                )
+            if pending_dep:
+                dep_id = pending_dep["id"]
+                dep_tg_id = pending_dep["tg_user_id"]
+                dep_pay_amt = float(pending_dep["pay_amount"] or 0.0)
+                # Verify amount match tolerance
+                if dep_pay_amt <= 0 or abs(dep_pay_amt - amt) <= 0.01:
+                    claimed = await self.claim_received_transaction(clean_tx, dep_tg_id, dep_id, provider=provider)
+                    if claimed:
+                        await self.approve(
+                            dep_id,
+                            admin_note="Auto-verified via delayed SMS statement match.",
+                            notify_customer=True,
+                        )
+                        logger.info("Auto-reconciled delayed SMS for pending deposit #%d (TrxID: %s)", dep_id, clean_tx)
+        except Exception as exc:
+            logger.warning("Error auto-reconciling pending deposit for %s: %s", clean_tx, exc)
+
+        return inserted
 
     async def get_unused_received_transaction(self, transaction_id: str, provider: str | None = None) -> dict[str, Any] | None:
         """Retrieve an unconsumed payment statement for this transaction ID."""

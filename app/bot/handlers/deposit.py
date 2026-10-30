@@ -51,6 +51,7 @@ from app.bot.keyboards import (
 from app.core.i18n import t
 from app.services import Services
 from app.services.deposits import DuplicateTransactionError, PendingDepositError
+from app.services.sms_parser import parse_mfs_sms
 from app.services.errors import InvalidInputError
 
 logger = logging.getLogger("app.bot.deposit")
@@ -64,6 +65,31 @@ PAYMENT_REFERENCE = re.compile(r"SM[0-9A-F]{16}")
 # Rate limiting and attempt limits for automated TrxID verification
 MAX_VERIFY_ATTEMPTS = 3
 VERIFY_COOLDOWN_SECONDS = 600  # 10 minutes lockout after 3 failed attempts
+
+
+def try_parse_amount(text: str, is_binance: bool = False) -> float | None:
+    """Smart helper to check if text entered by customer is an amount rather than a TrxID."""
+    txt = (text or "").strip()
+    if not txt:
+        return None
+    # Strip currency prefixes and suffixes: 500tk, 500 ৳, ৳500, $10, 10usdt, etc.
+    cleaned = re.sub(r"^(?:tk|tk\.|bdt|৳|\$)\s*", "", txt, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s*(?:tk|tk\.|bdt|৳|usdt|usd)$", "", cleaned, flags=re.IGNORECASE).strip()
+    cleaned = cleaned.replace(",", "")
+    if re.fullmatch(r"^[0-9]+(?:\.[0-9]{1,4})?$", cleaned):
+        try:
+            val = float(cleaned)
+            if not math.isfinite(val) or val <= 0:
+                return None
+            if is_binance:
+                if len(cleaned) >= 14:
+                    return None  # Likely Binance Order ID
+                return val
+            if len(cleaned) <= 6:
+                return val
+        except (ValueError, TypeError):
+            return None
+    return None
 
 
 def validate_trx_format(method_name: str, clean_tx: str, is_binance: bool = False) -> tuple[bool, str]:
@@ -1044,6 +1070,11 @@ async def handle_deposit_quick_amount(query: CallbackQuery, state: FSMContext, s
         card_msg_id=card_msg_id,
         card_chat_id=card_chat_id,
     )
+
+    if data.get("manual_txid"):
+        await execute_deposit_submission(query, state, services)
+        return
+
     await state.set_state(DepositStates.waiting_for_txid)
 
     if is_binance:
@@ -1086,7 +1117,7 @@ async def handle_deposit_change_amount(query: CallbackQuery, state: FSMContext, 
 
 @router.callback_query(F.data.startswith("dep_paid_"))
 async def begin_payment_reference(query: CallbackQuery, state: FSMContext, services: Services):
-    """Keep the payment card intact above, and prompt cleanly for the TrxID."""
+    """Keep the payment card intact by editing in place with the TrxID prompt and quick options."""
     data = await state.get_data()
     selected_id = data.get("method_id")
     requested_id = (query.data or "").removeprefix("dep_paid_")
@@ -1106,20 +1137,47 @@ async def begin_payment_reference(query: CallbackQuery, state: FSMContext, servi
         return
     if not query.message:
         return
-    is_binance = bool(data.get("is_binance"))
+    is_binance = bool(data.get("is_binance")) or "binance" in str(data.get("method_name", "")).lower()
     reference_label = "Order ID" if is_binance else "Transaction ID"
     method_name = str(data.get("method_name") or "Payment").strip()
+    account_info = str(data.get("account_info") or method.get("account_info") or "").strip()
+    account_type = data.get("account_type") or method.get("account_type") or "personal"
+    type_display, _ = get_account_type_labels(account_type)
+    num_label = "Pay ID" if is_binance else "Number"
 
-    prompt = f"Enter your {escape(method_name)} {reference_label}."
-    sent = await query.message.answer(
-        prompt,
-        reply_markup=ForceReply(force_reply=True, input_field_placeholder=reference_label),
+    card_msg_id = getattr(query.message, "message_id", None)
+    card_chat_id = getattr(query.message.chat, "id", None) if getattr(query.message, "chat", None) else None
+    if card_msg_id and card_chat_id:
+        remember_menu_message(card_chat_id, card_msg_id)
+
+    prompt = (
+        f"<b>{escape(method_name)}{f' {type_display}' if not is_binance else ''}</b>\n\n"
+        f"{num_label}: <code>{escape(account_info)}</code>\n\n"
+        f"👇 <b>Enter your {reference_label}</b>\n"
+        f"<i>(or simply paste the confirmation SMS)</i>"
     )
-    sent_id = getattr(sent, "message_id", None)
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Back to Instructions", callback_data=f"dep_method_{selected_id}")],
+    ])
+
+    try:
+        await query.message.edit_text(prompt, reply_markup=keyboard)
+    except Exception:
+        sent = await query.message.answer(prompt, reply_markup=keyboard)
+        if sent and card_chat_id:
+            sent_id = getattr(sent, "message_id", None)
+            if sent_id:
+                card_msg_id = sent_id
+                remember_menu_message(card_chat_id, sent_id)
 
     await state.update_data(
-        reference_first=True, manual_amount=None, manual_txid=None, pay_amount=None,
-        binance_usdt=None, reference_prompt_id=sent_id,
+        reference_first=True,
+        manual_amount=None,
+        manual_txid=None,
+        pay_amount=None,
+        binance_usdt=None,
+        card_msg_id=card_msg_id,
+        card_chat_id=card_chat_id,
     )
     await state.set_state(DepositStates.waiting_for_txid)
     with suppress(TelegramBadRequest):
@@ -1197,6 +1255,30 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
     data = await state.get_data()
     method_name = data.get("method_name", "Payment")
     is_binance = data.get("is_binance", False) or "binance" in method_name.lower() or data.get("auto_verify") == "binance_pay"
+
+    # Smart SMS Parser Check
+    chat = getattr(message, "chat", None)
+    chat_id = getattr(chat, "id", None)
+    min_dep = float(data.get("min_deposit") or 1.0)
+    rate = float(data.get("rate") or 1.0)
+    sms_data = parse_mfs_sms(raw_text, sender_hint=method_name)
+    if sms_data and sms_data.get("transaction_id") and sms_data.get("amount"):
+        sms_tx = sms_data["transaction_id"].strip().upper()
+        sms_amt = float(sms_data["amount"])
+        is_sms_tx_valid, _ = validate_trx_format(method_name, sms_tx, is_binance=is_binance)
+        if is_sms_tx_valid and sms_amt >= min_dep:
+            usd_amt = sms_amt if is_binance else round(sms_amt / rate, 4)
+            if chat_id and getattr(chat, "type", "") == "private":
+                asyncio.create_task(_delete_user_message(message))
+            await state.update_data(
+                manual_txid=sms_tx,
+                manual_amount=usd_amt,
+                pay_amount=sms_amt,
+                usd_amount=usd_amt,
+                binance_usdt=usd_amt if is_binance else None,
+            )
+            await execute_deposit_submission(message, state, services)
+            return
 
     # Smart Input Detection: Did the user type a new TrxID instead of an amount?
     if data.get("reference_first") or data.get("manual_txid"):
@@ -1401,6 +1483,97 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
     amount_num = float(data.get("manual_amount") or data.get("binance_usdt") or 0.0)
     is_binance = data.get("is_binance", False) or "binance" in method_name.lower() or data.get("auto_verify") == "binance_pay"
     lang = await services.users.get_language(message.from_user.id) if message.from_user else "en"
+
+    rate = float(data.get("rate") or 1.0)
+    min_dep = float(data.get("min_deposit") or 1.0)
+    chat = getattr(message, "chat", None)
+    chat_id = getattr(chat, "id", None)
+    target_msg_id = data.get("card_msg_id") or (get_last_menu_message(chat_id) if chat_id else None)
+
+    # 1. Smart SMS Parser Check
+    sms_data = parse_mfs_sms(raw_text, sender_hint=method_name)
+    if sms_data and sms_data.get("transaction_id") and sms_data.get("amount"):
+        sms_tx = sms_data["transaction_id"].strip().upper()
+        sms_amt = float(sms_data["amount"])
+        is_sms_tx_valid, _ = validate_trx_format(method_name, sms_tx, is_binance=is_binance)
+        if is_sms_tx_valid and sms_amt >= min_dep:
+            usd_amt = sms_amt if is_binance else round(sms_amt / rate, 4)
+            if chat_id and getattr(chat, "type", "") == "private":
+                asyncio.create_task(_delete_user_message(message))
+            await state.update_data(
+                manual_txid=sms_tx,
+                manual_amount=usd_amt,
+                pay_amount=sms_amt,
+                usd_amount=usd_amt,
+                binance_usdt=usd_amt if is_binance else None,
+            )
+            await execute_deposit_submission(message, state, services)
+            return
+
+    # 2. Smart Check: Did customer type amount first instead of TrxID?
+    has_curr_symbol = bool(re.search(r"(?:tk|tk\.|bdt|৳|\$)", raw_text, re.IGNORECASE))
+    if not data.get("manual_txid") and (not data.get("reference_first") or has_curr_symbol):
+        amount_first = try_parse_amount(raw_text, is_binance=is_binance)
+        if amount_first is not None:
+            if amount_first < min_dep:
+                err_msg = (
+                    f"Minimum deposit is {min_dep:.2f} USDT:"
+                    if is_binance
+                    else f"Minimum deposit is {min_dep:.0f} ৳:"
+                )
+                quick_kb = get_deposit_quick_amount_keyboard(is_binance=is_binance, lang=lang, back_target="dep_methods")
+                type_display, _ = get_account_type_labels(account_type)
+                num_label = "Pay ID" if is_binance else "Number"
+                err_card = (
+                    f"<b>{escape(method_name)}{f' {type_display}' if not is_binance else ''}</b>\n\n"
+                    f"{num_label}: <code>{escape(account_info)}</code>\n\n"
+                    f"⚠️ <b>{escape(err_msg)}</b>\n\n"
+                    f"Tap a quick amount below or type your amount:"
+                )
+                if target_msg_id and getattr(message, "bot", None) and chat_id:
+                    try:
+                        await message.bot.edit_message_text(
+                            chat_id=chat_id, message_id=target_msg_id, text=err_card, reply_markup=quick_kb
+                        )
+                        return
+                    except Exception:
+                        pass
+                await message.answer(err_card, reply_markup=quick_kb)
+                return
+
+            # Valid amount entered first!
+            if chat_id and getattr(chat, "type", "") == "private":
+                asyncio.create_task(_delete_user_message(message))
+            pay_amt = amount_first
+            usd_amt = amount_first if is_binance else round(amount_first / rate, 4)
+            amount_summary = await _payment_summary_for(services, message.from_user.id, usd_amt, pay_amt, is_binance, rate=rate)
+            await state.update_data(
+                manual_amount=usd_amt,
+                pay_amount=pay_amt,
+                usd_amount=usd_amt,
+                binance_usdt=usd_amt if is_binance else None,
+                reference_first=False,
+            )
+            type_display, _ = get_account_type_labels(account_type)
+            num_label = "Pay ID" if is_binance else "Number"
+            ref_label = "Order ID" if is_binance else "TrxID"
+            prompt_card = (
+                f"<b>{escape(method_name)}{f' {type_display}' if not is_binance else ''}</b>\n\n"
+                f"{num_label}: <code>{escape(account_info)}</code>\n"
+                f"{amount_summary}\n\n"
+                f"👇 <b>Enter your {ref_label} below:</b>"
+            )
+            prompt_kb = get_deposit_trxid_prompt_keyboard(lang=lang, has_amount=True)
+            if target_msg_id and getattr(message, "bot", None) and chat_id:
+                try:
+                    await message.bot.edit_message_text(
+                        chat_id=chat_id, message_id=target_msg_id, text=prompt_card, reply_markup=prompt_kb
+                    )
+                    return
+                except Exception:
+                    pass
+            await message.answer(prompt_card, reply_markup=prompt_kb)
+            return
 
     clean_tx = re.sub(r"^(uid|order\s*id|order|txid|trxid|trx\s*id|ref)[\s:#=]*", "", raw_text, flags=re.IGNORECASE).strip()
     clean_tx = clean_tx.strip("<>#[](){}\"':; \t\r\n").upper()
@@ -1633,10 +1806,12 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                 f"Enter the amount you sent in {unit}, e.g. {example:g}."
             )
             amt_target_id = target_msg_id
-        amt_kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="✏️ Change TrxID", callback_data="dep_change_trxid")],
-            [InlineKeyboardButton(text="🔙 Back to Methods", callback_data="dep_methods")],
-        ])
+        amt_kb = get_deposit_quick_amount_keyboard(
+            is_binance=is_binance,
+            lang=lang,
+            back_target="dep_methods",
+            show_change_trxid=True,
+        )
         edited = False
         if amt_target_id and getattr(message, "bot", None) and chat_id:
             try:

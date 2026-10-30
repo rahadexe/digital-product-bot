@@ -1101,6 +1101,7 @@ def get_deposit_quick_amount_keyboard(
     is_binance: bool = False,
     lang: str = "en",
     back_target: str = "dep_methods",
+    show_change_trxid: bool = False,
 ) -> InlineKeyboardMarkup:
     """Quick amount chip buttons for deposit (Plan 1)."""
     if is_binance:
@@ -1113,22 +1114,25 @@ def get_deposit_quick_amount_keyboard(
             [
                 InlineKeyboardButton(text="20 USDT", callback_data="dep_amt_20"),
                 InlineKeyboardButton(text="50 USDT", callback_data="dep_amt_50"),
+                InlineKeyboardButton(text="100 USDT", callback_data="dep_amt_100"),
             ],
         ]
     else:
         chips = [
             [
+                InlineKeyboardButton(text="৳50", callback_data="dep_amt_50"),
                 InlineKeyboardButton(text="৳100", callback_data="dep_amt_100"),
                 InlineKeyboardButton(text="৳200", callback_data="dep_amt_200"),
-                InlineKeyboardButton(text="৳500", callback_data="dep_amt_500"),
             ],
             [
+                InlineKeyboardButton(text="৳500", callback_data="dep_amt_500"),
                 InlineKeyboardButton(text="৳1000", callback_data="dep_amt_1000"),
                 InlineKeyboardButton(text="৳2000", callback_data="dep_amt_2000"),
             ],
         ]
-    back_label = "Back"
-    chips.append([InlineKeyboardButton(text=back_label, callback_data=back_target)])
+    if show_change_trxid:
+        chips.append([InlineKeyboardButton(text="✏️ Change TrxID", callback_data="dep_change_trxid")])
+    chips.append([InlineKeyboardButton(text="Back", callback_data=back_target)])
     return InlineKeyboardMarkup(inline_keyboard=chips)
 
 
