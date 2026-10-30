@@ -495,9 +495,9 @@ async def ask_instant_amount_from_text(
     await state.set_state(DepositStates.waiting_for_instant_amount)
     await state.update_data(is_instant=True, min_deposit=min_dep)
     prompt_txt = (
-        "👇 <b>ডিপোজিট অ্যামাউন্ট চুজ করুন অথবা আপনি যত টাকা পাঠাতে চাচ্ছেন তা নিচে লিখুন:</b>"
+        "💳 <b>কত টাকা ডিপোজিট করতে চান?</b>\nনিচ থেকে বেছে নিন বা অ্যামাউন্ট লিখে দিন:"
         if lang == "bn"
-        else "👇 <b>Choose deposit amount or type the amount in chat:</b>"
+        else "💳 <b>How much would you like to deposit?</b>\nSelect an amount below or type it:"
     )
     keyboard = get_deposit_quick_amount_keyboard(
         is_binance=False,
@@ -727,9 +727,9 @@ async def render_method_details(
         lines.append(escape(custom_inst))
     else:
         if not is_binance or lang == "bn":
-            lines.append("👇 <b>ডিপোজিট অ্যামাউন্ট চুজ করুন অথবা আপনি যত টাকা পাঠাতে চাচ্ছেন তা নিচে লিখুন:</b>")
+            lines.append("💳 <b>কত টাকা ডিপোজিট করতে চান?</b>\nনিচ থেকে বেছে নিন বা অ্যামাউন্ট লিখে দিন:")
         else:
-            lines.append("👇 <b>Choose deposit amount or type the amount in chat:</b>")
+            lines.append("💳 <b>How much would you like to deposit?</b>\nSelect an amount below or type it:")
     inst = "\n".join(lines)
     keyboard = get_deposit_quick_amount_keyboard(
         is_binance=False,
@@ -840,9 +840,9 @@ async def ask_instant_amount(query: CallbackQuery, state: FSMContext, services: 
             remember_menu_message(card_chat_id, card_msg_id)
             await state.update_data(card_msg_id=card_msg_id, card_chat_id=card_chat_id)
         prompt_txt = (
-            "👇 <b>ডিপোজিট অ্যামাউন্ট চুজ করুন অথবা আপনি যত টাকা পাঠাতে চাচ্ছেন তা নিচে লিখুন:</b>"
+            "💳 <b>কত টাকা ডিপোজিট করতে চান?</b>\nনিচ থেকে বেছে নিন বা অ্যামাউন্ট লিখে দিন:"
             if lang == "bn"
-            else "👇 <b>Choose deposit amount or type the amount in chat:</b>"
+            else "💳 <b>How much would you like to deposit?</b>\nSelect an amount below or type it:"
         )
         keyboard = get_deposit_quick_amount_keyboard(
             is_binance=False,

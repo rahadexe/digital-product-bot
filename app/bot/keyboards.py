@@ -1136,17 +1136,17 @@ def get_deposit_quick_amount_keyboard(
             ],
             [
                 InlineKeyboardButton(text="৳200", callback_data="dep_amt_200"),
+                InlineKeyboardButton(text="৳250", callback_data="dep_amt_250"),
                 InlineKeyboardButton(text="৳300", callback_data="dep_amt_300"),
+            ],
+            [
                 InlineKeyboardButton(text="৳500", callback_data="dep_amt_500"),
-            ],
-            [
-                InlineKeyboardButton(text="৳750", callback_data="dep_amt_750"),
+                InlineKeyboardButton(text="৳800", callback_data="dep_amt_800"),
                 InlineKeyboardButton(text="৳1000", callback_data="dep_amt_1000"),
-                InlineKeyboardButton(text="৳1500", callback_data="dep_amt_1500"),
             ],
             [
+                InlineKeyboardButton(text="৳1500", callback_data="dep_amt_1500"),
                 InlineKeyboardButton(text="৳2000", callback_data="dep_amt_2000"),
-                InlineKeyboardButton(text="৳3000", callback_data="dep_amt_3000"),
                 InlineKeyboardButton(text="৳5000", callback_data="dep_amt_5000"),
             ],
         ]
