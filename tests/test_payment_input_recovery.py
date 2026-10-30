@@ -282,7 +282,7 @@ async def test_binance_method_uses_usdt_minimum_without_legacy_rate_conversion()
         "account_type": "crypto",
     })
     assert (await state.get_data())["min_deposit"] == pytest.approx(25.0)
-    assert "Minimum: <b>25 USDT</b>" in incoming.answer.await_args.args[0]
+    assert "Binance Chain" in incoming.answer.await_args.args[0]
 
 
 @pytest.mark.asyncio

@@ -1108,12 +1108,22 @@ def get_deposit_quick_amount_keyboard(
         chips = [
             [
                 InlineKeyboardButton(text="1 USDT", callback_data="dep_amt_1"),
+                InlineKeyboardButton(text="2 USDT", callback_data="dep_amt_2"),
+            ],
+            [
                 InlineKeyboardButton(text="5 USDT", callback_data="dep_amt_5"),
                 InlineKeyboardButton(text="10 USDT", callback_data="dep_amt_10"),
             ],
             [
+                InlineKeyboardButton(text="15 USDT", callback_data="dep_amt_15"),
                 InlineKeyboardButton(text="20 USDT", callback_data="dep_amt_20"),
+            ],
+            [
+                InlineKeyboardButton(text="30 USDT", callback_data="dep_amt_30"),
                 InlineKeyboardButton(text="50 USDT", callback_data="dep_amt_50"),
+            ],
+            [
+                InlineKeyboardButton(text="75 USDT", callback_data="dep_amt_75"),
                 InlineKeyboardButton(text="100 USDT", callback_data="dep_amt_100"),
             ],
         ]
@@ -1122,11 +1132,21 @@ def get_deposit_quick_amount_keyboard(
             [
                 InlineKeyboardButton(text="৳50", callback_data="dep_amt_50"),
                 InlineKeyboardButton(text="৳100", callback_data="dep_amt_100"),
+            ],
+            [
+                InlineKeyboardButton(text="৳150", callback_data="dep_amt_150"),
                 InlineKeyboardButton(text="৳200", callback_data="dep_amt_200"),
             ],
             [
+                InlineKeyboardButton(text="৳300", callback_data="dep_amt_300"),
                 InlineKeyboardButton(text="৳500", callback_data="dep_amt_500"),
+            ],
+            [
+                InlineKeyboardButton(text="৳750", callback_data="dep_amt_750"),
                 InlineKeyboardButton(text="৳1000", callback_data="dep_amt_1000"),
+            ],
+            [
+                InlineKeyboardButton(text="৳1500", callback_data="dep_amt_1500"),
                 InlineKeyboardButton(text="৳2000", callback_data="dep_amt_2000"),
             ],
         ]

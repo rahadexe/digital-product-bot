@@ -665,19 +665,9 @@ async def render_method_details(
             shortfall_bdt = math.ceil(shortfall_usd * rate)
             card_lines.append(f"Amount needed: <b>{shortfall_bdt:g} ৳</b> (${shortfall_usd:.2f})")
 
-    min_unit = "USDT" if is_binance else "৳"
     lines = [
         f"{heading_prefix}<b>{escape(heading)}</b>",
-        "",
-        f"{destination_label}: <code>{escape(account_info)}</code>",
     ]
-    if not is_binance:
-        min_usd = round(min_dep / rate, 2) if rate > 0 else min_dep
-        lines.append(f"Minimum: <b>{min_dep:g} {min_unit}</b> (~${min_usd:.2f})")
-        rate_label = "💱 এক্সচেঞ্জ রেট" if (lang == "bn" or not is_binance) else "💱 Rate"
-        lines.append(f"{rate_label}: <code>1 USD = {rate:g} ৳</code>")
-    else:
-        lines.append(f"Minimum: <b>{min_dep:g} {min_unit}</b>")
     if shortfall_usd > 0:
         lines.append("")
         if is_binance:

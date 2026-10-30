@@ -154,21 +154,24 @@ async def test_render_method_details_flow():
     call = message.answer.call_args_list[0]
     text = call[0][0]
     assert "bKash (Send Money)" in text
-    assert "01700000000" in text
-    assert "Minimum: <b>50 ৳</b>" in text
-    assert "1 USD = 125 ৳" in text
     assert "Send Money to this personal number" in text
 
     kb = call[1]["reply_markup"]
     assert isinstance(kb, InlineKeyboardMarkup)
     assert [[button.text for button in row] for row in kb.inline_keyboard] == [
-        ["৳50", "৳100", "৳200"],
-        ["৳500", "৳1000", "৳2000"],
+        ["৳50", "৳100"],
+        ["৳150", "৳200"],
+        ["৳300", "৳500"],
+        ["৳750", "৳1000"],
+        ["৳1500", "৳2000"],
         ["Back"],
     ]
     assert [button.callback_data for row in kb.inline_keyboard for button in row] == [
-        "dep_amt_50", "dep_amt_100", "dep_amt_200",
-        "dep_amt_500", "dep_amt_1000", "dep_amt_2000",
+        "dep_amt_50", "dep_amt_100",
+        "dep_amt_150", "dep_amt_200",
+        "dep_amt_300", "dep_amt_500",
+        "dep_amt_750", "dep_amt_1000",
+        "dep_amt_1500", "dep_amt_2000",
         "dep_methods",
     ]
 
@@ -205,7 +208,7 @@ async def test_method_details_binance_hides_rate_and_empty_instructions():
     text = message.answer.call_args.args[0]
     assert "Instructions:" not in text
     assert "Exchange Rate:" not in text
-    assert "Minimum: <b>1 USDT</b>" in text
+    assert "Choose deposit amount" in text
 
 
 @pytest.mark.asyncio
@@ -499,9 +502,6 @@ async def test_exchange_rate_and_dollar_conversion_flow():
     await render_method_details(message, state, services, method)
     screen1_text = message.answer.call_args_list[0][0][0]
     assert "bKash (Send Money)" in screen1_text
-    assert "Number: <code>01700000000</code>" in screen1_text
-    assert "Minimum: <b>50 ৳</b>" in screen1_text
-    assert "1 USD = 125 ৳" in screen1_text
     assert "ডিপোজিট অ্যামাউন্ট চুজ করুন" in screen1_text
 
     # Screen 2: User enters 500
