@@ -466,15 +466,16 @@ class DepositService:
             ])
         keyboard = InlineKeyboardMarkup(inline_keyboard=rows)
 
+        payable_val = f"{quote['pay_amount']:.2f} {quote['paid_currency']} (${quote['amount']:.2f})"
+        note_str = f"\n\n⚠️ <b>Note:</b> <i>{escape(admin_note)}</i>" if admin_note else ""
+
         await self.notifier.send_admin(
             f"⏳ <b>New Deposit Request · {format_deposit_id(deposit_id)}</b>\n\n"
-            f"<b>Customer:</b> {customer}\n"
-            f"<b>Customer ID:</b> <code>{tg_user_id}</code>\n"
-            f"<b>Method:</b> {escape(quote['method_name'])}\n"
-            f"<b>Wallet credit:</b> <code>${quote['amount']:.2f}</code>\n"
-            f"{payable}\n"
-            f"<b>TrxID:</b> <code>{escape(transaction_id)}</code>"
-            f"{note_line}",
+            f"<blockquote>Customer: {customer} (ID: <code>{tg_user_id}</code>)\n"
+            f"Method: <b>{escape(quote['method_name'])}</b>\n"
+            f"Payable: <code>{quote['pay_amount']:.2f} {quote['paid_currency']}</code> (${quote['amount']:.2f})\n"
+            f"TrxID: <code>{escape(transaction_id)}</code></blockquote>"
+            f"{note_str}",
             event="deposit",
             keyboard=keyboard,
         )

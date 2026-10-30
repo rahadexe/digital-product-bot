@@ -51,7 +51,7 @@ class AccountRedesignTests(unittest.TestCase):
         prompt_en = t("deposit_choose_method", "en", balance="$10.00")
         self.assertEqual(
             prompt_en,
-            "💰 <b>Balance:</b> <code>$10.00</code>\n\nChoose a method to top up.",
+            "💰 <b>Balance:</b> <code>$10.00</code>\n\nChoose a deposit method.",
         )
 
         prompt_legacy_language = t("deposit_choose_method", "bn", balance="$1.00")
@@ -64,8 +64,8 @@ class AccountRedesignTests(unittest.TestCase):
 
         # Check btn_deposit
         # Check deposit_detail_title without #id
-        self.assertEqual(t("deposit_detail_title", "en", id="D21"), "<b>Top-up D21</b>")
-        self.assertEqual(t("deposit_detail_title", "bn", id="D21"), "<b>Top-up D21</b>")
+        self.assertEqual(t("deposit_detail_title", "en", id="D21"), "<b>Deposit D21</b>")
+        self.assertEqual(t("deposit_detail_title", "bn", id="D21"), "<b>Deposit D21</b>")
 
 
 class DepositPickerRoutingTests(unittest.IsolatedAsyncioTestCase):

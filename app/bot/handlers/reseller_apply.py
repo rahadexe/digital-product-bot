@@ -417,13 +417,13 @@ async def process_submit_confirmation(query: CallbackQuery, state: FSMContext, s
 
     # 2. Notify Administrators on Telegram
     admin_alert_text = (
-        f"💼 <b>New Reseller Application!</b>\n\n"
-        f"🆔 <b>Application ID:</b> #{app_id}\n"
-        f"👤 <b>Name:</b> {html.escape(full_name)}\n"
-        f"✈️ <b>Telegram:</b> {html.escape(telegram_handle)} (ID: <code>{tg_user.id}</code>)\n"
-        f"📱 <b>Phone:</b> <code>{html.escape(phone_number)}</code>\n"
-        f"📢 <b>Channel / Store:</b> {html.escape(channel_link)}\n\n"
-        f"👉 <i>Review and choose an action below or via Admin Dashboard:</i>"
+        "💼 <b>New Reseller Application!</b>\n\n"
+        f"<blockquote>Application ID: <code>#{app_id}</code>\n"
+        f"Name: <b>{html.escape(full_name)}</b>\n"
+        f"Telegram: {html.escape(telegram_handle)} (ID: <code>{tg_user.id}</code>)\n"
+        f"Phone: <code>{html.escape(phone_number)}</code>\n"
+        f"Store Link: {html.escape(channel_link)}</blockquote>\n\n"
+        "Review and choose an action below:"
     )
     admin_actions_kb = InlineKeyboardMarkup(
         inline_keyboard=[

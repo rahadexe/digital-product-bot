@@ -37,13 +37,11 @@ async def approve_reseller_application(
 
     # Notify applicant on Telegram
     user_notify_text = (
-        f"🎉 <b>Congratulations! Your Reseller Application has been Approved!</b>\n\n"
-        f"Your account status is now upgraded to <b>Reseller</b>.\n\n"
-        f"💼 <b>Benefits Activated:</b>\n"
-        f"• Exclusive wholesale reseller prices on all products.\n"
-        f"• Direct REST API Key access for bot/store automation.\n"
-        f"• Priority automated delivery.\n\n"
-        f"👉 Tap the button below or use <code>/reseller</code> to view your stats and generate your API key!"
+        "🎉 <b>Reseller Approved!</b>\n\n"
+        "<blockquote>Status: <b>Reseller</b>\n"
+        "Pricing: <b>Wholesale Rates</b>\n"
+        "API Access: <b>Enabled</b></blockquote>\n\n"
+        "Use /reseller to access your dashboard."
     )
     reseller_kb = InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text="💎 Reseller & API Hub", callback_data="open_reseller_hub")
@@ -66,11 +64,10 @@ async def reject_reseller_application(
 
     # Notify applicant on Telegram
     user_notify_text = (
-        f"ℹ️ <b>Reseller Application Update</b>\n\n"
-        f"Thank you for your interest in our Reseller Program.\n"
-        f"Unfortunately, your application (<b>#{app_id}</b>) was not approved at this time.\n\n"
-        f"<b>Reason:</b> {reason}\n\n"
-        f"If you feel this was in error or your channel has grown, you are welcome to apply again in the future or contact support."
+        "ℹ️ <b>Reseller Update</b>\n\n"
+        f"<blockquote>Application: <code>#{app_id}</code>\n"
+        "Status: <b>Not Approved</b></blockquote>\n\n"
+        "Please contact support if you have any questions."
     )
     await services.notifier.send_message(app["tg_user_id"], user_notify_text)
 

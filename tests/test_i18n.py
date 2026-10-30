@@ -14,14 +14,14 @@ def test_supported_languages():
 
 def test_i18n_translation_and_fallback():
     # English
-    assert t("btn_add_balance", "en") == "Top Up"
+    assert t("btn_add_balance", "en") == "Deposit"
     # Legacy saved preferences still resolve to English.
-    assert t("btn_add_balance", "bn") == "Top Up"
+    assert t("btn_add_balance", "bn") == "Deposit"
     
     # Missing key fallback
     assert t("non_existent_key_xyz", "bn") == "non_existent_key_xyz"
     # Missing language fallback to English
-    assert t("btn_add_balance", "fr") == "Top Up"
+    assert t("btn_add_balance", "fr") == "Deposit"
 
 def test_i18n_interpolation():
     assert "500 BDT" in t("btn_pay", "en", amount="500 BDT")

@@ -284,9 +284,9 @@ async def test_supplier_balance_notice_is_short_english_without_decorative_symbo
     assert await client.check_low_balance(notifier)
     # The async send is normally scheduled by Notifier; inspect its queued arguments here.
     text = notifier.send.call_args.args[1]
-    assert len(text.splitlines()) == 3
-    assert "Top up" in text and "balance is low" in text
-    assert not any(symbol in text for symbol in ("•", "⚠", "—", "ব্যা"))
+    assert "Supplier Low Balance Alert" in text
+    assert "Current Balance" in text
+    assert not any(symbol in text for symbol in ("•", "—", "ব্যা"))
     # The message carries an inline button to mute alerts directly
     kb = notifier.send.call_args.kwargs.get("keyboard")
     assert kb is not None

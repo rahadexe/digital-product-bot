@@ -374,9 +374,11 @@ class DigitalMartClient(BaseSupplier):
         if balance < threshold and notifier:
             admin_ids = await self.settings.admin_chat_ids()
             msg = (
-                f"<b>Digital Mart balance is low</b>\n"
-                f"<code>৳{balance:.2f} BDT</code>\n"
-                "Top up the supplier wallet to keep orders running."
+                "⚠️ <b>Supplier Low Balance Alert</b>\n\n"
+                f"<blockquote>Supplier: <b>{self.name}</b>\n"
+                f"Current Balance: <code>৳{balance:.2f} BDT</code>\n"
+                f"Threshold: <code>৳{threshold:.2f} BDT</code></blockquote>\n\n"
+                "Top up supplier wallet to prevent order interruptions."
             )
             kb = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="🔕 Turn Off Alert", callback_data="mute_sup_digital_mart")]
@@ -584,9 +586,11 @@ class SafwanTigerClient(BaseSupplier):
         if balance < threshold and notifier:
             admin_ids = await self.settings.admin_chat_ids()
             msg = (
-                f"<b>Safwan Tiger balance is low</b>\n"
-                f"<code>${balance:.2f} USDT</code>\n"
-                "Top up the supplier wallet to keep orders running."
+                "⚠️ <b>Supplier Low Balance Alert</b>\n\n"
+                f"<blockquote>Supplier: <b>{self.name}</b>\n"
+                f"Current Balance: <code>${balance:.2f} USDT</code>\n"
+                f"Threshold: <code>${threshold:.2f} USDT</code></blockquote>\n\n"
+                "Top up supplier wallet to prevent order interruptions."
             )
             kb = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="🔕 Turn Off Alert", callback_data="mute_sup_safwan_tiger")]

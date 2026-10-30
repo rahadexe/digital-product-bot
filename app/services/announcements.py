@@ -78,10 +78,11 @@ class AnnouncementService:
 
         admin_delivered = await self.notifier.send_admin(
             f"✅ <b>Product Restocked</b>\n\n"
-            f"<b>Product:</b> {icon_prefix}<b>{title}</b>\n"
+            f"<blockquote>Product: {icon_prefix}<b>{title}</b>\n"
             f"{duration_line}"
-            f"<b>Added:</b> <code>+{added_count}</code> (Total: <code>{product['stock']}</code>)\n"
-            f"<b>Price:</b> <code>{format_dual_price(product['price'], symbol, show_usd=False)}</code>",
+            f"Fresh Stock: <code>+{added_count} units</code>\n"
+            f"Available: <code>{product['stock']}</code>\n"
+            f"Price: <code>{format_dual_price(product['price'], symbol, show_usd=False)}</code></blockquote>",
             event="restock",
             keyboard=button,
         )
@@ -95,12 +96,12 @@ class AnnouncementService:
             deliv = await self.notifier.send(
                 ch,
                 f"✅ <b>Product Restocked</b>\n\n"
-                f"<b>Product:</b> {icon_prefix}<b>{title}</b>\n"
+                f"<blockquote>Product: {icon_prefix}<b>{title}</b>\n"
                 f"{duration_line}"
-                f"<b>Fresh Stock:</b> <code>{added_count} units</code>\n"
-                f"<b>Available:</b> <code>{product['stock']}</code>\n"
-                f"<b>Price:</b> <code>{format_dual_price(product['price'], symbol, show_usd=False)}</code>\n"
-                f"<b>Delivery:</b> Instant (Automatic)",
+                f"Fresh Stock: <code>+{added_count} units</code>\n"
+                f"Available: <code>{product['stock']}</code>\n"
+                f"Price: <code>{format_dual_price(product['price'], symbol, show_usd=False)}</code>\n"
+                f"Delivery: Instant</blockquote>",
                 button,
             )
             if deliv:

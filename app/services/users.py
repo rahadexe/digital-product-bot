@@ -75,13 +75,14 @@ class UserService:
             if result.get("language"):
                 self._lang_cache[tg_user_id] = (time.monotonic(), self._display_locale(str(result["language"])))
             if row["is_new"]:
-                cust = f" · @{escape(username)}" if username else ""
+                cust_uname = f"@{escape(username)}" if username else "None"
                 full_name = escape(" ".join(filter(None, [first_name, last_name])) or "No name")
                 self.notifier.in_background(
                     self.notifier.send_admin(
                         f"👤 <b>New Customer Joined</b>\n\n"
-                        f"<b>Customer:</b> {full_name}{cust}\n"
-                        f"<b>Customer ID:</b> <code>{tg_user_id}</code>",
+                        f"<blockquote>Name: <b>{full_name}</b>\n"
+                        f"Username: {cust_uname}\n"
+                        f"Customer ID: <code>{tg_user_id}</code></blockquote>",
                         event="new_user",
                     )
                 )

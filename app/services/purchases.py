@@ -256,12 +256,12 @@ class PurchaseService:
                             if upstream_devices <= 1 and charged_cost_usd > float(total_price):
                                 admin_ids = await self.settings.admin_chat_ids()
                                 alert_text = (
-                                    f"⚠️ <b>Loss Shield Alert: Price Jump Detected!</b>\n\n"
-                                    f"Product: <b>{product['title']}</b> (Supplier: {getattr(supplier, 'name', supplier_code)} #{upstream_prod_id})\n"
-                                    f"Customer Paid: <code>${float(total_price):.2f} USD</code>\n"
-                                    f"Supplier Cost: <code>${charged_cost_usd:.2f} USD</code>\n"
-                                    f"Difference: <code>-${charged_cost_usd - float(total_price):.2f} USD</code>\n\n"
-                                    f"The supplier has increased their wholesale rate. Please check and adjust retail pricing in the admin console."
+                                    "🛡️ <b>Loss Shield Alert: Price Jump Detected!</b>\n\n"
+                                    f"<blockquote>Product: <b>{product['title']}</b> ({getattr(supplier, 'name', supplier_code)} #{upstream_prod_id})\n"
+                                    f"Customer Paid: <code>${float(total_price):.2f}</code>\n"
+                                    f"Supplier Cost: <code>${charged_cost_usd:.2f}</code>\n"
+                                    f"Difference: <code>-${charged_cost_usd - float(total_price):.2f}</code></blockquote>\n\n"
+                                    "Wholesale cost exceeds retail price. Sales paused to prevent losses."
                                 )
                                 for aid in admin_ids:
                                     self.notifier.in_background(self.notifier.send(aid, alert_text))
@@ -458,16 +458,34 @@ class PurchaseService:
         if order.get("customer_input"):
             cust_input_line = f"\n<b>Customer Info:</b> <code>{escape(str(order['customer_input']))}</code>"
 
-        msg_text = (
-            f"{heading}\n\n"
-            f"<b>Order:</b> <code>{format_order_id(order_id)}</code>\n"
-            f"<b>Customer:</b> {customer}\n"
-            f"<b>Customer ID:</b> <code>{user['tg_user_id']}</code>\n"
-            f"<b>Product:</b> {escape(order['product_title'])}\n"
-            f"<b>Price:</b> <code>{price(symbol, order['price'], usd_rate=usd_rate)}</code>"
-            f"{cust_input_line}\n"
-            f"{delivery}{stock_warning}"
-        )
+        if waiting_reason:
+            is_supplier = bool(order.get("supplier_code") or order.get("supplier_error") or "Supplier" in waiting_reason)
+            delivery_mode = "Pending Supplier" if is_supplier else "Manual"
+            extra_lines = ""
+            if order.get("customer_input"):
+                extra_lines += f"\nCustomer Info: <code>{escape(str(order['customer_input']))}</code>"
+            if is_supplier and order.get("supplier_error"):
+                extra_lines += f"\nIssue: <code>{escape(str(order['supplier_error']))}</code>"
+            msg_text = (
+                f"{heading}\n\n"
+                f"<blockquote>Order: <code>{format_order_id(order_id)}</code>\n"
+                f"Customer: {customer} (ID: <code>{user['tg_user_id']}</code>)\n"
+                f"Product: <b>{escape(order['product_title'])}</b>\n"
+                f"Price: <code>{price(symbol, order['price'], usd_rate=usd_rate)}</code>"
+                f"{extra_lines}\n"
+                f"Delivery: {delivery_mode}</blockquote>"
+            )
+        else:
+            stock_line = f"\n\n{stock_warning.strip()}" if stock_warning else ""
+            msg_text = (
+                f"{heading}\n\n"
+                f"<blockquote>Order: <code>{format_order_id(order_id)}</code>\n"
+                f"Customer: {customer} (ID: <code>{user['tg_user_id']}</code>)\n"
+                f"Product: <b>{escape(order['product_title'])}</b>\n"
+                f"Price: <code>{price(symbol, order['price'], usd_rate=usd_rate)}</code>\n"
+                f"Delivery: Instant</blockquote>"
+                f"{stock_line}"
+            )
         await self.notifier.send_admin(
             msg_text,
             event="waiting_order" if waiting_reason else "order",
@@ -494,10 +512,10 @@ class PurchaseService:
                     )])
                 low_stock_kb = InlineKeyboardMarkup(inline_keyboard=rows)
                 alert_text = (
-                    f"⚠️ <b>Product Out of Stock</b>\n\n"
-                    f"<b>Product:</b> {escape(order['product_title'])}\n"
-                    f"<b>Available Stock:</b> <code>0</code>\n"
-                    f"<b>Status:</b> Sold Out"
+                    "⚠️ <b>Product Out of Stock</b>\n\n"
+                    f"<blockquote>Product: <b>{escape(order['product_title'])}</b>\n"
+                    "Available Stock: <code>0</code>\n"
+                    "Status: <b>Sold Out</b></blockquote>"
                 )
                 await self.notifier.send_admin(
                     alert_text,
@@ -518,10 +536,10 @@ class PurchaseService:
                     )])
                 low_stock_kb = InlineKeyboardMarkup(inline_keyboard=rows)
                 alert_text = (
-                    f"⚠️ <b>Low Stock Warning</b>\n\n"
-                    f"<b>Product:</b> {escape(order['product_title'])}\n"
-                    f"<b>Available Stock:</b> <code>{rem_stock}</code>\n"
-                    f"<b>Threshold:</b> <code>{threshold}</code>"
+                    "⚠️ <b>Low Stock Warning</b>\n\n"
+                    f"<blockquote>Product: <b>{escape(order['product_title'])}</b>\n"
+                    f"Available Stock: <code>{rem_stock}</code>\n"
+                    f"Threshold: <code>{threshold}</code></blockquote>"
                 )
                 await self.notifier.send_admin(
                     alert_text,
