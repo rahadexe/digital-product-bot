@@ -149,7 +149,7 @@ class PurchaseService:
                     await db.execute("ROLLBACK")
                     return False, "Product is currently unavailable.", None
 
-                is_reseller = (user.get("rank") or "").strip().lower() == "reseller"
+                is_reseller = (user.get("rank") or "").strip().lower() in {"reseller", "reseller partner"}
                 reseller_price = product.get("reseller_price")
                 if is_reseller and reseller_price is not None and float(reseller_price) > 0:
                     unit_price = money(reseller_price, positive=True)
@@ -372,6 +372,10 @@ class PurchaseService:
                     await db.execute("ROLLBACK")
                 logger.exception("Purchase error: %s", exc)
                 return False, "Purchase could not be completed. Please contact support before retrying.", None
+
+        # Trigger referral bonus if this qualifies the user
+        if hasattr(self, "users") and callable(getattr(self.users, "process_referral_reward", None)):
+            self.notifier.in_background(self.users.process_referral_reward(tg_user_id))
 
         # The customer gets the result now; the admin alert must not add a Telegram round trip.
         # The admin job committed with the order; the worker delivers it.
@@ -750,6 +754,18 @@ class PurchaseService:
                             order_id, order['referral_user_id'], remaining,
                         )
                         await record(conn, 'referral_recovery_needed', f"Order #{order_id}: {remaining:.4f} remains to recover")
+                # Release any inventory seats allocated for this order if it was not delivered
+                if order.get("fulfillment") != "delivered":
+                    await conn.execute(
+                        """
+                        UPDATE inventory_items i
+                        SET uses = GREATEST(0, uses - a.allocated_units),
+                            status = 'available'
+                        FROM order_inventory_allocations a
+                        WHERE a.order_id = $1 AND a.inventory_item_id = i.id
+                        """,
+                        order_id,
+                    )
                 await conn.execute("UPDATE orders SET status = 'refunded', delivery_status = 'cancelled' WHERE id = $1", order_id)
                 await conn.execute(
                     "UPDATE outbox SET status='cancelled' WHERE (order_id=$1 OR about_order_id=$1) AND status IN ('pending','failed')", order_id

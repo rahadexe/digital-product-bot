@@ -61,6 +61,17 @@ html:has(.console-root), body:has(.console-root) { background: #f5f7fb; }
 .console-root .rail .sign-out:hover { background: var(--surface-2); color: var(--danger); border-radius: 8px; }
 .console-root .rail > button:hover .brand-wordmark { color: var(--accent); }
 
+/* Keep account controls visible on laptop screens; only navigation scrolls. */
+@media (min-width: 761px) {
+  .console-root .rail { overflow: hidden; }
+  .console-root .rail > button, .console-root .rail-foot { flex-shrink: 0; }
+  .console-root .rail-items { flex: 1 1 0; min-height: 0; overflow-y: auto; align-content: start; scrollbar-width: thin; overscroll-behavior-y: contain; padding: 3px; }
+  .console-root .rail > .spacer { display: none; }
+  .console-root .panel > .pager:last-child,
+  .console-root .panel > .order-pagination:last-child,
+  .console-root .panel > .order-pagination:last-child > .pager { border-bottom-left-radius: inherit; border-bottom-right-radius: inherit; }
+}
+
 /* Shared controls and surfaces apply to catalog, payments and settings alike. */
 .console-root .btn { min-height: 42px; border-radius: 10px; font-size: 12px; font-weight: 650; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 .console-root .btn:not(.ghost):not(.danger) { box-shadow: 0 3px 7px #4f46c71a; }
@@ -76,6 +87,10 @@ html:has(.console-root), body:has(.console-root) { background: #f5f7fb; }
 .console-root .modal > header { border-bottom: 1px solid var(--border); }
 .console-root .modal > footer { border-top: 1px solid var(--border); background: #f8f9fc; }
 .console-root .toast { z-index: 120; border-radius: 12px; }
+.telegram-preview a { color: var(--accent); text-decoration: underline; }
+.telegram-preview code, .telegram-preview pre { background: var(--surface-2); border-radius: 4px; font-family: var(--mono); font-size: 12px; }
+.telegram-preview code { padding: 1px 4px; }
+.telegram-preview pre { padding: 6px 8px; overflow-x: auto; }
 
 /* Dashboard: actionable status, legible figures and honest empty states. */
 .attention-banner { padding: 18px 22px; border: 1px solid #dbd7fa; border-radius: 14px; background: linear-gradient(110deg, #f0edff, #faf9ff); display: flex; justify-content: space-between; align-items: center; gap: 18px; }

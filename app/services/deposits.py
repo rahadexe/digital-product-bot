@@ -44,6 +44,14 @@ from app.services.notifications import Notifier
 from app.services.settings import SettingsService
 
 TRANSACTION_ID = re.compile(r"[A-Za-z0-9_\-]{5,80}")
+
+
+def normalize_txid(tx: str) -> str:
+    """Canonicalize transaction hash: strip leading 0x on hex strings and trim whitespace."""
+    cleaned = str(tx or "").strip()
+    if cleaned.lower().startswith("0x") and len(cleaned) > 10:
+        cleaned = cleaned[2:]
+    return cleaned
 CUSTOMER_DEPOSIT_COLUMNS = (
     "id, method_name, amount, pay_amount, rate_to_currency, transaction_id, status, admin_note, created_at, reviewed_at"
 )
@@ -315,7 +323,7 @@ class DepositService:
         if paused:
             raise InvalidInputError(paused)
         amount = money(amount, positive=True)
-        clean_tx = str(transaction_id).strip()
+        clean_tx = normalize_txid(transaction_id)
         if not TRANSACTION_ID.fullmatch(clean_tx):
             raise InvalidInputError("Invalid transaction ID.")
         values = await self.settings.values()
@@ -516,9 +524,16 @@ class DepositService:
             ) or 0
 
     async def find_by_transaction(self, transaction_id: str) -> dict[str, Any] | None:
+        norm_tx = normalize_txid(transaction_id)
         async with self.db.connect() as conn:
             row = await conn.fetchrow(
-                "SELECT * FROM deposits WHERE lower(btrim(transaction_id)) = lower(btrim($1)) LIMIT 1", transaction_id
+                """
+                SELECT * FROM deposits 
+                WHERE (lower(btrim(transaction_id)) = lower(btrim($1)) 
+                    OR lower(btrim(transaction_id)) = lower(btrim('0x' || $1)))
+                LIMIT 1
+                """,
+                norm_tx,
             )
             return dict(row) if row else None
 
@@ -531,7 +546,7 @@ class DepositService:
         raw_message: str = "",
     ) -> dict[str, Any] | None:
         """Store an incoming payment statement received via SMS forwarder or statement webhook."""
-        clean_tx = str(transaction_id).strip()
+        clean_tx = normalize_txid(transaction_id)
         if not TRANSACTION_ID.fullmatch(clean_tx):
             raise InvalidInputError("Invalid transaction ID.")
         amt = money(amount, positive=True)
@@ -551,36 +566,46 @@ class DepositService:
             )
             return dict(row) if row else None
 
-    async def get_unused_received_transaction(self, transaction_id: str) -> dict[str, Any] | None:
+    async def get_unused_received_transaction(self, transaction_id: str, provider: str | None = None) -> dict[str, Any] | None:
         """Retrieve an unconsumed payment statement for this transaction ID."""
-        clean_tx = str(transaction_id).strip()
+        clean_tx = normalize_txid(transaction_id)
+        params: list[Any] = [clean_tx]
+        provider_clause = ""
+        if provider and provider.strip():
+            params.append(provider.strip().lower())
+            provider_clause = f" AND lower(provider) = ${len(params)}"
         async with self.db.connect() as conn:
             row = await conn.fetchrow(
-                """
+                f"""
                 SELECT * FROM received_transactions
-                WHERE lower(btrim(transaction_id)) = lower(btrim($1)) AND status = 'unused'
+                WHERE (lower(btrim(transaction_id)) = lower(btrim($1)) OR lower(btrim(transaction_id)) = lower(btrim('0x' || $1)))
+                  AND status = 'unused'{provider_clause}
                 LIMIT 1
                 """,
-                clean_tx,
+                *params,
             )
             return dict(row) if row else None
 
     async def claim_received_transaction(
-        self, transaction_id: str, tg_user_id: int, deposit_id: int
+        self, transaction_id: str, tg_user_id: int, deposit_id: int, provider: str | None = None
     ) -> bool:
         """Atomically lock and mark a received statement as used."""
-        clean_tx = str(transaction_id).strip()
+        clean_tx = normalize_txid(transaction_id)
+        params: list[Any] = [tg_user_id, deposit_id, clean_tx]
+        provider_clause = ""
+        if provider and provider.strip():
+            params.append(provider.strip().lower())
+            provider_clause = f" AND lower(provider) = ${len(params)}"
         async with self.db.connect() as conn:
             updated = await conn.fetchval(
-                """
+                f"""
                 UPDATE received_transactions
                 SET status = 'used', used_by_tg_id = $1, used_at = now(), deposit_id = $2
-                WHERE lower(btrim(transaction_id)) = lower(btrim($3)) AND status = 'unused'
+                WHERE (lower(btrim(transaction_id)) = lower(btrim($3)) OR lower(btrim(transaction_id)) = lower(btrim('0x' || $3)))
+                  AND status = 'unused'{provider_clause}
                 RETURNING id
                 """,
-                tg_user_id,
-                deposit_id,
-                clean_tx,
+                *params,
             )
             return bool(updated)
 
@@ -677,11 +702,17 @@ class DepositService:
                 "SELECT 1 FROM payment_verification_attempts WHERE deposit_id=$1 AND status IN ('reserved','confirming')", deposit_id
             ):
                 return False, "Automatic verification is still running. Please wait before reviewing.", None
+            norm_tx = normalize_txid(deposit["transaction_id"])
             if await conn.fetchval(
-                "SELECT 1 FROM deposits WHERE id <> $1 AND status = 'approved' "
-                "AND lower(btrim(transaction_id)) = lower(btrim($2))",
+                """
+                SELECT 1 FROM deposits WHERE id <> $1 AND status = 'approved'
+                AND (lower(btrim(transaction_id)) = lower(btrim($2)) 
+                     OR lower(btrim(transaction_id)) = lower(btrim('0x' || $2))
+                     OR admin_note ILIKE $3)
+                """,
                 deposit_id,
-                deposit["transaction_id"],
+                norm_tx,
+                f"%{norm_tx}%",
             ):
                 return False, "This transaction has already been credited.", None
             amount = money(deposit["amount"], positive=True)
@@ -715,6 +746,8 @@ class DepositService:
                     ),
                 )
             )
+        if hasattr(self, "users") and callable(getattr(self.users, "process_referral_reward", None)):
+            self.notifier.in_background(self.users.process_referral_reward(deposit["tg_user_id"]))
         return True, "Deposit approved and user credited.", details
 
     async def reject(

@@ -434,10 +434,15 @@ class BinanceDepositService:
         return {"error": "already_used", "detail": "This transfer has already been credited."}
 
     async def _already_credited(self, transaction_id: str, exclude_deposit_id: int | None = None) -> bool:
-        query = "SELECT 1 FROM deposits WHERE lower(btrim(transaction_id)) = lower(btrim($1)) AND status = 'approved'"
-        params: list[Any] = [transaction_id]
+        norm_tx = str(transaction_id or "").strip().lower().removeprefix("0x")
+        query = (
+            "SELECT 1 FROM deposits WHERE (lower(btrim(transaction_id)) = lower(btrim($1)) "
+            "OR lower(btrim(transaction_id)) = lower(btrim('0x' || $1)) "
+            "OR admin_note ILIKE $2) AND status = 'approved'"
+        )
+        params: list[Any] = [norm_tx, f"%{norm_tx}%"]
         if exclude_deposit_id is not None:
-            query += " AND id <> $2"
+            query += " AND id <> $3"
             params.append(exclude_deposit_id)
         async with self.db.connect() as conn:
             return bool(await conn.fetchval(query, *params))
@@ -548,7 +553,8 @@ class BinanceDepositService:
                 received=received,
                 coin=coin,
                 transaction_id=transaction_id,
-                note=f"Confirmed on Binance: {received:g} {coin} (Order: {order_id}, Payer: {payer_num})",
+                order_id=order_id,
+                note=f"Confirmed on Binance: {received:g} {coin} (Order: {order_id}, Transaction: {transaction_id}, Payer: {payer_num})",
                 notify_customer=notify_customer,
             )
         return {
@@ -573,6 +579,7 @@ class BinanceDepositService:
         coin: str,
         transaction_id: str,
         note: str,
+        order_id: str = "",
         notify_customer: bool = True,
     ) -> dict[str, Any]:
         """The payment decides the amount, and its own id is what the deposit is filed under."""
@@ -583,6 +590,14 @@ class BinanceDepositService:
         minimum = money(deposit.get("min_deposit") or 0)
         if credit < minimum:
             return await self._flag(deposit, f"{received:g} {coin} is below this method's smallest top-up")
+
+        # Amount check: if deposit had a claimed amount (e.g. expected amount), ensure tolerance matches!
+        if deposit.get("admin_note") and "expected" in str(deposit.get("admin_note")).lower():
+            match_exp = re.search(r"expected\s+([0-9.]+)\s+usdt", str(deposit.get("admin_note")), re.IGNORECASE)
+            if match_exp:
+                exp_val = float(match_exp.group(1))
+                if abs(credit - exp_val) > 0.05:
+                    return await self._flag(deposit, f"received {received:g} {coin} does not match claimed {exp_val:g} {coin}")
         if abs(credit - money(deposit["amount"])) > 0.01 or transaction_id.lower() != str(deposit["transaction_id"]).lower():
             try:
                 async with self.db.transaction() as conn:

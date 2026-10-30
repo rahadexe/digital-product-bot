@@ -551,7 +551,7 @@ export function Products({ say }: { say: Say }) {
                   title={product.title}
                   subtitle={[category?.name, product.duration_label].filter(Boolean).join(', ')}
                   meta={product.is_pinned ? 'Pinned' : undefined}
-                  amount={`$${money(product.price)} USD`}
+                  amount={`${money(product.price)} USD`}
                   status={stock}
                   tone={!product.is_active ? 'neutral' : !supplier && product.delivery_type !== 'manual' && !product.stock ? 'warn' : 'good'}
                     icon={product.icon || Array.from(product.title)[0]?.toUpperCase()}
@@ -628,7 +628,7 @@ export function Products({ say }: { say: Say }) {
                       <div style={{ fontWeight: 700 }}>{money(product.price)}</div>
                       {product.reseller_price != null && product.reseller_price > 0 ? (
                         <small style={{ color: 'var(--accent)', fontSize: '11px', fontWeight: 600, display: 'block' }}>
-                          Wholesale (USD): ${money(product.reseller_price)}
+                          Wholesale (USD): {money(product.reseller_price)}
                         </small>
                       ) : null}
                     </td>
@@ -920,7 +920,7 @@ export function Products({ say }: { say: Say }) {
                   </code>
                   {previewProduct.reseller_price != null && previewProduct.reseller_price > 0 ? (
                     <span style={{ marginLeft: '8px', color: 'var(--accent)', fontWeight: 600, fontSize: '12px' }}>
-                      (Reseller (USD): ${money(previewProduct.reseller_price)})
+                      (Reseller (USD): {money(previewProduct.reseller_price)})
                     </span>
                   ) : null}
                 </div>

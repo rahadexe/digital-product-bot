@@ -152,15 +152,11 @@ const baseline = process.env.CAPTURE_BASELINE === '1';
       if (baseline) continue;
       for (const text of ['sample18169@example.test', `${'longcustomer'.repeat(12)}@example.test`, 'Name: Sample Customer\nEmail: sample@example.test\nPlan: 12 months']) {
         customerInput = text;
-        await page.goto(`${baseURL}/#orders/1001`);
+        // Each fixture needs a new document. Reusing the same hash after closing
+        // a modal is a same-document navigation and does not reload its detail.
+        await page.goto(`${baseURL}/?customer-case=${width}-${text.length}#orders/1001`);
         const copyBtn = page.getByRole('button', { name: 'Copy customer info', exact: true });
-        try {
-          await copyBtn.waitFor({ state: 'visible', timeout: 5000 });
-        } catch {
-          await page.goto(`${baseURL}/`);
-          await page.goto(`${baseURL}/#orders/1001`);
-          await copyBtn.waitFor({ state: 'visible', timeout: 15000 });
-        }
+        await copyBtn.waitFor({ state: 'visible', timeout: 15000 });
         const button = copyBtn;
         const row = await button.boundingBox();
         const parent = await page.locator('.order-detail-customer').boundingBox();

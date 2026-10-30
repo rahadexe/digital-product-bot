@@ -91,6 +91,7 @@ export function PaymentMethods({
   symbol = '৳',
   zinipayActive = false,
   values,
+  savedValues,
   setValues,
   setSaved,
   payStatus,
@@ -101,6 +102,7 @@ export function PaymentMethods({
   symbol?: string;
   zinipayActive?: boolean;
   values?: Record<string, string>;
+  savedValues?: Record<string, string>;
   setValues?: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   setSaved?: React.Dispatch<React.SetStateAction<Record<string, string> | null>>;
   payStatus?: PaymentsStatus | null;
@@ -145,6 +147,8 @@ export function PaymentMethods({
   });
 
   const [showSecret, setShowSecret] = useState(false);
+  const [savingMethod, setSavingMethod] = useState(false);
+  const [methodError, setMethodError] = useState('');
   const [clearCredentials, setClearCredentials] = useState(false);
 
   // Load payment methods
@@ -218,15 +222,30 @@ export function PaymentMethods({
     methodForm.name.trim().toLowerCase().includes('binance') ||
     methodForm.account_type === 'crypto';
 
+  const limitSettings = savedValues ?? values;
+  const globalMaximum = Number(limitSettings?.max_deposit_limit ?? 400);
+  const exchangeRate = Number(limitSettings?.usd_rate ?? 125);
+  const maximumPayment = globalMaximum * (isBinanceMethod ? 1 : exchangeRate);
+  const paymentUnit = isBinanceMethod ? 'USDT' : 'BDT';
+  const maximumLabel = `${maximumPayment.toLocaleString('en-US', { maximumFractionDigits: 4 })} ${paymentUnit}`;
+
   // Save Method (Create or Update)
   const handleSaveMethod = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (savingMethod) return;
+    setMethodError('');
+    const minimum = Number(methodForm.min_deposit);
+    if (!Number.isFinite(minimum) || minimum <= 0 || minimum > maximumPayment) {
+      setMethodError(`Minimum deposit must be greater than zero and no more than ${maximumLabel}.`);
+      return;
+    }
+    setSavingMethod(true);
     try {
       const payload: any = {
         name: isBinanceMethod ? (methodForm.name.trim() || 'Binance') : methodForm.name.trim(),
         account_info: methodForm.account_info.trim(),
         account_type: isBinanceMethod ? 'crypto' : methodForm.account_type,
-        min_deposit: parseFloat(String(methodForm.min_deposit)) || 1,
+        min_deposit: minimum,
         rate_to_currency: parseFloat(String(methodForm.rate_to_currency)) || 1.0,
         sort_order: parseInt(String(methodForm.sort_order), 10) || 1,
         instructions: methodForm.instructions.trim(),
@@ -265,11 +284,14 @@ export function PaymentMethods({
         await fetchMethods();
       }
     } catch (err) {
-      say(errorText(err, 'Failed to save payment method'), 'bad');
+      setMethodError(errorText(err, 'Failed to save payment method'));
+    } finally {
+      setSavingMethod(false);
     }
   };
 
   const openAddModal = () => {
+    setMethodError('');
     setEditingMethod(null);
     setSelectedProviderKey(null);
     setClearCredentials(false);
@@ -292,6 +314,7 @@ export function PaymentMethods({
   };
 
   const openEditModal = (method: DepositMethod) => {
+    setMethodError('');
     setEditingMethod(method);
     setClearCredentials(false);
     const n = method.name.toLowerCase();
@@ -326,6 +349,7 @@ export function PaymentMethods({
   };
 
   const applyPreset = (preset: (typeof METHOD_PRESETS)[0]) => {
+    setMethodError('');
     setSelectedProviderKey(preset.key);
     setMethodForm((prev) => ({
       ...prev,
@@ -572,6 +596,7 @@ export function PaymentMethods({
           wide
           className="pm-method-modal"
           onClose={() => {
+            if (savingMethod) return;
             setIsAddingMethod(false);
             setEditingMethod(null);
             setSelectedProviderKey(null);
@@ -594,6 +619,7 @@ export function PaymentMethods({
                 <button
                   type="button"
                   className="btn ghost"
+                  disabled={savingMethod}
                   onClick={() => {
                     if (isAddingMethod) {
                       setSelectedProviderKey(null);
@@ -605,8 +631,8 @@ export function PaymentMethods({
                 >
                   {isAddingMethod ? 'Back' : 'Cancel'}
                 </button>
-                <button type="submit" form="pm-method-form" className="btn">
-                  {editingMethod ? 'Save Changes' : 'Create Method'}
+                <button type="submit" form="pm-method-form" className="btn" disabled={savingMethod}>
+                  {savingMethod ? 'Saving…' : editingMethod ? 'Save Changes' : 'Create Method'}
                 </button>
               </>
             )
@@ -673,6 +699,11 @@ export function PaymentMethods({
               )}
 
               <form id="pm-method-form" onSubmit={handleSaveMethod} className="pm-form">
+                <div className="pm-deposit-limit" id="pm-deposit-limit">
+                  <div><span>Maximum per deposit</span><strong>{maximumLabel}</strong></div>
+                  <p>Shared across payment methods. Change in Settings / General / Limits &amp; Rules.</p>
+                </div>
+                {methodError && <p className="dialog-error" role="alert">{methodError}</p>}
                 {isBinanceMethod ? (
                   <>
                     <div className="pm-form-row">
@@ -720,7 +751,11 @@ export function PaymentMethods({
                         <span>Minimum Deposit (USDT)</span>
                         <div className="pm-input-currency">
                           <input
-                            type="text"
+                            type="number"
+                            min="0.0001"
+                            step="0.0001"
+                            max={maximumPayment}
+                            aria-describedby="pm-deposit-limit"
                             inputMode="decimal"
                             placeholder="1.00"
                             value={methodForm.min_deposit}
@@ -892,6 +927,9 @@ export function PaymentMethods({
                         <input
                           type="number"
                           min="1"
+                          step="0.01"
+                          max={maximumPayment}
+                          aria-describedby="pm-deposit-limit"
                           placeholder="50"
                           value={methodForm.min_deposit}
                           onChange={(e) =>

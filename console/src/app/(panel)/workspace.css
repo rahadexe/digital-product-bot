@@ -1053,7 +1053,7 @@ html:has(.console-root), body:has(.console-root) { background: #f7f8fa; }
   display: grid;
   gap: 12px;
 }
-.console-root .pm-form-row {
+.console-root .pm-method-modal .pm-form-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
@@ -1156,7 +1156,7 @@ html:has(.console-root), body:has(.console-root) { background: #f7f8fa; }
 }
 .console-root .pm-input-currency input {
   width: 100%;
-  padding-right: 32px;
+  padding-right: 64px;
 }
 .console-root .pm-currency-tag {
   position: absolute;
@@ -1202,7 +1202,16 @@ html:has(.console-root), body:has(.console-root) { background: #f7f8fa; }
 }
 @media (max-width: 760px) {
   .console-root .pm-provider-cards-grid { grid-template-columns: 1fr; }
-  .console-root .pm-form-row { grid-template-columns: 1fr; }
+  .console-root .pm-method-modal .pm-form-row { grid-template-columns: 1fr; }
   .console-root .payment-method-item { flex-direction: column; align-items: flex-start; gap: 10px; }
   .console-root .payment-method-actions { width: 100%; justify-content: space-between; border-top: 1px solid var(--line); padding-top: 8px; }
 }
+
+/* Shared deposit cap, expressed in the selected method's payment currency. */
+.console-root .pm-deposit-limit { padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
+.console-root .pm-deposit-limit > div { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 12px; }
+.console-root .pm-deposit-limit span { font-size: 12px; color: var(--text-dim); }
+.console-root .pm-deposit-limit strong { font-size: 14px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.console-root .pm-deposit-limit p { margin-top: 6px; font-size: 11px; line-height: 1.6; color: var(--muted); }
+.console-root .pm-method-modal .dialog-error { color: var(--danger); font-size: 12px; line-height: 1.6; }
+.console-root .pm-presets-grid { flex-wrap: wrap; min-width: 0; }

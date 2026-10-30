@@ -423,7 +423,7 @@ def unit_price_for(product: dict[str, Any], user: dict[str, Any] | None) -> floa
     price on the button with the shop price, so a reseller with a rate of their own was
     told "Price changed" on every attempt and could never buy.
     """
-    is_reseller = (user.get("rank") or "").strip().lower() == "reseller" if user else False
+    is_reseller = (user.get("rank") or "").strip().lower() in {"reseller", "reseller partner"} if user else False
     reseller_price = product.get("reseller_price")
     if is_reseller and reseller_price is not None and float(reseller_price) > 0:
         return float(reseller_price)
@@ -466,7 +466,7 @@ async def product_view(
     else:
         prod_icon_display = tg_icon(None, product.get("icon") or "")
 
-    is_reseller = (user.get("rank") or "").strip().lower() == "reseller" if user else False
+    is_reseller = (user.get("rank") or "").strip().lower() in {"reseller", "reseller partner"} if user else False
     reseller_price = product.get("reseller_price")
     has_reseller_rate = is_reseller and reseller_price is not None and float(reseller_price) > 0
 
@@ -671,7 +671,7 @@ async def show_products_list(
     tg_user = event.from_user
     lang = await services.users.get_language(tg_user.id) if tg_user else "en"
     user_row = await services.users.get(tg_user.id) if tg_user else None
-    is_reseller = (user_row.get("rank") or "").strip().lower() == "reseller" if user_row else False
+    is_reseller = (user_row.get("rank") or "").strip().lower() in {"reseller", "reseller partner"} if user_row else False
 
     if category_id == "uncategorized":
         category_name = "Others" if lang != "bn" else "আদার্স"
@@ -791,7 +791,7 @@ async def paginate_products(query: CallbackQuery, state: FSMContext, services: S
     tg_user = query.from_user
     lang = await services.users.get_language(tg_user.id) if tg_user else "en"
     user_row = await services.users.get(tg_user.id) if tg_user else None
-    is_reseller = (user_row.get("rank") or "").strip().lower() == "reseller" if user_row else False
+    is_reseller = (user_row.get("rank") or "").strip().lower() in {"reseller", "reseller partner"} if user_row else False
 
     if category_id == "uncategorized":
         category_name = "Others" if lang != "bn" else "আদার্স"

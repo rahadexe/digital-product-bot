@@ -4,6 +4,12 @@
 All names, products, payments and balances are synthetic. It must never need admin
 credentials or a production database.
 
+The responsive sweep covers 21 pages/subpages at eight widths (320–1920px),
+including a 1366×768 laptop. Desktop checks keep Sign out visible while navigation
+scrolls, reject duplicate currency symbols, and exercise Product, Stock and Category
+dialogs at three desktop sizes. Broadcast preview checks cover valid links, unsafe
+protocols, injected elements and encoded attribute quotes.
+
 Copy regressions also check that decorative page descriptions, repeated mobile
 store names, tap instructions and third metadata lines stay removed. Shorter
 notification labels keep their original keys; cancelling a toggle must not write.
@@ -19,6 +25,16 @@ test tools, not runtime dependencies. `CHROMIUM_PATH` can select a system browse
 2. Serve `console/out` locally, e.g. `python -m http.server 4173 --directory console/out`
    from the repository root.
 3. Run `node tests/browser/admin-responsive.cjs` from the repository root.
+
+Run `node tests/browser/payment-dialogs.cjs` as well. It checks all four payment
+method forms at eight viewport sizes, including short landscape screens. It
+verifies shared limits in BDT/USDT, minimum validation, stacked phone fields,
+rounded modal footers, visible save controls, provider selection and save retry.
+All writes are intercepted with synthetic responses.
+
+`activity.cjs` verifies readable wallet/product/settings events, original log
+disclosures, server-side action/search filters, error/empty states and cancelled
+retries at five phone/tablet/desktop widths. No actual tasks are retried.
 
 Also run `node tests/browser/layout-quality.cjs` against the same static build.
 This checks 24 Home states (zero, one and five orders at eight widths), inline

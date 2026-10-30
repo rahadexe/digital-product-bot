@@ -802,6 +802,7 @@ select {
 .modal .body::-webkit-scrollbar-track { background: transparent; }
 .modal .body::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 999px; }
 .modal > footer { display: flex; flex-shrink: 0; justify-content: flex-end; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--line); }
+.modal > footer { border-bottom-left-radius: inherit; border-bottom-right-radius: inherit; }
 .modal .field { min-width: 0; }
 .modal .dialog-error { overflow-wrap: anywhere; }
 
@@ -3727,13 +3728,13 @@ ul.messages p { margin-top: 6px; color: var(--text-dim); font-size: 12.5px; whit
   transition: all 0.15s ease;
 }
 .settings-tab-btn:hover {
-  background: #E5E7EB;
+  background: var(--border);
   color: var(--text, #111827);
 }
 .settings-tab-btn.active {
-  background: #E6F4F1;
-  color: #00594C;
-  border-color: #A3D9CF;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
   font-weight: 600;
 }
 .settings-tab-btn svg {

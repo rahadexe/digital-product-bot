@@ -102,15 +102,37 @@ class UserService:
         reward_amount = min(reward_amount, 100.0)
 
         async with self.db.transaction() as conn:
-            user = await conn.fetchrow("SELECT * FROM users WHERE tg_user_id = $1 FOR UPDATE", tg_user_id)
-            if not user or not user["referred_by"] or user.get("referral_rewarded"):
+            # 1. Anti-Sybil Defense: Check if the referred user has completed at least one approved deposit or purchase
+            has_deposit = await conn.fetchval(
+                "SELECT 1 FROM deposits WHERE tg_user_id = $1 AND status = 'approved' LIMIT 1",
+                tg_user_id,
+            )
+            has_purchase = await conn.fetchval(
+                "SELECT 1 FROM orders WHERE tg_user_id = $1 AND status = 'completed' LIMIT 1",
+                tg_user_id,
+            )
+            if not has_deposit and not has_purchase:
                 return None
 
-            referrer_id = user["referred_by"]
+            user_preview = await conn.fetchrow("SELECT referred_by, referral_rewarded FROM users WHERE tg_user_id = $1", tg_user_id)
+            if not user_preview or not user_preview["referred_by"] or user_preview.get("referral_rewarded"):
+                return None
+
+            referrer_id = user_preview["referred_by"]
             if referrer_id == tg_user_id:
                 return None
 
-            referrer = await conn.fetchrow("SELECT * FROM users WHERE tg_user_id = $1 FOR UPDATE", referrer_id)
+            # 2. Deadlock-free row locking: lock both users in deterministic sorted order
+            locked_users = await conn.fetch(
+                "SELECT * FROM users WHERE tg_user_id = ANY($1::bigint[]) ORDER BY tg_user_id FOR UPDATE",
+                sorted([tg_user_id, referrer_id]),
+            )
+            user_map = {row["tg_user_id"]: row for row in locked_users}
+            user = user_map.get(tg_user_id)
+            referrer = user_map.get(referrer_id)
+
+            if not user or not user["referred_by"] or user.get("referral_rewarded"):
+                return None
             if not referrer or referrer["is_banned"]:
                 return None
 
@@ -137,6 +159,9 @@ class UserService:
             )
             await conn.execute("UPDATE users SET referral_rewarded = 1, updated_at = now() WHERE tg_user_id = $1", tg_user_id)
             await record(conn, "referral_reward_paid", f"User #{referrer_id} received {reward_amount:.2f} for referring #{tg_user_id}")
+
+        self.invalidate_cache(referrer_id)
+        self.invalidate_cache(tg_user_id)
 
         raw_first_name = str(user.get("first_name") or "").strip()
         friend_name = escape(raw_first_name) if raw_first_name else "A friend"
@@ -399,6 +424,8 @@ class UserService:
             clean_rank = "Standard"
         async with self.db.transaction() as conn:
             await conn.execute("UPDATE users SET rank = $1, updated_at = now() WHERE tg_user_id = $2", clean_rank, tg_user_id)
+            if clean_rank != "Reseller":
+                await conn.execute("UPDATE reseller_api_keys SET is_active = 0, updated_at = now() WHERE tg_user_id = $1", tg_user_id)
             await record(conn, "user_rank_updated", f"User #{tg_user_id} rank set to {clean_rank}")
         self.invalidate_cache(tg_user_id)
         return clean_rank

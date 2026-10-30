@@ -66,6 +66,13 @@ export function when(iso?: string | null): string {
   const then = new Date(iso.includes('T') || iso.includes('Z') ? iso : `${iso.replace(' ', 'T')}Z`).getTime();
   if (Number.isNaN(then)) return iso.slice(0, 16);
   const minutes = Math.round((Date.now() - then) / 60000);
+  if (minutes < 0) {
+    const ahead = -minutes;
+    if (ahead < 60) return `in ${ahead}m`;
+    if (ahead < 1440) return `in ${Math.round(ahead / 60)}h`;
+    if (ahead < 10080) return `in ${Math.round(ahead / 1440)}d`;
+    return new Date(then).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
   if (minutes < 1) return 'just now';
   if (minutes < 60) return `${minutes}m ago`;
   const hours = Math.round(minutes / 60);

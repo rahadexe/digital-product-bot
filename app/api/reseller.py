@@ -130,7 +130,7 @@ async def list_reseller_products(
     currency = settings_vals.get("currency", "BDT")
 
     products = await services.reseller.get_reseller_products(
-        category_id=category_id, is_reseller=(reseller.get('rank') or '').strip().lower() == 'reseller',
+        category_id=category_id, is_reseller=(reseller.get('rank') or '').strip().lower() in {'reseller', 'reseller partner'},
     )
     return {
         "success": True,
@@ -149,7 +149,7 @@ async def get_reseller_product(product_id: int, reseller: ResellerDep, services:
     currency = settings_vals.get("currency", "BDT")
 
     product = await services.reseller.get_reseller_product(
-        product_id, is_reseller=(reseller.get('rank') or '').strip().lower() == 'reseller',
+        product_id, is_reseller=(reseller.get('rank') or '').strip().lower() in {'reseller', 'reseller partner'},
     )
     if not product:
         raise HTTPException(status_code=404, detail="Product not found or currently inactive.")

@@ -211,7 +211,7 @@ class TestBotDepositWithStatementSync(unittest.IsolatedAsyncioTestCase):
             notify_customer=False,
         )
         services.deposits.claim_received_transaction.assert_awaited_once_with(
-            "9ABC123456", 6775546602, 123
+            "9ABC123456", 6775546602, 123, provider="bKash"
         )
         # State cleared
         self.assertIsNone(await state.get_state())

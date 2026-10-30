@@ -76,7 +76,7 @@ const emoji = { id: 1, name: 'Store subscription icon', emoji_id: '0000000000000
       if (path === 'deposits' && failDeposits) return route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ detail: 'Synthetic deposit load error' }) });
       let body = [];
       if (path === 'session') body = { signed_in: signedIn, csrf: 'synthetic-test-csrf', store_name: longName ? 'A deliberately very long digital storefront name for narrow screen testing' : 'Digital Store' };
-      else if (path === 'settings') body = { currency_symbol: '৳', store_name: longName ? 'A deliberately very long digital storefront name for narrow screen testing' : 'Digital Store', validity_presets: '1 month,1 year', admin_tg_ids: '', usd_rate: '125', currency: 'BDT' };
+      else if (path === 'settings') body = { currency_symbol: '$', store_name: longName ? 'A deliberately very long digital storefront name for narrow screen testing' : 'Digital Store', validity_presets: '1 month,1 year', admin_tg_ids: '', usd_rate: '125', currency: 'USD' };
       else if (path === 'products' && req.method() === 'GET') body = page.url().includes('#suppliers')
         ? [...products, { ...product, id: 90, upstream_product_id: 91, supplier_code: 'digital_mart', upstream_price: 90 }]
         : products;
@@ -135,8 +135,8 @@ const emoji = { id: 1, name: 'Store subscription icon', emoji_id: '0000000000000
     });
     const results = [];
     const screens = ['overview', 'orders', 'deposits', 'deposits/instant', 'users', 'users/123', 'products', 'suppliers', 'suppliers/config', 'suppliers/explore', 'inventory', 'categories', 'validities', 'emojis', 'broadcast', 'reseller-apps', 'activity', 'settings', 'settings/gate', 'settings/payments', 'settings/notifications'];
-    for (const width of [320, 390, 760, 768, 1024, 1440]) {
-      await page.setViewportSize({ width, height: 900 });
+    for (const width of [320, 390, 760, 768, 1024, 1366, 1440, 1920]) {
+      await page.setViewportSize({ width, height: width === 1366 ? 768 : 900 });
       for (const screen of screens) {
         await page.goto(`${baseURL}/#${screen.startsWith('suppliers/') ? 'suppliers' : screen}`);
         if (screen === 'deposits/instant' || screen.startsWith('suppliers')) await page.reload();
@@ -156,6 +156,17 @@ const emoji = { id: 1, name: 'Store subscription icon', emoji_id: '0000000000000
           }).slice(0, 12).map(node => ({ tag: node.tagName, class: node.className, text: node.textContent.slice(0, 100), width: node.getBoundingClientRect().width }))));
         }
         assert.ok(dimensions.document <= dimensions.viewport + 1, `${screen} overflows at ${width}px: ${dimensions.document}`);
+        if (width > 760 && screen === 'overview') {
+          const rail = await page.locator('.rail').evaluate(el => {
+            const nav = el.querySelector('.rail-items');
+            const foot = el.querySelector('.sign-out').getBoundingClientRect();
+            return { top: foot.top, bottom: foot.bottom, height: innerHeight, navOverflow: getComputedStyle(nav).overflowY, railScroll: el.scrollHeight, railHeight: el.clientHeight };
+          });
+          assert.ok(rail.top >= 0 && rail.bottom <= rail.height, 'Sign out stays visible without sidebar scrolling');
+          assert.equal(rail.navOverflow, 'auto');
+          assert.ok(rail.railScroll <= rail.railHeight + 1, 'Only the navigation list scrolls');
+        }
+        assert.doesNotMatch(await page.locator('.main-inner').innerText(), /\$\$|\$৳/, 'Currency symbols are never duplicated');
         if (width <= 760) {
           const headers = await page.locator('.main-inner .panel > header').evaluateAll(nodes => nodes.flatMap(header => {
             const title = header.querySelector(':scope > h2');
@@ -196,7 +207,7 @@ const emoji = { id: 1, name: 'Store subscription icon', emoji_id: '0000000000000
           const redundantPagers = page.locator('.product-pagination.single-page, .order-pagination.single-page, .pager:not(:has(button:not(:disabled)))');
           assert.equal(await redundantPagers.evaluateAll(nodes => nodes.filter(node => node.getBoundingClientRect().height > 0).length), 0, 'Single-page counts/pagers do not repeat the list header');
         }
-        if (width === 390 || width === 1440) {
+        if ([390, 1024, 1366, 1440, 1920].includes(width)) {
           await page.evaluate(() => scrollTo(0, 0));
           await page.screenshot({ path: `${output}/audit-${screen.replaceAll('/', '-')}-${width}.png`, fullPage: true });
           if (width === 390) await page.screenshot({ path: `${output}/phone-${screen.replaceAll('/', '-')}.png` });
@@ -205,6 +216,37 @@ const emoji = { id: 1, name: 'Store subscription icon', emoji_id: '0000000000000
       }
       console.log(`Passed all ${screens.length} populated screens/subpages at ${width}px`);
     }
+    for (const [width, height] of [[1024, 600], [1366, 768], [1920, 1080]]) {
+      await page.setViewportSize({ width, height });
+      for (const [screen, button] of [['products', /new product/i], ['inventory', 'Add stock'], ['categories', 'New category']]) {
+        await page.goto(`${baseURL}/#${screen}`);
+        await page.getByRole('button', { name: button }).first().click();
+        const modal = page.getByRole('dialog');
+        await modal.waitFor();
+        const geometry = await modal.evaluate(el => {
+          const r = el.getBoundingClientRect(), body = el.querySelector('.body');
+          return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, height: innerHeight, width: innerWidth, bodyWidth: body.clientWidth, bodyScroll: body.scrollWidth };
+        });
+        assert.ok(geometry.top >= 0 && geometry.bottom <= height + 1 && geometry.left >= 0 && geometry.right <= width + 1, `${screen} form fits ${width}x${height}`);
+        assert.ok(geometry.bodyScroll <= geometry.bodyWidth + 1, `${screen} form has no horizontal overflow`);
+        await page.screenshot({ path: `${output}/desktop-form-${screen}-${width}.png` });
+        await page.keyboard.press('Escape');
+        await modal.waitFor({ state: 'hidden' });
+      }
+    }
+    await page.goto(`${baseURL}/#broadcast`);
+    const composer = page.locator('textarea').first();
+    await composer.fill('<b>Offer</b> <a href="https://example.test/?a=1&amp;b=2">Shop</a> <a href="javascript:alert(1)">Unsafe</a> <img src=x onerror=alert(1)>');
+    const preview = page.locator('.telegram-preview').first();
+    await preview.getByRole('link', { name: 'Shop' }).waitFor();
+    assert.equal(await preview.getByRole('link', { name: 'Shop' }).getAttribute('href'), 'https://example.test/?a=1&b=2');
+    assert.equal(await preview.locator('a').count(), 1, 'Unsafe links render as text');
+    assert.equal(await preview.locator('img, script, [onerror], [onclick]').count(), 0, 'Message content cannot create executable elements or attributes');
+    assert.equal(await preview.locator('b').innerText(), 'Offer');
+    await composer.fill('<a href="https://example.test/&quot; onclick=&quot;alert(1)">Quoted</a>');
+    assert.equal(await preview.locator('[onclick]').count(), 0, 'Encoded quotes stay inside the link attribute');
+    await page.goto(`${baseURL}/#inventory`);
+    assert.doesNotMatch(await page.locator('.main-inner').innerText(), /expires just now/i, 'Future stock expiry is not presented as the present');
     await page.setViewportSize({ width: 390, height: 844 });
     const detailDialog = () => page.getByRole('dialog');
     const assertDialogFits = async () => {

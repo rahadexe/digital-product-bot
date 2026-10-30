@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Bold, Check, Code, Copy, Eye, EyeOff, Italic, Link2, RefreshCw, RotateCcw, Send, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { escapeTelegramHtml, renderSafeTelegramHtml } from '@/lib/telegram-preview';
 import { errorText, Modal, useConfirm, when, type Say } from './ui';
 import { MobileRecord } from './MobileRecord';
 
@@ -104,7 +105,7 @@ export function Broadcast({ say }: { say: Say }) {
     }
     const label = linkText.trim() || url;
     const { start, end } = selectionRange.current;
-    const replacement = `<a href="${url}">${label}</a>`;
+    const replacement = `<a href="${escapeTelegramHtml(url)}">${escapeTelegramHtml(label)}</a>`;
     const newText = text.slice(0, start) + replacement + text.slice(end);
     setText(newText);
     setLinkModalOpen(false);
@@ -171,29 +172,6 @@ export function Broadcast({ say }: { say: Say }) {
     } catch (cause) {
       say(errorText(cause), 'bad');
     }
-  }
-
-  // Basic safe preview transformer for Telegram HTML
-  function renderSafeTelegramHtml(raw: string) {
-    if (!raw.trim()) {
-      return '<span style="color: var(--muted); font-style: italic;">Message preview...</span>';
-    }
-    let formatted = raw
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-
-    formatted = formatted
-      .replace(/&lt;b&gt;(.*?)&lt;\/b&gt;/gi, '<b>$1</b>')
-      .replace(/&lt;strong&gt;(.*?)&lt;\/strong&gt;/gi, '<strong>$1</strong>')
-      .replace(/&lt;i&gt;(.*?)&lt;\/i&gt;/gi, '<i>$1</i>')
-      .replace(/&lt;em&gt;(.*?)&lt;\/em&gt;/gi, '<em>$1</em>')
-      .replace(/&lt;code&gt;(.*?)&lt;\/code&gt;/gi, '<code style="background: rgba(0,0,0,0.06); padding: 1px 4px; border-radius: 4px; font-family: var(--mono); font-size: 12.5px;">$1</code>')
-      .replace(/&lt;pre&gt;(.*?)&lt;\/pre&gt;/gi, '<pre style="background: rgba(0,0,0,0.06); padding: 6px 8px; border-radius: 4px; font-family: var(--mono); font-size: 12px; overflow-x: auto;">$1</pre>')
-      .replace(/&lt;a href=&quot;(.*?)&quot;&gt;(.*?)&lt;\/a&gt;/gi, '<a href="$1" target="_blank" rel="noopener noreferrer" style="color: #2481cc; text-decoration: underline;">$2</a>')
-      .replace(/\n/g, '<br/>');
-
-    return formatted;
   }
 
   const completionPercent = progress && progress.total > 0
@@ -494,6 +472,7 @@ export function Broadcast({ say }: { say: Say }) {
                     }}
                   >
                     <div
+                      className="telegram-preview"
                       dangerouslySetInnerHTML={{ __html: renderSafeTelegramHtml(text) }}
                       style={{ minHeight: '28px' }}
                     />
@@ -738,6 +717,7 @@ export function Broadcast({ say }: { say: Say }) {
                   maxHeight: '300px',
                   overflowY: 'auto',
                 }}
+                className="telegram-preview"
                 dangerouslySetInnerHTML={{ __html: renderSafeTelegramHtml(selectedBroadcast.text) }}
               />
             </div>

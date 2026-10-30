@@ -1651,27 +1651,34 @@ async def cancel_deposit_callback(query: CallbackQuery, state: FSMContext, servi
         await show_deposit_methods(query, state, services)
 
 
-async def _get_unused_statement(services: Services, clean_tx: str) -> dict[str, Any] | None:
+async def _get_unused_statement(services: Services, clean_tx: str, provider: str | None = None) -> dict[str, Any] | None:
     if not hasattr(services, "deposits") or not hasattr(services.deposits, "get_unused_received_transaction"):
         return None
     fn = getattr(services.deposits, "get_unused_received_transaction")
     if not callable(fn):
         return None
-    res = fn(clean_tx)
+    try:
+        res = fn(clean_tx, provider=provider)
+    except TypeError:
+        res = fn(clean_tx)
     if inspect.isawaitable(res):
         res = await res
     return res if isinstance(res, dict) else None
 
 
-async def _claim_statement(services: Services, clean_tx: str, user_id: int, dep_id: int) -> None:
+async def _claim_statement(services: Services, clean_tx: str, user_id: int, dep_id: int, provider: str | None = None) -> bool:
     if not hasattr(services, "deposits") or not hasattr(services.deposits, "claim_received_transaction"):
-        return
+        return True
     fn = getattr(services.deposits, "claim_received_transaction")
     if not callable(fn):
-        return
-    res = fn(clean_tx, user_id, dep_id)
+        return True
+    try:
+        res = fn(clean_tx, user_id, dep_id, provider=provider)
+    except TypeError:
+        res = fn(clean_tx, user_id, dep_id)
     if inspect.isawaitable(res):
-        await res
+        res = await res
+    return bool(res)
 
 
 async def _safe_edit_or_answer(status_msg: Message, user_msg: Message, text: str, reply_markup=None):
@@ -1873,7 +1880,7 @@ async def execute_deposit_submission(
         return
 
     # 3.5 Statement / SMS Sync Instant Approval Flow
-    received_tx = await _get_unused_statement(services, clean_tx)
+    received_tx = await _get_unused_statement(services, clean_tx, provider=method_name)
     if received_tx:
         auto_amt = float(received_tx["amount"])
         rate = float(data.get("rate") or 125.0)
@@ -1892,13 +1899,15 @@ async def execute_deposit_submission(
                 admin_note="Auto-verified via Instant Statement Sync",
                 notify_admin=True,
             )
+            claimed = await _claim_statement(services, clean_tx, user_id, dep_id, provider=method_name)
+            if not claimed:
+                raise DuplicateTransactionError("This statement has already been claimed.")
             ok, err, details = await services.deposits.approve(
                 dep_id,
                 admin_note="Auto-verified via Instant Statement Sync",
                 notify_customer=False,
             )
             if ok:
-                await _claim_statement(services, clean_tx, user_id, dep_id)
                 await services.deposits.clear_verification_failures(user_id)
                 await state.clear()
                 user = await services.users.get(user_id)
@@ -2080,7 +2089,6 @@ async def execute_deposit_submission(
             remaining_attempts = MAX_VERIFY_ATTEMPTS - len(fails)
 
             if remaining_attempts <= 0:
-                await services.deposits.clear_verification_failures(user_id)
                 await state.clear()
                 admin_note = f"ZiniPay auto-verify failed 3x ({res.get('error')}). Review the receipt and amount before approval."
                 try:

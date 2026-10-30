@@ -54,6 +54,8 @@ jobs:
           done
           node tests/browser/layout-quality.cjs
           node tests/browser/admin-responsive.cjs
+          ARTIFACT_DIR="$ARTIFACT_DIR/payment-dialogs" node tests/browser/payment-dialogs.cjs
+          ARTIFACT_DIR="$ARTIFACT_DIR/activity" node tests/browser/activity.cjs
       - name: Upload synthetic screenshots and results
         if: always()
         uses: actions/upload-artifact@v4

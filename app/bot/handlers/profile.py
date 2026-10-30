@@ -649,6 +649,10 @@ async def reseller_generate_key_handler(event: CallbackQuery, services: Services
     if not user or user.get("is_banned"):
         await event.answer("Access denied.", show_alert=True)
         return
+    is_reseller = (user.get("rank") or "").strip().lower() in {"reseller", "reseller partner"}
+    if not is_reseller:
+        await event.answer("API access requires Reseller rank. Please apply via the Reseller tab first.", show_alert=True)
+        return
 
     raw_key, _ = await services.reseller.generate_key(tg_user.id)
     endpoint_text, docs_rows = reseller_api_links(services.config)

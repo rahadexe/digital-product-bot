@@ -435,6 +435,7 @@ export function Settings({
                       setValues((cur) => ({ ...cur, max_deposit_limit: e.target.value }))
                     }
                   />
+                  <small>Applies to every payment method. Local payment limits follow the exchange rate below.</small>
                 </label>
 
                 <label className="field wide">
@@ -570,6 +571,7 @@ export function Settings({
             symbol={symbol}
             zinipayActive={Boolean((values.zinipay_api_key || '').trim())}
             values={values}
+            savedValues={saved}
             setValues={setValues}
             setSaved={setSaved}
             payStatus={payStatus}
