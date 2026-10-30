@@ -616,9 +616,15 @@ async def render_method_details(
     destination = "Open the payment page below." if is_payment_link else f"{destination_label}: <code>{escape(account_info)}</code>"
     minimum = f"{min_dep:g} USDT" if is_binance else f"{min_dep:g} ৳"
 
-    card_lines = [
-        f"⚠️ Minimum: <b>{minimum}</b>",
-    ]
+    curr = await resolve_user_currency(services, user_id)
+    card_lines = []
+    if not is_binance and curr in ("USD", "USDT"):
+        rate_val = float(rate or usd_rate or 126.0)
+        card_lines.append(f"💱 Rate: <b>1 USDT = {rate_val:g} ৳</b>")
+        min_usd = min_dep / rate_val
+        card_lines.append(f"⚠️ Minimum: <b>{min_dep:g} ৳</b> (~${min_usd:.2f})")
+    else:
+        card_lines.append(f"⚠️ Minimum: <b>{minimum}</b>")
     if shortfall_usd > 0:
         if is_binance:
             card_lines.append(f"Amount needed: <b>{shortfall_usd:.2f} USDT</b>")
@@ -1073,7 +1079,7 @@ async def handle_deposit_change_amount(query: CallbackQuery, state: FSMContext, 
 
 @router.callback_query(F.data.startswith("dep_paid_"))
 async def begin_payment_reference(query: CallbackQuery, state: FSMContext, services: Services):
-    """Update the payment card in-place with the TrxID input prompt."""
+    """Keep the payment card intact above, and prompt cleanly for the TrxID."""
     data = await state.get_data()
     selected_id = data.get("method_id")
     requested_id = (query.data or "").removeprefix("dep_paid_")
@@ -1095,43 +1101,18 @@ async def begin_payment_reference(query: CallbackQuery, state: FSMContext, servi
         return
     is_binance = bool(data.get("is_binance"))
     reference_label = "Order ID" if is_binance else "Transaction ID"
-    type_display, _ = get_account_type_labels(method.get("account_type"))
-    num_label = "Pay ID" if is_binance else "Number"
-    account_info = str(method.get("account_info") or "").strip()
-    min_dep = float(method.get("min_deposit") or 1.0)
-    minimum = f"{min_dep:g} USDT" if is_binance else f"{min_dep:g} ৳"
-    method_name = str(method.get("name") or "Payment").strip()
+    method_name = str(data.get("method_name") or "Payment").strip()
 
-    prompt_card = (
-        f"<b>{escape(method_name)}{f' ({type_display})' if not is_binance else ''}</b>\n\n"
-        f"{num_label}: <code>{escape(account_info)}</code>\n"
-        f"Minimum: <b>{minimum}</b>\n\n"
-        f"👉 <b>Please enter your {reference_label} in the chat below:</b>"
+    prompt = f"Enter your {escape(method_name)} {reference_label}."
+    sent = await query.message.answer(
+        prompt,
+        reply_markup=ForceReply(force_reply=True, input_field_placeholder=reference_label),
     )
-    back_kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔙 Back to Methods", callback_data="dep_methods")]
-    ])
-    edited = False
-    if hasattr(query.message, "edit_text"):
-        try:
-            await query.message.edit_text(prompt_card, reply_markup=back_kb)
-            edited = True
-        except Exception:
-            edited = False
-    if not edited and hasattr(query.message, "answer"):
-        with suppress(Exception):
-            sent = await query.message.answer(prompt_card, reply_markup=back_kb)
-            if sent:
-                query.message = sent
-
-    card_msg_id = getattr(query.message, "message_id", None)
-    card_chat_id = getattr(getattr(query.message, "chat", None), "id", None)
-    if card_msg_id and card_chat_id:
-        remember_menu_message(card_chat_id, card_msg_id)
+    sent_id = getattr(sent, "message_id", None)
 
     await state.update_data(
         reference_first=True, manual_amount=None, manual_txid=None, pay_amount=None,
-        binance_usdt=None, card_msg_id=card_msg_id, card_chat_id=card_chat_id,
+        binance_usdt=None, reference_prompt_id=sent_id,
     )
     await state.set_state(DepositStates.waiting_for_txid)
     with suppress(TelegramBadRequest):
