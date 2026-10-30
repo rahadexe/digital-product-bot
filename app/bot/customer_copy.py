@@ -12,10 +12,8 @@ def wallet_updated(amount: float, balance: float, symbol: str, deposit_id: int |
     total = format_dual_price(balance, currency=currency, usd_rate=usd_rate)
     return (
         "✅ <b>Deposit Successful!</b>\n\n"
-        "<blockquote>"
         f"Added: <code>+{added}</code>\n"
         f"Current Balance: <code>{total}</code>"
-        "</blockquote>"
     )
 
 
