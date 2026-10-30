@@ -493,13 +493,21 @@ async def ask_instant_amount_from_text(
     min_dep = float(instant.get("min_amount") or 1.0)
     lang = await services.users.get_language(message.from_user.id) if message.from_user else "en"
     await state.set_state(DepositStates.waiting_for_instant_amount)
-    text = (
-        f"{ICON_LIGHTNING} <b>{escape(instant['label'])}</b>\n\n"
-        f"Minimum: <b>{min_dep:g} ৳</b>\n\n"
-        f"Enter deposit amount (in BDT):\n\n"
-        f"💡 <i>(e.g. 50 or 100)</i>"
+    await state.update_data(is_instant=True, min_deposit=min_dep)
+    prompt_txt = (
+        "👇 <b>ডিপোজিট অ্যামাউন্ট চুজ করুন অথবা আপনি যত টাকা পাঠাতে চাচ্ছেন তা নিচে লিখুন:</b>"
+        if lang == "bn"
+        else "👇 <b>Choose deposit amount or type the amount in chat:</b>"
     )
-    await message.answer(text, reply_markup=get_cancel_keyboard(lang=lang))
+    keyboard = get_deposit_quick_amount_keyboard(
+        is_binance=False,
+        lang=lang,
+        back_target="dep_methods",
+    )
+    sent = await message.answer(prompt_txt, reply_markup=keyboard)
+    if sent and getattr(message, "chat", None):
+        remember_menu_message(message.chat.id, sent.message_id)
+        await state.update_data(card_msg_id=sent.message_id, card_chat_id=message.chat.id)
 
 
 class MethodTextFilter(BaseFilter):
@@ -671,18 +679,48 @@ async def render_method_details(
 
     lines = []
     if is_binance:
-        lines.append(f"{heading_prefix}<b>{escape(heading)}</b>")
+        await state.set_state(DepositStates.waiting_for_txid)
+        await state.update_data(reference_first=True, is_binance=True)
+        if lang == "bn":
+            tx_prompt = (
+                f"<b>{escape(method_name)}</b>\n\n"
+                f"Pay ID: <code>{escape(account_info)}</code>\n\n"
+                f"👇 <b>উপরের Pay ID-তে USDT পাঠিয়ে নিচে Binance Order ID দিন:</b>\n"
+                f"Enter Order ID below:"
+            )
+        else:
+            tx_prompt = (
+                f"<b>{escape(method_name)}</b>\n\n"
+                f"Pay ID: <code>{escape(account_info)}</code>\n\n"
+                f"👇 <b>Send USDT to the Pay ID above, then enter Binance Order ID:</b>\n"
+                f"Enter Order ID below:"
+            )
+        keyboard = get_deposit_trxid_prompt_keyboard(lang=lang, has_amount=False, back_target="dep_methods")
+        card_msg_id = None
+        card_chat_id = None
+        if isinstance(event, CallbackQuery):
+            q_msg = getattr(event, "message", None)
+            if q_msg:
+                card_msg_id = getattr(q_msg, "message_id", None)
+                q_chat = getattr(q_msg, "chat", None)
+                card_chat_id = getattr(q_chat, "id", None)
+            await respond(event, tx_prompt, keyboard)
+        else:
+            sent = await event.answer(tx_prompt, reply_markup=keyboard)
+            if sent:
+                card_msg_id = getattr(sent, "message_id", None)
+                card_chat = getattr(sent, "chat", None)
+                card_chat_id = getattr(card_chat, "id", None) if card_chat else (getattr(event.chat, "id", None) if getattr(event, "chat", None) else None)
+        if card_msg_id and card_chat_id:
+            remember_menu_message(card_chat_id, card_msg_id)
+            await state.update_data(card_msg_id=card_msg_id, card_chat_id=card_chat_id)
+        return
+
+    await state.set_state(DepositStates.method_selected)
 
     if shortfall_usd > 0:
-        if lines:
-            lines.append("")
-        if is_binance:
-            lines.append(f"Amount needed: <b>{shortfall_usd:.2f} USDT</b>")
-        else:
-            shortfall_bdt = math.ceil(shortfall_usd * rate)
-            lines.append(f"Amount needed: <b>{shortfall_bdt:g} ৳</b> (${shortfall_usd:.2f})")
-
-    if lines:
+        shortfall_bdt = math.ceil(shortfall_usd * rate)
+        lines.append(f"Amount needed: <b>{shortfall_bdt:g} ৳</b> (${shortfall_usd:.2f})")
         lines.append("")
 
     if custom_inst:
@@ -694,7 +732,7 @@ async def render_method_details(
             lines.append("👇 <b>Choose deposit amount or type the amount in chat:</b>")
     inst = "\n".join(lines)
     keyboard = get_deposit_quick_amount_keyboard(
-        is_binance=is_binance,
+        is_binance=False,
         lang=lang,
         back_target="dep_methods",
     )
@@ -726,6 +764,62 @@ async def handle_deposit_method_by_text(message: Message, state: FSMContext, ser
 
 
 # --- Instant payment via Payment Gateway ---
+async def _process_instant_amount_selection(
+    event: CallbackQuery | Message, state: FSMContext, services: Services, bdt_amount: float
+):
+    user_id = event.from_user.id if event.from_user else 0
+    lang = await services.users.get_language(user_id) if user_id else "en"
+    min_dep = 50.0
+    if hasattr(services.payments, "instant_options"):
+        instant = await services.payments.instant_options()
+        if instant:
+            min_dep = float(instant.get("min_amount") or 50.0)
+    if bdt_amount < min_dep:
+        err_msg = f"⚠️ Minimum deposit is {min_dep:g} ৳." if lang != "bn" else f"⚠️ সর্বনিম্ন ডিপোজিট {min_dep:g} ৳।"
+        kb = get_deposit_quick_amount_keyboard(is_binance=False, lang=lang, back_target="dep_methods")
+        if isinstance(event, CallbackQuery) and event.message:
+            with suppress(TelegramBadRequest):
+                await event.message.edit_text(err_msg, reply_markup=kb)
+        else:
+            await event.answer(err_msg, reply_markup=kb)
+        return
+
+    try:
+        usd_rate = float(await services.settings.number("usd_rate") or 125)
+        clean_amount = str(round(bdt_amount / max(usd_rate, 0.0001), 4))
+        invoice = await services.payments.create_invoice(user_id, clean_amount)
+    except Exception as exc:
+        logger.warning("Instant invoice creation error: %s", exc)
+        err_msg = (
+            "⚠️ দুঃখিত, ইনস্ট্যান্ট গেটওয়ে এই মুহূর্তে অনুপলব্ধ। অনুগ্রহ করে ম্যানুয়াল বিকাশ/নগদে ডিপোজিট করুন।"
+            if lang == "bn"
+            else f"⚠️ Instant gateway error: {escape(str(exc))}. Please use manual deposit."
+        )
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 ডিপোজিট মেথডস" if lang == "bn" else "🔙 Deposit Methods", callback_data="dep_methods")]
+        ])
+        if isinstance(event, CallbackQuery) and event.message:
+            with suppress(TelegramBadRequest):
+                await event.message.edit_text(err_msg, reply_markup=kb)
+        else:
+            await event.answer(err_msg, reply_markup=kb)
+        return
+
+    text, keyboard = await _render_instant_invoice(invoice, services, user_id)
+    await state.clear()
+    if isinstance(event, CallbackQuery) and event.message:
+        with suppress(TelegramBadRequest):
+            await event.message.edit_text(text, reply_markup=keyboard)
+        if invoice.get("reference") and hasattr(services.payments, "bind_telegram_message"):
+            await services.payments.bind_telegram_message(
+                invoice["reference"], event.message.chat.id, event.message.message_id
+            )
+    else:
+        sent = await event.answer(text, reply_markup=keyboard)
+        if sent and invoice.get("reference") and hasattr(services.payments, "bind_telegram_message"):
+            await services.payments.bind_telegram_message(invoice["reference"], sent.chat.id, sent.message_id)
+
+
 @router.callback_query(F.data == "dep_instant")
 async def ask_instant_amount(query: CallbackQuery, state: FSMContext, services: Services):
     instant = await services.payments.instant_options()
@@ -738,31 +832,43 @@ async def ask_instant_amount(query: CallbackQuery, state: FSMContext, services: 
     min_dep = float(instant.get("min_amount") or 1.0)
     lang = await services.users.get_language(query.from_user.id) if query.from_user else "en"
     await state.set_state(DepositStates.waiting_for_instant_amount)
+    await state.update_data(is_instant=True, min_deposit=min_dep)
     if query.message:
-        text = (
-            f"{ICON_LIGHTNING} <b>{escape(instant['label'])}</b>\n\n"
-            f"Minimum: <b>{min_dep:g} ৳</b>\n\n"
-            f"Enter deposit amount (in BDT):\n\n"
-            f"💡 <i>(e.g. 50 or 100)</i>"
+        card_msg_id = getattr(query.message, "message_id", None)
+        card_chat_id = getattr(query.message.chat, "id", None) if getattr(query.message, "chat", None) else None
+        if card_msg_id and card_chat_id:
+            remember_menu_message(card_chat_id, card_msg_id)
+            await state.update_data(card_msg_id=card_msg_id, card_chat_id=card_chat_id)
+        prompt_txt = (
+            "👇 <b>ডিপোজিট অ্যামাউন্ট চুজ করুন অথবা আপনি যত টাকা পাঠাতে চাচ্ছেন তা নিচে লিখুন:</b>"
+            if lang == "bn"
+            else "👇 <b>Choose deposit amount or type the amount in chat:</b>"
+        )
+        keyboard = get_deposit_quick_amount_keyboard(
+            is_binance=False,
+            lang=lang,
+            back_target="dep_methods",
         )
         with suppress(TelegramBadRequest):
             await query.message.edit_text(
-                text,
-                reply_markup=get_cancel_keyboard(lang=lang),
+                prompt_txt,
+                reply_markup=keyboard,
             )
 
 
 def _instant_keyboard(invoice: dict) -> InlineKeyboardMarkup:
     rows = []
+    pay_amount = float(invoice.get("pay_amount") or invoice.get("amount") or 0.0)
+    ref = invoice.get("reference") or invoice.get("id") or ""
     if invoice.get("payment_url"):
         rows.append(
-            [InlineKeyboardButton(text=f"Pay ৳{invoice['pay_amount']:.2f}", url=invoice["payment_url"])]
+            [InlineKeyboardButton(text=f"Pay ৳{pay_amount:.2f}", url=invoice["payment_url"])]
         )
     rows.append(
-        [InlineKeyboardButton(text="Payment Done", callback_data=f"inst_chk_{invoice['reference']}")]
+        [InlineKeyboardButton(text="Payment Done", callback_data=f"inst_chk_{ref}")]
     )
     rows.append(
-        [InlineKeyboardButton(text="Cancel Payment", callback_data=f"inst_can_{invoice['reference']}")]
+        [InlineKeyboardButton(text="Cancel Payment", callback_data=f"inst_can_{ref}")]
     )
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -789,17 +895,13 @@ async def create_instant_payment(message: Message, state: FSMContext, services: 
         return
     try:
         bdt_amount = float(parse_deposit_amount(raw_text))
-        usd_rate = float(await services.settings.number("usd_rate") or 125)
-        clean_amount = str(round(bdt_amount / max(usd_rate, 0.0001), 4))
-        invoice = await services.payments.create_invoice(message.from_user.id, clean_amount)
-    except ValueError as exc:
-        await message.answer(f"{ICON_WARNING} {escape(str(exc))}", reply_markup=get_cancel_keyboard())
+    except (ValueError, TypeError):
+        lang = await services.users.get_language(message.from_user.id) if message.from_user else "en"
+        kb = get_deposit_quick_amount_keyboard(is_binance=False, lang=lang, back_target="dep_methods")
+        err = "⚠️ <b>সঠিক অ্যামাউন্ট লিখুন বা নিচের বাটন চাপুন।</b>" if lang == "bn" else "⚠️ <b>Please enter a valid amount or select below.</b>"
+        await message.answer(err, reply_markup=kb)
         return
-    text, keyboard = await _render_instant_invoice(invoice, services, message.from_user.id)
-    await state.clear()
-    sent = await message.answer(text, reply_markup=keyboard)
-    if sent and invoice.get("reference"):
-        await services.payments.bind_telegram_message(invoice["reference"], sent.chat.id, sent.message_id)
+    await _process_instant_amount_selection(message, state, services, bdt_amount)
 
 
 @router.callback_query(F.data.startswith("inst_chk_"))
@@ -1018,6 +1120,21 @@ async def binance_help_order_id_handler(query: CallbackQuery, state: FSMContext,
 async def handle_deposit_quick_amount(query: CallbackQuery, state: FSMContext, services: Services):
     with suppress(TelegramBadRequest):
         await query.answer()
+
+    raw_val = query.data.removeprefix("dep_amt_")
+    try:
+        amount_num = float(raw_val)
+        if amount_num <= 0:
+            raise ValueError()
+    except (ValueError, TypeError):
+        with suppress(TelegramBadRequest):
+            await query.answer("Invalid amount.", show_alert=True)
+        return
+
+    current_state = await state.get_state()
+    if current_state == DepositStates.waiting_for_instant_amount.state:
+        await _process_instant_amount_selection(query, state, services, amount_num)
+        return
 
     data = await state.get_data()
     method_id = data.get("method_id", 0)
@@ -1524,7 +1641,6 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
                 await state.update_data(card_msg_id=sent_id, card_chat_id=chat_id)
 
 
-@router.message(DepositStates.method_selected)
 @router.message(DepositStates.waiting_for_txid)
 @router.message(DepositStates.waiting_for_binance_ref)
 async def process_deposit_txid(message: Message, state: FSMContext, services: Services):

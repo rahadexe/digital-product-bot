@@ -205,7 +205,8 @@ async def test_method_details_binance_hides_rate_and_empty_instructions():
     text = message.answer.call_args.args[0]
     assert "Instructions:" not in text
     assert "Exchange Rate:" not in text
-    assert "Choose deposit amount" in text
+    assert "enter Binance Order ID" in text
+    assert "12345678" in text
 
 
 @pytest.mark.asyncio
@@ -963,6 +964,121 @@ async def test_pending_trxid_rejected_immediately_without_asking_amount():
     assert bot.edit_message_text.called
     card_text = bot.edit_message_text.call_args.kwargs["text"]
     assert "pending verification" in card_text.lower()
+
+
+@pytest.mark.asyncio
+async def test_instant_deposit_quick_preset_creates_invoice():
+    from app.bot.handlers.deposit import handle_deposit_quick_amount
+    from aiogram.types import CallbackQuery
+
+    storage = MemoryStorage()
+    key = StorageKey(bot_id=123, chat_id=456, user_id=789)
+    state = FSMContext(storage=storage, key=key)
+    await state.set_state(DepositStates.waiting_for_instant_amount)
+    await state.update_data({"is_instant": True, "min_deposit": 50.0})
+
+    services = MagicMock()
+    services.users.get_language = AsyncMock(return_value="bn")
+    services.payments.instant_options = AsyncMock(return_value={"min_amount": 50.0})
+    services.settings.number = AsyncMock(return_value=125.0)
+    services.payments.create_invoice = AsyncMock(return_value={
+        "payment_url": "https://gateway.example.com/pay/inv123",
+        "reference": "inv123",
+        "amount": 0.8,
+    })
+    services.payments.bind_telegram_message = AsyncMock()
+
+    user = User(id=789, is_bot=False, first_name="Test")
+    chat = Chat(id=456, type="private")
+    msg = MagicMock(spec=Message)
+    msg.message_id = 999
+    msg.chat = chat
+    msg.edit_text = AsyncMock()
+
+    query = MagicMock(spec=CallbackQuery)
+    query.from_user = user
+    query.message = msg
+    query.data = "dep_amt_100"
+    query.answer = AsyncMock()
+
+    await handle_deposit_quick_amount(query, state, services)
+
+    assert await state.get_state() is None
+    services.payments.create_invoice.assert_awaited_once_with(789, "0.8")
+    assert msg.edit_text.called
+    invoice_text = msg.edit_text.call_args.args[0]
+    assert "inv123" in invoice_text or "পেমেন্ট" in invoice_text or "Invoice" in invoice_text
+
+
+@pytest.mark.asyncio
+async def test_instant_deposit_text_amount_bengali_digits():
+    from app.bot.handlers.deposit import create_instant_payment
+
+    storage = MemoryStorage()
+    key = StorageKey(bot_id=123, chat_id=456, user_id=789)
+    state = FSMContext(storage=storage, key=key)
+    await state.set_state(DepositStates.waiting_for_instant_amount)
+
+    services = MagicMock()
+    services.users.get_language = AsyncMock(return_value="bn")
+    services.payments.instant_options = AsyncMock(return_value={"min_amount": 50.0})
+    services.settings.number = AsyncMock(return_value=125.0)
+    services.payments.create_invoice = AsyncMock(return_value={
+        "payment_url": "https://gateway.example.com/pay/inv500",
+        "reference": "inv500",
+        "amount": 4.0,
+    })
+    services.payments.bind_telegram_message = AsyncMock()
+
+    user = User(id=789, is_bot=False, first_name="Test")
+    chat = Chat(id=456, type="private")
+    message = MagicMock(spec=Message)
+    message.from_user = user
+    message.chat = chat
+    message.text = "৫০০ ৳"
+    sent_msg = MagicMock(spec=Message)
+    sent_msg.chat = chat
+    sent_msg.message_id = 1001
+    message.answer = AsyncMock(return_value=sent_msg)
+
+    await create_instant_payment(message, state, services)
+
+    assert await state.get_state() is None
+    services.payments.create_invoice.assert_awaited_once_with(789, "4.0")
+    assert message.answer.called
+
+
+@pytest.mark.asyncio
+async def test_instant_deposit_gateway_error_shows_polite_bengali_fallback():
+    from app.bot.handlers.deposit import create_instant_payment
+
+    storage = MemoryStorage()
+    key = StorageKey(bot_id=123, chat_id=456, user_id=789)
+    state = FSMContext(storage=storage, key=key)
+    await state.set_state(DepositStates.waiting_for_instant_amount)
+
+    services = MagicMock()
+    services.users.get_language = AsyncMock(return_value="bn")
+    services.payments.instant_options = AsyncMock(return_value={"min_amount": 50.0})
+    services.settings.number = AsyncMock(return_value=125.0)
+    services.payments.create_invoice = AsyncMock(side_effect=RuntimeError("Gateway connection timeout"))
+
+    user = User(id=789, is_bot=False, first_name="Test")
+    chat = Chat(id=456, type="private")
+    message = MagicMock(spec=Message)
+    message.from_user = user
+    message.chat = chat
+    message.text = "100"
+    message.answer = AsyncMock()
+
+    await create_instant_payment(message, state, services)
+
+    assert message.answer.called
+    err_text = message.answer.call_args.args[0]
+    assert "ইনস্ট্যান্ট গেটওয়ে এই মুহূর্তে অনুপলব্ধ" in err_text
+    markup = message.answer.call_args.kwargs["reply_markup"]
+    assert any("dep_methods" in btn.callback_data for row in markup.inline_keyboard for btn in row)
+
 
 
 
