@@ -1415,6 +1415,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
     usd_amount = float(data.get("usd_amount") or amount_num)
 
     amount_summary = await _payment_summary_for(services, message.from_user.id, usd_amount, pay_amount, is_binance, rate=float(data.get("rate") or 125))
+    label = "Order ID" if is_binance else "TrxID"
 
     # 1. Format validation upfront
     is_valid_format, format_err = validate_trx_format(method_name, clean_tx, is_binance=is_binance)
@@ -1497,7 +1498,49 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         asyncio.create_task(_delete_user_message(message))
     await state.update_data(manual_txid=clean_tx)
     if data.get("reference_first") and not (data.get("pay_amount") or amount_num):
-        # 1. Check if an incoming statement was already captured via SMS forwarder or statement webhook
+        # 1. Binance Pay: attempt instant claim with Order ID directly
+        if is_binance:
+            try:
+                result = await services.binance.claim(message.from_user.id, method_id, clean_tx, expected_usdt=None)
+                if result.get("credited"):
+                    await services.deposits.clear_verification_failures(message.from_user.id)
+                    await state.clear()
+                    user = await services.users.get(message.from_user.id)
+                    user_balance = float(user.get("balance", 0.0)) if user else 0.0
+                    usd_rate = await services.settings.number("usd_rate")
+                    curr = await resolve_user_currency(services, message.from_user.id)
+                    balance_display = format_dual_price(user_balance, usd_rate=usd_rate, lang=lang, currency=curr, show_usd=False)
+                    received_coin = result.get("received_coin") or result.get("amount") or 0.0
+                    coin = result.get("coin", "USDT")
+                    credited_display = format_dual_price(result.get("amount", 0.0), usd_rate=usd_rate, lang=lang, currency=curr, show_usd=False)
+                    keyboard = get_deposit_status_keyboard(dep_id=0, status="approved", lang=lang)
+                    text = format_deposit_success_card(
+                        provider="Binance",
+                        amount_display=f"{received_coin:g} {escape(coin)}",
+                        balance_display=balance_display,
+                        txid=clean_tx,
+                        credited_display=credited_display,
+                        dep_id=result.get("deposit_id"),
+                        lang=lang,
+                    )
+                    status_target = target_msg_id if target_msg_id else None
+                    if status_target and getattr(message, "bot", None) and chat_id:
+                        try:
+                            await message.bot.edit_message_text(
+                                chat_id=chat_id,
+                                message_id=status_target,
+                                text=text,
+                                reply_markup=keyboard,
+                            )
+                            return
+                        except Exception:
+                            pass
+                    await message.answer(text, reply_markup=keyboard)
+                    return
+            except Exception as exc:
+                logger.debug("Binance Order ID probe error: %s", exc)
+
+        # 2. Check if an incoming statement was already captured via SMS forwarder or statement webhook
         received_tx = await _get_unused_statement(services, clean_tx)
         if received_tx:
             auto_amt = float(received_tx["amount"])
@@ -1505,7 +1548,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             await execute_deposit_submission(message, state, services)
             return
 
-        # 2. Try direct ZiniPay auto-verify with only TrxID if enabled
+        # 3. Try direct ZiniPay auto-verify with only TrxID if enabled
         try:
             if hasattr(services, "zinipay") and callable(getattr(services.zinipay, "is_enabled", None)):
                 is_on = services.zinipay.is_enabled()
@@ -1524,12 +1567,30 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         except Exception as exc:
             logger.debug("TrxID-only verify probe: %s", exc)
 
-        # 3. Safe fallback: prompt for the amount if statement has not arrived yet and TrxID-only lookup requires amount
+        # 4. Fallback: prompt for the amount if TrxID alone cannot be verified instantly
         await state.set_state(DepositStates.waiting_for_amount)
         unit = "USDT" if is_binance else "BDT"
         example = max(float(data.get("min_deposit") or 1.0), 1.0 if is_binance else 50.0)
         user_lang = await services.users.get_language(message.from_user.id) if message.from_user else "en"
         amount_prompt = f"Enter the amount you sent in {unit}, e.g. {example:g}."
+
+        type_display, _ = get_account_type_labels(account_type)
+        num_label = "Pay ID" if is_binance else "Number"
+        prompt_card = (
+            f"<b>{escape(method_name)}{f' {type_display}' if not is_binance else ''}</b>\n"
+            f"{num_label}: <code>{escape(account_info)}</code>\n"
+            f"{label}: <code>{escape(clean_tx)}</code>\n\n"
+            f"Enter the amount you sent in {unit}:"
+        )
+        if target_msg_id and getattr(message, "bot", None) and chat_id:
+            with suppress(Exception):
+                await message.bot.edit_message_text(
+                    chat_id=chat_id,
+                    message_id=target_msg_id,
+                    text=prompt_card,
+                    reply_markup=back_kb,
+                )
+
         await _send_input_prompt(
             message, state, amount_prompt,
             field="amount_prompt_id", placeholder=f"Amount in {unit}",
