@@ -670,8 +670,14 @@ async def render_method_details(
         f"{heading_prefix}<b>{escape(heading)}</b>",
         "",
         f"{destination_label}: <code>{escape(account_info)}</code>",
-        f"Minimum: <b>{min_dep:g} {min_unit}</b>",
     ]
+    if not is_binance:
+        min_usd = round(min_dep / rate, 2) if rate > 0 else min_dep
+        lines.append(f"Minimum: <b>{min_dep:g} {min_unit}</b> (~${min_usd:.2f})")
+        rate_label = "💱 এক্সচেঞ্জ রেট" if lang == "bn" else "💱 Rate"
+        lines.append(f"{rate_label}: <code>1 USD = {rate:g} ৳</code>")
+    else:
+        lines.append(f"Minimum: <b>{min_dep:g} {min_unit}</b>")
     if custom_inst:
         lines.append("")
         lines.append(escape(custom_inst))

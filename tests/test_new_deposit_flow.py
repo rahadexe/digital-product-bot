@@ -156,7 +156,7 @@ async def test_render_method_details_flow():
     assert "bKash (Send Money)" in text
     assert "01700000000" in text
     assert "Minimum: <b>50 ৳</b>" in text
-    assert "Rate: 1 USD = 125 ৳" not in text
+    assert "1 USD = 125 ৳" in text
     assert "Send Money to this personal number" in text
 
     kb = call[1]["reply_markup"]
@@ -501,7 +501,7 @@ async def test_exchange_rate_and_dollar_conversion_flow():
     assert "bKash (Send Money)" in screen1_text
     assert "Number: <code>01700000000</code>" in screen1_text
     assert "Minimum: <b>50 ৳</b>" in screen1_text
-    assert "Rate: 1 USD = 125 ৳" not in screen1_text
+    assert "1 USD = 125 ৳" in screen1_text
     assert "Select deposit amount" in screen1_text
 
     # Screen 2: User enters 500
