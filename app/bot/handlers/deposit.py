@@ -66,6 +66,47 @@ MAX_VERIFY_ATTEMPTS = 3
 VERIFY_COOLDOWN_SECONDS = 600  # 10 minutes lockout after 3 failed attempts
 
 
+def validate_trx_format(method_name: str, clean_tx: str, is_binance: bool = False) -> tuple[bool, str]:
+    """Validate TrxID format according to provider rules.
+    Returns (is_valid, error_description).
+    """
+    clean_tx = (clean_tx or "").strip().upper()
+    if not clean_tx:
+        return False, "Transaction ID cannot be empty."
+    if " " in clean_tx:
+        return False, "Transaction ID cannot contain spaces."
+
+    m_lower = (method_name or "").lower()
+    if is_binance or "binance" in m_lower:
+        if not re.fullmatch(r"^[A-Z0-9_\-]{6,64}$", clean_tx):
+            return False, "Binance Order ID / Pay ID must be 6-64 alphanumeric characters."
+        return True, ""
+
+    if "bkash" in m_lower:
+        if not re.fullmatch(r"^[A-Z0-9]{8,12}$", clean_tx):
+            return False, "bKash Transaction ID must be 8-12 characters (e.g. BLA7X8Y9Z0)."
+        return True, ""
+
+    if "nagad" in m_lower:
+        if not re.fullmatch(r"^[A-Z0-9]{8,10}$", clean_tx):
+            return False, "Nagad Transaction ID must be 8-10 characters (e.g. 72A9B8C1)."
+        return True, ""
+
+    if "rocket" in m_lower:
+        if not re.fullmatch(r"^[A-Z0-9]{8,12}$", clean_tx):
+            return False, "Rocket Transaction ID must be 8-12 characters."
+        return True, ""
+
+    if "upay" in m_lower:
+        if not re.fullmatch(r"^[A-Z0-9]{8,12}$", clean_tx):
+            return False, "Upay Transaction ID must be 8-12 characters."
+        return True, ""
+
+    if not re.fullmatch(r"^[A-Z0-9_\-]{6,64}$", clean_tx):
+        return False, "Invalid Transaction ID format."
+    return True, ""
+
+
 async def _delete_user_message(message: Message) -> None:
     """Quietly delete user input message in private chat to maintain a single clean card."""
     chat = getattr(message, "chat", None)
@@ -80,14 +121,30 @@ async def _send_input_prompt(
     """Replace only this step's previous prompt; never delete payment details."""
     data = await state.get_data()
     previous_id = data.get(field)
-    sent = await message.answer(
-        text, reply_markup=ForceReply(force_reply=True, input_field_placeholder=placeholder),
-    )
-    sent_id = getattr(sent, "message_id", None)
-    if isinstance(sent_id, int):
-        await state.update_data({field: sent_id})
     chat_id = getattr(getattr(message, "chat", None), "id", None)
     bot = getattr(message, "bot", None)
+
+    sent = None
+    try:
+        sent = await message.answer(
+            text, reply_markup=ForceReply(force_reply=True, input_field_placeholder=placeholder),
+        )
+    except Exception as exc:
+        logger.debug("message.answer failed in _send_input_prompt (%s), falling back to bot.send_message", exc)
+        if bot and chat_id:
+            try:
+                sent = await bot.send_message(
+                    chat_id=chat_id,
+                    text=text,
+                    reply_markup=ForceReply(force_reply=True, input_field_placeholder=placeholder),
+                )
+            except Exception as send_err:
+                logger.warning("bot.send_message also failed in _send_input_prompt: %s", send_err)
+
+    sent_id = getattr(sent, "message_id", None) if sent else None
+    if isinstance(sent_id, int):
+        await state.update_data({field: sent_id})
+
     if (
         bot and chat_id and isinstance(sent_id, int) and isinstance(previous_id, int) and previous_id != sent_id
         and previous_id != data.get("card_msg_id")
@@ -101,22 +158,40 @@ async def _retry_payment_input(
 ) -> None:
     """Keep the valid field and route the next reply to the field that needs correction."""
     data = await state.get_data()
+    method_name = data.get("method_name", "Payment")
     is_binance = (
-        data.get("is_binance") or "binance" in data.get("method_name", "").lower()
+        data.get("is_binance") or "binance" in method_name.lower()
         or data.get("auto_verify") in ("binance", "binance_pay")
     )
+    clean_tx = data.get("manual_txid") or ""
+    amt = data.get("pay_amount") or data.get("manual_amount") or 0.0
+    amt_display = f"{amt:g} {'USDT' if is_binance else '৳'}"
+
     if amount:
         await state.update_data(manual_amount=None, pay_amount=None, usd_amount=None, binance_usdt=None)
         await state.set_state(DepositStates.waiting_for_amount)
         field, placeholder = "amount_prompt_id", "Amount in USDT" if is_binance else "Amount in BDT"
+        card_text = (
+            f"💳 <b>Deposit Verification Notice</b>\n\n"
+            f"Method: <b>{escape(method_name)}</b>\n"
+            f"TrxID: <code>{escape(clean_tx)}</code>\n\n"
+            f"⚠️ <b>{escape(text)}</b>"
+        )
     else:
         await state.update_data(manual_txid=None)
         await state.set_state(
             DepositStates.waiting_for_binance_ref if is_binance else DepositStates.waiting_for_txid,
         )
         field, placeholder = "reference_prompt_id", "Order ID" if is_binance else "Transaction ID"
+        card_text = (
+            f"💳 <b>Deposit Verification Notice</b>\n\n"
+            f"Method: <b>{escape(method_name)}</b>\n"
+            + (f"Amount: <b>{amt_display}</b>\n" if amt > 0 else "")
+            + f"\n⚠️ <b>{escape(text)}</b>"
+        )
+
     await _safe_edit_or_answer(
-        status_msg, message, "Payment not verified.",
+        status_msg, message, card_text,
         reply_markup=get_deposit_trxid_prompt_keyboard(),
     )
     await _send_input_prompt(message, state, text, field=field, placeholder=placeholder)
@@ -1437,7 +1512,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
     lang = await services.users.get_language(message.from_user.id) if message.from_user else "en"
 
     clean_tx = re.sub(r"^(uid|order\s*id|order|txid|trxid|trx\s*id|ref)[\s:#=]*", "", raw_text, flags=re.IGNORECASE).strip()
-    clean_tx = clean_tx.strip("<>#[](){}\"':; \t\r\n")
+    clean_tx = clean_tx.strip("<>#[](){}\"':; \t\r\n").upper()
     if " " in clean_tx and not is_binance:
         sms_tx_match = re.search(
             r"\b(?:trx\s*id|tx\s*n\s*id|transaction\s*id)[\s:#=]*([A-Za-z0-9]{5,30})\b",
@@ -1445,7 +1520,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             re.IGNORECASE,
         )
         if sms_tx_match:
-            clean_tx = sms_tx_match.group(1).strip()
+            clean_tx = sms_tx_match.group(1).strip().upper()
 
     back_kb = get_deposit_trxid_prompt_keyboard(lang=lang)
 
@@ -1459,53 +1534,46 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
 
     amount_summary = await _payment_summary_for(services, message.from_user.id, usd_amount, pay_amount, is_binance, rate=float(data.get("rate") or 125))
 
-    if not TRANSACTION_ID_REGEX.fullmatch(clean_tx) or len(clean_tx) < 5 or " " in clean_tx:
-        if data.get("reference_first"):
-            label = "Order ID" if is_binance else "Transaction ID"
-            await _send_input_prompt(
-                message, state, f"Enter a valid {label} from your receipt.",
-                field="reference_prompt_id", placeholder=label,
-            )
-            return
-        err_msg = f"সঠিক {'Order ID' if is_binance else 'TrxID'} দিন:" if lang == "bn" else f"Enter valid {'Order ID' if is_binance else 'TrxID'}:"
-        if is_binance:
-            if lang == "bn":
-                tx_err_card = (
-                    f"<b>{escape(method_name)}</b>\n"
-                    f"Pay ID: <code>{escape(account_info)}</code>\n"
-                    f"{amount_summary}\n\n"
-                    f"⚠️ <b>{err_msg}</b>"
-                )
-            else:
-                tx_err_card = (
-                    f"<b>{escape(method_name)}</b>\n"
-                    f"Pay ID: <code>{escape(account_info)}</code>\n"
-                    f"{amount_summary}\n\n"
-                    f"⚠️ <b>{err_msg}</b>"
-                )
+    # 1. Format validation upfront
+    is_valid_format, format_err = validate_trx_format(method_name, clean_tx, is_binance=is_binance)
+
+    # 2. Duplicate / already used check upfront
+    existing_dep = None
+    if is_valid_format:
+        find_fn = getattr(getattr(services, "deposits", None), "find_by_transaction", None)
+        if callable(find_fn):
+            try:
+                res = find_fn(clean_tx)
+                if inspect.isawaitable(res):
+                    res = await res
+                if isinstance(res, dict) and bool(res):
+                    existing_dep = res
+            except Exception as exc:
+                logger.warning("Error checking duplicate transaction %s: %s", clean_tx, exc)
+
+    if not is_valid_format or existing_dep:
+        if not is_valid_format:
+            err_detail = format_err
         else:
-            type_display, _ = get_account_type_labels(account_type)
-            if lang == "bn":
-                at_lower = (account_type or "personal").lower()
-                if at_lower == "agent":
-                    type_display = "এজেন্ট (Cash Out)"
-                elif at_lower == "merchant":
-                    type_display = "মার্চেন্ট (Payment)"
-                else:
-                    type_display = "পার্সোনাল (Send Money)"
-                tx_err_card = (
-                    f"<b>{escape(method_name)} {type_display}</b>\n"
-                    f"নম্বর: <code>{escape(account_info)}</code>\n"
-                    f"{amount_summary}\n\n"
-                    f"⚠️ <b>{err_msg}</b>"
-                )
+            dep_st = (existing_dep.get("status") or "").lower()
+            if dep_st in ("approved", "completed"):
+                err_detail = "This Transaction ID has already been used and credited. Please enter a new Transaction ID."
+            elif dep_st == "pending":
+                err_detail = "This Transaction ID is already pending verification. Please wait or check your Deposit History."
             else:
-                tx_err_card = (
-                    f"<b>{escape(method_name)} {type_display}</b>\n"
-                    f"Number: <code>{escape(account_info)}</code>\n"
-                    f"{amount_summary}\n\n"
-                    f"⚠️ <b>{err_msg}</b>"
-                )
+                err_detail = f"This Transaction ID was previously {dep_st}. Please enter a new Transaction ID."
+
+        label = "Order ID" if is_binance else "TrxID"
+        err_title = f"Enter valid {label}:"
+        type_display, _ = get_account_type_labels(account_type)
+        num_label = "Pay ID" if is_binance else "Number"
+
+        tx_err_card = (
+            f"<b>{escape(method_name)}{f' {type_display}' if not is_binance else ''}</b>\n"
+            f"{num_label}: <code>{escape(account_info)}</code>\n"
+            f"{amount_summary}\n\n"
+            f"⚠️ <b>{err_title}</b> {escape(err_detail)}"
+        )
 
         edited = False
         if target_msg_id and getattr(message, "bot", None) and chat_id:
@@ -1524,6 +1592,13 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             await message.answer(
                 tx_err_card,
                 reply_markup=back_kb,
+            )
+
+        if data.get("reference_first"):
+            prompt_label = "Order ID" if is_binance else "TrxID"
+            await _send_input_prompt(
+                message, state, f"❌ {err_detail}\nEnter valid {prompt_label}:",
+                field="reference_prompt_id", placeholder=prompt_label,
             )
         return
 
@@ -1650,14 +1725,31 @@ async def _claim_statement(services: Services, clean_tx: str, user_id: int, dep_
 
 
 async def _safe_edit_or_answer(status_msg: Message, user_msg: Message, text: str, reply_markup=None):
-    try:
-        await status_msg.edit_text(text, reply_markup=reply_markup)
-    except TelegramBadRequest as exc:
-        if "message is not modified" in str(exc).lower():
+    if status_msg and hasattr(status_msg, "edit_text"):
+        try:
+            await status_msg.edit_text(text, reply_markup=reply_markup)
             return
-        await user_msg.answer(text, reply_markup=reply_markup)
-    except Exception:
-        await user_msg.answer(text, reply_markup=reply_markup)
+        except TelegramBadRequest as exc:
+            if "message is not modified" in str(exc).lower():
+                return
+        except Exception as exc:
+            logger.debug("_safe_edit_or_answer edit_text failed: %s", exc)
+
+    if user_msg and hasattr(user_msg, "answer"):
+        try:
+            await user_msg.answer(text, reply_markup=reply_markup)
+            return
+        except Exception as exc:
+            logger.debug("_safe_edit_or_answer user_msg.answer failed: %s", exc)
+
+    bot = getattr(user_msg, "bot", None) or getattr(status_msg, "bot", None)
+    chat = getattr(user_msg, "chat", None) or getattr(status_msg, "chat", None)
+    chat_id = getattr(chat, "id", None)
+    if bot and chat_id:
+        try:
+            await bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup)
+        except Exception as exc:
+            logger.warning("_safe_edit_or_answer bot.send_message failed: %s", exc)
 
 
 async def execute_deposit_submission(
@@ -1873,8 +1965,7 @@ async def execute_deposit_submission(
                 await _safe_edit_or_answer(status_msg, user_msg, success_txt, reply_markup=keyboard)
                 return
         except DuplicateTransactionError:
-            lang = await services.users.get_language(user_id)
-            text = "❌ এই TrxID আগেই ব্যবহার করা হয়েছে।" if lang == "bn" else "❌ This TrxID has already been used. Send a new one."
+            text = "❌ This TrxID has already been used. Please enter a new Transaction ID."
             await _retry_payment_input(status_msg, user_msg, state, text)
             return
         except Exception as exc:
@@ -1909,8 +2000,7 @@ async def execute_deposit_submission(
                 on_sync_wait=on_sync_wait,
             )
         except DuplicateTransactionError:
-            lang = await services.users.get_language(user_id)
-            text = "❌ এই TrxID আগেই ব্যবহার করা হয়েছে।" if lang == "bn" else "❌ This TrxID has already been used. Send a new one."
+            text = "❌ This TrxID has already been used. Please enter a new Transaction ID."
             await _retry_payment_input(status_msg, user_msg, state, text)
             return
         except PendingDepositError:
@@ -2017,6 +2107,8 @@ async def execute_deposit_submission(
             lang = await services.users.get_language(user_id)
             keyboard = get_deposit_status_keyboard(dep_id=dep_id, status="pending", can_fix_trx=True, lang=lang)
             detail = res.get("detail") or res.get("error_msg")
+            if detail and any(x in str(detail) for x in ("HTTP", "401", "unavailable", "configured")):
+                detail = "Submitted for manual admin review."
             text = format_deposit_status_card(
                 dep_id=dep_id,
                 method_name=method_name,
@@ -2056,6 +2148,7 @@ async def execute_deposit_submission(
                         amount_str=amt_display,
                         txid=clean_tx,
                         status="pending",
+                        error_note="Submitted for manual admin review.",
                         lang=lang,
                     )
                     await _safe_edit_or_answer(status_msg, user_msg, text, reply_markup=keyboard)
@@ -2074,14 +2167,14 @@ async def execute_deposit_submission(
             if res["error"] == "amount_mismatch":
                 await _retry_payment_input(
                     status_msg, user_msg, state,
-                    "Amount does not match the receipt. Enter the amount you sent in BDT.",
+                    "Amount does not match the payment receipt. Please enter the amount you sent in BDT.",
                     amount=True,
                 )
             else:
                 error_msg = (
-                    "This TrxID has already been used. Enter a new Transaction ID."
+                    "This Transaction ID has already been used. Please enter a new Transaction ID."
                     if res["error"] == "already_used" else
-                    f"Invalid TrxID for {escape(method_name)}. Enter the Transaction ID from your receipt."
+                    f"Invalid Transaction ID for {escape(method_name)}. Please check your receipt and enter the correct Transaction ID."
                 )
                 await _retry_payment_input(status_msg, user_msg, state, error_msg)
             return
@@ -2097,8 +2190,7 @@ async def execute_deposit_submission(
             quoted_rate=rate,
         )
     except DuplicateTransactionError:
-        lang = await services.users.get_language(user_id)
-        text = "❌ এই TrxID আগেই ব্যবহার করা হয়েছে।" if lang == "bn" else "❌ This TrxID has already been used."
+        text = "This Transaction ID has already been used. Please enter a new Transaction ID."
         await _retry_payment_input(status_msg, user_msg, state, text)
         return
     except PendingDepositError:
@@ -2120,13 +2212,15 @@ async def execute_deposit_submission(
     except Exception as exc:
         logger.exception("execute_deposit_submission error: %s", exc)
         await state.clear()
-        lang = await services.users.get_language(user_id)
         err_msg = (
-            "❌ <b>পেমেন্ট প্রসেস করার সময় একটি ত্রুটি হয়েছে।</b>\nঅনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন বা সাপোর্টে জানান।"
-            if lang == "bn"
-            else "❌ <b>An error occurred while processing your payment.</b>\nPlease try again shortly or contact support."
+            "❌ <b>An error occurred while processing your payment.</b>\n"
+            "Please try again shortly or contact support."
         )
-        await _safe_edit_or_answer(status_msg, user_msg, err_msg)
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="◀️ Back to Balance", callback_data="open_deposit")],
+            [InlineKeyboardButton(text="💬 Contact Support", callback_data="open_support")],
+        ])
+        await _safe_edit_or_answer(status_msg, user_msg, err_msg, reply_markup=kb)
         return
 
     await state.clear()

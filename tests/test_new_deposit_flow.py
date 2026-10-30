@@ -783,3 +783,185 @@ async def test_process_deposit_txid_invalid_keeps_full_card():
     assert "Enter valid TrxID:" in text
 
 
+@pytest.mark.asyncio
+async def test_bkash_wrong_trxid_format_rejected_immediately_without_asking_amount():
+    """Invalid TrxID format (e.g. 5 chars instead of 8-12) must be rejected immediately on waiting_for_txid without asking for amount."""
+    storage = MemoryStorage()
+    key = StorageKey(bot_id=123, chat_id=456, user_id=789)
+    state = FSMContext(storage=storage, key=key)
+    await state.set_state(DepositStates.waiting_for_txid)
+    await state.set_data({
+        "method_id": 1,
+        "method_name": "bKash",
+        "account_info": "01700000000",
+        "account_type": "personal",
+        "min_deposit": 50.0,
+        "rate": 125.0,
+        "reference_first": True,
+        "card_msg_id": 555,
+        "card_chat_id": 456,
+    })
+
+    services = MagicMock()
+    services.users.get_language = AsyncMock(return_value="en")
+    services.settings.number = AsyncMock(return_value=125.0)
+    services.deposits.find_by_transaction = AsyncMock(return_value=None)
+
+    bot = MagicMock()
+    bot.edit_message_text = AsyncMock()
+
+    user = User(id=789, is_bot=False, first_name="Test")
+    chat = Chat(id=456, type="private")
+    message = MagicMock(spec=Message)
+    message.from_user = user
+    message.chat = chat
+    message.bot = bot
+    message.text = "12345"  # 5 chars, invalid for bKash (requires 8-12)
+    message.answer = AsyncMock()
+
+    await process_deposit_txid(message, state, services)
+
+    # Must stay at waiting_for_txid, NEVER advance to waiting_for_amount
+    assert await state.get_state() == DepositStates.waiting_for_txid.state
+    # Card was updated with clear error
+    assert bot.edit_message_text.called
+    card_text = bot.edit_message_text.call_args.kwargs["text"]
+    assert "bKash Transaction ID must be 8-12 characters" in card_text
+
+
+@pytest.mark.asyncio
+async def test_nagad_wrong_trxid_format_rejected_immediately_without_asking_amount():
+    """Invalid Nagad TrxID format (5 chars instead of 8-10) must be rejected immediately."""
+    storage = MemoryStorage()
+    key = StorageKey(bot_id=123, chat_id=456, user_id=789)
+    state = FSMContext(storage=storage, key=key)
+    await state.set_state(DepositStates.waiting_for_txid)
+    await state.set_data({
+        "method_id": 2,
+        "method_name": "Nagad",
+        "account_info": "01800000000",
+        "account_type": "personal",
+        "min_deposit": 50.0,
+        "rate": 125.0,
+        "reference_first": True,
+        "card_msg_id": 555,
+        "card_chat_id": 456,
+    })
+
+    services = MagicMock()
+    services.users.get_language = AsyncMock(return_value="en")
+    services.settings.number = AsyncMock(return_value=125.0)
+    services.deposits.find_by_transaction = AsyncMock(return_value=None)
+
+    bot = MagicMock()
+    bot.edit_message_text = AsyncMock()
+
+    user = User(id=789, is_bot=False, first_name="Test")
+    chat = Chat(id=456, type="private")
+    message = MagicMock(spec=Message)
+    message.from_user = user
+    message.chat = chat
+    message.bot = bot
+    message.text = "12345"  # 5 chars, invalid for Nagad (requires 8-10)
+    message.answer = AsyncMock()
+
+    await process_deposit_txid(message, state, services)
+
+    assert await state.get_state() == DepositStates.waiting_for_txid.state
+    assert bot.edit_message_text.called
+    card_text = bot.edit_message_text.call_args.kwargs["text"]
+    assert "Nagad Transaction ID must be 8-10 characters" in card_text
+
+
+@pytest.mark.asyncio
+async def test_already_used_trxid_rejected_immediately_without_asking_amount():
+    """Already used TrxID must be rejected upfront without advancing to amount prompt."""
+    storage = MemoryStorage()
+    key = StorageKey(bot_id=123, chat_id=456, user_id=789)
+    state = FSMContext(storage=storage, key=key)
+    await state.set_state(DepositStates.waiting_for_txid)
+    await state.set_data({
+        "method_id": 1,
+        "method_name": "bKash",
+        "account_info": "01700000000",
+        "account_type": "personal",
+        "min_deposit": 50.0,
+        "rate": 125.0,
+        "reference_first": True,
+        "card_msg_id": 555,
+        "card_chat_id": 456,
+    })
+
+    services = MagicMock()
+    services.users.get_language = AsyncMock(return_value="en")
+    services.settings.number = AsyncMock(return_value=125.0)
+    # Simulate TrxID already in database as approved
+    services.deposits.find_by_transaction = AsyncMock(return_value={"id": 88, "status": "approved", "amount": 10.0})
+
+    bot = MagicMock()
+    bot.edit_message_text = AsyncMock()
+
+    user = User(id=789, is_bot=False, first_name="Test")
+    chat = Chat(id=456, type="private")
+    message = MagicMock(spec=Message)
+    message.from_user = user
+    message.chat = chat
+    message.bot = bot
+    message.text = "BLA7X8Y9Z0"  # Valid 10-char bKash TrxID
+    message.answer = AsyncMock()
+
+    await process_deposit_txid(message, state, services)
+
+    # Must stay at waiting_for_txid, NEVER ask for amount
+    assert await state.get_state() == DepositStates.waiting_for_txid.state
+    assert bot.edit_message_text.called
+    card_text = bot.edit_message_text.call_args.kwargs["text"]
+    assert "already been used" in card_text.lower()
+
+
+@pytest.mark.asyncio
+async def test_pending_trxid_rejected_immediately_without_asking_amount():
+    """TrxID currently pending in database must be rejected upfront without asking for amount."""
+    storage = MemoryStorage()
+    key = StorageKey(bot_id=123, chat_id=456, user_id=789)
+    state = FSMContext(storage=storage, key=key)
+    await state.set_state(DepositStates.waiting_for_txid)
+    await state.set_data({
+        "method_id": 1,
+        "method_name": "bKash",
+        "account_info": "01700000000",
+        "account_type": "personal",
+        "min_deposit": 50.0,
+        "rate": 125.0,
+        "reference_first": True,
+        "card_msg_id": 555,
+        "card_chat_id": 456,
+    })
+
+    services = MagicMock()
+    services.users.get_language = AsyncMock(return_value="en")
+    services.settings.number = AsyncMock(return_value=125.0)
+    # Simulate TrxID already in database as pending
+    services.deposits.find_by_transaction = AsyncMock(return_value={"id": 89, "status": "pending", "amount": 5.0})
+
+    bot = MagicMock()
+    bot.edit_message_text = AsyncMock()
+
+    user = User(id=789, is_bot=False, first_name="Test")
+    chat = Chat(id=456, type="private")
+    message = MagicMock(spec=Message)
+    message.from_user = user
+    message.chat = chat
+    message.bot = bot
+    message.text = "BLA7X8Y9Z0"
+    message.answer = AsyncMock()
+
+    await process_deposit_txid(message, state, services)
+
+    assert await state.get_state() == DepositStates.waiting_for_txid.state
+    assert bot.edit_message_text.called
+    card_text = bot.edit_message_text.call_args.kwargs["text"]
+    assert "pending verification" in card_text.lower()
+
+
+
