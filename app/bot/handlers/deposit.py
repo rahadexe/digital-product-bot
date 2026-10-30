@@ -674,13 +674,10 @@ async def render_method_details(
     if not is_binance:
         min_usd = round(min_dep / rate, 2) if rate > 0 else min_dep
         lines.append(f"Minimum: <b>{min_dep:g} {min_unit}</b> (~${min_usd:.2f})")
-        rate_label = "💱 এক্সচেঞ্জ রেট" if lang == "bn" else "💱 Rate"
+        rate_label = "💱 এক্সচেঞ্জ রেট" if (lang == "bn" or not is_binance) else "💱 Rate"
         lines.append(f"{rate_label}: <code>1 USD = {rate:g} ৳</code>")
     else:
         lines.append(f"Minimum: <b>{min_dep:g} {min_unit}</b>")
-    if custom_inst:
-        lines.append("")
-        lines.append(escape(custom_inst))
     if shortfall_usd > 0:
         lines.append("")
         if is_binance:
@@ -689,13 +686,14 @@ async def render_method_details(
             shortfall_bdt = math.ceil(shortfall_usd * rate)
             lines.append(f"Amount needed: <b>{shortfall_bdt:g} ৳</b> (${shortfall_usd:.2f})")
 
-    prompt_title = "💰 <b>আপনি কত টাকা অ্যাড করতে চান নিচে সিলেক্ট করুন:</b>" if lang == "bn" else "💰 <b>Select deposit amount:</b>"
-    prompt_sub = "<i>(অথবা চ্যাটে টাকার পরিমাণ লিখুন)</i>" if lang == "bn" else "<i>(or type the amount in chat)</i>"
-    lines.extend([
-        "",
-        prompt_title,
-        prompt_sub,
-    ])
+    lines.append("")
+    if custom_inst:
+        lines.append(escape(custom_inst))
+    else:
+        if not is_binance or lang == "bn":
+            lines.append("👇 <b>ডিপোজিট অ্যামাউন্ট চুজ করুন অথবা আপনি যত টাকা পাঠাতে চাচ্ছেন তা নিচে লিখুন:</b>")
+        else:
+            lines.append("👇 <b>Choose deposit amount or type the amount in chat:</b>")
     inst = "\n".join(lines)
     keyboard = get_deposit_quick_amount_keyboard(
         is_binance=is_binance,

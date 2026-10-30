@@ -502,7 +502,7 @@ async def test_exchange_rate_and_dollar_conversion_flow():
     assert "Number: <code>01700000000</code>" in screen1_text
     assert "Minimum: <b>50 ৳</b>" in screen1_text
     assert "1 USD = 125 ৳" in screen1_text
-    assert "Select deposit amount" in screen1_text
+    assert "ডিপোজিট অ্যামাউন্ট চুজ করুন" in screen1_text
 
     # Screen 2: User enters 500
     message.text = "500"
