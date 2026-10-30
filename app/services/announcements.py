@@ -110,7 +110,6 @@ class AnnouncementService:
         bot_uname = await self.notifier.bot_username()
         ch_kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🛒 Buy Now", url=f"https://t.me/{bot_uname}?start=prod_{product['id']}")],
-            [InlineKeyboardButton(text="🛍️ Open Store", url=f"https://t.me/{bot_uname}?start=shop")],
         ])
         for ch in channels:
             deliv = await self.notifier.send(
@@ -273,19 +272,10 @@ class AnnouncementService:
             "Status: Delivered ✅</blockquote>"
         )
         bot_uname = await self.notifier.bot_username()
-        buttons = []
-        if product_id:
-            buttons.append([InlineKeyboardButton(text="🛒 Buy This Item", url=f"https://t.me/{bot_uname}?start=prod_{product_id}")])
-            buttons.append([
-                InlineKeyboardButton(text="🛍️ Open Store", url=f"https://t.me/{bot_uname}?start=shop"),
-                InlineKeyboardButton(text="💳 Add Balance", url=f"https://t.me/{bot_uname}?start=wallet"),
-            ])
-        else:
-            buttons.append([
-                InlineKeyboardButton(text="🛍️ Open Store", url=f"https://t.me/{bot_uname}?start=shop"),
-                InlineKeyboardButton(text="💳 Add Balance", url=f"https://t.me/{bot_uname}?start=wallet"),
-            ])
-        kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+        buy_url = f"https://t.me/{bot_uname}?start=prod_{product_id}" if product_id else f"https://t.me/{bot_uname}?start=shop"
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🛒 Buy This Item", url=buy_url)]
+        ])
         for ch in channels:
             await self.notifier.send(ch, text, keyboard=kb)
         return True
@@ -312,8 +302,7 @@ class AnnouncementService:
         )
         bot_uname = await self.notifier.bot_username()
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="👥 Invite & Earn", url=f"https://t.me/{bot_uname}?start=ref")],
-            [InlineKeyboardButton(text="🛍️ Open Store", url=f"https://t.me/{bot_uname}?start=shop")],
+            [InlineKeyboardButton(text="👥 Invite & Earn", url=f"https://t.me/{bot_uname}?start=ref")]
         ])
         for ch in channels:
             await self.notifier.send(ch, text, keyboard=kb)
@@ -343,8 +332,7 @@ class AnnouncementService:
         )
         bot_uname = await self.notifier.bot_username()
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="💳 Add Balance", url=f"https://t.me/{bot_uname}?start=wallet")],
-            [InlineKeyboardButton(text="🛍️ Open Store", url=f"https://t.me/{bot_uname}?start=shop")],
+            [InlineKeyboardButton(text="💳 Add Balance", url=f"https://t.me/{bot_uname}?start=wallet")]
         ])
         for ch in channels:
             await self.notifier.send(ch, text, keyboard=kb)
@@ -371,8 +359,7 @@ class AnnouncementService:
         )
         bot_uname = await self.notifier.bot_username()
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="💎 Reseller Program", url=f"https://t.me/{bot_uname}?start=reseller")],
-            [InlineKeyboardButton(text="🛍️ Open Store", url=f"https://t.me/{bot_uname}?start=shop")],
+            [InlineKeyboardButton(text="💎 Reseller Program", url=f"https://t.me/{bot_uname}?start=reseller")]
         ])
         for ch in channels:
             await self.notifier.send(ch, text, keyboard=kb)

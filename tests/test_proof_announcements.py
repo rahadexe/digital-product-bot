@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 from app.services.announcements import AnnouncementService, format_customer_short_name
 
@@ -48,12 +48,10 @@ class TestProofAnnouncements(unittest.IsolatedAsyncioTestCase):
         self.assertIn("250 ৳", text)
         self.assertIn("Status: Delivered ✅", text)
 
-        # Check buttons: 3 buttons total
-        self.assertEqual(len(kb.inline_keyboard), 2)
+        # Check single button
+        self.assertEqual(len(kb.inline_keyboard), 1)
         self.assertEqual(kb.inline_keyboard[0][0].text, "🛒 Buy This Item")
         self.assertIn("prod_42", kb.inline_keyboard[0][0].url)
-        self.assertEqual(kb.inline_keyboard[1][0].text, "🛍️ Open Store")
-        self.assertEqual(kb.inline_keyboard[1][1].text, "💳 Add Balance")
 
     async def test_broadcast_order_proof_multiple_quantity(self):
         settings = MagicMock()
@@ -75,9 +73,12 @@ class TestProofAnnouncements(unittest.IsolatedAsyncioTestCase):
         )
         self.assertTrue(res)
         text = notifier.send.call_args[0][1]
+        kb = notifier.send.call_args[1].get("keyboard")
         self.assertIn("Spotify 3 Months (x3)", text)
         self.assertIn("Alice", text)
         self.assertIn("Status: Delivered ✅", text)
+        self.assertEqual(len(kb.inline_keyboard), 1)
+        self.assertEqual(kb.inline_keyboard[0][0].text, "🛒 Buy This Item")
 
     async def test_broadcast_deposit_proof(self):
         settings = MagicMock()
@@ -105,9 +106,9 @@ class TestProofAnnouncements(unittest.IsolatedAsyncioTestCase):
         self.assertIn("1200.00 ৳", text)
         self.assertIn("Status: Balance Added ✅", text)
 
+        self.assertEqual(len(kb.inline_keyboard), 1)
         self.assertEqual(kb.inline_keyboard[0][0].text, "💳 Add Balance")
         self.assertIn("wallet", kb.inline_keyboard[0][0].url)
-        self.assertEqual(kb.inline_keyboard[1][0].text, "🛍️ Open Store")
 
     async def test_broadcast_referral_proof(self):
         settings = MagicMock()
@@ -133,6 +134,7 @@ class TestProofAnnouncements(unittest.IsolatedAsyncioTestCase):
         self.assertIn("+20 ৳", text)
         self.assertIn("Status: Added to Wallet ✅", text)
 
+        self.assertEqual(len(kb.inline_keyboard), 1)
         self.assertEqual(kb.inline_keyboard[0][0].text, "👥 Invite & Earn")
         self.assertIn("ref", kb.inline_keyboard[0][0].url)
 
@@ -158,5 +160,6 @@ class TestProofAnnouncements(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Hasan M.", text)
         self.assertIn("Wholesale API Activated ⚡", text)
 
+        self.assertEqual(len(kb.inline_keyboard), 1)
         self.assertEqual(kb.inline_keyboard[0][0].text, "💎 Reseller Program")
         self.assertIn("reseller", kb.inline_keyboard[0][0].url)
