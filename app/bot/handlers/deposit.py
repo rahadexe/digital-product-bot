@@ -171,11 +171,12 @@ async def _retry_payment_input(
         await state.update_data(manual_amount=None, pay_amount=None, usd_amount=None, binance_usdt=None)
         await state.set_state(DepositStates.waiting_for_amount)
         field, placeholder = "amount_prompt_id", "Amount in USDT" if is_binance else "Amount in BDT"
+        body_text = text if ("<" in text and ">" in text) else f"<b>{escape(text)}</b>"
         card_text = (
             "⚠️ <b>Deposit Verification Notice</b>\n\n"
             f"Method: <b>{escape(method_name)}</b>\n"
             f"TrxID: <code>{escape(clean_tx)}</code>\n\n"
-            f"<b>{escape(text)}</b>"
+            f"{body_text}"
         )
     else:
         await state.update_data(manual_txid=None)
@@ -189,7 +190,8 @@ async def _retry_payment_input(
         ]
         if amt > 0:
             lines.append(f"Amount: <code>{amt_display}</code>")
-        lines.append(f"\n<b>{escape(text)}</b>")
+        body_text = text if ("<" in text and ">" in text) else f"<b>{escape(text)}</b>"
+        lines.append(f"\n{body_text}")
         card_text = "\n".join(lines)
 
     await _safe_edit_or_answer(
@@ -1432,19 +1434,27 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                 logger.warning("Error checking duplicate transaction %s: %s", clean_tx, exc)
 
     if not is_valid_format or existing_dep:
+        label = "Order ID" if is_binance else "TrxID"
+        err_title = f"Enter valid {label}:"
         if not is_valid_format:
             err_detail = format_err
+            alert_header = f"⚠️ <b>Invalid {label} Format</b>"
+            alert_body = f"{format_err}\n<b>{err_title}</b>"
         else:
             dep_st = (existing_dep.get("status") or "").lower()
             if dep_st in ("approved", "completed"):
-                err_detail = "This Transaction ID has already been used and credited. Please enter a new Transaction ID."
+                err_detail = f"This {label} has already been used and credited."
+                alert_header = f"❌ <b>{label} Already Used</b>"
+                alert_body = f"{err_detail}\n<b>{err_title}</b>"
             elif dep_st == "pending":
-                err_detail = "This Transaction ID is already pending verification. Please wait or check your Deposit History."
+                err_detail = f"This {label} is already pending verification."
+                alert_header = f"⏳ <b>{label} In Review</b>"
+                alert_body = f"{err_detail}\n<b>{err_title}</b>"
             else:
-                err_detail = f"This Transaction ID was previously {dep_st}. Please enter a new Transaction ID."
+                err_detail = f"This {label} was previously {dep_st}."
+                alert_header = f"❌ <b>{label} Already Used</b>"
+                alert_body = f"{err_detail}\n<b>{err_title}</b>"
 
-        label = "Order ID" if is_binance else "TrxID"
-        err_title = f"Enter valid {label}:"
         type_display, _ = get_account_type_labels(account_type)
         num_label = "Pay ID" if is_binance else "Number"
 
@@ -1452,7 +1462,8 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             f"<b>{escape(method_name)}{f' {type_display}' if not is_binance else ''}</b>\n"
             f"{num_label}: <code>{escape(account_info)}</code>\n"
             f"{amount_summary}\n\n"
-            f"⚠️ <b>{err_title}</b> {escape(err_detail)}"
+            f"{alert_header}\n"
+            f"{alert_body}"
         )
 
         edited = False
@@ -1840,7 +1851,7 @@ async def execute_deposit_submission(
                 await _safe_edit_or_answer(status_msg, user_msg, success_txt, reply_markup=keyboard)
                 return
         except DuplicateTransactionError:
-            text = "❌ This TrxID has already been used. Please enter a new Transaction ID."
+            text = "❌ <b>TrxID Already Used</b>\nThis transaction has already been credited. Enter a new TrxID:"
             await _retry_payment_input(status_msg, user_msg, state, text)
             return
         except Exception as exc:
@@ -1875,7 +1886,7 @@ async def execute_deposit_submission(
                 on_sync_wait=on_sync_wait,
             )
         except DuplicateTransactionError:
-            text = "❌ This TrxID has already been used. Please enter a new Transaction ID."
+            text = "❌ <b>TrxID Already Used</b>\nThis transaction has already been credited. Enter a new TrxID:"
             await _retry_payment_input(status_msg, user_msg, state, text)
             return
         except PendingDepositError:
@@ -2066,7 +2077,7 @@ async def execute_deposit_submission(
             quoted_rate=rate,
         )
     except DuplicateTransactionError:
-        text = "This Transaction ID has already been used. Please enter a new Transaction ID."
+        text = "❌ <b>TrxID Already Used</b>\nThis transaction has already been credited. Enter a new TrxID:"
         await _retry_payment_input(status_msg, user_msg, state, text)
         return
     except PendingDepositError:
@@ -2145,7 +2156,7 @@ async def claim_binance_payment(
     except DuplicateTransactionError:
         await _retry_payment_input(
             status_msg, user_msg, state,
-            "This Order ID has already been used. Enter a new Order ID from Binance.",
+            "❌ <b>Order ID Already Used</b>\nThis Binance payment was already credited. Enter a new Order ID:",
         )
         return
     except PendingDepositError:
@@ -2173,9 +2184,9 @@ async def claim_binance_payment(
 
     if result.get("error") in ("not_found", "already_used"):
         if result["error"] == "already_used":
-            err_text = "❌ This Order ID has already been used."
+            err_text = "❌ <b>Order ID Already Used</b>\nThis Binance payment was already credited. Enter a new Order ID:"
         else:
-            err_text = "❌ Order ID not found. Check it in Binance and send it again."
+            err_text = "❌ <b>Order ID Not Found</b>\nCheck your Binance Pay history and re-enter the Order ID:"
         await _retry_payment_input(status_msg, user_msg, state, err_text)
         return
 

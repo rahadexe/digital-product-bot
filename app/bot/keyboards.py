@@ -1165,8 +1165,6 @@ def get_deposit_status_keyboard(
         if can_fix_trx and dep_id:
             fix_text = "✏️ Fix TrxID"
             buttons.append([InlineKeyboardButton(text=fix_text, callback_data=f"dep_fix_trx_{dep_id}")])
-        wallet_text = "🔙 Back to Balance"
-        buttons.append([InlineKeyboardButton(text=wallet_text, callback_data="open_deposit")])
     elif st in ("approved", "completed"):
         # No inline navigation buttons (no back/shop buttons) so that the deposit success
         # receipt remains permanently as a standalone receipt in chat history without being overwritten.

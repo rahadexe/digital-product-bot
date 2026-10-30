@@ -365,7 +365,7 @@ async def test_process_deposit_txid_direct_submission():
     assert "Pending" in status_text
     status_kb = status_msg.edit_text.call_args[1]["reply_markup"]
     assert status_kb.inline_keyboard[0][0].callback_data == "dep_refresh_42"
-    assert status_kb.inline_keyboard[1][0].callback_data == "open_deposit"
+    assert len(status_kb.inline_keyboard) == 1
 
 
 @pytest.mark.asyncio
