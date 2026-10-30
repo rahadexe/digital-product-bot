@@ -112,7 +112,7 @@ async def test_deposit_card_and_keyboards():
     assert rkb.keyboard[0][0].text == "🔙 Back"
 
     rkb_bn = get_back_reply_keyboard("bn")
-    assert rkb_bn.keyboard[0][0].text == "🔙 ব্যাক"
+    assert rkb_bn.keyboard[0][0].text == "🔙 Back"
 
 
 @pytest.mark.asyncio

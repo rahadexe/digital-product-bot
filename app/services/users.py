@@ -322,6 +322,12 @@ class UserService:
         }
         return [dict(row) for row in rows], total, summary
 
+    async def total_count(self) -> int:
+        """Return the total number of registered users."""
+        async with self.db.connect() as conn:
+            val = await conn.fetchval("SELECT COUNT(*) FROM users")
+            return int(val or 0)
+
     async def adjust_balance(
         self, tg_user_id: int, delta: float, reason: str = "", *, notify: bool = False, operation_id: str | None = None
     ) -> dict[str, Any] | None:

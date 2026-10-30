@@ -497,6 +497,10 @@ class PaymentService:
         if not await self._api_key():
             return 0
         async with self.db.connect() as conn:
+            await conn.execute(
+                "UPDATE payment_invoices SET status = 'expired', last_error = 'Invoice expired without payment', updated_at = now() "
+                "WHERE status IN ('created', 'pending') AND created_at < now() - interval '24 hours'"
+            )
             rows = await conn.fetch(
                 "UPDATE payment_invoices SET next_check_at=now()+interval '2 minutes' WHERE id IN ("
                 "SELECT id FROM payment_invoices WHERE status IN ('pending','created') "

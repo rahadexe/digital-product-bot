@@ -230,51 +230,24 @@ def format_deposit_method_card(
 ) -> str:
     is_payment_link = account_info.startswith("https://")
     if is_binance:
-        if lang == "bn":
-            dest_line = "নিচের লিংকে ক্লিক করুন:\n\n" if is_payment_link else f"Pay ID: <code>{escape(account_info)}</code>\n\n"
-            prompt_line = f"⚠️ <b>{escape(error_note)}</b>" if error_note else "অ্যামাউন্ট নির্বাচন করুন বা লিখুন:"
-            return (
-                f"<b>{escape(method_name or 'Binance')}</b>\n\n"
-                f"{dest_line}"
-                f"মিনিমাম: <b>{min_dep:.2f} USDT</b>\n\n"
-                f"{prompt_line}"
-            )
-        else:
-            dest_line = "Open link below:\n\n" if is_payment_link else f"Pay ID: <code>{escape(account_info)}</code>\n\n"
-            prompt_line = f"⚠️ <b>{escape(error_note)}</b>" if error_note else "Select or enter amount:"
-            return (
-                f"<b>{escape(method_name or 'Binance')}</b>\n\n"
-                f"{dest_line}"
-                f"Minimum: <b>{min_dep:.2f} USDT</b>\n\n"
-                f"{prompt_line}"
-            )
+        dest_line = "Open link below:\n\n" if is_payment_link else f"Pay ID: <code>{escape(account_info)}</code>\n\n"
+        prompt_line = f"⚠️ <b>{escape(error_note)}</b>" if error_note else "Select or enter amount:"
+        return (
+            f"<b>{escape(method_name or 'Binance')}</b>\n\n"
+            f"{dest_line}"
+            f"Minimum: <b>{min_dep:.2f} USDT</b>\n\n"
+            f"{prompt_line}"
+        )
     else:
         type_display, _ = get_account_type_labels(account_type)
-        if lang == "bn":
-            at_lower = (account_type or "personal").lower()
-            if at_lower == "agent":
-                type_display = "এজেন্ট (Cash Out)"
-            elif at_lower == "merchant":
-                type_display = "মার্চেন্ট (Payment)"
-            else:
-                type_display = "পার্সোনাল (Send Money)"
-            dest_line = "নিচের লিংকে ক্লিক করুন:\n\n" if is_payment_link else f"নম্বর: <code>{escape(account_info)}</code>\n\n"
-            prompt_line = f"⚠️ <b>{escape(error_note)}</b>" if error_note else "অ্যামাউন্ট নির্বাচন করুন বা লিখুন:"
-            return (
-                f"<b>{escape(method_name)} {escape(type_display)}</b>\n\n"
-                f"{dest_line}"
-                f"মিনিমাম: <b>{min_dep:g} ৳</b>\n"
-                f"{prompt_line}"
-            )
-        else:
-            dest_line = "Open link below:\n\n" if is_payment_link else f"Number: <code>{escape(account_info)}</code>\n\n"
-            prompt_line = f"⚠️ <b>{escape(error_note)}</b>" if error_note else "Select or enter amount:"
-            return (
-                f"<b>{escape(method_name)} {escape(type_display)}</b>\n\n"
-                f"{dest_line}"
-                f"Minimum: <b>{min_dep:g} ৳</b>\n"
-                f"{prompt_line}"
-            )
+        dest_line = "Open link below:\n\n" if is_payment_link else f"Number: <code>{escape(account_info)}</code>\n\n"
+        prompt_line = f"⚠️ <b>{escape(error_note)}</b>" if error_note else "Select or enter amount:"
+        return (
+            f"<b>{escape(method_name)} {escape(type_display)}</b>\n\n"
+            f"{dest_line}"
+            f"Minimum: <b>{min_dep:g} ৳</b>\n"
+            f"{prompt_line}"
+        )
 
 
 def format_deposit_status_card(
@@ -289,40 +262,25 @@ def format_deposit_status_card(
 ) -> str:
     st = (status or "").lower()
     dep_prefix = format_deposit_id(dep_id) if dep_id else "---"
-    if lang == "bn":
-        st_display = "⏳ <code>পেন্ডিং</code>"
-        if st in ("approved", "completed"):
-            st_display = "✅ <code>অনুমোদিত</code>"
-        elif st in ("rejected", "failed", "cancelled"):
-            st_display = "❌ <code>বাতিল</code>"
+    st_display = "⏳ <code>Pending</code>"
+    if st in ("approved", "completed"):
+        st_display = "✅ <code>Approved</code>"
+    elif st in ("rejected", "failed", "cancelled"):
+        st_display = "❌ <code>Rejected</code>"
 
-        card = (
-            f"<b>ডিপোজিট {dep_prefix}</b>\n"
-            f"মেথড: <b>{escape(method_name)}</b> (<code>{amount_str}</code>)\n"
-            f"TrxID: <code>{escape(txid)}</code>\n"
-            f"স্ট্যাটাস: {st_display}"
-        )
-        if current_balance and st in ("approved", "completed"):
-            card += f"\nবর্তমান ব্যালেন্স: <code>{current_balance}</code>"
-        if error_note and st not in ("approved", "completed"):
-            card += f"\n\nℹ️ <i>{escape(error_note)}</i>"
-    else:
-        st_display = "⏳ <code>Pending</code>"
-        if st in ("approved", "completed"):
-            st_display = "✅ <code>Approved</code>"
-        elif st in ("rejected", "failed", "cancelled"):
-            st_display = "❌ <code>Rejected</code>"
-
-        card = (
-            f"<b>Top-up {dep_prefix}</b>\n"
-            f"Method: <b>{escape(method_name)}</b> (<code>{amount_str}</code>)\n"
-            f"TrxID: <code>{escape(txid)}</code>\n"
-            f"Status: {st_display}"
-        )
-        if current_balance and st in ("approved", "completed"):
-            card += f"\nCurrent Balance: <code>{current_balance}</code>"
-        if error_note and st not in ("approved", "completed"):
-            card += f"\n\nℹ️ <i>{escape(error_note)}</i>"
+    card = (
+        f"<b>Top-up {dep_prefix}</b>\n"
+        f"Method: <b>{escape(method_name)}</b> (<code>{amount_str}</code>)\n"
+        f"TrxID: <code>{escape(txid)}</code>\n"
+        f"Status: {st_display}"
+    )
+    if current_balance and st in ("approved", "completed"):
+        card += f"\nCurrent Balance: <code>{current_balance}</code>"
+    if error_note and st not in ("approved", "completed"):
+        clean_note = error_note
+        if any(x in str(clean_note) for x in ("HTTP", "401", "unavailable", "configured")):
+            clean_note = "Submitted for manual admin review."
+        card += f"\n\nℹ️ <i>{escape(clean_note)}</i>"
     return card
 
 
@@ -435,32 +393,18 @@ async def show_deposit_methods(event: Message | CallbackQuery, state: FSMContext
     balance_display = format_dual_price(user_balance, usd_rate=usd_rate, lang=lang, currency=curr, show_usd=False)
 
     if pending:
-        if lang == "bn":
-            text = (
-                f"💰 <b>ব্যালেন্স:</b> <code>{balance_display}</code>\n\n"
-                f"⏳ ডিপোজিট {format_deposit_id(pending['id'])} যাচাই হচ্ছে। যাচাই শেষ হলে ব্যালেন্স যোগ হবে।"
-            )
-        else:
-            text = (
-                f"💰 <b>Balance:</b> <code>{balance_display}</code>\n\n"
-                f"Top-up {format_deposit_id(pending['id'])} is being verified. Do not pay again."
-            )
+        text = (
+            f"💰 <b>Balance:</b> <code>{balance_display}</code>\n\n"
+            f"Top-up {format_deposit_id(pending['id'])} is being verified. Do not pay again."
+        )
         keyboard = get_deposit_methods_keyboard([], instant_label=None, show_history=True, lang=lang, back_target=back_target)
     else:
-        if lang == "bn":
-            prompt = (
-                "পেমেন্ট মেথড নির্বাচন করুন:"
-                if displayed_methods or instant
-                else "এই মুহূর্তে কোনো পেমেন্ট মেথড চালু নেই।"
-            )
-            text = f"💰 <b>ব্যালেন্স:</b> <code>{balance_display}</code>\n\n{prompt}"
-        else:
-            prompt = (
-                "Choose a payment method:"
-                if displayed_methods or instant
-                else "No payment methods are available right now."
-            )
-            text = f"💰 <b>Balance:</b> <code>{balance_display}</code>\n\n{prompt}"
+        prompt = (
+            "Choose a payment method:"
+            if displayed_methods or instant
+            else "No payment methods are available right now."
+        )
+        text = f"💰 <b>Balance:</b> <code>{balance_display}</code>\n\n{prompt}"
         keyboard = get_deposit_methods_keyboard(
             displayed_methods,
             instant_label=instant["label"] if instant else None,
@@ -519,20 +463,12 @@ async def ask_instant_amount_from_text(
     min_dep = float(instant.get("min_amount") or 1.0)
     lang = await services.users.get_language(message.from_user.id) if message.from_user else "en"
     await state.set_state(DepositStates.waiting_for_instant_amount)
-    if lang == "bn":
-        text = (
-            f"{ICON_LIGHTNING} <b>{escape(instant['label'])}</b>\n\n"
-            f"মিনিমাম: <b>{min_dep:g} ৳</b>\n\n"
-            f"ডিপোজিট অ্যামাউন্ট লিখুন (টাকায়):\n\n"
-            f"💡 <i>(যেমন: ৫০ বা ১০০)</i>"
-        )
-    else:
-        text = (
-            f"{ICON_LIGHTNING} <b>{escape(instant['label'])}</b>\n\n"
-            f"Minimum: <b>{min_dep:g} ৳</b>\n\n"
-            f"Enter deposit amount (in BDT):\n\n"
-            f"💡 <i>(e.g. 50 or 100)</i>"
-        )
+    text = (
+        f"{ICON_LIGHTNING} <b>{escape(instant['label'])}</b>\n\n"
+        f"Minimum: <b>{min_dep:g} ৳</b>\n\n"
+        f"Enter deposit amount (in BDT):\n\n"
+        f"💡 <i>(e.g. 50 or 100)</i>"
+    )
     await message.answer(text, reply_markup=get_cancel_keyboard(lang=lang))
 
 
@@ -589,8 +525,7 @@ async def render_method_details(
         return
 
     if await services.deposits.pending_for(user.id):
-        user_lang = await services.users.get_language(user.id)
-        pending_msg = "⚠️ আপনার একটি ডিপোজিট রিকোয়েস্ট পেন্ডিং আছে।" if user_lang == "bn" else "⚠️ You already have a pending deposit request."
+        pending_msg = "⚠️ You already have a pending deposit request."
         if isinstance(event, CallbackQuery):
             with suppress(TelegramBadRequest):
                 await event.answer(pending_msg, show_alert=True)
@@ -758,20 +693,12 @@ async def ask_instant_amount(query: CallbackQuery, state: FSMContext, services: 
     lang = await services.users.get_language(query.from_user.id) if query.from_user else "en"
     await state.set_state(DepositStates.waiting_for_instant_amount)
     if query.message:
-        if lang == "bn":
-            text = (
-                f"{ICON_LIGHTNING} <b>{escape(instant['label'])}</b>\n\n"
-                f"মিনিমাম: <b>{min_dep:g} ৳</b>\n\n"
-                f"ডিপোজিট অ্যামাউন্ট লিখুন (টাকায়):\n\n"
-                f"💡 <i>(যেমন: ৫০ বা ১০০)</i>"
-            )
-        else:
-            text = (
-                f"{ICON_LIGHTNING} <b>{escape(instant['label'])}</b>\n\n"
-                f"Minimum: <b>{min_dep:g} ৳</b>\n\n"
-                f"Enter deposit amount (in BDT):\n\n"
-                f"💡 <i>(e.g. 50 or 100)</i>"
-            )
+        text = (
+            f"{ICON_LIGHTNING} <b>{escape(instant['label'])}</b>\n\n"
+            f"Minimum: <b>{min_dep:g} ৳</b>\n\n"
+            f"Enter deposit amount (in BDT):\n\n"
+            f"💡 <i>(e.g. 50 or 100)</i>"
+        )
         with suppress(TelegramBadRequest):
             await query.message.edit_text(
                 text,
@@ -1018,22 +945,13 @@ async def binance_help_order_id_handler(query: CallbackQuery, state: FSMContext,
     method_id = data.get("method_id")
     lang = await services.users.get_language(query.from_user.id)
 
-    if lang == "bn":
-        text = (
-            f"❓ <b>Order ID কোথায় পাবেন?</b>\n\n"
-            f"1. Binance App ওপেন করুন\n"
-            f"2. <b>Wallets</b> -> <b>History</b> (ঘড়ির আইকন) এ যান\n"
-            f"3. আপনার পেমেন্ট ট্রানজেকশনে ট্যাপ করুন\n"
-            f"4. <b>Order ID</b> কপি করে এখানে পেস্ট করুন"
-        )
-    else:
-        text = (
-            f"❓ <b>Where to find Order ID?</b>\n\n"
-            f"1. Open Binance App\n"
-            f"2. Go to <b>Wallets</b> -> <b>History</b> (clock icon)\n"
-            f"3. Tap on the transfer you sent\n"
-            f"4. Copy the <b>Order ID</b> and paste it here"
-        )
+    text = (
+        f"❓ <b>Where to find Order ID?</b>\n\n"
+        f"1. Open Binance App\n"
+        f"2. Go to <b>Wallets</b> -> <b>History</b> (clock icon)\n"
+        f"3. Tap on the transfer you sent\n"
+        f"4. Copy the <b>Order ID</b> and paste it here"
+    )
     back_target = f"dep_method_{method_id}" if method_id else "open_deposit"
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
@@ -1078,10 +996,6 @@ async def handle_deposit_quick_amount(query: CallbackQuery, state: FSMContext, s
     rate = float(data.get("rate") or 1.0)
     if amount_num < min_dep:
         err_msg = (
-            f"মিনিমাম ডিপোজিট {min_dep:.2f} USDT:"
-            if is_binance
-            else f"মিনিমাম ডিপোজিট {min_dep:.0f} ৳:"
-        ) if lang == "bn" else (
             f"Minimum deposit is {min_dep:.2f} USDT:"
             if is_binance
             else f"Minimum deposit is {min_dep:.0f} ৳:"
@@ -1127,43 +1041,20 @@ async def handle_deposit_quick_amount(query: CallbackQuery, state: FSMContext, s
     await state.set_state(DepositStates.waiting_for_txid)
 
     if is_binance:
-        if lang == "bn":
-            tx_prompt = (
-                f"<b>{escape(method_name)}</b>\n"
-                f"Pay ID: <code>{escape(account_info)}</code>\n"
-                f"{amount_summary}\n\n"
-                "পেমেন্টের Order ID নিচে লিখুন:"
-            )
-        else:
-            tx_prompt = (
-                f"<b>{escape(method_name)}</b>\n"
-                f"Pay ID: <code>{escape(account_info)}</code>\n"
-                f"{amount_summary}\n\n"
-                "Enter Order ID below:"
-            )
+        tx_prompt = (
+            f"<b>{escape(method_name)}</b>\n"
+            f"Pay ID: <code>{escape(account_info)}</code>\n"
+            f"{amount_summary}\n\n"
+            "Enter Order ID below:"
+        )
     else:
         type_display, _ = get_account_type_labels(account_type)
-        if lang == "bn":
-            at_lower = (account_type or "personal").lower()
-            if at_lower == "agent":
-                type_display = "এজেন্ট (Cash Out)"
-            elif at_lower == "merchant":
-                type_display = "মার্চেন্ট (Payment)"
-            else:
-                type_display = "পার্সোনাল (Send Money)"
-            tx_prompt = (
-                f"<b>{escape(method_name)} {type_display}</b>\n"
-                f"নম্বর: <code>{escape(account_info)}</code>\n"
-                f"{amount_summary}\n\n"
-                "পেমেন্টের TrxID নিচে লিখুন:"
-            )
-        else:
-            tx_prompt = (
-                f"<b>{escape(method_name)} {type_display}</b>\n"
-                f"Number: <code>{escape(account_info)}</code>\n"
-                f"{amount_summary}\n\n"
-                "Enter TrxID below:"
-            )
+        tx_prompt = (
+            f"<b>{escape(method_name)} {type_display}</b>\n"
+            f"Number: <code>{escape(account_info)}</code>\n"
+            f"{amount_summary}\n\n"
+            "Enter TrxID below:"
+        )
 
     keyboard = get_deposit_trxid_prompt_keyboard(lang=lang)
     if query.message:
@@ -1362,28 +1253,18 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
         if not math.isfinite(amount_num) or amount_num <= 0:
             raise ValueError()
     except (TypeError, ValueError):
-        if lang == "bn":
-            err_msg = f"সঠিক পরিমাণ লিখুন ({currency_label}), যেমন: ৫০।"
-        else:
-            unit = "USDT" if is_binance else "BDT"
-            example = max(min_dep, 1.0 if is_binance else 50.0)
-            err_msg = f"Enter valid amount in {unit}, e.g. {example:g}."
+        unit = "USDT" if is_binance else "BDT"
+        example = max(min_dep, 1.0 if is_binance else 50.0)
+        err_msg = f"Enter valid amount in {unit}, e.g. {example:g}."
         await _send_or_edit_error(_build_err_card(err_msg), quick_kb)
         return
 
     if amount_num < min_dep:
-        if lang == "bn":
-            err_msg = (
-                f"মিনিমাম ডিপোজিট {min_dep:.2f} USDT:"
-                if is_binance
-                else f"মিনিমাম ডিপোজিট {min_dep:.0f} ৳:"
-            )
-        else:
-            err_msg = (
-                f"Minimum deposit is {min_dep:.2f} USDT:"
-                if is_binance
-                else f"Minimum deposit is {min_dep:.0f} ৳:"
-            )
+        err_msg = (
+            f"Minimum deposit is {min_dep:.2f} USDT:"
+            if is_binance
+            else f"Minimum deposit is {min_dep:.0f} ৳:"
+        )
         await _send_or_edit_error(_build_err_card(err_msg), quick_kb)
         return
 
@@ -1422,44 +1303,21 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
     await state.set_state(DepositStates.waiting_for_txid)
 
     if is_binance:
-        if lang == "bn":
-            tx_prompt = (
-                f"<b>{escape(method_name)}</b>\n"
-                f"Pay ID: <code>{escape(account_info)}</code>\n"
-                f"{amount_summary}\n\n"
-                "পেমেন্টের Order ID নিচে লিখুন:"
-            )
-        else:
-            tx_prompt = (
-                f"<b>{escape(method_name)}</b>\n"
-                f"Pay ID: <code>{escape(account_info)}</code>\n"
-                f"{amount_summary}\n\n"
-                "Enter Order ID below:"
-            )
+        tx_prompt = (
+            f"<b>{escape(method_name)}</b>\n"
+            f"Pay ID: <code>{escape(account_info)}</code>\n"
+            f"{amount_summary}\n\n"
+            "Enter Order ID below:"
+        )
     else:
         account_type = data.get("account_type", "personal")
         type_display, _ = get_account_type_labels(account_type)
-        if lang == "bn":
-            at_lower = (account_type or "personal").lower()
-            if at_lower == "agent":
-                type_display = "এজেন্ট (Cash Out)"
-            elif at_lower == "merchant":
-                type_display = "মার্চেন্ট (Payment)"
-            else:
-                type_display = "পার্সোনাল (Send Money)"
-            tx_prompt = (
-                f"<b>{escape(method_name)} {type_display}</b>\n"
-                f"নম্বর: <code>{escape(account_info)}</code>\n"
-                f"{amount_summary}\n\n"
-                "পেমেন্টের TrxID নিচে লিখুন:"
-            )
-        else:
-            tx_prompt = (
-                f"<b>{escape(method_name)} {type_display}</b>\n"
-                f"Number: <code>{escape(account_info)}</code>\n"
-                f"{amount_summary}\n\n"
-                "Enter TrxID below:"
-            )
+        tx_prompt = (
+            f"<b>{escape(method_name)} {type_display}</b>\n"
+            f"Number: <code>{escape(account_info)}</code>\n"
+            f"{amount_summary}\n\n"
+            "Enter TrxID below:"
+        )
 
     keyboard = get_deposit_trxid_prompt_keyboard(lang=lang)
 
@@ -1638,14 +1496,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         unit = "USDT" if is_binance else "BDT"
         example = max(float(data.get("min_deposit") or 1.0), 1.0 if is_binance else 50.0)
         user_lang = await services.users.get_language(message.from_user.id) if message.from_user else "en"
-        if user_lang == "bn":
-            amount_prompt = (
-                f"💳 <b>পেমেন্ট ভেরিফিকেশন</b>\n\n"
-                f"TrxID: <code>{escape(clean_tx)}</code>\n\n"
-                f"অটো-ভেরিফাই করার জন্য আপনি <b>কত টাকা পাঠিয়েছেন</b> তা লিখুন (যেমন: {example:g}):"
-            )
-        else:
-            amount_prompt = f"Enter the amount you sent in {unit}, e.g. {example:g}."
+        amount_prompt = f"Enter the amount you sent in {unit}, e.g. {example:g}."
         await _send_input_prompt(
             message, state, amount_prompt,
             field="amount_prompt_id", placeholder=f"Amount in {unit}",
@@ -1663,14 +1514,14 @@ async def process_confirm_text(message: Message, state: FSMContext, services: Se
         return
 
     lang = await services.users.get_language(message.from_user.id) if message.from_user else "en"
-    if raw_text in {"yes", "confirm", "হ্যাঁ", "হাঁ", "ok", "ঠিক আছে", "হ্যা"}:
+    if raw_text in {"yes", "confirm", "ok"}:
         await execute_deposit_submission(message, state, services)
-    elif raw_text in {"no", "cancel", "বাতিল", "না", "/cancel", "back", "🔙 back", "🔙 ব্যাক"}:
+    elif raw_text in {"no", "cancel", "/cancel", "back", "🔙 back"}:
         await state.clear()
-        await message.answer("❌ ডিপোজিট বাতিল করা হয়েছে।" if lang == "bn" else "❌ Deposit cancelled.")
+        await message.answer("❌ Deposit cancelled.")
         await show_deposit_methods(message, state, services)
     else:
-        prompt_txt = "জমা দিতে ✅ কনফার্ম অথবা বাতিল করতে ❌ বাতিল চাপুন।" if lang == "bn" else "Tap ✅ Confirm to submit or ❌ Cancel to abort."
+        prompt_txt = "Tap ✅ Confirm to submit or ❌ Cancel to abort."
         await message.answer(
             prompt_txt,
             reply_markup=get_deposit_confirm_keyboard(lang=lang),
@@ -1888,11 +1739,7 @@ async def execute_deposit_submission(
             [InlineKeyboardButton(text="✏️ Fix TrxID", callback_data=f"dep_fix_trx_{existing_pending['id']}")],
             [InlineKeyboardButton(text="📊 Balance History", callback_data="open_deposits")],
         ]
-        text = (
-            f"⏳ <b>আপনার পূর্বের একটি ডিপোজিট (TrxID: <code>{escape(existing_tx or clean_tx)}</code>) এখনও যাচাই হচ্ছে।</b>\n\nঅনুগ্রহ করে অপেক্ষা করুন অথবা রিফ্রেশ চাপুন।"
-            if lang == "bn"
-            else "⏳ A deposit of yours is still being checked. Please wait for it to finish."
-        )
+        text = "⏳ A deposit of yours is still being checked. Please wait for it to finish."
         await _safe_edit_or_answer(status_msg, user_msg, text, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
         return
 
@@ -1908,11 +1755,7 @@ async def execute_deposit_submission(
         sup_url = resolve_support_url(support_user)
         if sup_url:
             kb.append([InlineKeyboardButton(text="💬 Contact Support", url=sup_url)])
-        text = (
-            f"❌ পরপর ভুল TrxID দেওয়ার কারণে সাময়িকভাবে ব্লক করা হয়েছে। {rem_min} মিনিট পর চেষ্টা করুন।"
-            if lang == "bn"
-            else f"❌ Too many wrong TrxIDs entered. Try again in {rem_min} minute(s)."
-        )
+        text = f"❌ Too many wrong TrxIDs entered. Try again in {rem_min} minute(s)."
         await _safe_edit_or_answer(status_msg, user_msg, text, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
         return
 
@@ -2275,7 +2118,7 @@ async def claim_binance_payment(
     except PendingDepositError:
         await state.clear()
         kb = [
-            [InlineKeyboardButton(text="📊 Balance History" if lang != "bn" else "📊 ডিপোজিট হিস্ট্রি", callback_data="open_deposits")],
+            [InlineKeyboardButton(text="📊 Balance History", callback_data="open_deposits")],
         ]
         await _safe_edit_or_answer(
             status_msg,
@@ -2291,20 +2134,15 @@ async def claim_binance_payment(
     except Exception as exc:
         logger.exception("execute_deposit_submission error: %s", exc)
         await state.clear()
-        lang = await services.users.get_language(user_id)
-        err_msg = (
-            "❌ <b>পেমেন্ট প্রসেস করার সময় একটি ত্রুটি হয়েছে।</b>\nঅনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন বা সাপোর্টে জানান।"
-            if lang == "bn"
-            else "❌ <b>An error occurred while processing your payment.</b>\nPlease try again shortly or contact support."
-        )
+        err_msg = "❌ <b>An error occurred while processing your payment.</b>\nPlease try again shortly or contact support."
         await _safe_edit_or_answer(status_msg, user_msg, err_msg)
         return
 
     if result.get("error") in ("not_found", "already_used"):
         if result["error"] == "already_used":
-            err_text = "❌ এই Order ID আগেই ব্যবহার করা হয়েছে।" if lang == "bn" else "❌ This Order ID has already been used."
+            err_text = "❌ This Order ID has already been used."
         else:
-            err_text = "❌ Order ID পাওয়া যায়নি। Binance থেকে চেক করে আবার দিন।" if lang == "bn" else "❌ Order ID not found. Check it in Binance and send it again."
+            err_text = "❌ Order ID not found. Check it in Binance and send it again."
         await _retry_payment_input(status_msg, user_msg, state, err_text)
         return
 
@@ -2378,11 +2216,11 @@ async def refresh_deposit_status(query: CallbackQuery, services: Services):
             pass
 
     if status in ("approved", "completed"):
-        toast = "✅ ডিপোজিট অনুমোদিত হয়েছে!" if lang == "bn" else "✅ Deposit Approved!"
+        toast = "✅ Deposit Approved!"
     elif status in ("rejected", "failed", "cancelled"):
-        toast = "❌ ডিপোজিট বাতিল করা হয়েছে" if lang == "bn" else "❌ Deposit Rejected"
+        toast = "❌ Deposit Rejected"
     else:
-        toast = "⏳ এখনও পর্যালোচনায় আছে" if lang == "bn" else "⏳ Still in review"
+        toast = "⏳ Still in review"
 
     with suppress(TelegramBadRequest):
         await query.answer(toast)
@@ -2429,21 +2267,37 @@ async def fix_awaiting_transaction_id(query: CallbackQuery, state: FSMContext, s
     Without this the customer is held by the one-pending-deposit rule until the worker
     gives up, which is a long time to sit with a typo they have already spotted."""
     deposit_id = int(query.data.removeprefix("dep_fix_trx_") or 0)
+    dep = await services.deposits.get_for_customer(query.from_user.id, deposit_id)
     cancelled = await services.deposits.cancel_awaiting_sms(deposit_id, query.from_user.id)
     lang = await services.users.get_language(query.from_user.id)
     if not cancelled:
         with suppress(TelegramBadRequest):
-            cannot_cancel = "এই রিকোয়েস্ট আর বাতিল করা সম্ভব নয়।" if lang == "bn" else "This request cannot be cancelled anymore."
-            await query.answer(cannot_cancel, show_alert=True)
+            await query.answer("This request cannot be cancelled anymore.", show_alert=True)
         return
     with suppress(TelegramBadRequest):
         await query.answer()
+
+    if dep:
+        method = await services.deposits.get_method(dep["method_id"]) if dep.get("method_id") else None
+        await state.update_data(
+            method_id=dep["method_id"],
+            method_name=dep.get("method_name") or (method.get("name") if method else "Payment"),
+            account_info=method.get("account_info", "") if method else "",
+            account_type=method.get("account_type", "personal") if method else "personal",
+            min_deposit=float(method.get("min_deposit", 50.0)) if method else 50.0,
+            rate=float(dep.get("quoted_rate") or 1.0),
+            manual_amount=float(dep.get("amount") or 0.0),
+            pay_amount=float(dep.get("pay_amount") or 0.0),
+            usd_amount=float(dep.get("amount") or 0.0),
+            reference_first=True,
+            card_msg_id=query.message.message_id if query.message else None,
+            card_chat_id=query.message.chat.id if query.message else None,
+        )
+
     await state.set_state(DepositStates.waiting_for_txid)
     if query.message:
         prompt_txt = (
-            f"{ICON_NEXT} সঠিক TrxID লিখুন:\n💡 <i>যেমন: <code>BLA7X8Y9Z0</code></i>"
-            if lang == "bn" else
-            f"{ICON_NEXT} Please enter the correct TrxID:\n💡 <i>e.g. <code>BLA7X8Y9Z0</code></i>"
+            f"{ICON_NEXT} Please enter the correct Transaction ID below:\n💡 <i>e.g. <code>BLA7X8Y9Z0</code></i>"
         )
         with suppress(TelegramBadRequest):
             await query.message.edit_text(

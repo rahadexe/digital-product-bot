@@ -48,6 +48,7 @@ logger = logging.getLogger("app.bot.start")
 def build_welcome_text(
     *,
     user_name: str = "",
+    username: str = "",
     user_id: int | str | None = None,
     membership: str = "Standard",
     store_name: str = "Premium Haven",
@@ -55,43 +56,68 @@ def build_welcome_text(
     lang: str = "en",
     balance_str: str = "",
     order_count: int = 0,
+    total_users: int = 0,
     support_username: str = "",
     currency: str = "BDT",
+    now: datetime.datetime | None = None,
 ) -> str:
-    prefix = t("maintenance_notice", lang, icon_warning=ICON_WARNING, notice=escape(paused_notice)) + "\n\n" if paused_notice else ""
+    prefix = t("maintenance_notice", "en", icon_warning=ICON_WARNING, notice=escape(paused_notice)) + "\n\n" if paused_notice else ""
     support = f"@{support_username.lstrip('@')}" if support_username else "@support"
     balance = balance_str or ("0.00 ৳" if currency == "BDT" else "$0.00")
-    clean_store = escape(store_name.strip() or "Premium Haven")
     clean_user = escape(user_name.strip()) if user_name else ""
     clean_membership = escape(membership.strip() or "Standard")
 
-    greeting = f"👋 <b>Welcome, {clean_user}!</b> 🤝" if clean_user else "👋 <b>Welcome!</b> 🤝"
-    subheading = f"Welcome to <b>{clean_store}</b> — your digital products store."
+    if now is None:
+        try:
+            from zoneinfo import ZoneInfo
+            now = datetime.datetime.now(ZoneInfo("Asia/Dhaka"))
+        except Exception:
+            now = datetime.datetime.now(datetime.timezone.utc)
+    date_str = now.strftime("%A, %d %B %Y")
+    time_str = now.strftime("%I:%M:%S %p")
 
-    details_header = "👤 <b>Customer Details:</b>"
-    details_lines = []
-    if clean_user:
-        details_lines.append(f"• Name: <b>{clean_user}</b>")
+    greeting = f"<b>Welcome, {clean_user}!</b> 🤝" if clean_user else "<b>Welcome!</b> 🤝"
+
+    datetime_block = f"<b>Date:</b> {date_str}\n<b>Time:</b> {time_str}"
+
+    account_lines = []
     if user_id:
-        details_lines.append(f"• Account ID: <code>{user_id}</code>")
-    details_lines.append(f"• Membership: <code>{clean_membership}</code>")
-    details_lines.append(f"• Wallet Balance: <code>{balance}</code>")
-    details_lines.append(f"• Total Purchases: <code>{order_count}</code>")
+        account_lines.append(f"User ID: <code>{user_id}</code>")
+    if username:
+        account_lines.append(f"Username: @{escape(username.lstrip('@'))}")
+    elif clean_user:
+        account_lines.append(f"Name: <b>{clean_user}</b>")
+    if clean_membership:
+        account_lines.append(f"Rank: <code>{clean_membership}</code>")
+    account_lines.append(f"Current Balance: <code>{balance}</code>")
+    if order_count > 0:
+        account_lines.append(f"Orders: <code>{order_count}</code>")
 
-    support_line = f"💬 <b>Customer Support:</b> {support}"
+    stats_lines = []
+    if total_users > 0:
+        stats_lines.append(f"Total Users: <code>{total_users:,}</code>")
+
+    support_line = f"<b>Support:</b> {support}"
     cta = "👇 <i>Use the menu buttons below to continue:</i>"
 
     sections = [
         greeting,
-        subheading,
         "",
-        details_header,
-        "\n".join(details_lines),
+        datetime_block,
+        "",
+        "<b>Account Information:</b>\n" + "\n".join(account_lines),
+    ]
+    if stats_lines:
+        sections.extend([
+            "",
+            "<b>Bot Statistics:</b>\n" + "\n".join(stats_lines),
+        ])
+    sections.extend([
         "",
         support_line,
         "",
         cta,
-    ]
+    ])
     return prefix + "\n".join(sections)
 
 
@@ -115,14 +141,18 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
     support_username = (values.get("support_username") or "").strip() if isinstance(values, dict) else ""
     store_name = (values.get("store_name") or "Premium Haven").strip() if isinstance(values, dict) else "Premium Haven"
 
-    # User's first name
+    # User's first name and username
     first_name = ""
+    username = ""
     if user and isinstance(user, dict):
         first_name = (user.get("first_name") or "").strip()
+        username = (user.get("username") or "").strip()
     if not first_name:
         from_user = getattr(message, "from_user", None)
         if from_user and getattr(from_user, "id", None) == tg_user_id:
             first_name = (getattr(from_user, "first_name", "") or "").strip()
+            if not username:
+                username = (getattr(from_user, "username", "") or "").strip()
     if not first_name:
         first_name = "Customer"
 
@@ -144,8 +174,16 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
         except Exception:
             order_count = 0
 
+    total_users = 0
+    if hasattr(services, "users") and hasattr(services.users, "total_count"):
+        try:
+            total_users = await services.users.total_count()
+        except Exception:
+            total_users = 0
+
     text = build_welcome_text(
         user_name=first_name,
+        username=username,
         user_id=tg_user_id,
         membership=membership,
         store_name=store_name,
@@ -153,6 +191,7 @@ async def render_main_dashboard(message: Message, services: Services, tg_user_id
         lang=lang,
         balance_str=balance_str,
         order_count=order_count,
+        total_users=total_users,
         support_username=support_username,
         currency=curr,
     )

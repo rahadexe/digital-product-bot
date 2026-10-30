@@ -1127,7 +1127,7 @@ def get_deposit_quick_amount_keyboard(
                 InlineKeyboardButton(text="৳2000", callback_data="dep_amt_2000"),
             ],
         ]
-    back_label = "Back" if lang != "bn" else "ব্যাক"
+    back_label = "Back"
     chips.append([InlineKeyboardButton(text=back_label, callback_data=back_target)])
     return InlineKeyboardMarkup(inline_keyboard=chips)
 
@@ -1136,8 +1136,8 @@ def get_deposit_trxid_prompt_keyboard(
     lang: str = "en",
 ) -> InlineKeyboardMarkup:
     """Action buttons shown during TrxID prompt (Change amount, Cancel)."""
-    change_text = "Change Amount" if lang != "bn" else "অ্যামাউন্ট পরিবর্তন"
-    cancel_text = "Cancel" if lang != "bn" else "বাতিল"
+    change_text = "Change Amount"
+    cancel_text = "Cancel"
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -1160,12 +1160,12 @@ def get_deposit_status_keyboard(
     st = (status or "").lower()
 
     if st in ("pending", "in_review", "processing", "verifying"):
-        ref_text = "🔄 Refresh" if lang != "bn" else "🔄 রিফ্রেশ"
+        ref_text = "🔄 Refresh"
         buttons.append([InlineKeyboardButton(text=ref_text, callback_data=f"dep_refresh_{dep_id}")])
         if can_fix_trx and dep_id:
-            fix_text = "✏️ Fix TrxID" if lang != "bn" else "✏️ TrxID পরিবর্তন"
+            fix_text = "✏️ Fix TrxID"
             buttons.append([InlineKeyboardButton(text=fix_text, callback_data=f"dep_fix_trx_{dep_id}")])
-        wallet_text = "🔙 Back to Balance" if lang != "bn" else "🔙 ওয়ালেট"
+        wallet_text = "🔙 Back to Balance"
         buttons.append([InlineKeyboardButton(text=wallet_text, callback_data="open_deposit")])
     elif st in ("approved", "completed"):
         # No inline navigation buttons (no back/shop buttons) so that the deposit success
@@ -1174,9 +1174,9 @@ def get_deposit_status_keyboard(
     else:  # rejected, failed, cancelled
         sup_url = resolve_support_url(support_username)
         if sup_url:
-            sup_text = "💬 Contact Support" if lang != "bn" else "💬 সাপোর্ট"
+            sup_text = "💬 Contact Support"
             buttons.append([InlineKeyboardButton(text=sup_text, url=sup_url)])
-        wallet_text = "🔙 Back to Balance" if lang != "bn" else "🔙 ওয়ালেট"
+        wallet_text = "🔙 Back to Balance"
         buttons.append([InlineKeyboardButton(text=wallet_text, callback_data="open_deposit")])
 
     return InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -1246,7 +1246,7 @@ def get_cancel_keyboard(back_target: str | None = "open_deposit", lang: str = "e
 
 def get_back_reply_keyboard(lang: str = "en") -> ReplyKeyboardMarkup:
     """Pure Reply Keyboard with only [ 🔙 Back ] button during user input."""
-    back_label = "🔙 Back" if lang != "bn" else "🔙 ব্যাক"
+    back_label = "🔙 Back"
     return ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text=back_label)]],
         resize_keyboard=True,
@@ -1291,8 +1291,8 @@ def get_deposit_txid_keyboard(
 
 def get_deposit_confirm_keyboard(lang: str = "en", method_id: int | None = None) -> InlineKeyboardMarkup:
     """Buttons on the Confirm Deposit screen matching task-bot."""
-    confirm_text = "✅ Confirm" if lang != "bn" else "✅ কনফার্ম"
-    cancel_text = "❌ Cancel" if lang != "bn" else "❌ বাতিল"
+    confirm_text = "✅ Confirm"
+    cancel_text = "❌ Cancel"
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
