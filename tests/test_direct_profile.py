@@ -141,7 +141,8 @@ async def test_api_and_reseller_commands_open_their_hubs(command, handler):
 def test_dashboard_shows_balance_without_personal_identity():
     text = build_welcome_text(balance_str="$3.50", order_count=2)
     assert "Welcome!" in text
-    assert "Current Balance: <code>$3.50</code>" in text
+    assert "Current Balance:" in text
+    assert "<code>$3.50</code>" in text
     assert "User ID:" not in text
     assert "Name:" not in text
 
@@ -159,13 +160,10 @@ def test_dashboard_shows_personalized_customer_details():
         support_username="admin_support",
     )
     assert "Welcome, Rahad!" in text
-    assert "Date:" in text
-    assert "Time:" in text
-    assert "Account Information:" in text
-    assert "User ID: <code>6775546602</code>" in text
-    assert "Username: @rahadhasanrafi" in text
-    assert "Rank: <code>Standard</code>" in text
-    assert "Current Balance: <code>0.00 ৳</code>" in text
-    assert "Total Users: <code>12,798</code>" in text
-    assert "@admin_support" in text
-    assert "Use the menu buttons below to continue:" in text
+    assert "Welcome to <b>Premium Haven</b>" in text
+    assert "Current Balance:" in text
+    assert "<code>0.00 ৳</code>" in text
+    assert "Orders:" in text
+    assert "<code>5</code>" in text
+    assert "Rank:" in text
+    assert "<code>Standard</code>" in text

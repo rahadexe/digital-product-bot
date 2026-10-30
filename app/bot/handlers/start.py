@@ -62,63 +62,22 @@ def build_welcome_text(
     now: datetime.datetime | None = None,
 ) -> str:
     prefix = t("maintenance_notice", "en", icon_warning=ICON_WARNING, notice=escape(paused_notice)) + "\n\n" if paused_notice else ""
-    support = f"@{support_username.lstrip('@')}" if support_username else "@support"
     balance = balance_str or ("0.00 ৳" if currency == "BDT" else "$0.00")
     clean_user = escape(user_name.strip()) if user_name else ""
     clean_membership = escape(membership.strip() or "Standard")
+    clean_store = escape(store_name.strip() or "BM Digital")
 
-    if now is None:
-        try:
-            from zoneinfo import ZoneInfo
-            now = datetime.datetime.now(ZoneInfo("Asia/Dhaka"))
-        except Exception:
-            now = datetime.datetime.now(datetime.timezone.utc)
-    date_str = now.strftime("%A, %d %B %Y")
-    time_str = now.strftime("%I:%M:%S %p")
+    greeting = f"👋 <b>Welcome, {clean_user}!</b> 🤝" if clean_user else "👋 <b>Welcome!</b> 🤝"
 
-    greeting = f"<b>Welcome, {clean_user}!</b> 🤝" if clean_user else "<b>Welcome!</b> 🤝"
-
-    datetime_block = f"<b>Date:</b> {date_str}\n<b>Time:</b> {time_str}"
-
-    account_lines = []
-    if user_id:
-        account_lines.append(f"User ID: <code>{user_id}</code>")
-    if username:
-        account_lines.append(f"Username: @{escape(username.lstrip('@'))}")
-    elif clean_user:
-        account_lines.append(f"Name: <b>{clean_user}</b>")
-    if clean_membership:
-        account_lines.append(f"Rank: <code>{clean_membership}</code>")
-    account_lines.append(f"Current Balance: <code>{balance}</code>")
-    if order_count > 0:
-        account_lines.append(f"Orders: <code>{order_count}</code>")
-
-    stats_lines = []
-    if total_users > 0:
-        stats_lines.append(f"Total Users: <code>{total_users:,}</code>")
-
-    support_line = f"<b>Support:</b> {support}"
-    cta = "👇 <i>Use the menu buttons below to continue:</i>"
-
-    sections = [
+    lines = [
         greeting,
+        f"Welcome to <b>{clean_store}</b>",
         "",
-        datetime_block,
-        "",
-        "<b>Account Information:</b>\n" + "\n".join(account_lines),
+        f"💳 <b>Current Balance:</b> <code>{balance}</code>",
+        f"🛍️ <b>Orders:</b> <code>{order_count}</code>",
+        f"🎖️ <b>Rank:</b> <code>{clean_membership}</code>",
     ]
-    if stats_lines:
-        sections.extend([
-            "",
-            "<b>Bot Statistics:</b>\n" + "\n".join(stats_lines),
-        ])
-    sections.extend([
-        "",
-        support_line,
-        "",
-        cta,
-    ])
-    return prefix + "\n".join(sections)
+    return prefix + "\n".join(lines)
 
 
 router = Router(name="start_router")

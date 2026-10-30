@@ -1468,7 +1468,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         )
 
         edited = False
-        if target_msg_id and getattr(message, "bot", None) and chat_id:
+        if target_msg_id and getattr(message, "bot", None) and chat_id and not data.get("reference_prompt_id"):
             try:
                 await message.bot.edit_message_text(
                     chat_id=chat_id,
@@ -1480,7 +1480,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                 edited = True
             except Exception:
                 edited = False
-        if not edited:
+        if not edited and not data.get("reference_prompt_id"):
             await message.answer(
                 tx_err_card,
                 reply_markup=back_kb,
@@ -1523,6 +1523,11 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                         dep_id=result.get("deposit_id"),
                         lang=lang,
                     )
+                    ref_pid = data.get("reference_prompt_id")
+                    if ref_pid and getattr(message, "bot", None) and chat_id and ref_pid != target_msg_id:
+                        with suppress(Exception):
+                            await message.bot.delete_message(chat_id=chat_id, message_id=ref_pid)
+
                     status_target = target_msg_id if target_msg_id else None
                     if status_target and getattr(message, "bot", None) and chat_id:
                         try:
