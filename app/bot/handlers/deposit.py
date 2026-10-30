@@ -669,18 +669,22 @@ async def render_method_details(
             shortfall_bdt = math.ceil(shortfall_usd * rate)
             card_lines.append(f"Amount needed: <b>{shortfall_bdt:g} ৳</b> (${shortfall_usd:.2f})")
 
-    lines = [
-        f"{heading_prefix}<b>{escape(heading)}</b>",
-    ]
+    lines = []
+    if is_binance:
+        lines.append(f"{heading_prefix}<b>{escape(heading)}</b>")
+
     if shortfall_usd > 0:
-        lines.append("")
+        if lines:
+            lines.append("")
         if is_binance:
             lines.append(f"Amount needed: <b>{shortfall_usd:.2f} USDT</b>")
         else:
             shortfall_bdt = math.ceil(shortfall_usd * rate)
             lines.append(f"Amount needed: <b>{shortfall_bdt:g} ৳</b> (${shortfall_usd:.2f})")
 
-    lines.append("")
+    if lines:
+        lines.append("")
+
     if custom_inst:
         lines.append(escape(custom_inst))
     else:

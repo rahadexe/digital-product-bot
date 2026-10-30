@@ -153,25 +153,22 @@ async def test_render_method_details_flow():
     assert message.answer.call_count == 1
     call = message.answer.call_args_list[0]
     text = call[0][0]
-    assert "bKash (Send Money)" in text
     assert "Send Money to this personal number" in text
 
     kb = call[1]["reply_markup"]
     assert isinstance(kb, InlineKeyboardMarkup)
     assert [[button.text for button in row] for row in kb.inline_keyboard] == [
-        ["৳50", "৳100"],
-        ["৳150", "৳200"],
-        ["৳300", "৳500"],
-        ["৳750", "৳1000"],
-        ["৳1500", "৳2000"],
+        ["৳50", "৳100", "৳150"],
+        ["৳200", "৳300", "৳500"],
+        ["৳750", "৳1000", "৳1500"],
+        ["৳2000", "৳3000", "৳5000"],
         ["Back"],
     ]
     assert [button.callback_data for row in kb.inline_keyboard for button in row] == [
-        "dep_amt_50", "dep_amt_100",
-        "dep_amt_150", "dep_amt_200",
-        "dep_amt_300", "dep_amt_500",
-        "dep_amt_750", "dep_amt_1000",
-        "dep_amt_1500", "dep_amt_2000",
+        "dep_amt_50", "dep_amt_100", "dep_amt_150",
+        "dep_amt_200", "dep_amt_300", "dep_amt_500",
+        "dep_amt_750", "dep_amt_1000", "dep_amt_1500",
+        "dep_amt_2000", "dep_amt_3000", "dep_amt_5000",
         "dep_methods",
     ]
 
@@ -502,7 +499,6 @@ async def test_exchange_rate_and_dollar_conversion_flow():
     # Screen 1: Method details
     await render_method_details(message, state, services, method)
     screen1_text = message.answer.call_args_list[0][0][0]
-    assert "bKash (Send Money)" in screen1_text
     assert "ডিপোজিট অ্যামাউন্ট চুজ করুন" in screen1_text
 
     # Screen 2: User enters 500
