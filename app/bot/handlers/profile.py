@@ -114,36 +114,36 @@ async def show_account_hub(event: Message | CallbackQuery, state: FSMContext, se
         bot_user = "bot"
     ref_link = f"https://t.me/{bot_user}?start={tg_user.id}"
 
-    if lang == "bn":
-        lines = [
-            f"• ব্যালেন্স: <code>{balance_str}</code>",
-            f"• মোট অর্ডার: <code>{total_orders}</code>",
-            f"• রেফার আয়: <code>{ref_earned_str}</code>",
-            f"• কারেন্সি: <code>{curr_label}</code>",
-        ]
-        if is_reseller:
-            lines.append("• টিয়ার: <b>রিসেলার পার্টনার</b>")
-        text = f"👤 <b>{user_name}</b>\n\n" + "\n".join(lines) + f"\n\n🔗 <b>আপনার রেফারেল লিংক:</b>\n<code>{ref_link}</code>"
-        orders_label = f"📦 আমার অর্ডার ({total_orders})" if total_orders > 0 else "📦 আমার অর্ডার"
-        refer_label = "🎁 রেফার"
-        alerts_label = "🔔 অ্যালার্টস"
-        api_label = "🔑 এপিআই"
-        reseller_label = "💎 রিসেলার"
+    raw_username = getattr(tg_user, "username", None)
+    user_handle = f"@{escape(raw_username.lstrip('@'))}" if raw_username else None
+    lines = [
+        f"User ID: <code>{tg_user.id}</code>",
+    ]
+    if user_handle:
+        lines.append(f"Username: {user_handle}")
+    elif user_name:
+        lines.append(f"Name: <b>{user_name}</b>")
+    if is_reseller:
+        lines.append("Rank: <code>Reseller Partner</code>")
     else:
-        lines = [
-            f"• Balance: <code>{balance_str}</code>",
-            f"• Total Orders: <code>{total_orders}</code>",
-            f"• Referral Earned: <code>{ref_earned_str}</code>",
-            f"• Currency: <code>{curr_label}</code>",
-        ]
-        if is_reseller:
-            lines.append("• Tier: <b>Reseller Partner</b>")
-        text = f"👤 <b>{user_name}</b>\n\n" + "\n".join(lines) + f"\n\n🔗 <b>Your Referral Link:</b>\n<code>{ref_link}</code>"
-        orders_label = f"📦 My Orders ({total_orders})" if total_orders > 0 else "📦 My Orders"
-        refer_label = "🎁 Refer"
-        alerts_label = "🔔 Alerts"
-        api_label = "🔑 API"
-        reseller_label = "💎 Reseller"
+        rank_str = (user.get("rank") or "Standard").title() if isinstance(user, dict) else "Standard"
+        lines.append(f"Rank: <code>{escape(rank_str)}</code>")
+    lines.append(f"Current Balance: <code>{balance_str}</code>")
+    lines.append(f"Total Orders: <code>{total_orders}</code>")
+    if ref_earned > 0:
+        lines.append(f"Referral Earned: <code>{ref_earned_str}</code>")
+    lines.append(f"Currency: <code>{curr_label}</code>")
+
+    text = (
+        "👤 <b>Account Overview</b>\n\n"
+        + "\n".join(lines)
+        + f"\n\n🔗 <b>Your Referral Link:</b>\n<code>{ref_link}</code>"
+    )
+    orders_label = f"📦 My Orders ({total_orders})" if total_orders > 0 else "📦 My Orders"
+    refer_label = "🎁 Refer"
+    alerts_label = "🔔 Alerts"
+    api_label = "🔑 API"
+    reseller_label = "💎 Reseller"
 
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
@@ -1333,29 +1333,29 @@ async def view_deposit_detail(query: CallbackQuery, state: FSMContext, services:
     date_str = created.strftime("%d %b %Y · %H:%M") if isinstance(created, datetime) else str(created)[:16]
 
     if deposit["status"] == "approved":
-        status_line = f"<b>{t('status_approved', lang)}</b> ✅"
+        status_line = "<b>Approved</b> ✅"
     elif deposit["status"] == "rejected":
-        status_line = f"<b>{t('status_rejected', lang)}</b> ❌"
+        status_line = "<b>Rejected</b> ❌"
         if deposit.get("admin_note"):
             status_line += f"\n<i>{escape(deposit['admin_note'])}</i>"
     else:
-        status_line = f"<b>{t('status_pending', lang)}</b>"
+        status_line = "<b>Pending</b> ⏳"
     if lang != "bn" and deposit["status"] == "pending":
         status_line += "\n<i>Checking your payment details. Do not pay again.</i>"
 
     text = (
-        f"{t('deposit_detail_title', lang, id=format_deposit_id(deposit['id']))}\n\n"
+        f"<b>Top-up {format_deposit_id(deposit['id'])}</b>\n\n"
         f"{status_line}\n\n"
-        f"<b>{t('deposit_amount', lang)}:</b> {amount_str}\n"
-        f"<b>{t('deposit_method', lang)}:</b> {escape(deposit['method_name'])}\n"
-        f"<b>{t('deposit_trxid', lang)}:</b> <code>{escape(deposit['transaction_id'])}</code>\n"
-        f"\n<b>{t('deposit_submitted_at', lang)}:</b> {date_str}"
+        f"<b>Amount:</b> {amount_str}\n"
+        f"<b>Method:</b> {escape(deposit['method_name'])}\n"
+        f"<b>TrxID:</b> <code>{escape(deposit['transaction_id'])}</code>\n"
+        f"\n<b>Submitted:</b> {date_str}"
     )
 
     if deposit.get("reviewed_at"):
         rev = deposit["reviewed_at"]
         rev_str = rev.strftime("%d %b %Y · %H:%M") if isinstance(rev, datetime) else str(rev)[:16]
-        text += f"\n<b>{t('deposit_reviewed_at', lang)}:</b> {rev_str}"
+        text += f"\n<b>Reviewed:</b> {rev_str}"
 
     back_to_history_cb = f"dep_page_{page}_{dep_id_ref}" if dep_id_ref else f"dep_page_{page}"
 

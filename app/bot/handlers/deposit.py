@@ -172,10 +172,10 @@ async def _retry_payment_input(
         await state.set_state(DepositStates.waiting_for_amount)
         field, placeholder = "amount_prompt_id", "Amount in USDT" if is_binance else "Amount in BDT"
         card_text = (
-            f"💳 <b>Deposit Verification Notice</b>\n\n"
+            "⚠️ <b>Deposit Verification Notice</b>\n\n"
             f"Method: <b>{escape(method_name)}</b>\n"
             f"TrxID: <code>{escape(clean_tx)}</code>\n\n"
-            f"⚠️ <b>{escape(text)}</b>"
+            f"<b>{escape(text)}</b>"
         )
     else:
         await state.update_data(manual_txid=None)
@@ -183,12 +183,14 @@ async def _retry_payment_input(
             DepositStates.waiting_for_binance_ref if is_binance else DepositStates.waiting_for_txid,
         )
         field, placeholder = "reference_prompt_id", "Order ID" if is_binance else "Transaction ID"
-        card_text = (
-            f"💳 <b>Deposit Verification Notice</b>\n\n"
-            f"Method: <b>{escape(method_name)}</b>\n"
-            + (f"Amount: <b>{amt_display}</b>\n" if amt > 0 else "")
-            + f"\n⚠️ <b>{escape(text)}</b>"
-        )
+        lines = [
+            "⚠️ <b>Deposit Verification Notice</b>\n",
+            f"Method: <b>{escape(method_name)}</b>",
+        ]
+        if amt > 0:
+            lines.append(f"Amount: <code>{amt_display}</code>")
+        lines.append(f"\n<b>{escape(text)}</b>")
+        card_text = "\n".join(lines)
 
     await _safe_edit_or_answer(
         status_msg, message, card_text,
@@ -268,20 +270,21 @@ def format_deposit_status_card(
     elif st in ("rejected", "failed", "cancelled"):
         st_display = "❌ <code>Rejected</code>"
 
-    card = (
-        f"<b>Top-up {dep_prefix}</b>\n"
-        f"Method: <b>{escape(method_name)}</b> (<code>{amount_str}</code>)\n"
-        f"TrxID: <code>{escape(txid)}</code>\n"
-        f"Status: {st_display}"
-    )
+    lines = [
+        f"<b>Top-up {dep_prefix}</b>\n",
+        f"Method: <b>{escape(method_name)}</b>",
+        f"Amount: <code>{amount_str}</code>",
+        f"TrxID: <code>{escape(txid)}</code>",
+        f"Status: {st_display}",
+    ]
     if current_balance and st in ("approved", "completed"):
-        card += f"\nCurrent Balance: <code>{current_balance}</code>"
+        lines.append(f"Current Balance: <code>{current_balance}</code>")
     if error_note and st not in ("approved", "completed"):
         clean_note = error_note
         if any(x in str(clean_note) for x in ("HTTP", "401", "unavailable", "configured")):
             clean_note = "Submitted for manual admin review."
-        card += f"\n\nℹ️ <i>{escape(clean_note)}</i>"
-    return card
+        lines.append(f"\nℹ️ <i>{escape(clean_note)}</i>")
+    return "\n".join(lines)
 
 
 def format_deposit_success_card(
@@ -295,7 +298,8 @@ def format_deposit_success_card(
     clean_tx = (txid or "").strip()
     lines = [
         "✅ <b>Deposit Successful!</b>\n",
-        f"Method: <b>{escape(provider)}</b> (<code>{amount_display}</code>)",
+        f"Method: <b>{escape(provider)}</b>",
+        f"Amount: <code>{amount_display}</code>",
     ]
     if clean_tx:
         lines.append(f"TrxID: <code>{escape(clean_tx)}</code>")
@@ -1655,7 +1659,7 @@ async def execute_deposit_submission(
 
     if not method_id or not clean_tx or (credit_amount <= 0 and actual_pay <= 0):
         await state.clear()
-        expired_msg = "⏳ Session expired. Please select a deposit method to try again."
+        expired_msg = "⚠️ <b>Session Expired</b>\n\nPlease select a deposit method to try again."
         if isinstance(event, CallbackQuery) and event.message:
             with suppress(TelegramBadRequest):
                 await event.message.edit_text(expired_msg)
@@ -1673,9 +1677,9 @@ async def execute_deposit_submission(
 
     # Status message while verifying
     checking_txt = (
-        f"⏳ <b>Checking payment...</b>\n\n"
+        "⏳ <b>Checking payment...</b>\n\n"
         f"Method: <b>{escape(method_name)}</b>\n"
-        f"Amount: <b>{amt_display}</b>\n"
+        f"Amount: <code>{amt_display}</code>\n"
         f"TrxID: <code>{escape(clean_tx)}</code>"
     )
 
@@ -1739,7 +1743,11 @@ async def execute_deposit_submission(
             [InlineKeyboardButton(text="✏️ Fix TrxID", callback_data=f"dep_fix_trx_{existing_pending['id']}")],
             [InlineKeyboardButton(text="📊 Balance History", callback_data="open_deposits")],
         ]
-        text = "⏳ A deposit of yours is still being checked. Please wait for it to finish."
+        text = (
+            "⏳ <b>Deposit in Review</b>\n\n"
+            f"A previous deposit (TrxID: <code>{escape(existing_tx or clean_tx)}</code>) is still being verified.\n"
+            "Please wait a moment or tap Refresh."
+        )
         await _safe_edit_or_answer(status_msg, user_msg, text, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
         return
 
@@ -1755,7 +1763,11 @@ async def execute_deposit_submission(
         sup_url = resolve_support_url(support_user)
         if sup_url:
             kb.append([InlineKeyboardButton(text="💬 Contact Support", url=sup_url)])
-        text = f"❌ Too many wrong TrxIDs entered. Try again in {rem_min} minute(s)."
+        text = (
+            "⚠️ <b>Too Many Attempts</b>\n\n"
+            f"Too many invalid Transaction IDs entered.\n"
+            f"Please wait {rem_min} minute(s) before trying again."
+        )
         await _safe_edit_or_answer(status_msg, user_msg, text, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
         return
 

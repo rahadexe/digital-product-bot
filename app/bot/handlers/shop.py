@@ -485,21 +485,21 @@ async def product_view(
         "",
     ]
     if duration and duration.lower() not in {"instant", "none", "n/a", ""}:
-        lines.append(f"• Validity: {duration}")
+        lines.append(f"Validity: <b>{duration}</b>")
     if warranty and warranty.lower() not in {"instant", "none", "n/a"}:
-        lines.append(f"• Warranty: {warranty}")
-    lines.append(f"• Status: {stock_text}")
+        lines.append(f"Warranty: <b>{warranty}</b>")
+    lines.append(f"Status: <b>{stock_text}</b>")
 
     lines.append("")
     if quantity > 1:
-        lines.append(f"💵 Price: {unit_price_str} × {quantity} = <b>{total_price_str}</b>")
+        lines.append(f"Price: {unit_price_str} × {quantity} = <b>{total_price_str}</b>")
     else:
-        price_line = f"💵 Price: <b>{unit_price_str}</b>"
+        price_line = f"Price: <b>{unit_price_str}</b>"
         if has_reseller_rate:
             price_line += " · <i>Reseller</i>"
         lines.append(price_line)
 
-    lines.append(f"💰 {bal_label}: <b>{user_balance_str}</b>")
+    lines.append(f"{bal_label}: <b>{user_balance_str}</b>")
 
     # The description lives behind its own button rather than in the card, so a
     # long one does not push the price and the quantity controls off the screen.
@@ -1291,18 +1291,11 @@ async def execute_quantity_purchase(query: CallbackQuery, state: FSMContext, ser
     if product.get("requires_customer_input"):
         lang = await services.users.get_language(query.from_user.id)
         prompt_custom = (product.get("customer_input_prompt") or "").strip()
-        if lang == "bn":
-            header = "📝 <b>অর্ডার সম্পন্ন করতে তথ্য প্রদান করুন:</b>"
-            default_prompt = "দয়া করে আপনার জিমেইল এড্রেস বা প্রয়োজনীয় তথ্য লিখে মেসেজ পাঠান:"
-            hint = f"📌 {escape(prompt_custom)}" if prompt_custom else f"📌 {default_prompt}"
-            instr = f"{header}\n\n{hint}\n\n<i>নিচে মেসেজ বক্সে লিখে সেন্ড করুন 👇</i>"
-            cancel_btn = "❌ বাতিল করুন"
-        else:
-            header = "📝 <b>Required Information:</b>"
-            default_prompt = "Please reply with your Gmail address or account details:"
-            hint = f"📌 {escape(prompt_custom)}" if prompt_custom else f"📌 {default_prompt}"
-            instr = f"{header}\n\n{hint}\n\n<i>Type your info below and send 👇</i>"
-            cancel_btn = "❌ Cancel"
+        header = "📝 <b>Required Information:</b>"
+        default_prompt = "Please send your email address or account details below:"
+        hint = f"📌 {escape(prompt_custom)}" if prompt_custom else f"📌 {default_prompt}"
+        instr = f"{header}\n\n{hint}\n\n<i>Type your info below and send 👇</i>"
+        cancel_btn = "❌ Cancel"
 
         await state.set_state(ShopQuantityStates.waiting_for_customer_input)
         await state.update_data(
@@ -1332,17 +1325,12 @@ async def execute_quantity_purchase(query: CallbackQuery, state: FSMContext, ser
 
     lang = await services.users.get_language(query.from_user.id)
     with suppress(TelegramBadRequest):
-        toast_success = "ক্রয় সফল হয়েছে!" if lang == "bn" else "Order placed successfully"
-        await query.answer(toast_success, show_alert=False)
+        await query.answer("Order placed successfully", show_alert=False)
 
     if query.message:
         is_waiting = order.get("fulfillment") == "waiting"
-        if lang == "bn":
-            success_title = "⏳ <b>অর্ডার প্রসেসিং</b>" if is_waiting else "✅ <b>ক্রয় সফল হয়েছে</b>"
-            below_text = "" if is_waiting else "<i>আপনার অর্ডার বিবরণ এবং ডেলিভারি নিচে পাঠানো হয়েছে।</i>"
-        else:
-            success_title = "⏳ <b>Order Processing</b>" if is_waiting else "✅ <b>Order Placed</b>"
-            below_text = "" if is_waiting else "<i>Your order details and delivery are below.</i>"
+        success_title = "⏳ <b>Order Processing</b>" if is_waiting else "✅ <b>Order Placed</b>"
+        below_text = "" if is_waiting else "<i>Your order details and delivery are below.</i>"
         if not is_waiting:
             services.notifier.in_background(
                 _clear_banner(query.message, PURCHASE_BANNER_SECONDS))
@@ -1414,17 +1402,12 @@ async def execute_legacy_purchase(query: CallbackQuery, state: FSMContext, servi
 
     lang = await services.users.get_language(query.from_user.id)
     with suppress(TelegramBadRequest):
-        toast_success = "🎉 ক্রয় সফল হয়েছে!" if lang == "bn" else "Order placed"
-        await query.answer(toast_success, show_alert=False)
+        await query.answer("Order placed", show_alert=False)
 
     if query.message:
         is_waiting = order.get("fulfillment") == "waiting"
-        if lang == "bn":
-            success_title = f"{ICON_TIMER} <b>অর্ডার সম্পন্ন হয়েছে!</b>" if is_waiting else f"{ICON_CHECK} <b>ক্রয় সফল হয়েছে!</b>"
-            below_text = "" if is_waiting else "<i>আপনার অর্ডার বিবরণ এবং ডেলিভারি নিচে রয়েছে 👇</i>"
-        else:
-            success_title = f"{ICON_TIMER} <b>Order placed</b>" if is_waiting else f"{ICON_CHECK} <b>Order placed</b>"
-            below_text = "" if is_waiting else "<i>Your order details and delivery are below 👇</i>"
+        success_title = f"{ICON_TIMER} <b>Order placed</b>" if is_waiting else f"{ICON_CHECK} <b>Order placed</b>"
+        below_text = "" if is_waiting else "<i>Your order details and delivery are below 👇</i>"
         if not is_waiting:
             services.notifier.in_background(
                 _clear_banner(query.message, PURCHASE_BANNER_SECONDS))
