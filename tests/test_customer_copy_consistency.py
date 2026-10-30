@@ -21,7 +21,7 @@ from app.core.i18n import t
 
 def test_wallet_confirmation_is_short_and_keeps_financial_reference():
     text = wallet_updated(500, 650, "৳", 42)
-    assert "Balance Updated" in text
+    assert "Deposit Successful!" in text
     assert "500" in text and "650" in text
 
 

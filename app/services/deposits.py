@@ -801,11 +801,14 @@ class DepositService:
                 tg_user_id,
                 lambda currency, rate: (
                     "❌ <b>Deposit Rejected</b>\n\n"
+                    "<blockquote>"
                     f"Deposit ID: <code>{format_deposit_id(deposit_id)}</code>\n"
                     f"Method: <b>{method_name}</b>\n"
                     f"Amount: <code>{format_dual_price(amount, currency=currency, usd_rate=rate)}</code>\n"
                     + (f"TrxID: <code>{trx_id}</code>\n" if trx_id else "")
                     + f"Reason: <i>{escape(admin_note) or 'Verification Failed'}</i>"
+                    "</blockquote>\n\n"
+                    "If you believe this was an error, please contact our support team."
                 ),
                 keyboard=support_kb,
             )
