@@ -266,11 +266,31 @@ def format_deposit_status_card(
     dep_prefix = format_deposit_id(dep_id) if dep_id else ""
     if st in ("approved", "completed"):
         header = "✅ <b>Deposit Successful!</b>"
-    elif st in ("rejected", "failed", "cancelled"):
-        header = "❌ <b>Deposit Rejected</b>"
-    else:
-        header = "⏳ <b>Deposit in Review</b>"
+        lines = [
+            f"{header}\n",
+            f"Method: <b>{escape(method_name)}</b>",
+            f"Amount: <code>{amount_str}</code>",
+        ]
+        if current_balance:
+            lines.append(f"Current Balance: <code>{current_balance}</code>")
+        return "\n".join(lines)
 
+    if st in ("rejected", "failed", "cancelled"):
+        header = "❌ <b>Deposit Rejected</b>"
+        lines = [f"{header}\n"]
+        if dep_prefix:
+            lines.append(f"Deposit ID: <code>{dep_prefix}</code>")
+        lines.append(f"Method: <b>{escape(method_name)}</b>")
+        lines.append(f"Amount: <code>{amount_str}</code>")
+        if txid:
+            lines.append(f"TrxID: <code>{escape(txid)}</code>")
+        clean_note = error_note or "Could not be verified"
+        if any(x in str(clean_note) for x in ("HTTP", "401", "unavailable", "configured")):
+            clean_note = "Submitted for manual admin review."
+        lines.append(f"Reason: <i>{escape(clean_note)}</i>")
+        return "\n".join(lines)
+
+    header = "⏳ <b>Deposit in Review</b>"
     lines = [f"{header}\n"]
     if dep_prefix:
         lines.append(f"Deposit ID: <code>{dep_prefix}</code>")
@@ -278,22 +298,12 @@ def format_deposit_status_card(
     lines.append(f"Amount: <code>{amount_str}</code>")
     if txid:
         lines.append(f"TrxID: <code>{escape(txid)}</code>")
-
-    if st in ("approved", "completed"):
-        if current_balance:
-            lines.append(f"Current Balance: <code>{current_balance}</code>")
-    elif st in ("rejected", "failed", "cancelled"):
-        clean_note = error_note or "Could not be verified"
+    lines.append("Status: ⏳ <code>Pending</code>")
+    if error_note:
+        clean_note = error_note
         if any(x in str(clean_note) for x in ("HTTP", "401", "unavailable", "configured")):
             clean_note = "Submitted for manual admin review."
-        lines.append(f"Reason: <i>{escape(clean_note)}</i>")
-    else:
-        lines.append("Status: ⏳ <code>Pending</code>")
-        if error_note:
-            clean_note = error_note
-            if any(x in str(clean_note) for x in ("HTTP", "401", "unavailable", "configured")):
-                clean_note = "Submitted for manual admin review."
-            lines.append(f"\nℹ️ <i>{escape(clean_note)}</i>")
+        lines.append(f"\nℹ️ <i>{escape(clean_note)}</i>")
     return "\n".join(lines)
 
 
@@ -306,17 +316,11 @@ def format_deposit_success_card(
     dep_id: int | None = None,
     lang: str = "en",
 ) -> str:
-    clean_tx = (txid or "").strip()
-    dep_prefix = format_deposit_id(dep_id) if dep_id else ""
     lines = [
         "✅ <b>Deposit Successful!</b>\n",
+        f"Method: <b>{escape(provider)}</b>",
+        f"Amount: <code>{amount_display}</code>",
     ]
-    if dep_prefix:
-        lines.append(f"Deposit ID: <code>{dep_prefix}</code>")
-    lines.append(f"Method: <b>{escape(provider)}</b>")
-    lines.append(f"Amount: <code>{amount_display}</code>")
-    if clean_tx:
-        lines.append(f"TrxID: <code>{escape(clean_tx)}</code>")
     if credited_display:
         lines.append(f"Added: <code>{credited_display}</code>")
     lines.append(f"Current Balance: <code>{balance_display}</code>")

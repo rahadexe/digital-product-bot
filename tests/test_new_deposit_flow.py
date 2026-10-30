@@ -452,10 +452,11 @@ async def test_deposit_refresh_callback():
     query.answer.assert_called_with("✅ Deposit Approved!")
     assert msg.edit_text.called
     text = msg.edit_text.call_args[0][0]
-    assert "D42" in text
     assert "Deposit Successful!" in text
+    assert "bKash" in text
     assert "<code>$4</code>" in text
     assert "Current Balance: <code>$750</code>" in text
+    assert "D42" not in text
     kb = msg.edit_text.call_args[1]["reply_markup"]
     assert [b.callback_data for row in kb.inline_keyboard for b in row] == []
 
