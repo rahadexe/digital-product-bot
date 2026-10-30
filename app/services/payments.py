@@ -707,12 +707,14 @@ class PaymentService:
             pass
 
         await self.notifier.send_admin(
-            f"✅ <b>Automatic Deposit · {format_deposit_id(deposit_id)}</b>\n\n"
-            f"<blockquote>Customer: {customer_name} (ID: <code>{row['tg_user_id']}</code>)\n"
+            "✅ <b>Automatic Deposit Verified</b>\n\n"
+            f"<blockquote>Deposit ID: <code>{format_deposit_id(deposit_id)}</code>\n"
+            f"Customer: {customer_name}\n"
+            f"Customer ID: <code>{row['tg_user_id']}</code>\n"
             f"Method: <b>{escape(row['payment_method'] or 'ZiniPay')}</b>\n"
             f"Amount: <code>{credit:.2f} {symbol}</code>{paid_line}\n"
             f"TrxID: <code>{escape(row['provider_transaction_id'] or '')}</code></blockquote>\n\n"
-            f"Credited to customer wallet automatically.",
+            "Credited to customer wallet automatically.",
             event="payment",
         )
 

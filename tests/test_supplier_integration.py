@@ -287,11 +287,9 @@ async def test_supplier_balance_notice_is_short_english_without_decorative_symbo
     assert "Supplier Low Balance Alert" in text
     assert "Current Balance" in text
     assert not any(symbol in text for symbol in ("•", "—", "ব্যা"))
-    # The message carries an inline button to mute alerts directly
+    # Supplier low balance alerts are managed via admin console settings (no inline mute button)
     kb = notifier.send.call_args.kwargs.get("keyboard")
-    assert kb is not None
-    assert "Turn Off Alert" in kb.inline_keyboard[0][0].text
-    assert kb.inline_keyboard[0][0].callback_data == f"mute_sup_{code}"
+    assert kb is None
 
 
 @pytest.mark.asyncio

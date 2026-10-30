@@ -470,8 +470,10 @@ class DepositService:
         note_str = f"\n\n⚠️ <b>Note:</b> <i>{escape(admin_note)}</i>" if admin_note else ""
 
         await self.notifier.send_admin(
-            f"⏳ <b>New Deposit Request · {format_deposit_id(deposit_id)}</b>\n\n"
-            f"<blockquote>Customer: {customer} (ID: <code>{tg_user_id}</code>)\n"
+            "⏳ <b>New Deposit Request</b>\n\n"
+            f"<blockquote>Deposit ID: <code>{format_deposit_id(deposit_id)}</code>\n"
+            f"Customer: {customer}\n"
+            f"Customer ID: <code>{tg_user_id}</code>\n"
             f"Method: <b>{escape(quote['method_name'])}</b>\n"
             f"Payable: <code>{quote['pay_amount']:.2f} {quote['paid_currency']}</code> (${quote['amount']:.2f})\n"
             f"TrxID: <code>{escape(transaction_id)}</code></blockquote>"

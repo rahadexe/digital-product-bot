@@ -80,8 +80,6 @@ class AnnouncementService:
             f"✅ <b>Product Restocked</b>\n\n"
             f"<blockquote>Product: {icon_prefix}<b>{title}</b>\n"
             f"{duration_line}"
-            f"Fresh Stock: <code>+{added_count} units</code>\n"
-            f"Available: <code>{product['stock']}</code>\n"
             f"Price: <code>{format_dual_price(product['price'], symbol, show_usd=False)}</code></blockquote>",
             event="restock",
             keyboard=button,
@@ -98,8 +96,6 @@ class AnnouncementService:
                 f"✅ <b>Product Restocked</b>\n\n"
                 f"<blockquote>Product: {icon_prefix}<b>{title}</b>\n"
                 f"{duration_line}"
-                f"Fresh Stock: <code>+{added_count} units</code>\n"
-                f"Available: <code>{product['stock']}</code>\n"
                 f"Price: <code>{format_dual_price(product['price'], symbol, show_usd=False)}</code>\n"
                 f"Delivery: Instant</blockquote>",
                 button,

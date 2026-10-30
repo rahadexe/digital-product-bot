@@ -380,11 +380,8 @@ class DigitalMartClient(BaseSupplier):
                 f"Threshold: <code>৳{threshold:.2f} BDT</code></blockquote>\n\n"
                 "Top up supplier wallet to prevent order interruptions."
             )
-            kb = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🔕 Turn Off Alert", callback_data="mute_sup_digital_mart")]
-            ])
             for aid in admin_ids:
-                notifier.in_background(notifier.send(aid, msg, keyboard=kb))
+                notifier.in_background(notifier.send(aid, msg))
             return True
         return False
 
@@ -592,11 +589,8 @@ class SafwanTigerClient(BaseSupplier):
                 f"Threshold: <code>${threshold:.2f} USDT</code></blockquote>\n\n"
                 "Top up supplier wallet to prevent order interruptions."
             )
-            kb = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🔕 Turn Off Alert", callback_data="mute_sup_safwan_tiger")]
-            ])
             for aid in admin_ids:
-                notifier.in_background(notifier.send(aid, msg, keyboard=kb))
+                notifier.in_background(notifier.send(aid, msg))
             return True
         return False
 

@@ -256,12 +256,12 @@ class PurchaseService:
                             if upstream_devices <= 1 and charged_cost_usd > float(total_price):
                                 admin_ids = await self.settings.admin_chat_ids()
                                 alert_text = (
-                                    "🛡️ <b>Loss Shield Alert: Price Jump Detected!</b>\n\n"
-                                    f"<blockquote>Product: <b>{product['title']}</b> ({getattr(supplier, 'name', supplier_code)} #{upstream_prod_id})\n"
+                                    "🛡️ <b>Price Jump Detected!</b>\n\n"
+                                    f"<blockquote>Product: <b>{product['title']}</b>\n"
                                     f"Customer Paid: <code>${float(total_price):.2f}</code>\n"
                                     f"Supplier Cost: <code>${charged_cost_usd:.2f}</code>\n"
-                                    f"Difference: <code>-${charged_cost_usd - float(total_price):.2f}</code></blockquote>\n\n"
-                                    "Wholesale cost exceeds retail price. Sales paused to prevent losses."
+                                    f"Loss: <code>-${charged_cost_usd - float(total_price):.2f}</code></blockquote>\n\n"
+                                    "Supplier cost exceeds retail price. Sales paused."
                                 )
                                 for aid in admin_ids:
                                     self.notifier.in_background(self.notifier.send(aid, alert_text))
@@ -468,8 +468,9 @@ class PurchaseService:
                 extra_lines += f"\nIssue: <code>{escape(str(order['supplier_error']))}</code>"
             msg_text = (
                 f"{heading}\n\n"
-                f"<blockquote>Order: <code>{format_order_id(order_id)}</code>\n"
-                f"Customer: {customer} (ID: <code>{user['tg_user_id']}</code>)\n"
+                f"<blockquote>Order ID: <code>{format_order_id(order_id)}</code>\n"
+                f"Customer: {customer}\n"
+                f"Customer ID: <code>{user['tg_user_id']}</code>\n"
                 f"Product: <b>{escape(order['product_title'])}</b>\n"
                 f"Price: <code>{price(symbol, order['price'], usd_rate=usd_rate)}</code>"
                 f"{extra_lines}\n"
@@ -479,8 +480,9 @@ class PurchaseService:
             stock_line = f"\n\n{stock_warning.strip()}" if stock_warning else ""
             msg_text = (
                 f"{heading}\n\n"
-                f"<blockquote>Order: <code>{format_order_id(order_id)}</code>\n"
-                f"Customer: {customer} (ID: <code>{user['tg_user_id']}</code>)\n"
+                f"<blockquote>Order ID: <code>{format_order_id(order_id)}</code>\n"
+                f"Customer: {customer}\n"
+                f"Customer ID: <code>{user['tg_user_id']}</code>\n"
                 f"Product: <b>{escape(order['product_title'])}</b>\n"
                 f"Price: <code>{price(symbol, order['price'], usd_rate=usd_rate)}</code>\n"
                 f"Delivery: Instant</blockquote>"
@@ -498,19 +500,15 @@ class PurchaseService:
         # that matters a few sales later.
         worth_saying = rem_stock is not None and (rem_stock == 0 or rem_stock <= threshold)
         if worth_saying and await self._stock_alert_is_due(prod_id, rem_stock):
+            rows = []
+            if console:
+                rows.append([InlineKeyboardButton(
+                    text="🖥️ Open in Console",
+                    url=f"{console}/#inventory",
+                )])
+            stock_kb = InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
+
             if rem_stock == 0:
-                # The alert is the moment stock is on the owner's mind, so the fix
-                # belongs on it rather than behind a browser and a login.
-                rows = [[InlineKeyboardButton(
-                    text="Add Stock",
-                    callback_data=f"adm_stock_{prod_id}",
-                )]]
-                if console:
-                    rows.append([InlineKeyboardButton(
-                        text="Open in Console",
-                        url=f"{console}/#inventory",
-                    )])
-                low_stock_kb = InlineKeyboardMarkup(inline_keyboard=rows)
                 alert_text = (
                     "⚠️ <b>Product Out of Stock</b>\n\n"
                     f"<blockquote>Product: <b>{escape(order['product_title'])}</b>\n"
@@ -520,21 +518,9 @@ class PurchaseService:
                 await self.notifier.send_admin(
                     alert_text,
                     event="low_stock",
-                    keyboard=low_stock_kb,
+                    keyboard=stock_kb,
                 )
             elif rem_stock <= threshold:
-                # The alert is the moment stock is on the owner's mind, so the fix
-                # belongs on it rather than behind a browser and a login.
-                rows = [[InlineKeyboardButton(
-                    text="Add Stock",
-                    callback_data=f"adm_stock_{prod_id}",
-                )]]
-                if console:
-                    rows.append([InlineKeyboardButton(
-                        text="Open in Console",
-                        url=f"{console}/#inventory",
-                    )])
-                low_stock_kb = InlineKeyboardMarkup(inline_keyboard=rows)
                 alert_text = (
                     "⚠️ <b>Low Stock Warning</b>\n\n"
                     f"<blockquote>Product: <b>{escape(order['product_title'])}</b>\n"
@@ -544,7 +530,7 @@ class PurchaseService:
                 await self.notifier.send_admin(
                     alert_text,
                     event="low_stock",
-                    keyboard=low_stock_kb,
+                    keyboard=stock_kb,
                 )
 
     STOCK_ALERT_QUIET_SECONDS = 6 * 60 * 60
