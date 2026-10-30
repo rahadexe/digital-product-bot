@@ -1050,6 +1050,10 @@ async def view_order_detail(query: CallbackQuery, state: FSMContext, services: S
             f"তারিখ: <code>{date_str}</code></blockquote>"
         )
 
+    if order.get("customer_input"):
+        cust_label = "Provided Info" if lang != "bn" else "প্রদত্ত তথ্য"
+        text += f"\n\n<b>{cust_label}:</b> <code>{escape(str(order['customer_input']))}</code>"
+
     has_credentials = bool(order.get("delivered_item") and order.get("fulfillment") != "waiting")
     if has_credentials:
         from app.services.delivery import format_credential_lines

@@ -1468,13 +1468,21 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         type_display, _ = get_account_type_labels(account_type)
         num_label = "Pay ID" if is_binance else "Number"
 
-        tx_err_card = (
-            f"<b>{escape(method_name)}{f' {type_display}' if not is_binance else ''}</b>\n"
-            f"{num_label}: <code>{escape(account_info)}</code>\n"
-            f"{amount_summary}\n\n"
-            f"{alert_header}\n"
-            f"{alert_body}"
-        )
+        ref_prompt_id = data.get("reference_prompt_id")
+        if data.get("reference_first") and ref_prompt_id:
+            tx_err_card = (
+                f"{alert_header}\n\n"
+                f"{alert_body}"
+            )
+            target_msg_id = ref_prompt_id
+        else:
+            tx_err_card = (
+                f"<b>{escape(method_name)}{f' {type_display}' if not is_binance else ''}</b>\n"
+                f"{num_label}: <code>{escape(account_info)}</code>\n"
+                f"{amount_summary}\n\n"
+                f"{alert_header}\n"
+                f"{alert_body}"
+            )
 
         sup_url = None
         if hasattr(services, "settings") and hasattr(services.settings, "get"):
@@ -1608,23 +1616,33 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
 
         type_display, _ = get_account_type_labels(account_type)
         num_label = "Pay ID" if is_binance else "Number"
-        prompt_card = (
-            f"<b>{escape(method_name)}{f' {type_display}' if not is_binance else ''}</b>\n\n"
-            f"{num_label}: <code>{escape(account_info)}</code>\n"
-            f"{label}: <code>{escape(clean_tx)}</code> ✅\n\n"
-            f"💰 <b>How much did you send?</b>\n"
-            f"Enter the amount you sent in {unit}, e.g. {example:g}."
-        )
+        ref_prompt_id = data.get("reference_prompt_id")
+        if data.get("reference_first") and ref_prompt_id:
+            prompt_card = (
+                f"{label}: <code>{escape(clean_tx)}</code> ✅\n\n"
+                f"💰 <b>How much did you send?</b>\n"
+                f"Enter the amount you sent in {unit}, e.g. {example:g}."
+            )
+            amt_target_id = ref_prompt_id
+        else:
+            prompt_card = (
+                f"<b>{escape(method_name)}{f' {type_display}' if not is_binance else ''}</b>\n\n"
+                f"{num_label}: <code>{escape(account_info)}</code>\n"
+                f"{label}: <code>{escape(clean_tx)}</code> ✅\n\n"
+                f"💰 <b>How much did you send?</b>\n"
+                f"Enter the amount you sent in {unit}, e.g. {example:g}."
+            )
+            amt_target_id = target_msg_id
         amt_kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="✏️ Change TrxID", callback_data="dep_change_trxid")],
             [InlineKeyboardButton(text="🔙 Back to Methods", callback_data="dep_methods")],
         ])
         edited = False
-        if target_msg_id and getattr(message, "bot", None) and chat_id:
+        if amt_target_id and getattr(message, "bot", None) and chat_id:
             try:
                 await message.bot.edit_message_text(
                     chat_id=chat_id,
-                    message_id=target_msg_id,
+                    message_id=amt_target_id,
                     text=prompt_card,
                     reply_markup=amt_kb,
                 )

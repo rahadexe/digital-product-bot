@@ -1435,8 +1435,10 @@ async def process_customer_input_purchase(message: Message, state: FSMContext, s
         await message.answer(cancel_msg)
         return
 
-    if len(text) < 2 or len(text) > 300:
-        err_msg = "দয়া করে সঠিক তথ্য দিন (২-৩০০ অক্ষরের মধ্যে):" if lang == "bn" else "Please enter valid info (2-300 characters):"
+    if not text:
+        return
+    if len(text) > 500:
+        err_msg = "তথ্য খুব বড় (সর্বোচ্চ ৫০০ অক্ষর):" if lang == "bn" else "Info too long (max 500 chars):"
         await message.answer(f"{ICON_WARNING} {err_msg}")
         return
 
