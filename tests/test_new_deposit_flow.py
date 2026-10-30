@@ -162,11 +162,14 @@ async def test_render_method_details_flow():
     kb = call[1]["reply_markup"]
     assert isinstance(kb, InlineKeyboardMarkup)
     assert [[button.text for button in row] for row in kb.inline_keyboard] == [
-        ["✅ Payment Done"],
-        ["🔙 Back"],
+        ["৳50", "৳100", "৳200"],
+        ["৳500", "৳1000", "৳2000"],
+        ["Back"],
     ]
     assert [button.callback_data for row in kb.inline_keyboard for button in row] == [
-        "dep_paid_1", "dep_methods",
+        "dep_amt_50", "dep_amt_100", "dep_amt_200",
+        "dep_amt_500", "dep_amt_1000", "dep_amt_2000",
+        "dep_methods",
     ]
 
 
@@ -499,7 +502,7 @@ async def test_exchange_rate_and_dollar_conversion_flow():
     assert "Number: <code>01700000000</code>" in screen1_text
     assert "Minimum: <b>50 ৳</b>" in screen1_text
     assert "Rate: 1 USD = 125 ৳" not in screen1_text
-    assert "<b>✅ Payment Done</b>" in screen1_text
+    assert "Select deposit amount" in screen1_text
 
     # Screen 2: User enters 500
     message.text = "500"

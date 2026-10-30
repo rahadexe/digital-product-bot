@@ -48,10 +48,13 @@ async def test_amount_entry_keeps_accounting_usd_and_shows_selected_currency(cur
     assert saved["pay_amount"] == (4 if is_binance else 500)
     text = incoming.answer.await_args.args[0]
     assert "equivalent" not in text and "→" not in text
-    assert ("$4" in text) == (currency == "USD")
-    assert ("500 ৳" in text) == (currency == "BDT" or not is_binance)
     if is_binance:
+        assert ("$4" in text) == (currency == "USD")
         assert "4 USDT" in text
+    else:
+        # Deposit confirmation card explicitly shows dual BDT ($USD)
+        assert "$4.00" in text
+        assert "500 ৳" in text
 
 
 @pytest.mark.parametrize("currency,credit", [("BDT", "500 ৳"), ("USD", "$4")])

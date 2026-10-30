@@ -665,24 +665,36 @@ async def render_method_details(
             shortfall_bdt = math.ceil(shortfall_usd * rate)
             card_lines.append(f"Amount needed: <b>{shortfall_bdt:g} ৳</b> (${shortfall_usd:.2f})")
 
+    min_unit = "USDT" if is_binance else "৳"
     lines = [
         f"{heading_prefix}<b>{escape(heading)}</b>",
         "",
-        "<blockquote>" + "\n".join(card_lines) + "</blockquote>",
-        "",
-        destination,
-        "",
+        f"{destination_label}: <code>{escape(account_info)}</code>",
+        f"Minimum: <b>{min_dep:g} {min_unit}</b>",
     ]
     if custom_inst:
+        lines.append("")
         lines.append(escape(custom_inst))
-    else:
-        target_name = "number" if not is_binance else "Pay ID"
-        target_phrase = f"Pay to the {target_name} above" if not is_binance else f"Send USDT to the {target_name} above"
-        lines.append(f"{target_phrase}, then tap <b>✅ Payment Done</b> to submit your TrxID.")
+    if shortfall_usd > 0:
+        lines.append("")
+        if is_binance:
+            lines.append(f"Amount needed: <b>{shortfall_usd:.2f} USDT</b>")
+        else:
+            shortfall_bdt = math.ceil(shortfall_usd * rate)
+            lines.append(f"Amount needed: <b>{shortfall_bdt:g} ৳</b> (${shortfall_usd:.2f})")
 
+    prompt_title = "💰 <b>আপনি কত টাকা অ্যাড করতে চান নিচে সিলেক্ট করুন:</b>" if lang == "bn" else "💰 <b>Select deposit amount:</b>"
+    prompt_sub = "<i>(অথবা চ্যাটে টাকার পরিমাণ লিখুন)</i>" if lang == "bn" else "<i>(or type the amount in chat)</i>"
+    lines.extend([
+        "",
+        prompt_title,
+        prompt_sub,
+    ])
     inst = "\n".join(lines)
-    keyboard = get_manual_deposit_invoice_keyboard(
-        account_info, lang=lang, method_id=method["id"], is_binance=is_binance,
+    keyboard = get_deposit_quick_amount_keyboard(
+        is_binance=is_binance,
+        lang=lang,
+        back_target="dep_methods",
     )
     card_msg_id = None
     card_chat_id = None
@@ -1077,19 +1089,26 @@ async def handle_deposit_quick_amount(query: CallbackQuery, state: FSMContext, s
 
     await state.set_state(DepositStates.waiting_for_txid)
 
+    usd_val = round(amount_num / rate, 2) if rate > 0 else amount_num
+    num_label = "Pay ID" if is_binance else "Number"
     if is_binance:
         tx_prompt = (
-            f"<b>{escape(method_name)}</b>\n"
-            f"Pay ID: <code>{escape(account_info)}</code>\n"
+            f"<b>{escape(method_name)}</b>\n\n"
+            f"Pay ID: <code>{escape(account_info)}</code>\n\n"
             f"{amount_summary}\n\n"
+            "👇 <b>Send USDT to the Pay ID above, then enter Order ID:</b>\n"
             "Enter Order ID below:"
         )
     else:
-        type_display, _ = get_account_type_labels(account_type)
+        type_display, action = get_account_type_labels(account_type)
         tx_prompt = (
-            f"<b>{escape(method_name)} {type_display}</b>\n"
-            f"Number: <code>{escape(account_info)}</code>\n"
+            f"<b>{escape(method_name)} {type_display}</b>\n\n"
+            f"{num_label}: <code>{escape(account_info)}</code>\n\n"
+            f"💵 প্রদেয় পরিমাণ: <b>{pay_amount:g} ৳ (${usd_val:.2f})</b>\n"
+            f"💱 এক্সচেঞ্জ রেট: <code>1 USD = {rate:g} ৳</code>\n"
             f"{amount_summary}\n\n"
+            f"👇 <b>উপরের নম্বরে {action} করে নিচে TrxID পাঠান:</b>\n"
+            f"<i>(অথবা কনফার্মেশন SMS পেস্ট করুন)</i>\n"
             "Enter TrxID below:"
         )
 
@@ -1450,20 +1469,27 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
         return
     await state.set_state(DepositStates.waiting_for_txid)
 
+    usd_val = round(amount_num / rate, 2) if rate > 0 else amount_num
+    num_label = "Pay ID" if is_binance else "Number"
     if is_binance:
         tx_prompt = (
-            f"<b>{escape(method_name)}</b>\n"
-            f"Pay ID: <code>{escape(account_info)}</code>\n"
+            f"<b>{escape(method_name)}</b>\n\n"
+            f"Pay ID: <code>{escape(account_info)}</code>\n\n"
             f"{amount_summary}\n\n"
+            "👇 <b>Send USDT to the Pay ID above, then enter Order ID:</b>\n"
             "Enter Order ID below:"
         )
     else:
         account_type = data.get("account_type", "personal")
-        type_display, _ = get_account_type_labels(account_type)
+        type_display, action = get_account_type_labels(account_type)
         tx_prompt = (
-            f"<b>{escape(method_name)} {type_display}</b>\n"
-            f"Number: <code>{escape(account_info)}</code>\n"
+            f"<b>{escape(method_name)} {type_display}</b>\n\n"
+            f"{num_label}: <code>{escape(account_info)}</code>\n\n"
+            f"💵 প্রদেয় পরিমাণ: <b>{pay_amount:g} ৳ (${usd_val:.2f})</b>\n"
+            f"💱 এক্সচেঞ্জ রেট: <code>1 USD = {rate:g} ৳</code>\n"
             f"{amount_summary}\n\n"
+            f"👇 <b>উপরের নম্বরে {action} করে নিচে TrxID পাঠান:</b>\n"
+            f"<i>(অথবা কনফার্মেশন SMS পেস্ট করুন)</i>\n"
             "Enter TrxID below:"
         )
 
