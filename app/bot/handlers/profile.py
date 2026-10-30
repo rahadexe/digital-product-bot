@@ -1332,30 +1332,41 @@ async def view_deposit_detail(query: CallbackQuery, state: FSMContext, services:
     created = deposit["created_at"]
     date_str = created.strftime("%d %b %Y · %H:%M") if isinstance(created, datetime) else str(created)[:16]
 
-    if deposit["status"] == "approved":
-        status_line = "<b>Approved</b> ✅"
-    elif deposit["status"] == "rejected":
-        status_line = "<b>Rejected</b> ❌"
-        if deposit.get("admin_note"):
-            status_line += f"\n<i>{escape(deposit['admin_note'])}</i>"
+    st = (deposit.get("status") or "").lower()
+    dep_prefix = format_deposit_id(deposit["id"])
+    if st in ("approved", "completed"):
+        header = "✅ <b>Deposit Successful!</b>"
+    elif st in ("rejected", "failed", "cancelled"):
+        header = "❌ <b>Deposit Rejected</b>"
     else:
-        status_line = "<b>Pending</b> ⏳"
-    if lang != "bn" and deposit["status"] == "pending":
-        status_line += "\n<i>Checking your payment details. Do not pay again.</i>"
+        header = "⏳ <b>Deposit in Review</b>"
 
-    text = (
-        f"<b>Top-up {format_deposit_id(deposit['id'])}</b>\n\n"
-        f"{status_line}\n\n"
-        f"<b>Amount:</b> {amount_str}\n"
-        f"<b>Method:</b> {escape(deposit['method_name'])}\n"
-        f"<b>TrxID:</b> <code>{escape(deposit['transaction_id'])}</code>\n"
-        f"\n<b>Submitted:</b> {date_str}"
-    )
+    lines = [
+        f"{header}\n",
+        f"Deposit ID: <code>{dep_prefix}</code>",
+        f"Method: <b>{escape(deposit.get('method_name') or 'Deposit')}</b>",
+        f"Amount: <code>{amount_str}</code>",
+    ]
+    if deposit.get("transaction_id"):
+        lines.append(f"TrxID: <code>{escape(deposit['transaction_id'])}</code>")
 
+    if st in ("approved", "completed"):
+        lines.append("Status: ✅ <code>Approved</code>")
+    elif st in ("rejected", "failed", "cancelled"):
+        clean_note = deposit.get("admin_note") or "Could not be verified"
+        lines.append(f"Reason: <i>{escape(clean_note)}</i>")
+    else:
+        lines.append("Status: ⏳ <code>Pending</code>")
+        if lang != "bn":
+            lines.append("\nℹ️ <i>Checking your payment details. Do not pay again.</i>")
+
+    lines.append(f"\n<b>Submitted:</b> {date_str}")
     if deposit.get("reviewed_at"):
         rev = deposit["reviewed_at"]
         rev_str = rev.strftime("%d %b %Y · %H:%M") if isinstance(rev, datetime) else str(rev)[:16]
-        text += f"\n<b>Reviewed:</b> {rev_str}"
+        lines.append(f"<b>Reviewed:</b> {rev_str}")
+
+    text = "\n".join(lines)
 
     back_to_history_cb = f"dep_page_{page}_{dep_id_ref}" if dep_id_ref else f"dep_page_{page}"
 

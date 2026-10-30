@@ -767,7 +767,7 @@ class DepositService:
             self._notify_customer(
                 tg_user_id,
                 lambda currency, rate: (
-                    "⚠️ <b>Deposit Not Approved</b>\n\n"
+                    "❌ <b>Deposit Rejected</b>\n\n"
                     f"Deposit ID: <code>{format_deposit_id(deposit_id)}</code>\n"
                     f"Method: <b>{method_name}</b>\n"
                     f"Amount: <code>{format_dual_price(amount, currency=currency, usd_rate=rate)}</code>\n"

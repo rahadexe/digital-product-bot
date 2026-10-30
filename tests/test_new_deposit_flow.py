@@ -90,7 +90,7 @@ async def test_wallet_with_pending_deposit_keeps_history_and_hides_new_payment_m
     keyboard = message.answer.call_args.kwargs["reply_markup"]
     assert "<b>Balance:</b>" in text
     assert "💰" in text
-    assert "Top-up D20 is being verified" in text
+    assert "Deposit D20 is being verified" in text
     assert [button.text for row in keyboard.inline_keyboard for button in row] == [
         "📜 Deposit History",
     ]
@@ -358,7 +358,7 @@ async def test_process_deposit_txid_direct_submission():
     status_msg = message.answer.return_value
     assert status_msg.edit_text.called
     status_text = status_msg.edit_text.call_args[0][0]
-    assert "Top-up D42" in status_text
+    assert "D42" in status_text
     assert "bKash" in status_text
     assert "100 ৳" in status_text
     assert "BL12345678" in status_text
@@ -452,8 +452,8 @@ async def test_deposit_refresh_callback():
     query.answer.assert_called_with("✅ Deposit Approved!")
     assert msg.edit_text.called
     text = msg.edit_text.call_args[0][0]
-    assert "Top-up D42" in text
-    assert "Approved" in text
+    assert "D42" in text
+    assert "Deposit Successful!" in text
     assert "<code>$4</code>" in text
     assert "Current Balance: <code>$750</code>" in text
     kb = msg.edit_text.call_args[1]["reply_markup"]
@@ -529,7 +529,7 @@ async def test_exchange_rate_and_dollar_conversion_flow():
     assert kwargs["quoted_rate"] == 125.0
 
     status_card = status_mock.edit_text.call_args[0][0]
-    assert "Top-up D99" in status_card
+    assert "D99" in status_card
     assert "bKash" in status_card
     assert "500 ৳" in status_card
     assert "BLA7X8Y9Z0" in status_card
@@ -664,7 +664,7 @@ async def test_process_deposit_txid_in_place_edit():
     # 4. Status card edited onto the existing card
     assert card_msg_mock.edit_text.called
     status_text = card_msg_mock.edit_text.call_args[0][0]
-    assert "Top-up D101" in status_text
+    assert "D101" in status_text
     assert "bKash" in status_text
     assert "500 ৳" in status_text
     assert "BLA7X8Y9Z0" in status_text

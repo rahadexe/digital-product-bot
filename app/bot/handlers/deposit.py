@@ -263,27 +263,37 @@ def format_deposit_status_card(
     error_note: str | None = None,
 ) -> str:
     st = (status or "").lower()
-    dep_prefix = format_deposit_id(dep_id) if dep_id else "---"
-    st_display = "⏳ <code>Pending</code>"
+    dep_prefix = format_deposit_id(dep_id) if dep_id else ""
     if st in ("approved", "completed"):
-        st_display = "✅ <code>Approved</code>"
+        header = "✅ <b>Deposit Successful!</b>"
     elif st in ("rejected", "failed", "cancelled"):
-        st_display = "❌ <code>Rejected</code>"
+        header = "❌ <b>Deposit Rejected</b>"
+    else:
+        header = "⏳ <b>Deposit in Review</b>"
 
-    lines = [
-        f"<b>Top-up {dep_prefix}</b>\n",
-        f"Method: <b>{escape(method_name)}</b>",
-        f"Amount: <code>{amount_str}</code>",
-        f"TrxID: <code>{escape(txid)}</code>",
-        f"Status: {st_display}",
-    ]
-    if current_balance and st in ("approved", "completed"):
-        lines.append(f"Current Balance: <code>{current_balance}</code>")
-    if error_note and st not in ("approved", "completed"):
-        clean_note = error_note
+    lines = [f"{header}\n"]
+    if dep_prefix:
+        lines.append(f"Deposit ID: <code>{dep_prefix}</code>")
+    lines.append(f"Method: <b>{escape(method_name)}</b>")
+    lines.append(f"Amount: <code>{amount_str}</code>")
+    if txid:
+        lines.append(f"TrxID: <code>{escape(txid)}</code>")
+
+    if st in ("approved", "completed"):
+        if current_balance:
+            lines.append(f"Current Balance: <code>{current_balance}</code>")
+    elif st in ("rejected", "failed", "cancelled"):
+        clean_note = error_note or "Could not be verified"
         if any(x in str(clean_note) for x in ("HTTP", "401", "unavailable", "configured")):
             clean_note = "Submitted for manual admin review."
-        lines.append(f"\nℹ️ <i>{escape(clean_note)}</i>")
+        lines.append(f"Reason: <i>{escape(clean_note)}</i>")
+    else:
+        lines.append("Status: ⏳ <code>Pending</code>")
+        if error_note:
+            clean_note = error_note
+            if any(x in str(clean_note) for x in ("HTTP", "401", "unavailable", "configured")):
+                clean_note = "Submitted for manual admin review."
+            lines.append(f"\nℹ️ <i>{escape(clean_note)}</i>")
     return "\n".join(lines)
 
 
@@ -293,14 +303,18 @@ def format_deposit_success_card(
     balance_display: str,
     txid: str | None = None,
     credited_display: str | None = None,
+    dep_id: int | None = None,
     lang: str = "en",
 ) -> str:
     clean_tx = (txid or "").strip()
+    dep_prefix = format_deposit_id(dep_id) if dep_id else ""
     lines = [
         "✅ <b>Deposit Successful!</b>\n",
-        f"Method: <b>{escape(provider)}</b>",
-        f"Amount: <code>{amount_display}</code>",
     ]
+    if dep_prefix:
+        lines.append(f"Deposit ID: <code>{dep_prefix}</code>")
+    lines.append(f"Method: <b>{escape(provider)}</b>")
+    lines.append(f"Amount: <code>{amount_display}</code>")
     if clean_tx:
         lines.append(f"TrxID: <code>{escape(clean_tx)}</code>")
     if credited_display:
@@ -378,7 +392,7 @@ async def show_deposit_methods(event: Message | CallbackQuery, state: FSMContext
 
     paused_msg = await services.settings.paused_message()
     if paused_msg:
-        await respond(event, f"<b>Top-ups paused</b>\n\n{escape(paused_msg)}", None)
+        await respond(event, f"<b>Deposits paused</b>\n\n{escape(paused_msg)}", None)
         return
 
     instant = await services.payments.instant_options()
@@ -399,7 +413,7 @@ async def show_deposit_methods(event: Message | CallbackQuery, state: FSMContext
     if pending:
         text = (
             f"💰 <b>Balance:</b> <code>{balance_display}</code>\n\n"
-            f"Top-up {format_deposit_id(pending['id'])} is being verified. Do not pay again."
+            f"Deposit {format_deposit_id(pending['id'])} is being verified. Do not pay again."
         )
         keyboard = get_deposit_methods_keyboard([], instant_label=None, show_history=True, lang=lang, back_target=back_target)
     else:
@@ -732,7 +746,7 @@ async def _render_instant_invoice(invoice: dict, services: Services, user_id: in
     ref_suffix = f" #{ref}" if ref else ""
     summary = await _payment_summary_for(services, user_id, credit, pay_amount, False)
     text = (
-        f"<b>Top-up{ref_suffix}</b>\n"
+        f"<b>Deposit{ref_suffix}</b>\n"
         f"{summary}\n"
         "Status: Awaiting payment\n\n"
         "Tap Pay to open checkout. Balance is added after verification."
@@ -1730,6 +1744,7 @@ async def execute_deposit_submission(
                         credited_display=(format_dual_price(float(existing_pending["amount"]), currency=curr, usd_rate=display_rate)
                                           if curr == "USD" else None),
                         txid=clean_tx,
+                        dep_id=existing_pending["id"],
                         lang=lang,
                     )
                     await _safe_edit_or_answer(status_msg, user_msg, text, reply_markup=keyboard)
@@ -1815,6 +1830,7 @@ async def execute_deposit_submission(
                     balance_display=balance_display,
                     credited_display=format_dual_price(credit_amount, currency=curr, usd_rate=display_rate) if curr == "USD" else None,
                     txid=clean_tx,
+                    dep_id=dep_id,
                     lang=lang,
                 )
                 await _safe_edit_or_answer(status_msg, user_msg, success_txt, reply_markup=keyboard)
@@ -1935,6 +1951,7 @@ async def execute_deposit_submission(
                 balance_display=balance_display,
                 credited_display=format_dual_price(credit_amount, currency=curr, usd_rate=display_rate) if curr == "USD" else None,
                 txid=clean_tx,
+                dep_id=res.get("deposit_id"),
                 lang=lang,
             )
             await _safe_edit_or_answer(status_msg, user_msg, text, reply_markup=keyboard)
@@ -2179,6 +2196,7 @@ async def claim_binance_payment(
             balance_display=balance_display,
             txid=ref,
             credited_display=credited_display,
+            dep_id=result.get("deposit_id"),
             lang=lang,
         )
         await _safe_edit_or_answer(status_msg, user_msg, text, reply_markup=keyboard)

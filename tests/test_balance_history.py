@@ -117,9 +117,9 @@ class BalanceHistoryUITests(unittest.IsolatedAsyncioTestCase):
         services.deposits.get_for_customer.assert_called_once_with(12345, 101)
         query.message.edit_text.assert_called_once()
         text_arg, kwargs = query.message.edit_text.call_args[0][0], query.message.edit_text.call_args[1]
-        self.assertIn("<b>Top-up D101</b>", text_arg)
-        self.assertIn("<b>Rejected</b> ❌", text_arg)
-        self.assertIn("<i>Transaction could not be verified.</i>", text_arg)
+        self.assertIn("❌ <b>Deposit Rejected</b>", text_arg)
+        self.assertIn("Deposit ID: <code>D101</code>", text_arg)
+        self.assertIn("Reason: <i>Transaction could not be verified.</i>", text_arg)
         self.assertIn("bKash Personal", text_arg)
         self.assertIn("BLX998877", text_arg)
         self.assertNotIn("#101", text_arg)
@@ -166,7 +166,8 @@ class BalanceHistoryUITests(unittest.IsolatedAsyncioTestCase):
         await view_deposit_detail(query, state, services)
 
         text_arg = query.message.edit_text.call_args.args[0]
-        self.assertIn("<b>Approved</b> ✅", text_arg)
+        self.assertIn("Deposit Successful!", text_arg)
+        self.assertIn("✅ <code>Approved</code>", text_arg)
         self.assertNotIn("❌", text_arg)
 
 
