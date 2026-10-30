@@ -1134,15 +1134,15 @@ def get_deposit_quick_amount_keyboard(
 
 def get_deposit_trxid_prompt_keyboard(
     lang: str = "en",
+    *,
+    has_amount: bool = True,
 ) -> InlineKeyboardMarkup:
-    """Action buttons shown during TrxID prompt (Change amount, Cancel)."""
-    change_text = "Change Amount"
-    cancel_text = "Cancel"
+    """Action buttons shown during TrxID prompt."""
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text=change_text, callback_data="dep_change_amt"),
-                InlineKeyboardButton(text=cancel_text, callback_data="dep_methods"),
+                InlineKeyboardButton(text="Change Amount", callback_data="dep_change_amt"),
+                InlineKeyboardButton(text="Cancel", callback_data="dep_methods"),
             ],
         ]
     )

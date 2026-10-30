@@ -118,39 +118,8 @@ async def _delete_user_message(message: Message) -> None:
 async def _send_input_prompt(
     message: Message, state: FSMContext, text: str, *, field: str, placeholder: str,
 ) -> None:
-    """Replace only this step's previous prompt; never delete payment details."""
-    data = await state.get_data()
-    previous_id = data.get(field)
-    chat_id = getattr(getattr(message, "chat", None), "id", None)
-    bot = getattr(message, "bot", None)
-
-    sent = None
-    try:
-        sent = await message.answer(
-            text, reply_markup=ForceReply(force_reply=True, input_field_placeholder=placeholder),
-        )
-    except Exception as exc:
-        logger.debug("message.answer failed in _send_input_prompt (%s), falling back to bot.send_message", exc)
-        if bot and chat_id:
-            try:
-                sent = await bot.send_message(
-                    chat_id=chat_id,
-                    text=text,
-                    reply_markup=ForceReply(force_reply=True, input_field_placeholder=placeholder),
-                )
-            except Exception as send_err:
-                logger.warning("bot.send_message also failed in _send_input_prompt: %s", send_err)
-
-    sent_id = getattr(sent, "message_id", None) if sent else None
-    if isinstance(sent_id, int):
-        await state.update_data({field: sent_id})
-
-    if (
-        bot and chat_id and isinstance(sent_id, int) and isinstance(previous_id, int) and previous_id != sent_id
-        and previous_id != data.get("card_msg_id")
-    ):
-        with suppress(Exception):
-            await bot.delete_message(chat_id=chat_id, message_id=previous_id)
+    """No-op: All prompts are now rendered in-place on the single deposit card to avoid chat clutter."""
+    pass
 
 
 async def _retry_payment_input(
@@ -1104,7 +1073,7 @@ async def handle_deposit_change_amount(query: CallbackQuery, state: FSMContext, 
 
 @router.callback_query(F.data.startswith("dep_paid_"))
 async def begin_payment_reference(query: CallbackQuery, state: FSMContext, services: Services):
-    """Open Telegram's reply input, without replacing the payment instructions."""
+    """Update the payment card in-place with the TrxID input prompt."""
     data = await state.get_data()
     selected_id = data.get("method_id")
     requested_id = (query.data or "").removeprefix("dep_paid_")
@@ -1126,14 +1095,43 @@ async def begin_payment_reference(query: CallbackQuery, state: FSMContext, servi
         return
     is_binance = bool(data.get("is_binance"))
     reference_label = "Order ID" if is_binance else "Transaction ID"
-    prompt = f"Enter your {escape(str(data.get('method_name') or 'payment'))} {reference_label}."
-    sent = await query.message.answer(
-        prompt,
-        reply_markup=ForceReply(force_reply=True, input_field_placeholder=reference_label),
+    type_display, _ = get_account_type_labels(method.get("account_type"))
+    num_label = "Pay ID" if is_binance else "Number"
+    account_info = str(method.get("account_info") or "").strip()
+    min_dep = float(method.get("min_deposit") or 1.0)
+    minimum = f"{min_dep:g} USDT" if is_binance else f"{min_dep:g} ৳"
+    method_name = str(method.get("name") or "Payment").strip()
+
+    prompt_card = (
+        f"<b>{escape(method_name)}{f' ({type_display})' if not is_binance else ''}</b>\n\n"
+        f"{num_label}: <code>{escape(account_info)}</code>\n"
+        f"Minimum: <b>{minimum}</b>\n\n"
+        f"👉 <b>Please enter your {reference_label} in the chat below:</b>"
     )
+    back_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Back to Methods", callback_data="dep_methods")]
+    ])
+    edited = False
+    if hasattr(query.message, "edit_text"):
+        try:
+            await query.message.edit_text(prompt_card, reply_markup=back_kb)
+            edited = True
+        except Exception:
+            edited = False
+    if not edited and hasattr(query.message, "answer"):
+        with suppress(Exception):
+            sent = await query.message.answer(prompt_card, reply_markup=back_kb)
+            if sent:
+                query.message = sent
+
+    card_msg_id = getattr(query.message, "message_id", None)
+    card_chat_id = getattr(getattr(query.message, "chat", None), "id", None)
+    if card_msg_id and card_chat_id:
+        remember_menu_message(card_chat_id, card_msg_id)
+
     await state.update_data(
         reference_first=True, manual_amount=None, manual_txid=None, pay_amount=None,
-        binance_usdt=None, reference_prompt_id=getattr(sent, "message_id", None),
+        binance_usdt=None, card_msg_id=card_msg_id, card_chat_id=card_chat_id,
     )
     await state.set_state(DepositStates.waiting_for_txid)
     with suppress(TelegramBadRequest):
@@ -1209,6 +1207,17 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
         return
 
     data = await state.get_data()
+    method_name = data.get("method_name", "Payment")
+    is_binance = data.get("is_binance", False) or "binance" in method_name.lower() or data.get("auto_verify") == "binance_pay"
+
+    # Smart Input Detection: Did the user type a new TrxID instead of an amount?
+    if data.get("reference_first") or data.get("manual_txid"):
+        has_letters = bool(re.search(r"[A-Za-z]", raw_text))
+        looks_like_tx, _ = validate_trx_format(method_name, raw_text, is_binance=is_binance)
+        if looks_like_tx and has_letters:
+            await state.set_state(DepositStates.waiting_for_txid)
+            await process_deposit_txid(message, state, services)
+            return
     method_id = data.get("method_id", 0)
     method_name = data.get("method_name", "Payment")
     account_info = data.get("account_info", "")
@@ -1235,7 +1244,19 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
 
     def _build_err_card(err_text: str) -> str:
         if data.get("reference_first"):
-            return escape(err_text)
+            clean_tx = data.get("manual_txid") or ""
+            type_display, _ = get_account_type_labels(account_type)
+            num_label = "Pay ID" if is_binance else "Number"
+            label = "Order ID" if is_binance else "TrxID"
+            unit = "USDT" if is_binance else "BDT"
+            example = max(min_dep, 1.0 if is_binance else 50.0)
+            return (
+                f"<b>{escape(method_name)}{f' {type_display}' if not is_binance else ''}</b>\n\n"
+                f"{num_label}: <code>{escape(account_info)}</code>\n"
+                f"{label}: <code>{escape(clean_tx)}</code> ✅\n\n"
+                f"⚠️ <b>{escape(err_text)}</b>\n\n"
+                f"Enter the amount you sent in {unit}, e.g. {example:g}."
+            )
         return format_deposit_method_card(
             method_name=method_name,
             account_info=account_info,
@@ -1250,11 +1271,10 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
 
     async def _send_or_edit_error(err_text: str, kb):
         if data.get("reference_first"):
-            await _send_input_prompt(
-                message, state, err_text, field="amount_prompt_id",
-                placeholder="Amount in USDT" if is_binance else "Amount in BDT",
-            )
-            return
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="✏️ Change TrxID", callback_data="dep_change_trxid")],
+                [InlineKeyboardButton(text="🔙 Back to Methods", callback_data="dep_methods")],
+            ])
         if target_msg_id and getattr(message, "bot", None) and chat_id:
             try:
                 await message.bot.edit_message_text(
@@ -1372,6 +1392,7 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
                 await state.update_data(card_msg_id=sent_id, card_chat_id=chat_id)
 
 
+@router.message(DepositStates.method_selected)
 @router.message(DepositStates.waiting_for_txid)
 @router.message(DepositStates.waiting_for_binance_ref)
 async def process_deposit_txid(message: Message, state: FSMContext, services: Services):
@@ -1467,31 +1488,51 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             f"{alert_body}"
         )
 
+        sup_url = None
+        if hasattr(services, "settings") and hasattr(services.settings, "get"):
+            try:
+                res = services.settings.get("support_username")
+                if inspect.isawaitable(res):
+                    res = await res
+                if res and isinstance(res, str):
+                    sup_url = resolve_support_url(res)
+            except Exception:
+                sup_url = None
+        err_buttons = []
+        if existing_dep and sup_url:
+            err_buttons.append([
+                InlineKeyboardButton(text="🔙 Back to Methods", callback_data="dep_methods"),
+                InlineKeyboardButton(text="💬 Support", url=sup_url),
+            ])
+        else:
+            err_buttons.append([
+                InlineKeyboardButton(text="🔙 Back to Methods", callback_data="dep_methods"),
+            ])
+        err_kb = InlineKeyboardMarkup(inline_keyboard=err_buttons)
+
         edited = False
-        if target_msg_id and getattr(message, "bot", None) and chat_id and not data.get("reference_prompt_id"):
+        if target_msg_id and getattr(message, "bot", None) and chat_id:
             try:
                 await message.bot.edit_message_text(
                     chat_id=chat_id,
                     message_id=target_msg_id,
                     text=tx_err_card,
-                    reply_markup=back_kb,
+                    reply_markup=err_kb,
                 )
                 remember_menu_message(chat_id, target_msg_id)
                 edited = True
             except Exception:
                 edited = False
-        if not edited and not data.get("reference_prompt_id"):
-            await message.answer(
+        if not edited:
+            sent = await message.answer(
                 tx_err_card,
-                reply_markup=back_kb,
+                reply_markup=err_kb,
             )
-
-        if data.get("reference_first"):
-            prompt_label = "Order ID" if is_binance else "TrxID"
-            await _send_input_prompt(
-                message, state, f"❌ {err_detail}\nEnter valid {prompt_label}:",
-                field="reference_prompt_id", placeholder=prompt_label,
-            )
+            if sent and chat_id:
+                sent_id = getattr(sent, "message_id", None)
+                if sent_id:
+                    remember_menu_message(chat_id, sent_id)
+                    await state.update_data(card_msg_id=sent_id, card_chat_id=chat_id)
         return
 
     if chat_id and getattr(chat, "type", "") == "private":
@@ -1576,30 +1617,40 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         await state.set_state(DepositStates.waiting_for_amount)
         unit = "USDT" if is_binance else "BDT"
         example = max(float(data.get("min_deposit") or 1.0), 1.0 if is_binance else 50.0)
-        user_lang = await services.users.get_language(message.from_user.id) if message.from_user else "en"
-        amount_prompt = f"Enter the amount you sent in {unit}, e.g. {example:g}."
 
         type_display, _ = get_account_type_labels(account_type)
         num_label = "Pay ID" if is_binance else "Number"
         prompt_card = (
-            f"<b>{escape(method_name)}{f' {type_display}' if not is_binance else ''}</b>\n"
+            f"<b>{escape(method_name)}{f' {type_display}' if not is_binance else ''}</b>\n\n"
             f"{num_label}: <code>{escape(account_info)}</code>\n"
-            f"{label}: <code>{escape(clean_tx)}</code>\n\n"
-            f"Enter the amount you sent in {unit}:"
+            f"{label}: <code>{escape(clean_tx)}</code> ✅\n\n"
+            f"💰 <b>How much did you send?</b>\n"
+            f"Enter the amount you sent in {unit}, e.g. {example:g}."
         )
+        amt_kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="✏️ Change TrxID", callback_data="dep_change_trxid")],
+            [InlineKeyboardButton(text="🔙 Back to Methods", callback_data="dep_methods")],
+        ])
+        edited = False
         if target_msg_id and getattr(message, "bot", None) and chat_id:
-            with suppress(Exception):
+            try:
                 await message.bot.edit_message_text(
                     chat_id=chat_id,
                     message_id=target_msg_id,
                     text=prompt_card,
-                    reply_markup=back_kb,
+                    reply_markup=amt_kb,
                 )
-
-        await _send_input_prompt(
-            message, state, amount_prompt,
-            field="amount_prompt_id", placeholder=f"Amount in {unit}",
-        )
+                remember_menu_message(chat_id, target_msg_id)
+                edited = True
+            except Exception:
+                edited = False
+        if not edited:
+            sent = await message.answer(prompt_card, reply_markup=amt_kb)
+            if sent and chat_id:
+                sent_id = getattr(sent, "message_id", None)
+                if sent_id:
+                    remember_menu_message(chat_id, sent_id)
+                    await state.update_data(card_msg_id=sent_id, card_chat_id=chat_id)
         return
     # Plan 1: Direct submission without redundant confirmation step
     await execute_deposit_submission(message, state, services)
@@ -1650,6 +1701,37 @@ async def cancel_deposit_callback(query: CallbackQuery, state: FSMContext, servi
     else:
         await show_deposit_methods(query, state, services)
 
+
+@router.callback_query(F.data == "dep_change_trxid")
+async def handle_change_trxid(query: CallbackQuery, state: FSMContext, services: Services):
+    with suppress(TelegramBadRequest):
+        await query.answer()
+    data = await state.get_data()
+    method_name = data.get("method_name", "Payment")
+    account_info = data.get("account_info", "")
+    account_type = data.get("account_type", "personal")
+    is_binance = bool(data.get("is_binance"))
+    min_dep = float(data.get("min_deposit") or 1.0)
+    minimum = f"{min_dep:g} USDT" if is_binance else f"{min_dep:g} ৳"
+    type_display, _ = get_account_type_labels(account_type)
+    num_label = "Pay ID" if is_binance else "Number"
+    reference_label = "Order ID" if is_binance else "Transaction ID"
+
+    await state.update_data(manual_txid=None, manual_amount=None, pay_amount=None)
+    await state.set_state(DepositStates.waiting_for_txid)
+
+    prompt_card = (
+        f"<b>{escape(method_name)}{f' ({type_display})' if not is_binance else ''}</b>\n\n"
+        f"{num_label}: <code>{escape(account_info)}</code>\n"
+        f"Minimum: <b>{minimum}</b>\n\n"
+        f"👉 <b>Please enter your {reference_label} in the chat below:</b>"
+    )
+    back_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Back to Methods", callback_data="dep_methods")]
+    ])
+    if query.message and hasattr(query.message, "edit_text"):
+        with suppress(Exception):
+            await query.message.edit_text(prompt_card, reply_markup=back_kb)
 
 async def _get_unused_statement(services: Services, clean_tx: str, provider: str | None = None) -> dict[str, Any] | None:
     if not hasattr(services, "deposits") or not hasattr(services.deposits, "get_unused_received_transaction"):

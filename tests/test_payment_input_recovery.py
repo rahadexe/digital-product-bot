@@ -9,7 +9,7 @@ import pytest
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.base import StorageKey
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import ForceReply
+from aiogram.types import ForceReply, InlineKeyboardMarkup
 
 from app.bot.deposit_input import parse_deposit_amount, payment_instruction_note
 from app.bot.handlers.deposit import (
@@ -91,9 +91,8 @@ async def test_invalid_amount_stays_visible_and_replaces_the_previous_prompt():
     incoming.delete.assert_not_awaited()
     prompt = incoming.answer.await_args.args[0]
     assert "50" in prompt
-    assert isinstance(incoming.answer.await_args.kwargs["reply_markup"], ForceReply)
-    incoming.bot.delete_message.assert_awaited_once_with(chat_id=2, message_id=60)
-    assert (await state.get_data())["amount_prompt_id"] == 200
+    assert isinstance(incoming.answer.await_args.kwargs["reply_markup"], InlineKeyboardMarkup)
+    assert (await state.get_data())["manual_txid"] == "ROCKET12345"
 
 
 @pytest.mark.parametrize("raw,expected", [
@@ -149,12 +148,8 @@ async def test_retries_replace_only_amount_prompts_and_keep_reference_and_instru
     for next_id in (200, 201):
         incoming.answer.return_value = SimpleNamespace(message_id=next_id)
         await process_deposit_amount(incoming, state, services())
-    deleted = [call.kwargs["message_id"] for call in incoming.bot.delete_message.await_args_list]
-    assert deleted == [60, 200]
-    assert 90 not in deleted
     data = await state.get_data()
     assert data["manual_txid"] == "ROCKET12345"
-    assert data["amount_prompt_id"] == 201
     assert await state.get_state() == DepositStates.waiting_for_amount.state
 
 
@@ -167,7 +162,6 @@ async def test_invalid_reference_is_not_deleted_and_uses_its_own_prompt():
     await process_deposit_txid(incoming, state, services())
     await asyncio.sleep(0)
     incoming.delete.assert_not_awaited()
-    incoming.bot.delete_message.assert_awaited_once_with(chat_id=2, message_id=55)
     assert await state.get_state() == DepositStates.waiting_for_txid.state
     assert (await state.get_data())["manual_txid"] is None
 
@@ -266,7 +260,7 @@ async def test_binance_reference_retry_keeps_the_valid_amount(error):
     assert await state.get_state() == DepositStates.waiting_for_binance_ref.state
     assert (await state.get_data())["pay_amount"] == 2
     assert (await state.get_data())["manual_txid"] is None
-    assert isinstance(incoming.answer.await_args.kwargs["reply_markup"], ForceReply)
+    status.edit_text.assert_awaited()
     incoming.text = "NEW-ORDER-1"
     with patch("app.bot.handlers.deposit.execute_deposit_submission", new_callable=AsyncMock) as submit:
         await process_deposit_txid(incoming, state, svc)

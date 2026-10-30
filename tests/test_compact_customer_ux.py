@@ -7,7 +7,7 @@ import pytest
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.base import StorageKey
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import ForceReply
+from aiogram.types import ForceReply, InlineKeyboardMarkup
 
 from app.bot.handlers.deposit import (
     DepositStates,
@@ -97,23 +97,21 @@ def test_products_keyboard_renders_category_chips_on_top():
 
 
 @pytest.mark.asyncio
-async def test_payment_done_posts_force_reply_without_editing_instructions():
+async def test_payment_done_edits_card_in_place_with_prompt():
     state = context()
     await state.set_state(DepositStates.method_selected)
     await state.set_data({"method_id": 3, "method_name": "bKash", "card_msg_id": 1})
     message = customer()
     query = SimpleNamespace(data="dep_paid_3", message=message, from_user=message.from_user, answer=AsyncMock())
     await begin_payment_reference(query, state, services())
-    args, kwargs = message.answer.await_args
-    assert args == ("Enter your bKash Transaction ID.",)
-    assert isinstance(kwargs["reply_markup"], ForceReply)
-    assert kwargs["reply_markup"].force_reply
-    message.edit_text.assert_not_awaited()
+    message.edit_text.assert_awaited_once()
+    edit_args = message.edit_text.await_args
+    assert "Please enter your Transaction ID" in edit_args.args[0]
+    assert isinstance(edit_args.kwargs["reply_markup"], InlineKeyboardMarkup)
     assert await state.get_state() == DepositStates.waiting_for_txid.state
-    assert (await state.get_data())["card_msg_id"] == 1
     # A second tap must not reset the state or post another prompt.
     await begin_payment_reference(query, state, services())
-    assert message.answer.await_count == 1
+    assert message.edit_text.await_count == 1
 
 
 @pytest.mark.asyncio
@@ -155,8 +153,8 @@ async def test_reference_is_retained_for_the_required_amount_then_submitted_once
         submit.assert_not_awaited()
         assert (await state.get_data())["manual_txid"] == "BK123456"
         assert await state.get_state() == DepositStates.waiting_for_amount.state
-        assert message.answer.await_args.args[0] == "Enter the amount you sent in BDT, e.g. 50."
-        assert isinstance(message.answer.await_args.kwargs["reply_markup"], ForceReply)
+        assert "Enter the amount you sent in BDT, e.g. 50." in message.answer.await_args.args[0]
+        assert isinstance(message.answer.await_args.kwargs["reply_markup"], InlineKeyboardMarkup)
         message.text = "100.50"
         await process_deposit_amount(message, state, svc)
         submit.assert_awaited_once_with(message, state, svc)
@@ -182,4 +180,4 @@ async def test_reference_first_flow_keeps_amount_validation_and_limits(amount):
         submit.assert_not_awaited()
     assert (await state.get_data())["manual_txid"] == "BK123456"
     assert await state.get_state() == DepositStates.waiting_for_amount.state
-    assert isinstance(message.answer.await_args.kwargs["reply_markup"], ForceReply)
+    assert isinstance(message.answer.await_args.kwargs["reply_markup"], InlineKeyboardMarkup)
