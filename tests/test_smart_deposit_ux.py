@@ -261,3 +261,102 @@ async def test_late_sms_auto_reconciliation_approves_pending_deposit():
         admin_note="Auto-verified via delayed SMS statement match.",
         notify_customer=True,
     )
+
+
+@pytest.mark.asyncio
+async def test_payment_done_presets_to_trxid_flow():
+    """End-to-end: Payment Done -> Preset ৳500 -> Enter TrxID -> Direct Submission."""
+    from app.bot.handlers.deposit import handle_deposit_change_amount
+
+    storage = MemoryStorage()
+    key = StorageKey(bot_id=123, chat_id=456, user_id=789)
+    state = FSMContext(storage=storage, key=key)
+    await state.set_state(DepositStates.method_selected)
+    await state.set_data({
+        "method_id": 1,
+        "method_name": "bKash",
+        "account_info": "01700000000",
+        "account_type": "personal",
+        "min_deposit": 50.0,
+        "rate": 125.0,
+        "card_msg_id": 555,
+        "card_chat_id": 456,
+    })
+
+    services = MagicMock()
+    services.users.get_language = AsyncMock(return_value="en")
+    services.deposits.get_method = AsyncMock(return_value={"id": 1, "is_active": True, "name": "bKash", "account_info": "01700000000"})
+    services.deposits.pending_for = AsyncMock(return_value=None)
+    services.deposits.find_by_transaction = AsyncMock(return_value=None)
+    services.deposits.get_unused_received_transaction = AsyncMock(return_value=None)
+    services.deposits.verification_failures = AsyncMock(return_value=[])
+    services.deposits.create_request = AsyncMock(return_value=105)
+    services.zinipay.is_enabled = AsyncMock(return_value=False)
+    services.settings.number = AsyncMock(return_value=125.0)
+    services.settings.get = AsyncMock(return_value="৳")
+
+    user = User(id=789, is_bot=False, first_name="Test")
+    chat = Chat(id=456, type="private")
+    card_msg = MagicMock(spec=Message, message_id=555)
+    card_msg.chat = chat
+    card_msg.edit_text = AsyncMock()
+
+    # Step 1: User taps "Payment Done"
+    query_paid = MagicMock(spec=CallbackQuery)
+    query_paid.from_user = user
+    query_paid.data = "dep_paid_1"
+    query_paid.message = card_msg
+    query_paid.answer = AsyncMock()
+
+    await begin_payment_reference(query_paid, state, services)
+
+    # Asserts for Step 1:
+    assert await state.get_state() == DepositStates.waiting_for_amount.state
+    assert card_msg.edit_text.called
+    step1_text = card_msg.edit_text.call_args[0][0]
+    assert "How much balance do you want to add?" in step1_text
+    step1_kb = card_msg.edit_text.call_args[1]["reply_markup"]
+    step1_chips = [b.text for r in step1_kb.inline_keyboard for b in r]
+    assert "৳50" in step1_chips
+    assert "৳500" in step1_chips
+
+    # Step 2: User taps preset [ ৳500 ]
+    card_msg.edit_text.reset_mock()
+    query_chip = MagicMock(spec=CallbackQuery)
+    query_chip.from_user = user
+    query_chip.data = "dep_amt_500"
+    query_chip.message = card_msg
+    query_chip.answer = AsyncMock()
+
+    await handle_deposit_quick_amount(query_chip, state, services)
+
+    # Asserts for Step 2:
+    assert await state.get_state() == DepositStates.waiting_for_txid.state
+    data = await state.get_data()
+    assert data["pay_amount"] == 500.0
+    assert data["manual_amount"] == 4.0
+    assert card_msg.edit_text.called
+    step2_text = card_msg.edit_text.call_args[0][0]
+    assert "Send: <code>500 ৳</code>" in step2_text
+    assert "Enter TrxID below:" in step2_text
+
+    # Step 3: User submits TrxID
+    bot = MagicMock()
+    bot.edit_message_text = AsyncMock(return_value=card_msg)
+    trx_message = MagicMock(spec=Message)
+    trx_message.from_user = user
+    trx_message.chat = chat
+    trx_message.bot = bot
+    trx_message.text = "BLA7X8Y9Z0"
+    trx_message.answer = AsyncMock()
+    trx_message.delete = AsyncMock()
+
+    await process_deposit_txid(trx_message, state, services)
+
+    # Asserts for Step 3:
+    assert services.deposits.create_request.called
+    kwargs = services.deposits.create_request.call_args.kwargs
+    assert kwargs["transaction_id"] == "BLA7X8Y9Z0"
+    assert kwargs["pay_amount"] == 500.0
+    assert kwargs["amount"] == 4.0
+    assert await state.get_state() is None

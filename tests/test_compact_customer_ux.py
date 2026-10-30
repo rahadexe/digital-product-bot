@@ -108,8 +108,8 @@ async def test_payment_done_edits_card_in_place_without_force_reply():
     edit_args, edit_kwargs = message.edit_text.await_args
     assert "bKash" in edit_args[0]
     assert "01700000000" in edit_args[0]
-    assert "Transaction ID" in edit_args[0]
-    assert await state.get_state() == DepositStates.waiting_for_txid.state
+    assert "How much balance do you want to add?" in edit_args[0]
+    assert await state.get_state() == DepositStates.waiting_for_amount.state
     # A second tap must not reset the state or edit again.
     await begin_payment_reference(query, state, services())
     assert message.edit_text.await_count == 1

@@ -1101,6 +1101,8 @@ async def handle_deposit_quick_amount(query: CallbackQuery, state: FSMContext, s
 
 @router.callback_query(F.data == "dep_change_amt")
 async def handle_deposit_change_amount(query: CallbackQuery, state: FSMContext, services: Services):
+    with suppress(TelegramBadRequest):
+        await query.answer()
     data = await state.get_data()
     method_id = data.get("method_id")
     method = None
@@ -1112,12 +1114,42 @@ async def handle_deposit_change_amount(query: CallbackQuery, state: FSMContext, 
     if not method:
         await show_deposit_methods(query, state, services)
         return
-    await render_method_details(query, state, services, method)
+
+    is_binance = bool(data.get("is_binance")) or "binance" in str(data.get("method_name", "")).lower()
+    method_name = str(data.get("method_name") or method.get("name") or "Payment").strip()
+    account_info = str(data.get("account_info") or method.get("account_info") or "").strip()
+    account_type = data.get("account_type") or method.get("account_type") or "personal"
+    type_display, _ = get_account_type_labels(account_type)
+    num_label = "Pay ID" if is_binance else "Number"
+    lang = await services.users.get_language(query.from_user.id) if query.from_user else "en"
+
+    prompt = (
+        f"<b>{escape(method_name)}{f' ({type_display})' if not is_binance else ''}</b>\n\n"
+        f"{num_label}: <code>{escape(account_info)}</code>\n\n"
+        f"💰 <b>How much balance do you want to add?</b>\n"
+        f"<i>Select a preset below or type the amount:</i>"
+    )
+    keyboard = get_deposit_quick_amount_keyboard(
+        is_binance=is_binance,
+        lang=lang,
+        back_target=f"dep_method_{method['id']}",
+    )
+    if query.message:
+        with suppress(TelegramBadRequest):
+            await query.message.edit_text(prompt, reply_markup=keyboard)
+
+    await state.update_data(
+        reference_first=False,
+        manual_amount=None,
+        pay_amount=None,
+        binance_usdt=None,
+    )
+    await state.set_state(DepositStates.waiting_for_amount)
 
 
 @router.callback_query(F.data.startswith("dep_paid_"))
 async def begin_payment_reference(query: CallbackQuery, state: FSMContext, services: Services):
-    """Keep the payment card intact by editing in place with the TrxID prompt and quick options."""
+    """Keep the payment card intact by editing in place with amount presets."""
     data = await state.get_data()
     selected_id = data.get("method_id")
     requested_id = (query.data or "").removeprefix("dep_paid_")
@@ -1138,12 +1170,12 @@ async def begin_payment_reference(query: CallbackQuery, state: FSMContext, servi
     if not query.message:
         return
     is_binance = bool(data.get("is_binance")) or "binance" in str(data.get("method_name", "")).lower()
-    reference_label = "Order ID" if is_binance else "Transaction ID"
-    method_name = str(data.get("method_name") or "Payment").strip()
+    method_name = str(data.get("method_name") or method.get("name") or "Payment").strip()
     account_info = str(data.get("account_info") or method.get("account_info") or "").strip()
     account_type = data.get("account_type") or method.get("account_type") or "personal"
     type_display, _ = get_account_type_labels(account_type)
     num_label = "Pay ID" if is_binance else "Number"
+    lang = await services.users.get_language(query.from_user.id) if query.from_user else "en"
 
     card_msg_id = getattr(query.message, "message_id", None)
     card_chat_id = getattr(query.message.chat, "id", None) if getattr(query.message, "chat", None) else None
@@ -1151,14 +1183,16 @@ async def begin_payment_reference(query: CallbackQuery, state: FSMContext, servi
         remember_menu_message(card_chat_id, card_msg_id)
 
     prompt = (
-        f"<b>{escape(method_name)}{f' {type_display}' if not is_binance else ''}</b>\n\n"
+        f"<b>{escape(method_name)}{f' ({type_display})' if not is_binance else ''}</b>\n\n"
         f"{num_label}: <code>{escape(account_info)}</code>\n\n"
-        f"👇 <b>Enter your {reference_label}</b>\n"
-        f"<i>(or simply paste the confirmation SMS)</i>"
+        f"💰 <b>How much balance do you want to add?</b>\n"
+        f"<i>Select a preset below or type the amount:</i>"
     )
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔙 Back to Instructions", callback_data=f"dep_method_{selected_id}")],
-    ])
+    keyboard = get_deposit_quick_amount_keyboard(
+        is_binance=is_binance,
+        lang=lang,
+        back_target=f"dep_method_{selected_id}",
+    )
 
     try:
         await query.message.edit_text(prompt, reply_markup=keyboard)
@@ -1171,7 +1205,7 @@ async def begin_payment_reference(query: CallbackQuery, state: FSMContext, servi
                 remember_menu_message(card_chat_id, sent_id)
 
     await state.update_data(
-        reference_first=True,
+        reference_first=False,
         manual_amount=None,
         manual_txid=None,
         pay_amount=None,
@@ -1179,7 +1213,7 @@ async def begin_payment_reference(query: CallbackQuery, state: FSMContext, servi
         card_msg_id=card_msg_id,
         card_chat_id=card_chat_id,
     )
-    await state.set_state(DepositStates.waiting_for_txid)
+    await state.set_state(DepositStates.waiting_for_amount)
     with suppress(TelegramBadRequest):
         await query.answer()
 
