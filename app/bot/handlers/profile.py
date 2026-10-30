@@ -1336,7 +1336,20 @@ async def view_deposit_detail(query: CallbackQuery, state: FSMContext, services:
     symbol = await services.settings.get("currency_symbol")
     usd_rate = await services.settings.number("usd_rate")
 
-    amount_str = format_dual_price(deposit["amount"], symbol, usd_rate=usd_rate, lang=lang)
+    rate_val = float(usd_rate or 125.0)
+    usd_val = float(deposit.get("amount") or 0.0)
+    pay_val = float(deposit.get("pay_amount") or 0.0)
+    if pay_val <= 0:
+        pay_val = round(usd_val * rate_val, 2)
+
+    method_name = deposit.get("method_name") or "Deposit"
+    is_binance = "binance" in method_name.lower() or str(deposit.get("paid_currency")).upper() == "USDT"
+
+    if is_binance:
+        method_amt_line = f"<b>{escape(method_name)}</b> {usd_val:g} USDT"
+    else:
+        method_amt_line = f"<b>{escape(method_name)}</b> {pay_val:g} ৳ (${usd_val:.2f})"
+
     created = deposit["created_at"]
     date_str = created.strftime("%d %b %Y · %H:%M") if isinstance(created, datetime) else str(created)[:16]
 
@@ -1352,8 +1365,7 @@ async def view_deposit_detail(query: CallbackQuery, state: FSMContext, services:
     lines = [
         f"{header}\n",
         f"Deposit ID: <code>{dep_prefix}</code>",
-        f"Method: <b>{escape(deposit.get('method_name') or 'Deposit')}</b>",
-        f"Amount: <code>{amount_str}</code>",
+        method_amt_line,
     ]
     if deposit.get("transaction_id"):
         lines.append(f"TrxID: <code>{escape(deposit['transaction_id'])}</code>")
@@ -1362,7 +1374,7 @@ async def view_deposit_detail(query: CallbackQuery, state: FSMContext, services:
         lines.append("Status: ✅ <code>Approved</code>")
     elif st in ("rejected", "failed", "cancelled"):
         clean_note = deposit.get("admin_note") or "Verification Failed"
-        lines.append(f"Reason: <i>{escape(clean_note)}</i>")
+        lines.append(f"Reason:\n<i>{escape(clean_note)}</i>")
     else:
         lines.append("Status: ⏳ <code>Pending</code>")
         if lang != "bn":

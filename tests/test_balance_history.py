@@ -119,7 +119,7 @@ class BalanceHistoryUITests(unittest.IsolatedAsyncioTestCase):
         text_arg, kwargs = query.message.edit_text.call_args[0][0], query.message.edit_text.call_args[1]
         self.assertIn("❌ <b>Deposit Rejected</b>", text_arg)
         self.assertIn("Deposit ID: <code>D101</code>", text_arg)
-        self.assertIn("Reason: <i>Verification Failed</i>", text_arg)
+        self.assertIn("Reason:\n<i>Verification Failed</i>", text_arg)
         self.assertIn("bKash Personal", text_arg)
         self.assertIn("BLX998877", text_arg)
         self.assertNotIn("#101", text_arg)

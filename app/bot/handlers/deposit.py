@@ -268,13 +268,19 @@ def format_deposit_status_card(
 ) -> str:
     st = (status or "").lower()
     dep_prefix = format_deposit_id(dep_id) if dep_id else ""
+    method_amt_line = f"<b>{escape(method_name)}</b> {amount_str}"
+
     if st in ("approved", "completed"):
         header = "✅ <b>Deposit Successful!</b>"
         lines = [
             f"{header}\n",
-            f"Method: <b>{escape(method_name)}</b>",
-            f"Amount: <code>{amount_str}</code>",
         ]
+        if dep_prefix:
+            lines.append(f"Deposit ID: <code>{dep_prefix}</code>")
+        lines.append(method_amt_line)
+        if txid:
+            lines.append(f"TrxID: <code>{escape(txid)}</code>")
+        lines.append("Status: ✅ <code>Approved</code>")
         if current_balance:
             lines.append(f"Current Balance: <code>{current_balance}</code>")
         return "\n".join(lines)
@@ -284,22 +290,20 @@ def format_deposit_status_card(
         lines = [f"{header}\n"]
         if dep_prefix:
             lines.append(f"Deposit ID: <code>{dep_prefix}</code>")
-        lines.append(f"Method: <b>{escape(method_name)}</b>")
-        lines.append(f"Amount: <code>{amount_str}</code>")
+        lines.append(method_amt_line)
         if txid:
             lines.append(f"TrxID: <code>{escape(txid)}</code>")
         clean_note = error_note or "Verification Failed"
         if any(x in str(clean_note) for x in ("HTTP", "401", "unavailable", "configured")):
             clean_note = "Submitted for manual admin review."
-        lines.append(f"Reason: <i>{escape(clean_note)}</i>")
+        lines.append(f"Reason:\n<i>{escape(clean_note)}</i>")
         return "\n".join(lines)
 
     header = "⏳ <b>Deposit in Review</b>"
     lines = [f"{header}\n"]
     if dep_prefix:
         lines.append(f"Deposit ID: <code>{dep_prefix}</code>")
-    lines.append(f"Method: <b>{escape(method_name)}</b>")
-    lines.append(f"Amount: <code>{amount_str}</code>")
+    lines.append(method_amt_line)
     if txid:
         lines.append(f"TrxID: <code>{escape(txid)}</code>")
     lines.append("Status: ⏳ <code>Pending</code>")
@@ -2668,8 +2672,15 @@ async def refresh_deposit_status(query: CallbackQuery, services: Services):
     amt = float(dep.get("amount") or 0.0)
     pay_amt = float(dep.get("pay_amount") or 0.0)
     usd_rate = await services.settings.number("usd_rate")
+    rate_val = float(usd_rate or 125.0)
+    if pay_amt <= 0:
+        pay_amt = round(amt * rate_val, 2)
+
+    if is_bin:
+        amt_str = f"{amt:g} USDT"
+    else:
+        amt_str = f"{pay_amt:g} ৳ (${amt:.2f})"
     curr = await resolve_user_currency(services, user.id)
-    amt_str = format_dual_price(amt, usd_rate=usd_rate, currency=curr)
 
     user_balance_str = None
     if status in ("approved", "completed"):
@@ -2766,8 +2777,15 @@ async def back_to_deposit_request(query: CallbackQuery, services: Services):
     amt = float(dep.get("amount") or 0.0)
     pay_amt = float(dep.get("pay_amount") or 0.0)
     usd_rate = await services.settings.number("usd_rate")
+    rate_val = float(usd_rate or 125.0)
+    if pay_amt <= 0:
+        pay_amt = round(amt * rate_val, 2)
+
+    if is_bin:
+        amt_str = f"{amt:g} USDT"
+    else:
+        amt_str = f"{pay_amt:g} ৳ (${amt:.2f})"
     curr = await resolve_user_currency(services, user.id)
-    amt_str = format_dual_price(amt, usd_rate=usd_rate, currency=curr)
 
     user_balance_str = None
     if status in ("approved", "completed"):
