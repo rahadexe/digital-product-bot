@@ -717,6 +717,21 @@ class PaymentService:
             "Credited to customer wallet automatically.",
             event="payment",
         )
+        if getattr(self, "announcements", None):
+            fn = u_row.get("first_name") if u_row else None
+            ln = u_row.get("last_name") if u_row else None
+            un = u_row.get("username") if u_row else None
+            m_name = row.get("payment_method") or "ZiniPay"
+            amt_str = f"{credit:.2f} {symbol}"
+            self.notifier.in_background(
+                self.announcements.broadcast_deposit_proof(
+                    method_name=m_name,
+                    amount_str=amt_str,
+                    first_name=fn,
+                    last_name=ln,
+                    username=un,
+                )
+            )
 
     async def list(self, status: str | None = None, limit: int = 50, offset: int = 0) -> tuple[list[dict[str, Any]], int]:
         where, params = "", []

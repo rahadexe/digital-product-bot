@@ -30,6 +30,23 @@ from app.services.settings import SettingsService
 logger = logging.getLogger("app.services.announcements")
 
 
+def format_customer_short_name(first_name: str | None, last_name: str | None, username: str | None = None) -> str:
+    fn = (first_name or "").strip()
+    ln = (last_name or "").strip()
+    if fn and ln:
+        return f"{fn} {ln[0].upper()}."
+    if fn:
+        return fn
+    if ln:
+        return ln
+    if username:
+        u = username.strip().lstrip("@")
+        if len(u) <= 3:
+            return f"@{u}"
+        return f"@{u[:2]}***{u[-1]}"
+    return "Verified Buyer"
+
+
 class AnnouncementService:
     def __init__(self, settings: SettingsService, catalog: CatalogService, notifier: Notifier):
         self.settings = settings
@@ -90,6 +107,11 @@ class AnnouncementService:
             return admin_delivered
 
         channel_delivered = False
+        bot_uname = await self.notifier.bot_username()
+        ch_kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🛒 Buy Now", url=f"https://t.me/{bot_uname}?start=prod_{product['id']}")],
+            [InlineKeyboardButton(text="🛍️ Open Store", url=f"https://t.me/{bot_uname}?start=shop")],
+        ])
         for ch in channels:
             deliv = await self.notifier.send(
                 ch,
@@ -97,8 +119,8 @@ class AnnouncementService:
                 f"<blockquote>Product: {icon_prefix}<b>{title}</b>\n"
                 f"{duration_line}"
                 f"Price: <code>{format_dual_price(product['price'], symbol, show_usd=False)}</code>\n"
-                f"Delivery: Instant</blockquote>",
-                button,
+                f"Status: In Stock ✅</blockquote>",
+                ch_kb,
             )
             if deliv:
                 channel_delivered = True
@@ -222,3 +244,136 @@ class AnnouncementService:
                     channel_delivered = True
 
         return admin_delivered or channel_delivered
+
+    async def broadcast_order_proof(
+        self,
+        product_id: int | None,
+        product_title: str,
+        price_str: str,
+        quantity: int = 1,
+        first_name: str | None = None,
+        last_name: str | None = None,
+        username: str | None = None,
+    ) -> bool:
+        values = await self.settings.values()
+        raw_channels = values.get("announcement_channel", "")
+        channels = self._channels(raw_channels)
+        if not channels:
+            return False
+
+        qty_suffix = f" (x{quantity})" if quantity > 1 else ""
+        cust_name = escape(format_customer_short_name(first_name, last_name, username))
+        title = escape(product_title)
+
+        text = (
+            "🛍️ <b>New Order Delivered!</b>\n\n"
+            f"<blockquote>Product: <b>{title}{qty_suffix}</b>\n"
+            f"Customer: <b>{cust_name}</b>\n"
+            f"Paid: <code>{price_str}</code>\n"
+            "Status: Delivered ✅</blockquote>"
+        )
+        bot_uname = await self.notifier.bot_username()
+        buttons = []
+        if product_id:
+            buttons.append([InlineKeyboardButton(text="🛒 Buy This Item", url=f"https://t.me/{bot_uname}?start=prod_{product_id}")])
+            buttons.append([
+                InlineKeyboardButton(text="🛍️ Open Store", url=f"https://t.me/{bot_uname}?start=shop"),
+                InlineKeyboardButton(text="💳 Add Balance", url=f"https://t.me/{bot_uname}?start=wallet"),
+            ])
+        else:
+            buttons.append([
+                InlineKeyboardButton(text="🛍️ Open Store", url=f"https://t.me/{bot_uname}?start=shop"),
+                InlineKeyboardButton(text="💳 Add Balance", url=f"https://t.me/{bot_uname}?start=wallet"),
+            ])
+        kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+        for ch in channels:
+            await self.notifier.send(ch, text, keyboard=kb)
+        return True
+
+    async def broadcast_referral_proof(
+        self,
+        reward_str: str,
+        first_name: str | None = None,
+        last_name: str | None = None,
+        username: str | None = None,
+    ) -> bool:
+        values = await self.settings.values()
+        raw_channels = values.get("announcement_channel", "")
+        channels = self._channels(raw_channels)
+        if not channels:
+            return False
+
+        inviter_name = escape(format_customer_short_name(first_name, last_name, username))
+        text = (
+            "🎁 <b>Referral Bonus Credited!</b>\n\n"
+            f"<blockquote>Inviter: <b>{inviter_name}</b>\n"
+            f"Bonus: <code>+{reward_str}</code>\n"
+            "Status: Added to Wallet ✅</blockquote>"
+        )
+        bot_uname = await self.notifier.bot_username()
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="👥 Invite & Earn", url=f"https://t.me/{bot_uname}?start=ref")],
+            [InlineKeyboardButton(text="🛍️ Open Store", url=f"https://t.me/{bot_uname}?start=shop")],
+        ])
+        for ch in channels:
+            await self.notifier.send(ch, text, keyboard=kb)
+        return True
+
+    async def broadcast_deposit_proof(
+        self,
+        method_name: str,
+        amount_str: str,
+        first_name: str | None = None,
+        last_name: str | None = None,
+        username: str | None = None,
+    ) -> bool:
+        values = await self.settings.values()
+        raw_channels = values.get("announcement_channel", "")
+        channels = self._channels(raw_channels)
+        if not channels:
+            return False
+
+        cust_name = escape(format_customer_short_name(first_name, last_name, username))
+        text = (
+            "💰 <b>Wallet Deposit Confirmed!</b>\n\n"
+            f"<blockquote>Customer: <b>{cust_name}</b>\n"
+            f"Method: <b>{escape(method_name)}</b>\n"
+            f"Amount: <code>{amount_str}</code>\n"
+            "Status: Balance Added ✅</blockquote>"
+        )
+        bot_uname = await self.notifier.bot_username()
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="💳 Add Balance", url=f"https://t.me/{bot_uname}?start=wallet")],
+            [InlineKeyboardButton(text="🛍️ Open Store", url=f"https://t.me/{bot_uname}?start=shop")],
+        ])
+        for ch in channels:
+            await self.notifier.send(ch, text, keyboard=kb)
+        return True
+
+    async def broadcast_reseller_proof(
+        self,
+        first_name: str | None = None,
+        last_name: str | None = None,
+        username: str | None = None,
+    ) -> bool:
+        values = await self.settings.values()
+        raw_channels = values.get("announcement_channel", "")
+        channels = self._channels(raw_channels)
+        if not channels:
+            return False
+
+        partner_name = escape(format_customer_short_name(first_name, last_name, username))
+        text = (
+            "💼 <b>New Reseller Partner Joined!</b>\n\n"
+            f"<blockquote>Partner: <b>{partner_name}</b>\n"
+            "Tier: <b>Official Reseller</b>\n"
+            "Status: Wholesale API Activated ⚡</blockquote>"
+        )
+        bot_uname = await self.notifier.bot_username()
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="💎 Reseller Program", url=f"https://t.me/{bot_uname}?start=reseller")],
+            [InlineKeyboardButton(text="🛍️ Open Store", url=f"https://t.me/{bot_uname}?start=shop")],
+        ])
+        for ch in channels:
+            await self.notifier.send(ch, text, keyboard=kb)
+        return True

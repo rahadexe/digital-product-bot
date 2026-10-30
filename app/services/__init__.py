@@ -121,10 +121,16 @@ def build_services(
     upstream_reseller = UpstreamResellerService(db, config, settings)
     suppliers = SupplierManager(db, config, settings)
     binance_credentials = BinanceCredentialsService(db, config.secret_key)
+    announcements = AnnouncementService(settings, catalog, notifier)
     purchases = PurchaseService(db, settings, delivery, notifier, upstream_reseller=upstream_reseller, suppliers=suppliers)
-    # Stock warnings need a quiet period; the limiter is the only thing that remembers
-    # across restarts and replicas.
     purchases.rate_limits = limits
+    purchases.announcements = announcements
+    purchases.users = users
+    users.announcements = announcements
+    deposits.announcements = announcements
+
+    payments = PaymentService(db, settings, notifier, config)
+    payments.announcements = announcements
 
     return Services(
         config=config,
@@ -139,13 +145,13 @@ def build_services(
 
         purchases=purchases,
         deposits=deposits,
-        payments=PaymentService(db, settings, notifier, config),
+        payments=payments,
         binance=BinanceDepositService(db, settings, deposits, notifier, config, binance_credentials=binance_credentials),
         binance_credentials=binance_credentials,
         zinipay=ZiniPayVerificationService(db, settings, deposits, notifier, config),
         gate=GateService(db, settings, notifier),
         update_channels=UpdateChannelService(db),
-        announcements=AnnouncementService(settings, catalog, notifier),
+        announcements=announcements,
         dashboard=DashboardService(db),
         admin_access=AdminAccessService(db),
         reseller=reseller,

@@ -359,6 +359,19 @@ class PurchaseService:
                     await self.delivery.enqueue_waiting_notice(tg_user_id, order, conn=db)
                 else:
                     await self.delivery.enqueue_order(tg_user_id, order, conn=db)
+                    if getattr(self, "announcements", None):
+                        price_val = price(symbol, order["price"], usd_rate=usd_rate)
+                        self.notifier.in_background(
+                            self.announcements.broadcast_order_proof(
+                                product_id=order.get("product_id"),
+                                product_title=product["title"],
+                                price_str=price_val,
+                                quantity=quantity,
+                                first_name=user.get("first_name"),
+                                last_name=user.get("last_name"),
+                                username=user.get("username"),
+                            )
+                        )
                 await enqueue_admin_job(db, "order", order_id, {
                     "user": {k: user[k] for k in ("username", "tg_user_id")},
                     "order": {k: order[k] for k in ("order_id", "product_id", "product_title", "price")},
@@ -580,6 +593,27 @@ class PurchaseService:
             manual_order["show_usd"] = False
             await self.delivery.enqueue_order(order["tg_user_id"], manual_order, conn=conn)
             await record(conn, "order_delivered_manually", f"Order #{order_id} delivered by the admin")
+            if getattr(self, "announcements", None):
+                async def _bg_manual_proof():
+                    try:
+                        async with self.db.connect() as uconn:
+                            urow = await uconn.fetchrow("SELECT first_name, last_name, username FROM users WHERE tg_user_id = $1", order["tg_user_id"])
+                        fn = urow["first_name"] if urow else None
+                        ln = urow["last_name"] if urow else None
+                        un = urow["username"] if urow else None
+                        p_str = price(symbol, row["price"], usd_rate=manual_order["usd_rate"])
+                        await self.announcements.broadcast_order_proof(
+                            product_id=row.get("product_id"),
+                            product_title=row.get("product_title", "Product"),
+                            price_str=p_str,
+                            quantity=int(row.get("quantity") or 1),
+                            first_name=fn,
+                            last_name=ln,
+                            username=un,
+                        )
+                    except Exception:
+                        pass
+                self.notifier.in_background(_bg_manual_proof())
         return dict(row)
 
     async def retry_supplier_fulfillment(self, order_id: int) -> tuple[bool, str, dict[str, Any] | None]:
@@ -691,6 +725,27 @@ class PurchaseService:
                 delivered_order["usd_rate"] = usd_rate
                 delivered_order["show_usd"] = show_usd
                 await self.delivery.enqueue_order(order["tg_user_id"], delivered_order, conn=conn)
+                if getattr(self, "announcements", None):
+                    async def _bg_sup_proof():
+                        try:
+                            async with self.db.connect() as uconn:
+                                urow = await uconn.fetchrow("SELECT first_name, last_name, username FROM users WHERE tg_user_id = $1", order["tg_user_id"])
+                            fn = urow["first_name"] if urow else None
+                            ln = urow["last_name"] if urow else None
+                            un = urow["username"] if urow else None
+                            p_str = price(symbol, updated_row["price"], usd_rate=usd_rate)
+                            await self.announcements.broadcast_order_proof(
+                                product_id=updated_row.get("product_id"),
+                                product_title=updated_row.get("product_title", "Product"),
+                                price_str=p_str,
+                                quantity=int(updated_row.get("quantity") or 1),
+                                first_name=fn,
+                                last_name=ln,
+                                username=un,
+                            )
+                        except Exception:
+                            pass
+                    self.notifier.in_background(_bg_sup_proof())
 
             await record(conn, "supplier_order_retried", f"Order #{order_id} fulfilled via supplier {supplier_code}")
 

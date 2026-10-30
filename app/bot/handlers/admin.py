@@ -753,105 +753,83 @@ async def on_bot_chat_member_updated(event: ChatMemberUpdated, services: Service
 
     actor_id = event.from_user.id if event.from_user else 0
 
-    # 1. GROUP / SUPERGROUP: Always leave immediately. No exceptions.
-    if chat.type in ("group", "supergroup"):
+    values = await services.settings.values()
+    admin_ids = await services.settings.admin_chat_ids()
+    is_actor_admin = actor_id in admin_ids
+
+    authorized_chats = set()
+
+    # Announcement channel or group from settings
+    raw_announcements = values.get("announcement_channel", "")
+    for part in re.split(r"[\s,;]+", raw_announcements):
+        p = part.strip()
+        if p:
+            authorized_chats.add(p.lower())
+            if p.startswith("@"):
+                authorized_chats.add(p[1:].lower())
+            try:
+                authorized_chats.add(str(int(p)))
+            except ValueError:
+                pass
+
+    # Gate channels (force-join channels)
+    try:
+        gate_list = await services.gate.channels(active_only=False)
+        for g in gate_list:
+            uname = (g.get("channel_username") or "").strip().lower()
+            if uname:
+                authorized_chats.add(uname)
+                if uname.startswith("@"):
+                    authorized_chats.add(uname[1:])
+            cid = str(g.get("chat_id") or "").strip()
+            if cid:
+                authorized_chats.add(cid)
+    except Exception:
+        logger.exception("Failed to load gate channels for chat authorization check")
+
+    # Update / support channels
+    if hasattr(services, "update_channels"):
+        try:
+            upd_list = await services.update_channels.channels(active_only=False)
+            for u in upd_list:
+                link = (u.get("channel_link") or u.get("invite_link") or u.get("channel_username") or "").strip().lower()
+                if "t.me/" in link:
+                    slug = link.split("t.me/", 1)[1].split("/")[0].split("?")[0].strip().lstrip("@")
+                    if slug and not slug.startswith("+"):
+                        authorized_chats.add(slug)
+                        authorized_chats.add(f"@{slug}")
+                elif link:
+                    authorized_chats.add(link)
+                    if link.startswith("@"):
+                        authorized_chats.add(link[1:])
+        except Exception:
+            logger.exception("Failed to load update channels for chat authorization check")
+
+    chat_id_str = str(chat.id)
+    chat_user = (chat.username or "").lower()
+
+    is_authorized = (
+        chat_id_str in authorized_chats
+        or (chat_user and (chat_user in authorized_chats or f"@{chat_user}" in authorized_chats))
+        or (is_actor_admin and not authorized_chats)  # admin adding bot before saving config
+    )
+
+    if not is_authorized:
         logger.warning(
-            "Security: Bot added to group '%s' (ID: %s) by user %s. Leaving immediately.",
-            chat.title, chat.id, actor_id
+            "Security: Bot added to unauthorized %s '%s' (ID: %s) by user %s. Leaving.",
+            chat.type, chat.title, chat.id, actor_id
         )
         with suppress(Exception):
             await bot.leave_chat(chat.id)
         await _alert_once(
-            services, "group", str(chat.id),
-            "<b>Group invite rejected</b>\n"
-            "\n"
-            f"{html.escape(chat.title or 'Unknown')} · <code>{chat.id}</code>\n"
+            services, chat.type, str(chat.id),
+            f"<b>Unauthorised {chat.type}</b>\n\n"
+            f"{html.escape(chat.title or 'Unknown')}"
+            f"{' · @' + chat_user if chat_user else ''} · <code>{chat.id}</code>\n"
             f"Added by <code>{actor_id}</code>\n\n"
-            "<i>The bot left. Groups are never allowed.</i>",
+            "<i>The bot left. Configure this chat ID or @username in Settings → Support & Channels first.</i>",
         )
         return
-
-    # 2. CHANNEL: Only allow explicitly authorized announcement or gate channels.
-    if chat.type == "channel":
-        values = await services.settings.values()
-        admin_ids = await services.settings.admin_chat_ids()
-        is_actor_admin = actor_id in admin_ids
-
-        authorized_chats = set()
-
-        # Announcement channels from settings
-        raw_announcements = values.get("announcement_channel", "")
-        for part in re.split(r"[\s,;]+", raw_announcements):
-            p = part.strip()
-            if p:
-                authorized_chats.add(p.lower())
-                if p.startswith("@"):
-                    authorized_chats.add(p[1:].lower())
-                try:
-                    authorized_chats.add(str(int(p)))
-                except ValueError:
-                    pass
-
-        # Gate channels (force-join channels)
-        try:
-            gate_list = await services.gate.channels(active_only=False)
-            for g in gate_list:
-                uname = (g.get("channel_username") or "").strip().lower()
-                if uname:
-                    authorized_chats.add(uname)
-                    if uname.startswith("@"):
-                        authorized_chats.add(uname[1:])
-                cid = str(g.get("chat_id") or "").strip()
-                if cid:
-                    authorized_chats.add(cid)
-        except Exception:
-            logger.exception("Failed to load gate channels for chat authorization check")
-
-        # Update / support channels
-        if hasattr(services, "update_channels"):
-            try:
-                upd_list = await services.update_channels.channels(active_only=False)
-                for u in upd_list:
-                    link = (u.get("channel_link") or u.get("invite_link") or u.get("channel_username") or "").strip().lower()
-                    if "t.me/" in link:
-                        slug = link.split("t.me/", 1)[1].split("/")[0].split("?")[0].strip().lstrip("@")
-                        if slug and not slug.startswith("+"):
-                            authorized_chats.add(slug)
-                            authorized_chats.add(f"@{slug}")
-                    elif link:
-                        authorized_chats.add(link)
-                        if link.startswith("@"):
-                            authorized_chats.add(link[1:])
-            except Exception:
-                logger.exception("Failed to load update channels for chat authorization check")
-
-        chat_id_str = str(chat.id)
-        chat_user = (chat.username or "").lower()
-
-        is_authorized = (
-            chat_id_str in authorized_chats
-            or (chat_user and (chat_user in authorized_chats or f"@{chat_user}" in authorized_chats))
-            or (is_actor_admin and not authorized_chats)  # admin adding bot before saving config
-        )
-
-        if not is_authorized:
-            logger.warning(
-                "Security: Bot added to unauthorized channel '%s' (ID: %s) by user %s. Leaving.",
-                chat.title, chat.id, actor_id
-            )
-            with suppress(Exception):
-                await bot.leave_chat(chat.id)
-            await _alert_once(
-                services, "channel", str(chat.id),
-                "<b>Unauthorised channel</b>\n"
-                "\n"
-                f"{html.escape(chat.title or 'Unknown')}"
-                f"{' · @' + chat_user if chat_user else ''} · <code>{chat.id}</code>\n"
-                f"Added by <code>{actor_id}</code>\n\n"
-                "<i>The bot left, so nothing can be broadcast from it. Add the channel in "
-                "Settings → Channels first.</i>",
-            )
-            return
 
         logger.info(
             "Bot successfully added to authorized channel '%s' (ID: %s).",
@@ -2565,6 +2543,18 @@ async def adm_approve_reseller_cb(query: CallbackQuery, services: Services):
         InlineKeyboardButton(text="💎 Reseller & API Hub", callback_data="open_reseller_hub")
     ]])
     await services.notifier.send_message(app["tg_user_id"], user_notify_text, reply_markup=reseller_kb)
+    if getattr(services, "announcements", None):
+        async def _bg_res_proof():
+            try:
+                async with services.db.connect() as aconn:
+                    urow = await aconn.fetchrow("SELECT first_name, last_name, username FROM users WHERE tg_user_id = $1", app["tg_user_id"])
+                fn = urow["first_name"] if urow else None
+                ln = urow["last_name"] if urow else None
+                un = urow["username"] if urow else None
+                await services.announcements.broadcast_reseller_proof(first_name=fn, last_name=ln, username=un)
+            except Exception:
+                pass
+        services.notifier.in_background(_bg_res_proof())
 
     updated = await services.reseller_applications.get_application(app_id)
     if updated and query.message:

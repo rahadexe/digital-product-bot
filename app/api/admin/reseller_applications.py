@@ -47,6 +47,18 @@ async def approve_reseller_application(
         InlineKeyboardButton(text="💎 Reseller & API Hub", callback_data="open_reseller_hub")
     ]])
     await services.notifier.send_message(app["tg_user_id"], user_notify_text, reply_markup=reseller_kb)
+    if getattr(services, "announcements", None):
+        async def _bg_web_res_proof():
+            try:
+                async with services.db.connect() as rconn:
+                    urow = await rconn.fetchrow("SELECT first_name, last_name, username FROM users WHERE tg_user_id = $1", app["tg_user_id"])
+                fn = urow["first_name"] if urow else None
+                ln = urow["last_name"] if urow else None
+                un = urow["username"] if urow else None
+                await services.announcements.broadcast_reseller_proof(first_name=fn, last_name=ln, username=un)
+            except Exception:
+                pass
+        services.notifier.in_background(_bg_web_res_proof())
 
     return {"success": True, "message": "Application approved successfully."}
 

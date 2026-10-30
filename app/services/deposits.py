@@ -733,6 +733,27 @@ class DepositService:
             await record(
                 conn, "approve_deposit", f"Approved Deposit #{deposit_id} of {amount:.2f} for user {deposit['tg_user_id']}"
             )
+            if getattr(self, "announcements", None):
+                async def _bg_dep_proof():
+                    try:
+                        async with self.db.connect() as dconn:
+                            urow = await dconn.fetchrow("SELECT first_name, last_name, username FROM users WHERE tg_user_id = $1", deposit["tg_user_id"])
+                        fn = urow["first_name"] if urow else None
+                        ln = urow["last_name"] if urow else None
+                        un = urow["username"] if urow else None
+                        m_name = deposit.get("method_name") or "Deposit"
+                        cur_sym = await self.settings.get("currency_symbol")
+                        amt_str = f"{amount:.2f} {cur_sym}"
+                        await self.announcements.broadcast_deposit_proof(
+                            method_name=m_name,
+                            amount_str=amt_str,
+                            first_name=fn,
+                            last_name=ln,
+                            username=un,
+                        )
+                    except Exception:
+                        pass
+                self.notifier.in_background(_bg_dep_proof())
 
         details = {
             "tg_user_id": deposit["tg_user_id"],

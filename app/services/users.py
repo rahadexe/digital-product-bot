@@ -177,6 +177,15 @@ class UserService:
                     f"Bonus: <code>+{reward_str}</code> added to your balance.",
                 )
             )
+        if getattr(self, "announcements", None):
+            self.notifier.in_background(
+                self.announcements.broadcast_referral_proof(
+                    reward_str=reward_str,
+                    first_name=referrer.get("first_name"),
+                    last_name=referrer.get("last_name"),
+                    username=referrer.get("username"),
+                )
+            )
         return {"referrer_id": referrer_id, "amount": reward_amount}
 
     async def get(self, tg_user_id: int) -> dict[str, Any] | None:
