@@ -494,10 +494,11 @@ async def ask_instant_amount_from_text(
     lang = await services.users.get_language(message.from_user.id) if message.from_user else "en"
     await state.set_state(DepositStates.waiting_for_instant_amount)
     await state.update_data(is_instant=True, min_deposit=min_dep)
+    clean_label = re.sub(r'^[^\w\s]+\s*', '', instant.get("label") or "").split(" - ")[0].strip() or "Instant Pay"
     prompt_txt = (
-        "💳 <b>কত টাকা ডিপোজিট করতে চান?</b>\nনিচ থেকে বেছে নিন বা অ্যামাউন্ট লিখে দিন:"
+        f"💳 <b>Deposit via {escape(clean_label)}</b>\nকত টাকা পাঠাবেন তা নিচ থেকে বেছে নিন বা লিখুন:"
         if lang == "bn"
-        else "💳 <b>How much would you like to deposit?</b>\nSelect an amount below or type it:"
+        else f"💳 <b>Deposit via {escape(clean_label)}</b>\nChoose the amount below or type it:"
     )
     keyboard = get_deposit_quick_amount_keyboard(
         is_binance=False,
@@ -726,10 +727,11 @@ async def render_method_details(
     if custom_inst:
         lines.append(escape(custom_inst))
     else:
+        clean_name = re.sub(r'^[^\w\s]+\s*', '', method_name).strip() or method_name
         if not is_binance or lang == "bn":
-            lines.append("💳 <b>কত টাকা ডিপোজিট করতে চান?</b>\nনিচ থেকে বেছে নিন বা অ্যামাউন্ট লিখে দিন:")
+            lines.append(f"💳 <b>Deposit via {escape(clean_name)}</b>\nকত টাকা পাঠাবেন তা নিচ থেকে বেছে নিন বা লিখুন:")
         else:
-            lines.append("💳 <b>How much would you like to deposit?</b>\nSelect an amount below or type it:")
+            lines.append(f"💳 <b>Deposit via {escape(clean_name)}</b>\nChoose the amount below or type it:")
     inst = "\n".join(lines)
     keyboard = get_deposit_quick_amount_keyboard(
         is_binance=False,
@@ -839,10 +841,11 @@ async def ask_instant_amount(query: CallbackQuery, state: FSMContext, services: 
         if card_msg_id and card_chat_id:
             remember_menu_message(card_chat_id, card_msg_id)
             await state.update_data(card_msg_id=card_msg_id, card_chat_id=card_chat_id)
+        clean_label = re.sub(r'^[^\w\s]+\s*', '', instant.get("label") or "").split(" - ")[0].strip() or "Instant Pay"
         prompt_txt = (
-            "💳 <b>কত টাকা ডিপোজিট করতে চান?</b>\nনিচ থেকে বেছে নিন বা অ্যামাউন্ট লিখে দিন:"
+            f"💳 <b>Deposit via {escape(clean_label)}</b>\nকত টাকা পাঠাবেন তা নিচ থেকে বেছে নিন বা লিখুন:"
             if lang == "bn"
-            else "💳 <b>How much would you like to deposit?</b>\nSelect an amount below or type it:"
+            else f"💳 <b>Deposit via {escape(clean_label)}</b>\nChoose the amount below or type it:"
         )
         keyboard = get_deposit_quick_amount_keyboard(
             is_binance=False,

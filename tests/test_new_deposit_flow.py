@@ -500,7 +500,8 @@ async def test_exchange_rate_and_dollar_conversion_flow():
     # Screen 1: Method details
     await render_method_details(message, state, services, method)
     screen1_text = message.answer.call_args_list[0][0][0]
-    assert "কত টাকা ডিপোজিট করতে চান" in screen1_text
+    assert "কত টাকা পাঠাবেন তা নিচ থেকে বেছে নিন বা লিখুন" in screen1_text
+    assert "Deposit via bKash" in screen1_text
 
     # Screen 2: User enters 500
     message.text = "500"
