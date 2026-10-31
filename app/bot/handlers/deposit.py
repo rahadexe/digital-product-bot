@@ -896,11 +896,11 @@ def _format_deposit_tx_prompt(
         summary_block = f"\n{amount_summary}\n" if (amount_summary and "Adds to balance" in amount_summary) else ""
         return (
             f"<b>{escape(full_heading)}</b>\n\n"
-            f"Number: <code>{escape(account_info)}</code> <i>(ট্যাপ করে কপি করুন)</i>\n"
+            f"📱 <code>{escape(account_info)}</code> <i>(ট্যাপ করে কপি করুন)</i>\n"
             f"আপনাকে দিতে হবে: <b>{pay_amount:g} ৳</b>\n"
             f"{summary_block}"
             f"Rate: <code>1 USD = {rate:g} ৳</code>\n\n"
-            f"<blockquote>টাকা পাঠিয়ে নিচে আপনার TrxID লিখে দিন:\n"
+            f"<blockquote>উপরের নাম্বারে টাকা পাঠিয়ে ট্রানজেকশন আইডিটা নিচে লিখুন:\n"
             f"<i>(বা সম্পূর্ণ কনফার্মেশন SMS-টি পেস্ট করুন)</i>\n\n"
             f"Enter TrxID below:</blockquote>"
         )
