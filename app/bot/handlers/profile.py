@@ -919,21 +919,16 @@ async def show_order_history(event: Message | CallbackQuery, state: FSMContext, 
                 except Exception:
                     pass
 
-            # Format: [ <Icon> <Name> · <Validity> · <Price> ]
-            elements = [clean_title]
-            if duration and duration.lower() not in {"none", "n/a", "instant"}:
-                elements.append(duration)
-            elements.append(price_str)
-
-            body = " · ".join(elements)
-            label = f"{status_emoji} {body}"
+            # Format: [ <Icon> <Name> <Validity> · <Price> ]
+            title_part = f"{clean_title} {duration}".strip() if duration and duration.lower() not in {"none", "n/a", "instant"} else clean_title
+            label = f"{status_emoji} {title_part} · {price_str}"
 
             if len(label) > 64:
                 overhead = len(label) - len(clean_title)
                 max_clean_len = max(6, 64 - overhead - 1)
                 clean_title = clean_title[:max_clean_len].rstrip() + "…"
-                elements[0] = clean_title
-                label = f"{status_emoji} " + " · ".join(elements)
+                title_part = f"{clean_title} {duration}".strip() if duration and duration.lower() not in {"none", "n/a", "instant"} else clean_title
+                label = f"{status_emoji} {title_part} · {price_str}"
                 label = label[:64]
 
             cb_data = f"vord_{order['id']}_{page}"

@@ -21,7 +21,7 @@ _TRAILING_VALIDITY = re.compile(
     re.IGNORECASE,
 )
 _TRAILING_WARRANTY = re.compile(
-    r"(?:[\s|·\-–—(]+)((?:full\s+warranty)|(?:\d+\s*[- ]?\s*(?:days?|weeks?|months?)\s+warranty)|(?:fw|sdw|sww|\d+dw|\d+d))\)?$",
+    r"(?:[\s|·\-–—(]+)((?:full\s+warranty)|(?:\d+\s*[- ]?\s*(?:days?|weeks?|months?|hours?)\s+warranty)|(?:fw|sdw|sww|\d+dw|\d+hw|\d+mw|\d+w|\d+d|\d+h))\)?$",
     re.IGNORECASE,
 )
 
@@ -716,24 +716,23 @@ def get_products_keyboard(
         price_formatted = format_dual_price(price_num, currency_symbol, usd_rate=usd_rate, show_usd=show_usd, lang=lang)
 
         clean_title, duration_label, warranty_label = product_display_labels(p)
-        duration_label = _compact_duration(duration_label)
         icon, custom_id = _catalog_icon(p)
         if not icon and p.get("is_pinned"):
             icon = "🔥"
         display_title = f"{icon} {clean_title}".strip() if icon else clean_title
 
         if duration_label and duration_label.lower() not in {"instant", "none", "n/a", ""}:
-            btn_text = f"{display_title} · {duration_label}"
+            btn_text = f"{display_title} {duration_label}"
         else:
             btn_text = display_title
-        if warranty_label and warranty_label.lower() not in {"none", "n/a"}:
+        if warranty_label and warranty_label.lower() not in {"none", "n/a", ""}:
             btn_text += f" ({warranty_label})"
         btn_text += f" · {price_formatted}"
 
         if len(btn_text) > 64:
             price_part = f" · {price_formatted}"
             duration_part = (
-                f" · {duration_label}"
+                f" {duration_label}"
                 if duration_label and duration_label.lower() not in {"instant", "none", "n/a", ""}
                 else ""
             )

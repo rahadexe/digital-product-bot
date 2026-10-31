@@ -94,7 +94,7 @@ def test_product_list_separates_validity_from_legacy_title():
         lang="bn",
     )
 
-    assert keyboard.inline_keyboard[0][0].text == "Netflix · 30d (Full Warranty) · 31250 ৳"
+    assert keyboard.inline_keyboard[0][0].text == "Netflix 30 Days (Full Warranty) · 31250 ৳"
 
 
 def test_product_list_extracts_legacy_validity_when_field_is_empty():
@@ -107,7 +107,7 @@ def test_product_list_extracts_legacy_validity_when_field_is_empty():
         lang="bn",
     )
 
-    assert keyboard.inline_keyboard[0][0].text == "YouTube Premium · 1mo · 40000 ৳"
+    assert keyboard.inline_keyboard[0][0].text == "YouTube Premium 1 Month · 40000 ৳"
 
 
 def test_product_list_separates_legacy_warranty_from_product_name():
@@ -126,7 +126,7 @@ def test_product_list_separates_legacy_warranty_from_product_name():
         lang="bn",
     )
 
-    assert keyboard.inline_keyboard[0][0].text == "ChatGPT Plus · 30d (FW) · 56250 ৳"
+    assert keyboard.inline_keyboard[0][0].text == "ChatGPT Plus 30 Days (FW) · 56250 ৳"
 
 
 def test_product_warranty_is_optional_in_admin_payloads():
