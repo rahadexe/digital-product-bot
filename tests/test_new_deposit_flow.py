@@ -938,7 +938,7 @@ async def test_bkash_wrong_trxid_format_rejected_immediately_without_asking_amou
     # Card was updated with clear error
     assert bot.edit_message_text.called
     card_text = bot.edit_message_text.call_args.kwargs["text"]
-    assert "bKash Transaction ID must be 8-12 characters" in card_text
+    assert "বিকাশ TrxID ৮ থেকে ১২ অক্ষরের হতে হবে" in card_text
 
 
 @pytest.mark.asyncio
@@ -982,7 +982,7 @@ async def test_nagad_wrong_trxid_format_rejected_immediately_without_asking_amou
     assert await state.get_state() == DepositStates.waiting_for_txid.state
     assert bot.edit_message_text.called
     card_text = bot.edit_message_text.call_args.kwargs["text"]
-    assert "Nagad Transaction ID must be 8-10 characters" in card_text
+    assert "নগদ TrxID ৮ থেকে ১০ অক্ষরের হতে হবে" in card_text
 
 
 @pytest.mark.asyncio
@@ -1028,7 +1028,7 @@ async def test_already_used_trxid_rejected_immediately_without_asking_amount():
     assert await state.get_state() == DepositStates.waiting_for_txid.state
     assert bot.edit_message_text.called
     card_text = bot.edit_message_text.call_args.kwargs["text"]
-    assert "already been used" in card_text.lower()
+    assert "ইতিমধ্যে ব্যবহার করা হয়েছে" in card_text
 
 
 @pytest.mark.asyncio
@@ -1073,7 +1073,63 @@ async def test_pending_trxid_rejected_immediately_without_asking_amount():
     assert await state.get_state() == DepositStates.waiting_for_txid.state
     assert bot.edit_message_text.called
     card_text = bot.edit_message_text.call_args.kwargs["text"]
-    assert "pending verification" in card_text.lower()
+    assert "পর্যালোচনায় রয়েছে" in card_text
+
+
+@pytest.mark.asyncio
+async def test_typing_numbers_on_txid_prompt_does_not_change_amount_and_shows_trxid_error():
+    """In standard deposit flow, typing digits or an amount on waiting_for_txid must NEVER change the selected amount."""
+    storage = MemoryStorage()
+    key = StorageKey(bot_id=123, chat_id=456, user_id=789)
+    state = FSMContext(storage=storage, key=key)
+    await state.set_state(DepositStates.waiting_for_txid)
+    await state.set_data({
+        "method_id": 1,
+        "method_name": "bKash",
+        "account_info": "01700000000",
+        "account_type": "personal",
+        "min_deposit": 50.0,
+        "rate": 125.0,
+        "pay_amount": 50.0,
+        "usd_amount": 0.40,
+        "card_msg_id": 555,
+        "card_chat_id": 456,
+    })
+
+    services = MagicMock()
+    services.users.get_language = AsyncMock(return_value="en")
+    services.settings.number = AsyncMock(return_value=125.0)
+    services.deposits.find_by_transaction = AsyncMock(return_value=None)
+
+    bot = MagicMock()
+    bot.edit_message_text = AsyncMock()
+
+    user = User(id=789, is_bot=False, first_name="Test")
+    chat = Chat(id=456, type="private")
+    message = MagicMock(spec=Message)
+    message.from_user = user
+    message.chat = chat
+    message.bot = bot
+    message.text = "500"  # User mistakenly types an amount
+    message.answer = AsyncMock()
+    message.delete = AsyncMock()
+
+    await process_deposit_txid(message, state, services)
+
+    # 1. pay_amount must remain 50.0 (NOT changed to 500!)
+    data = await state.get_data()
+    assert data["pay_amount"] == 50.0
+    assert data["usd_amount"] == 0.40
+
+    # 2. State remains waiting_for_txid
+    assert await state.get_state() == DepositStates.waiting_for_txid.state
+
+    # 3. Card is edited with proper Bengali TrxID format error
+    assert bot.edit_message_text.called
+    card_text = bot.edit_message_text.call_args.kwargs["text"]
+    assert "Send Money করুন: <b>50 ৳</b>" in card_text
+    assert "বিকাশ TrxID ৮ থেকে ১২ অক্ষরের হতে হবে এবং বর্ণ ও সংখ্যা থাকতে হবে" in card_text
+    assert "Enter valid TrxID:" in card_text
 
 
 @pytest.mark.asyncio

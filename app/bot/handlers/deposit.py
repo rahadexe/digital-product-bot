@@ -1762,9 +1762,9 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             await execute_deposit_submission(message, state, services)
             return
 
-    # 2. Smart Check: Did customer type amount first instead of TrxID?
+    # 2. Smart Check: Did customer type amount with currency symbol in reference_first flow?
     has_curr_symbol = bool(re.search(r"(?:tk|tk\.|bdt|৳|\$)", raw_text, re.IGNORECASE))
-    if not data.get("manual_txid") and (not data.get("reference_first") or has_curr_symbol):
+    if data.get("reference_first") and not data.get("manual_txid") and not data.get("pay_amount") and has_curr_symbol:
         amount_first = try_parse_amount(raw_text, is_binance=is_binance)
         if amount_first is not None:
             if amount_first < min_dep:
@@ -1902,39 +1902,50 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
 
     if not is_valid_format or existing_dep:
         label = "Order ID" if is_binance else "TrxID"
-        err_title = f"Enter valid {label}:"
+        m_lower = (method_name or "").lower()
         if not is_valid_format:
-            err_detail = format_err
             if is_binance:
                 alert_header = f"⚠️ <b>Invalid {label} Format</b>"
-                alert_body = f"{format_err}\n<b>{err_title}</b>"
+                alert_body = format_err
             else:
-                alert_header = "⚠️ <b>সঠিক TrxID দিন</b>"
+                alert_header = "⚠️ <b>সঠিক ট্রানজ্যাকশন আইডি দিন:</b>"
                 if "mobile number" in format_err.lower():
-                    format_err_display = f"এটি একটি মোবাইল নম্বর, TrxID নয়। আপনার SMS-এ আসা সঠিক TrxID লিখুন (যেমন: BLA7X8Y9Z0)।\n{format_err}"
+                    format_err_display = "এটি একটি মোবাইল নম্বর, TrxID নয়। আপনার SMS-এ আসা সঠিক TrxID লিখুন (যেমন: BLA7X8Y9Z0)।"
                 elif "deposit account" in format_err.lower():
-                    format_err_display = f"এটি আমাদের ডিপোজিট নম্বর। টাকা পাঠিয়ে যে TrxID পেয়েছেন সেটি লিখুন (যেমন: BLA7X8Y9Z0)।\n{format_err}"
-                elif "bkash" in format_err.lower():
-                    format_err_display = f"bKash TrxID ৮-১২ অক্ষরের হতে হবে এবং বর্ণ ও সংখ্যা থাকতে হবে (যেমন: BLA7X8Y9Z0)।\n{format_err}"
-                elif "nagad" in format_err.lower():
-                    format_err_display = f"Nagad TrxID ৮-১০ অক্ষরের হতে হবে এবং বর্ণ ও সংখ্যা থাকতে হবে (যেমন: 72A9B8C1)।\n{format_err}"
+                    format_err_display = "এটি আমাদের ডিপোজিট নম্বর। টাকা পাঠিয়ে যে TrxID পেয়েছেন সেটি লিখুন (যেমন: BLA7X8Y9Z0)।"
+                elif "bkash" in m_lower or "bkash" in format_err.lower():
+                    format_err_display = "বিকাশ TrxID ৮ থেকে ১২ অক্ষরের হতে হবে এবং বর্ণ ও সংখ্যা থাকতে হবে (যেমন: BLA7X8Y9Z0)।"
+                elif "nagad" in m_lower or "nagad" in format_err.lower():
+                    format_err_display = "নগদ TrxID ৮ থেকে ১০ অক্ষরের হতে হবে এবং বর্ণ ও সংখ্যা থাকতে হবে (যেমন: 72A9B8C1)।"
+                elif "rocket" in m_lower or "rocket" in format_err.lower():
+                    format_err_display = "রকেট TrxID ৮ থেকে ১২ অক্ষরের হতে হবে এবং বর্ণ ও সংখ্যা থাকতে হবে।"
+                elif "upay" in m_lower or "upay" in format_err.lower():
+                    format_err_display = "উপায় TrxID ৮ থেকে ১২ অক্ষরের হতে হবে এবং বর্ণ ও সংখ্যা থাকতে হবে।"
                 else:
-                    format_err_display = f"ভুল TrxID ফরম্যাট। আপনার SMS চেক করে সঠিক TrxID লিখুন।\n{format_err}"
-                alert_body = f"{format_err_display}\n\n<b>{err_title}</b>"
+                    format_err_display = "ভুল TrxID ফরম্যাট। আপনার SMS চেক করে সঠিক TrxID লিখুন।"
+                alert_body = format_err_display
         else:
             dep_st = (existing_dep.get("status") or "").lower()
-            if dep_st in ("approved", "completed"):
-                err_detail = f"This {label} has already been used and credited."
-                alert_header = f"❌ <b>{label} Already Used</b>"
-                alert_body = f"{err_detail}\n<b>{err_title}</b>"
-            elif dep_st == "pending":
-                err_detail = f"This {label} is already pending verification."
-                alert_header = f"⏳ <b>{label} In Review</b>"
-                alert_body = f"{err_detail}\n<b>{err_title}</b>"
+            if is_binance:
+                if dep_st in ("approved", "completed"):
+                    alert_header = f"❌ <b>{label} Already Used</b>"
+                    alert_body = f"This {label} has already been used and credited."
+                elif dep_st == "pending":
+                    alert_header = f"⏳ <b>{label} In Review</b>"
+                    alert_body = f"This {label} is already pending verification."
+                else:
+                    alert_header = f"❌ <b>{label} Already Used</b>"
+                    alert_body = f"This {label} was previously {dep_st}."
             else:
-                err_detail = f"This {label} was previously {dep_st}."
-                alert_header = f"❌ <b>{label} Already Used</b>"
-                alert_body = f"{err_detail}\n<b>{err_title}</b>"
+                if dep_st in ("approved", "completed"):
+                    alert_header = "❌ <b>এই TrxID ইতিমধ্যে ব্যবহার করা হয়েছে</b>"
+                    alert_body = "এই TrxID দিয়ে পূর্বে ডিপোজিট সম্পন্ন হয়েছে। দয়া করে নতুন ট্রানজ্যাকশন আইডি দিন।"
+                elif dep_st == "pending":
+                    alert_header = "⏳ <b>এই TrxID টি পর্যালোচনায় রয়েছে</b>"
+                    alert_body = "এই TrxID টি বর্তমানে ভেরিফিকেশনে রয়েছে। অনুগ্রহ করে অপেক্ষা করুন।"
+                else:
+                    alert_header = "❌ <b>এই TrxID ইতিমধ্যে ব্যবহার করা হয়েছে</b>"
+                    alert_body = f"এই TrxID টি পূর্বে {dep_st} হয়েছে। দয়া করে নতুন ট্রানজ্যাকশন আইডি দিন।"
 
         type_display, action = get_account_type_labels(account_type)
         num_label = "Pay ID" if is_binance else "Number"
@@ -1942,8 +1953,9 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         ref_prompt_id = data.get("reference_prompt_id")
         if data.get("reference_first") and ref_prompt_id:
             tx_err_card = (
-                f"{alert_header}\n\n"
-                f"{alert_body}"
+                f"<blockquote>{alert_header}\n\n"
+                f"{alert_body}</blockquote>\n\n"
+                f"Enter valid {label}:"
             )
             target_msg_id = ref_prompt_id
         else:
@@ -1974,6 +1986,8 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                     f"<blockquote>{alert_header}\n\n"
                     f"{alert_body}</blockquote>"
                 )
+                err_lines.append("")
+                err_lines.append(f"Enter valid {label}:")
                 tx_err_card = "\n".join(err_lines)
             else:
                 amt_lines = f"Amount: <b>{pay_amount:g} USDT</b>"
@@ -1981,8 +1995,9 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                     f"<b>{escape(method_name)}</b>\n"
                     f"{num_label}: <code>{escape(account_info)}</code>\n\n"
                     f"{amt_lines}\n\n"
-                    f"{alert_header}\n"
-                    f"{alert_body}"
+                    f"<blockquote>{alert_header}\n\n"
+                    f"{alert_body}</blockquote>\n\n"
+                    f"Enter valid {label}:"
                 )
 
         sup_url = None
@@ -1996,16 +2011,16 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             except Exception:
                 sup_url = None
         err_buttons = []
+        if not data.get("reference_first"):
+            err_buttons.append(InlineKeyboardButton(text="✏️ Change", callback_data="dep_change_amt"))
+        err_buttons.append(InlineKeyboardButton(text="🔙 Back to Methods", callback_data="dep_methods"))
         if existing_dep and sup_url:
-            err_buttons.append([
-                InlineKeyboardButton(text="🔙 Back to Methods", callback_data="dep_methods"),
-                InlineKeyboardButton(text="💬 Support", url=sup_url),
+            err_kb = InlineKeyboardMarkup(inline_keyboard=[
+                err_buttons,
+                [InlineKeyboardButton(text="💬 Support", url=sup_url)],
             ])
         else:
-            err_buttons.append([
-                InlineKeyboardButton(text="🔙 Back to Methods", callback_data="dep_methods"),
-            ])
-        err_kb = InlineKeyboardMarkup(inline_keyboard=err_buttons)
+            err_kb = InlineKeyboardMarkup(inline_keyboard=[err_buttons])
 
         edited = False
         if target_msg_id and getattr(message, "bot", None) and chat_id:
