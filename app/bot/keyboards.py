@@ -1191,10 +1191,8 @@ def get_deposit_trxid_prompt_keyboard(
     """Action buttons shown during TrxID prompt."""
     buttons = []
     if has_amount:
-        chg_text = "✏️ পরিবর্তন" if lang == "bn" else "✏️ Change"
-        buttons.append(InlineKeyboardButton(text=chg_text, callback_data="dep_change_amt"))
-    cancel_text = "❌ বাতিল" if lang == "bn" else "❌ Cancel"
-    buttons.append(InlineKeyboardButton(text=cancel_text, callback_data=back_target))
+        buttons.append(InlineKeyboardButton(text="✏️ Change", callback_data="dep_change_amt"))
+    buttons.append(InlineKeyboardButton(text="❌ Cancel", callback_data=back_target))
     return InlineKeyboardMarkup(inline_keyboard=[buttons])
 
 
