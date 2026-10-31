@@ -235,12 +235,12 @@ async def test_process_deposit_amount_validation():
     # 1. Non-numeric
     message.text = "invalid_amount"
     await process_deposit_amount(message, state, services)
-    assert "Enter valid amount" in message.answer.call_args[0][0]
+    assert "সঠিক টাকার পরিমাণ লিখুন" in message.answer.call_args[0][0]
 
     # 2. Below minimum
     message.text = "30"
     await process_deposit_amount(message, state, services)
-    assert "Minimum deposit is 50 ৳" in message.answer.call_args[0][0]
+    assert "সর্বনিম্ন ডিপোজিট 50 ৳" in message.answer.call_args[0][0]
 
     # 3. Valid amount
     message.text = "100"
@@ -725,7 +725,7 @@ async def test_process_deposit_amount_invalid_keeps_full_card_and_chips():
     assert kwargs["message_id"] == 555
     text = kwargs["text"]
     assert "bKash Personal (Send Money)" in text
-    assert "Minimum deposit is 50 ৳" in text
+    assert "সর্বনিম্ন ডিপোজিট 50 ৳" in text
     assert "কত টাকা ডিপোজিট করতে চান" in text
 
     # 2. Quick amount chips keyboard is preserved!

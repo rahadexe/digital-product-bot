@@ -1592,15 +1592,19 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
     except (TypeError, ValueError):
         unit = "USDT" if is_binance else "৳"
         example = max(min_dep, 1.0 if is_binance else 50.0)
-        err_msg = f"সঠিক টাকার পরিমাণ লিখুন (Enter valid amount, e.g. {example:g} {unit})"
+        err_msg = (
+            f"Enter valid amount in {unit}, e.g. {example:g}."
+            if is_binance
+            else "সঠিক টাকার পরিমাণ লিখুন"
+        )
         await _send_or_edit_error(_build_err_card(err_msg), quick_kb)
         return
 
     if amount_num < min_dep:
         err_msg = (
-            f"সর্বনিম্ন ডিপোজিট {min_dep:.2f} USDT (Minimum deposit is {min_dep:.2f} USDT):"
+            f"Minimum deposit is {min_dep:.2f} USDT:"
             if is_binance
-            else f"সর্বনিম্ন ডিপোজিট {min_dep:.0f} ৳ (Minimum deposit is {min_dep:.0f} ৳)"
+            else f"সর্বনিম্ন ডিপোজিট {min_dep:.0f} ৳"
         )
         await _send_or_edit_error(_build_err_card(err_msg), quick_kb)
         return
@@ -1611,7 +1615,11 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
     if max_dep and usd_amount > max_dep:
         limit = max_dep if is_binance else max_dep * rate
         unit = "USDT" if is_binance else "৳"
-        err_msg = f"সর্বোচ্চ পেমেন্ট সীমা {limit:g} {unit} (Maximum payment is {limit:g} {unit})"
+        err_msg = (
+            f"Maximum payment is {limit:g} {unit}."
+            if is_binance
+            else f"সর্বোচ্চ ডিপোজিট সীমা {limit:g} ৳"
+        )
         await _send_or_edit_error(_build_err_card(err_msg), quick_kb)
         return
 
@@ -1740,7 +1748,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                 err_msg = (
                     f"Minimum deposit is {min_dep:.2f} USDT:"
                     if is_binance
-                    else f"Minimum deposit is {min_dep:.0f} ৳:"
+                    else f"সর্বনিম্ন ডিপোজিট {min_dep:.0f} ৳"
                 )
                 quick_kb = get_deposit_quick_amount_keyboard(is_binance=is_binance, lang=lang, back_target="dep_methods")
                 clean_name = re.sub(r'^[^\w\s]+\s*', '', method_name).strip() or method_name
