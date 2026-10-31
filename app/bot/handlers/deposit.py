@@ -179,8 +179,17 @@ async def _delete_user_message(message: Message) -> None:
     """Quietly delete user input message in private chat to maintain a single clean card."""
     chat = getattr(message, "chat", None)
     if chat and getattr(chat, "type", "") == "private":
-        with suppress(Exception):
+        try:
             await message.delete()
+        except Exception:
+            try:
+                bot = getattr(message, "bot", None)
+                chat_id = getattr(chat, "id", None)
+                msg_id = getattr(message, "message_id", None)
+                if bot and chat_id and msg_id:
+                    await bot.delete_message(chat_id=chat_id, message_id=msg_id)
+            except Exception:
+                pass
 
 
 async def _send_input_prompt(
@@ -1521,6 +1530,8 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
 
     chat = getattr(message, "chat", None)
     chat_id = getattr(chat, "id", None)
+    if chat_id and getattr(chat, "type", "") == "private" and not data.get("reference_first"):
+        asyncio.create_task(_delete_user_message(message))
 
     target_msg_id = data.get("card_msg_id") or (get_last_menu_message(chat_id) if chat_id else None)
 
@@ -1623,8 +1634,6 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
         await _send_or_edit_error(_build_err_card(err_msg), quick_kb)
         return
 
-    if chat_id and getattr(chat, "type", "") == "private":
-        asyncio.create_task(_delete_user_message(message))
 
     if is_binance:
         pay_amount = amount_num
@@ -1827,6 +1836,8 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
 
     chat = getattr(message, "chat", None)
     chat_id = getattr(chat, "id", None)
+    if chat_id and getattr(chat, "type", "") == "private" and not data.get("reference_first"):
+        asyncio.create_task(_delete_user_message(message))
 
     target_msg_id = data.get("card_msg_id") or (get_last_menu_message(chat_id) if chat_id else None)
 
@@ -1985,8 +1996,6 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                     await state.update_data(card_msg_id=sent_id, card_chat_id=chat_id)
         return
 
-    if chat_id and getattr(chat, "type", "") == "private":
-        asyncio.create_task(_delete_user_message(message))
     await state.update_data(manual_txid=clean_tx)
     if data.get("reference_first") and not (data.get("pay_amount") or amount_num):
         # 1. Binance Pay: attempt instant claim with Order ID directly
