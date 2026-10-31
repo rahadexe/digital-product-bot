@@ -1131,3 +1131,45 @@ async def test_typed_deposit_amount_not_intercepted_by_shop_router():
 
 
 
+
+
+def test_render_progress_bar():
+    from app.bot.handlers.deposit import render_progress_bar
+    assert render_progress_bar(20) == "▓▓░░░░░░░░ <b>20%</b>"
+    assert render_progress_bar(40) == "▓▓▓▓░░░░░░ <b>40%</b>"
+    assert render_progress_bar(50) == "▓▓▓▓▓░░░░░ <b>50%</b>"
+    assert render_progress_bar(100) == "▓▓▓▓▓▓▓▓▓▓ <b>100%</b>"
+
+
+def test_validate_trx_format_rejects_phone_numbers_and_digits():
+    from app.bot.handlers.deposit import validate_trx_format
+    
+    # Phone number
+    ok, err = validate_trx_format("bKash", "01790038892")
+    assert not ok
+    assert "mobile number" in err.lower()
+    
+    # Merchant deposit account number
+    ok, err = validate_trx_format("bKash", "01700000000", account_info="01700000000")
+    assert not ok
+    assert "deposit account number" in err.lower()
+
+    # Pure digits for bKash
+    ok, err = validate_trx_format("bKash", "98716253")
+    assert not ok
+    assert "contain letters" in err.lower()
+
+    # Valid bKash TrxID
+    ok, err = validate_trx_format("bKash", "BLA7X8Y9Z0")
+    assert ok
+    assert err == ""
+
+    # Pure digits for Nagad
+    ok, err = validate_trx_format("Nagad", "98716253")
+    assert not ok
+    assert "contain letters" in err.lower()
+
+    # Valid Nagad TrxID
+    ok, err = validate_trx_format("Nagad", "72A9B8C1")
+    assert ok
+    assert err == ""

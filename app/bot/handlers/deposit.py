@@ -4,6 +4,7 @@ import asyncio
 import inspect
 import logging
 import math
+import os
 import re
 import time
 from contextlib import suppress
@@ -92,7 +93,21 @@ def try_parse_amount(text: str, is_binance: bool = False) -> float | None:
     return None
 
 
-def validate_trx_format(method_name: str, clean_tx: str, is_binance: bool = False) -> tuple[bool, str]:
+def render_progress_bar(percent: int) -> str:
+    """Generate a 10-block progress bar e.g. ▓▓▓▓░░░░░░ 40%"""
+    clamped = max(0, min(100, int(percent)))
+    filled_count = clamped // 10
+    empty_count = 10 - filled_count
+    bar = "▓" * filled_count + "░" * empty_count
+    return f"{bar} <b>{clamped}%</b>"
+
+
+def validate_trx_format(
+    method_name: str,
+    clean_tx: str,
+    is_binance: bool = False,
+    account_info: str = "",
+) -> tuple[bool, str]:
     """Validate TrxID format according to provider rules.
     Returns (is_valid, error_description).
     """
@@ -101,6 +116,25 @@ def validate_trx_format(method_name: str, clean_tx: str, is_binance: bool = Fals
         return False, "Transaction ID cannot be empty."
     if " " in clean_tx:
         return False, "Transaction ID cannot contain spaces."
+
+    # Reject if user pasted merchant's own deposit account number
+    if account_info:
+        clean_acct = re.sub(r"\D", "", account_info)
+        clean_raw_tx = re.sub(r"\D", "", clean_tx)
+        if clean_acct and clean_raw_tx == clean_acct:
+            return False, "This is our deposit account number. Please enter the TrxID received from your payment (e.g. BLA7X8Y9Z0)."
+
+    # Reject Bangladeshi mobile phone numbers (11 digits starting with 01, optionally prefixed with +88 or 88)
+    if re.fullmatch(r"^(?:\+?88)?01[3-9]\d{8}$", clean_tx):
+        return False, "This is a mobile number, not a Transaction ID (e.g. BLA7X8Y9Z0)."
+
+    # Reject obvious repetitive / junk strings (e.g. AAAAAAAA, 11111111)
+    if len(set(clean_tx)) <= 2:
+        return False, "Invalid Transaction ID format."
+
+    # Reject obvious sequential number runs
+    if clean_tx in ("12345678", "123456789", "1234567890", "0123456789", "9876543210"):
+        return False, "Invalid Transaction ID format."
 
     m_lower = (method_name or "").lower()
     if is_binance or "binance" in m_lower:
@@ -111,21 +145,29 @@ def validate_trx_format(method_name: str, clean_tx: str, is_binance: bool = Fals
     if "bkash" in m_lower:
         if not re.fullmatch(r"^[A-Z0-9]{8,12}$", clean_tx):
             return False, "bKash Transaction ID must be 8-12 characters (e.g. BLA7X8Y9Z0)."
+        if clean_tx.isdigit() or not re.search(r"[A-Z]", clean_tx):
+            return False, "bKash Transaction ID must be 8-12 characters and contain letters (e.g. BLA7X8Y9Z0)."
         return True, ""
 
     if "nagad" in m_lower:
         if not re.fullmatch(r"^[A-Z0-9]{8,10}$", clean_tx):
             return False, "Nagad Transaction ID must be 8-10 characters (e.g. 72A9B8C1)."
+        if clean_tx.isdigit() or not re.search(r"[A-Z]", clean_tx):
+            return False, "Nagad Transaction ID must be 8-10 characters and contain letters (e.g. 72A9B8C1)."
         return True, ""
 
     if "rocket" in m_lower:
         if not re.fullmatch(r"^[A-Z0-9]{8,12}$", clean_tx):
             return False, "Rocket Transaction ID must be 8-12 characters."
+        if re.fullmatch(r"^01[3-9]\d{8}$", clean_tx):
+            return False, "This is a mobile number, not a Rocket Transaction ID."
         return True, ""
 
     if "upay" in m_lower:
         if not re.fullmatch(r"^[A-Z0-9]{8,12}$", clean_tx):
             return False, "Upay Transaction ID must be 8-12 characters."
+        if re.fullmatch(r"^01[3-9]\d{8}$", clean_tx):
+            return False, "This is a mobile number, not a Upay Transaction ID."
         return True, ""
 
     if not re.fullmatch(r"^[A-Z0-9_\-]{6,64}$", clean_tx):
@@ -1777,7 +1819,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
     label = "Order ID" if is_binance else "TrxID"
 
     # 1. Format validation upfront
-    is_valid_format, format_err = validate_trx_format(method_name, clean_tx, is_binance=is_binance)
+    is_valid_format, format_err = validate_trx_format(method_name, clean_tx, is_binance=is_binance, account_info=account_info)
 
     # 2. Duplicate / already used check upfront
     existing_dep = None
@@ -1798,8 +1840,21 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         err_title = f"Enter valid {label}:"
         if not is_valid_format:
             err_detail = format_err
-            alert_header = f"⚠️ <b>Invalid {label} Format</b>"
-            alert_body = f"{format_err}\n<b>{err_title}</b>"
+            alert_header = "⚠️ <b>সঠিক TrxID দিন</b>" if lang == "bn" else f"⚠️ <b>Invalid {label} Format</b>"
+            if lang == "bn":
+                if "mobile number" in format_err.lower():
+                    format_err_display = "এটি একটি মোবাইল নম্বর, TrxID নয়। আপনার SMS-এ আসা সঠিক TrxID লিখুন (যেমন: BLA7X8Y9Z0)।"
+                elif "deposit account" in format_err.lower():
+                    format_err_display = "এটি আমাদের ডিপোজিট নম্বর। টাকা পাঠিয়ে যে TrxID পেয়েছেন সেটি লিখুন (যেমন: BLA7X8Y9Z0)।"
+                elif "bkash" in format_err.lower():
+                    format_err_display = "bKash TrxID ৮-১২ অক্ষরের হতে হবে এবং বর্ণ ও সংখ্যা থাকতে হবে (যেমন: BLA7X8Y9Z0)।"
+                elif "nagad" in format_err.lower():
+                    format_err_display = "Nagad TrxID ৮-১০ অক্ষরের হতে হবে এবং বর্ণ ও সংখ্যা থাকতে হবে (যেমন: 72A9B8C1)।"
+                else:
+                    format_err_display = "ভুল TrxID ফরম্যাট। আপনার SMS চেক করে সঠিক TrxID লিখুন।"
+                alert_body = f"{format_err_display}\n\n<b>{err_title}</b>"
+            else:
+                alert_body = f"{format_err}\n<b>{err_title}</b>"
         else:
             dep_st = (existing_dep.get("status") or "").lower()
             if dep_st in ("approved", "completed"):
@@ -2220,13 +2275,18 @@ async def execute_deposit_submission(
                 await event.answer(expired_msg)
         return
 
-    # Status message while verifying
-    checking_txt = (
-        "⏳ <b>Checking payment...</b>\n\n"
-        f"Method: <b>{escape(method_name)}</b>\n"
-        f"Amount: <code>{amt_display}</code>\n"
-        f"TrxID: <code>{escape(clean_tx)}</code>"
-    )
+    # Status message with dynamic progress bar while verifying
+    def _build_checking_card(percent: int = 20) -> str:
+        bar_text = render_progress_bar(percent)
+        return (
+            "⏳ <b>Checking payment...</b>\n\n"
+            f"Method: <b>{escape(method_name)}</b>\n"
+            f"Amount: <code>{amt_display}</code>\n"
+            f"TrxID: <code>{escape(clean_tx)}</code>\n\n"
+            f"{bar_text}"
+        )
+
+    checking_txt = _build_checking_card(20)
 
     if isinstance(event, CallbackQuery) and event.message:
         status_msg = event.message
@@ -2252,6 +2312,25 @@ async def execute_deposit_submission(
                 if sent_id:
                     remember_menu_message(chat_id, sent_id)
                     await state.update_data(card_msg_id=sent_id, card_chat_id=chat_id)
+
+    is_pytest = bool(os.environ.get("PYTEST_CURRENT_TEST"))
+
+    async def _step_progress(pct: int, delay: float = 0.35) -> None:
+        card_content = _build_checking_card(pct)
+        if status_msg and hasattr(status_msg, "edit_text"):
+            with suppress(Exception):
+                await status_msg.edit_text(card_content)
+        elif target_msg_id and getattr(event, "bot", None) and chat_id:
+            with suppress(Exception):
+                await event.bot.edit_message_text(
+                    chat_id=chat_id,
+                    message_id=target_msg_id,
+                    text=card_content,
+                )
+        if not is_pytest and delay > 0:
+            await asyncio.sleep(delay)
+
+    await _step_progress(40, delay=0.35)
 
     # 1. Fast pre-check: active pending deposit
     existing_pending = await services.deposits.pending_for(user_id)
@@ -2322,6 +2401,8 @@ async def execute_deposit_submission(
         await claim_binance_payment(user_msg, state, services, method_id, clean_tx, expected_usdt=credit_amount, status_msg=status_msg, user_id=user_id)
         return
 
+    await _step_progress(50, delay=0.35)
+
     # 3.5 Statement / SMS Sync Instant Approval Flow
     received_tx = await _get_unused_statement(services, clean_tx, provider=method_name)
     if received_tx:
@@ -2351,6 +2432,7 @@ async def execute_deposit_submission(
                 notify_customer=False,
             )
             if ok:
+                await _step_progress(100, delay=0.25)
                 await services.deposits.clear_verification_failures(user_id)
                 await state.clear()
                 user = await services.users.get(user_id)
@@ -2584,6 +2666,7 @@ async def execute_deposit_submission(
             return
 
     # 5. Standard Manual Deposit
+    await _step_progress(100, delay=0.25)
     try:
         dep_id = await services.deposits.create_request(
             user_id,
