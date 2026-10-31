@@ -940,7 +940,7 @@ def _format_deposit_tx_prompt(
     lines = [
         f"<b>{escape(full_heading)}</b>",
         "",
-        f"⚡️ <code>{escape(account_info)}</code> <i>(Tap to copy)</i>",
+        f"🔹 <code>{escape(account_info)}</code>",
         "",
         f"আপনাকে দিতে হবে: <b>{pay_amount:g} ৳</b>",
     ]
@@ -948,10 +948,9 @@ def _format_deposit_tx_prompt(
         lines.append(f"Rate: <code>$1 = {rate:g}৳</code>")
         lines.append(f"ব্যালেন্সে যোগ হবে: <b>{credit_str}</b>")
     lines.append("")
-    lines.append(
-        "<blockquote>উপরের নাম্বারে টাকা পাঠিয়ে ট্রানজেকশন আইডিটা নিচে লিখুন:\n\n"
-        "Enter TrxID below:</blockquote>"
-    )
+    lines.append("<blockquote>উপরের নাম্বারে টাকা পাঠিয়ে ট্রানজেকশন আইডিটা নিচে লিখুন:</blockquote>")
+    lines.append("")
+    lines.append("Enter TrxID below:")
     return "\n".join(lines)
 
 
@@ -1901,7 +1900,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                 err_lines = [
                     f"<b>{escape(full_heading)}</b>",
                     "",
-                    f"⚡️ <code>{escape(account_info)}</code> <i>(Tap to copy)</i>",
+                    f"🔹 <code>{escape(account_info)}</code>",
                     "",
                     f"আপনাকে দিতে হবে: <b>{pay_amount:g} ৳</b>",
                 ]
