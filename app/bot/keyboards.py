@@ -1103,31 +1103,22 @@ def get_deposit_quick_amount_keyboard(
     back_target: str = "dep_methods",
     show_change_trxid: bool = False,
 ) -> InlineKeyboardMarkup:
-    """Quick amount chip buttons for deposit (4 rows x 4 columns = 16 presets)."""
+    """Quick amount chip buttons for deposit (3 rows x 3 columns = 9 presets)."""
     if is_binance:
         chips = [
             [
                 InlineKeyboardButton(text="1 USDT", callback_data="dep_amt_1"),
                 InlineKeyboardButton(text="2 USDT", callback_data="dep_amt_2"),
-                InlineKeyboardButton(text="3 USDT", callback_data="dep_amt_3"),
                 InlineKeyboardButton(text="5 USDT", callback_data="dep_amt_5"),
             ],
             [
                 InlineKeyboardButton(text="10 USDT", callback_data="dep_amt_10"),
-                InlineKeyboardButton(text="15 USDT", callback_data="dep_amt_15"),
                 InlineKeyboardButton(text="20 USDT", callback_data="dep_amt_20"),
-                InlineKeyboardButton(text="25 USDT", callback_data="dep_amt_25"),
-            ],
-            [
-                InlineKeyboardButton(text="30 USDT", callback_data="dep_amt_30"),
                 InlineKeyboardButton(text="50 USDT", callback_data="dep_amt_50"),
-                InlineKeyboardButton(text="75 USDT", callback_data="dep_amt_75"),
-                InlineKeyboardButton(text="100 USDT", callback_data="dep_amt_100"),
             ],
             [
-                InlineKeyboardButton(text="150 USDT", callback_data="dep_amt_150"),
+                InlineKeyboardButton(text="100 USDT", callback_data="dep_amt_100"),
                 InlineKeyboardButton(text="200 USDT", callback_data="dep_amt_200"),
-                InlineKeyboardButton(text="300 USDT", callback_data="dep_amt_300"),
                 InlineKeyboardButton(text="500 USDT", callback_data="dep_amt_500"),
             ],
         ]
@@ -1136,26 +1127,17 @@ def get_deposit_quick_amount_keyboard(
             [
                 InlineKeyboardButton(text="৳50", callback_data="dep_amt_50"),
                 InlineKeyboardButton(text="৳100", callback_data="dep_amt_100"),
-                InlineKeyboardButton(text="৳150", callback_data="dep_amt_150"),
                 InlineKeyboardButton(text="৳200", callback_data="dep_amt_200"),
             ],
             [
-                InlineKeyboardButton(text="৳250", callback_data="dep_amt_250"),
                 InlineKeyboardButton(text="৳300", callback_data="dep_amt_300"),
                 InlineKeyboardButton(text="৳500", callback_data="dep_amt_500"),
-                InlineKeyboardButton(text="৳800", callback_data="dep_amt_800"),
+                InlineKeyboardButton(text="৳1000", callback_data="dep_amt_1000"),
             ],
             [
-                InlineKeyboardButton(text="৳1000", callback_data="dep_amt_1000"),
                 InlineKeyboardButton(text="৳1500", callback_data="dep_amt_1500"),
                 InlineKeyboardButton(text="৳2000", callback_data="dep_amt_2000"),
-                InlineKeyboardButton(text="৳2500", callback_data="dep_amt_2500"),
-            ],
-            [
-                InlineKeyboardButton(text="৳3000", callback_data="dep_amt_3000"),
-                InlineKeyboardButton(text="৳4000", callback_data="dep_amt_4000"),
                 InlineKeyboardButton(text="৳5000", callback_data="dep_amt_5000"),
-                InlineKeyboardButton(text="৳10000", callback_data="dep_amt_10000"),
             ],
         ]
     if show_change_trxid:

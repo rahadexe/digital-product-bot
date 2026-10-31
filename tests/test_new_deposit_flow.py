@@ -158,17 +158,15 @@ async def test_render_method_details_flow():
     kb = call[1]["reply_markup"]
     assert isinstance(kb, InlineKeyboardMarkup)
     assert [[button.text for button in row] for row in kb.inline_keyboard] == [
-        ["৳50", "৳100", "৳150", "৳200"],
-        ["৳250", "৳300", "৳500", "৳800"],
-        ["৳1000", "৳1500", "৳2000", "৳2500"],
-        ["৳3000", "৳4000", "৳5000", "৳10000"],
+        ["৳50", "৳100", "৳200"],
+        ["৳300", "৳500", "৳1000"],
+        ["৳1500", "৳2000", "৳5000"],
         ["Back"],
     ]
     assert [button.callback_data for row in kb.inline_keyboard for button in row] == [
-        "dep_amt_50", "dep_amt_100", "dep_amt_150", "dep_amt_200",
-        "dep_amt_250", "dep_amt_300", "dep_amt_500", "dep_amt_800",
-        "dep_amt_1000", "dep_amt_1500", "dep_amt_2000", "dep_amt_2500",
-        "dep_amt_3000", "dep_amt_4000", "dep_amt_5000", "dep_amt_10000",
+        "dep_amt_50", "dep_amt_100", "dep_amt_200",
+        "dep_amt_300", "dep_amt_500", "dep_amt_1000",
+        "dep_amt_1500", "dep_amt_2000", "dep_amt_5000",
         "dep_methods",
     ]
 
