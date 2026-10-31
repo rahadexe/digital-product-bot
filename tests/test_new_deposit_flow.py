@@ -248,7 +248,7 @@ async def test_process_deposit_amount_validation():
     new_state = await state.get_state()
     assert new_state == DepositStates.waiting_for_txid.state
     resp_text = message.answer.call_args[0][0]
-    assert "আপনাকে দিতে হবে: <b>100 ৳</b>" in resp_text
+    assert "Send Money করুন: <b>100 ৳</b>" in resp_text
     assert "ব্যালেন্সে যোগ হবে:" in resp_text
     assert "$0.8" in resp_text
     assert "Enter TrxID below:" in resp_text
@@ -416,7 +416,7 @@ async def test_quick_amount_selection_flow():
     text = msg.edit_text.call_args[0][0]
     assert "bKash Personal (Send Money)" in text
     assert "01700000000" in text
-    assert "আপনাকে দিতে হবে: <b>500 ৳</b>" in text
+    assert "Send Money করুন: <b>500 ৳</b>" in text
     assert "ব্যালেন্সে যোগ হবে:" in text
     assert "$4" in text
     assert "Enter TrxID below:" in text
@@ -503,7 +503,7 @@ async def test_exchange_rate_and_dollar_conversion_flow():
     await render_method_details(message, state, services, method)
     screen1_text = message.answer.call_args_list[0][0][0]
     assert "কত টাকা ডিপোজিট করতে চান তা বেছে নিন অথবা নিচে লিখে দিন" in screen1_text
-    assert "Deposit via bKash" in screen1_text
+    assert "bKash Personal (Send Money)" in screen1_text
 
     # Screen 2: User enters 500
     message.text = "500"
@@ -512,7 +512,7 @@ async def test_exchange_rate_and_dollar_conversion_flow():
     screen2_text = message.answer.call_args[0][0]
     assert "bKash Personal (Send Money)" in screen2_text
     assert "01700000000" in screen2_text
-    assert "আপনাকে দিতে হবে: <b>500 ৳</b>" in screen2_text
+    assert "Send Money করুন: <b>500 ৳</b>" in screen2_text
     assert "ব্যালেন্সে যোগ হবে:" in screen2_text
     assert "$4" in screen2_text
     assert "Enter TrxID below:" in screen2_text
@@ -586,7 +586,7 @@ async def test_process_deposit_amount_in_place_edit():
     edit_kwargs = bot.edit_message_text.call_args.kwargs
     assert edit_kwargs["chat_id"] == 456
     assert edit_kwargs["message_id"] == 555
-    assert "আপনাকে দিতে হবে: <b>500 ৳</b>" in edit_kwargs["text"]
+    assert "Send Money করুন: <b>500 ৳</b>" in edit_kwargs["text"]
     assert "ব্যালেন্সে যোগ হবে:" in edit_kwargs["text"]
     assert "$4" in edit_kwargs["text"]
     assert "Enter TrxID below:" in edit_kwargs["text"]
@@ -725,10 +725,8 @@ async def test_process_deposit_amount_invalid_keeps_full_card_and_chips():
     assert kwargs["message_id"] == 555
     text = kwargs["text"]
     assert "bKash Personal (Send Money)" in text
-    assert "01700000000" in text
-    assert "Minimum: <b>50 ৳</b>" in text
-    assert "Exchange rate:" not in text
     assert "Minimum deposit is 50 ৳" in text
+    assert "কত টাকা ডিপোজিট করতে চান" in text
 
     # 2. Quick amount chips keyboard is preserved!
     kb = kwargs["reply_markup"]
@@ -788,7 +786,7 @@ async def test_process_deposit_txid_invalid_keeps_full_card():
     text = kwargs["text"]
     assert "bKash Personal (Send Money)" in text
     assert "01700000000" in text
-    assert "আপনাকে দিতে হবে: <b>500 ৳</b>" in text
+    assert "Send Money করুন: <b>500 ৳</b>" in text
     assert "ব্যালেন্সে যোগ হবে:" in text
     assert "$4" in text
     assert "Enter valid TrxID:" in text

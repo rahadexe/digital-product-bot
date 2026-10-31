@@ -215,7 +215,7 @@ async def test_user_types_amount_with_currency_symbol_captured_smoothly():
     # Card updated to ask for TrxID with amount confirmed
     assert bot.edit_message_text.called
     card_text = bot.edit_message_text.call_args.kwargs["text"]
-    assert "আপনাকে দিতে হবে: <b>500 ৳</b>" in card_text
+    assert "Send Money করুন: <b>500 ৳</b>" in card_text
     assert "Enter TrxID below:" in card_text
 
 
@@ -337,7 +337,7 @@ async def test_payment_done_presets_to_trxid_flow():
     assert data["manual_amount"] == 4.0
     assert card_msg.edit_text.called
     step2_text = card_msg.edit_text.call_args[0][0]
-    assert "আপনাকে দিতে হবে: <b>500 ৳</b>" in step2_text
+    assert "Send Money করুন: <b>500 ৳</b>" in step2_text
     assert "Enter TrxID below:" in step2_text
 
     # Step 3: User submits TrxID

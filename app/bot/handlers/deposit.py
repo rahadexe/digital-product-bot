@@ -287,7 +287,7 @@ def format_deposit_method_card(
             f"{prompt_line}"
         )
     else:
-        type_display, _ = get_account_type_labels(account_type)
+        type_display, action = get_account_type_labels(account_type)
         dest_line = "Open link below:\n\n" if is_payment_link else f"Number: <code>{escape(account_info)}</code>\n\n"
         prompt_line = f"⚠️ <b>{escape(error_note)}</b>" if error_note else "Select or enter amount:"
         return (
@@ -538,9 +538,9 @@ async def ask_instant_amount_from_text(
     await state.update_data(is_instant=True, min_deposit=min_dep)
     clean_label = re.sub(r'^[^\w\s]+\s*', '', instant.get("label") or "").split(" - ")[0].strip() or "Instant Pay"
     prompt_txt = (
-        f"💳 <b>Deposit via {escape(clean_label)}</b>\nকত টাকা ডিপোজিট করতে চান তা বেছে নিন অথবা নিচে লিখে দিন:"
-        if lang == "bn"
-        else f"💳 <b>Deposit via {escape(clean_label)}</b>\nChoose the amount below or type it:"
+        f"💳 <b>Deposit via {escape(clean_label)}</b>\n\nকত টাকা ডিপোজিট করতে চান তা বেছে নিন অথবা নিচে লিখে দিন:"
+        if lang == "bn" or True
+        else f"💳 <b>Deposit via {escape(clean_label)}</b>\n\nChoose the amount below or type it:"
     )
     keyboard = get_deposit_quick_amount_keyboard(
         is_binance=False,
@@ -770,10 +770,12 @@ async def render_method_details(
         lines.append(escape(custom_inst))
     else:
         clean_name = re.sub(r'^[^\w\s]+\s*', '', method_name).strip() or method_name
-        if not is_binance or lang == "bn":
-            lines.append(f"💳 <b>Deposit via {escape(clean_name)}</b>\nকত টাকা ডিপোজিট করতে চান তা বেছে নিন অথবা নিচে লিখে দিন:")
+        type_display, action = get_account_type_labels(account_type)
+        if type_display and type_display.lower() not in clean_name.lower():
+            full_heading = f"{clean_name} {type_display}"
         else:
-            lines.append(f"💳 <b>Deposit via {escape(clean_name)}</b>\nChoose the amount below or type it:")
+            full_heading = clean_name
+        lines.append(f"<b>{escape(full_heading)}</b>\n\nকত টাকা ডিপোজিট করতে চান তা বেছে নিন অথবা নিচে লিখে দিন:")
     inst = "\n".join(lines)
     keyboard = get_deposit_quick_amount_keyboard(
         is_binance=False,
@@ -885,9 +887,9 @@ async def ask_instant_amount(query: CallbackQuery, state: FSMContext, services: 
             await state.update_data(card_msg_id=card_msg_id, card_chat_id=card_chat_id)
         clean_label = re.sub(r'^[^\w\s]+\s*', '', instant.get("label") or "").split(" - ")[0].strip() or "Instant Pay"
         prompt_txt = (
-            f"💳 <b>Deposit via {escape(clean_label)}</b>\nকত টাকা ডিপোজিট করতে চান তা বেছে নিন অথবা নিচে লিখে দিন:"
-            if lang == "bn"
-            else f"💳 <b>Deposit via {escape(clean_label)}</b>\nChoose the amount below or type it:"
+            f"💳 <b>Deposit via {escape(clean_label)}</b>\n\nকত টাকা ডিপোজিট করতে চান তা বেছে নিন অথবা নিচে লিখে দিন:"
+            if lang == "bn" or True
+            else f"💳 <b>Deposit via {escape(clean_label)}</b>\n\nChoose the amount below or type it:"
         )
         keyboard = get_deposit_quick_amount_keyboard(
             is_binance=False,
@@ -936,19 +938,20 @@ def _format_deposit_tx_prompt(
 
     is_usd = (currency == "USD") or (bool(amount_summary) and "Adds to balance" in amount_summary)
     credit_str = f"${usd_val:.2f}"
+    action_label = f"{action} করুন" if action else "আপনাকে দিতে হবে"
 
     lines = [
         f"<b>{escape(full_heading)}</b>",
         "",
-        f"🔹 <code>{escape(account_info)}</code>",
+        f"✦ <code>{escape(account_info)}</code>",
         "",
-        f"আপনাকে দিতে হবে: <b>{pay_amount:g} ৳</b>",
+        f"{action_label}: <b>{pay_amount:g} ৳</b>",
     ]
     if is_usd:
         lines.append(f"Rate: <code>$1 = {rate:g}৳</code>")
         lines.append(f"ব্যালেন্সে যোগ হবে: <b>{credit_str}</b>")
     lines.append("")
-    lines.append("<blockquote>উপরের নাম্বারে টাকা পাঠিয়ে ট্রানজেকশন আইডিটা নিচে লিখুন:</blockquote>")
+    lines.append("<blockquote>উপরের দেওয়া নাম্বারে টাকা পাঠিয়ে ট্রানজেকশন আইডি নিচে লিখুন:</blockquote>")
     lines.append("")
     lines.append("Enter TrxID below:")
     return "\n".join(lines)
@@ -1535,7 +1538,7 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
     def _build_err_card(err_text: str) -> str:
         if data.get("reference_first"):
             clean_tx = data.get("manual_txid") or ""
-            type_display, _ = get_account_type_labels(account_type)
+            type_display, action = get_account_type_labels(account_type)
             num_label = "Pay ID" if is_binance else "Number"
             label = "Order ID" if is_binance else "TrxID"
             unit = "USDT" if is_binance else "BDT"
@@ -1547,16 +1550,16 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
                 f"⚠️ <b>{escape(err_text)}</b>\n\n"
                 f"Enter the amount you sent in {unit}, e.g. {example:g}."
             )
-        return format_deposit_method_card(
-            method_name=method_name,
-            account_info=account_info,
-            account_type=account_type,
-            min_dep=min_dep,
-            rate=rate,
-            symbol=symbol,
-            is_binance=is_binance,
-            lang=lang,
-            error_note=err_text,
+        clean_name = re.sub(r'^[^\w\s]+\s*', '', method_name).strip() or method_name
+        type_display, action = get_account_type_labels(account_type)
+        if type_display and type_display.lower() not in clean_name.lower():
+            full_heading = f"{clean_name} {type_display}"
+        else:
+            full_heading = clean_name
+        return (
+            f"<b>{escape(full_heading)}</b>\n\n"
+            f"⚠️ <b>{escape(err_text)}</b>\n\n"
+            f"কত টাকা ডিপোজিট করতে চান তা বেছে নিন অথবা নিচে লিখে দিন:"
         )
 
     async def _send_or_edit_error(err_text: str, kb):
@@ -1587,17 +1590,17 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
         if not math.isfinite(amount_num) or amount_num <= 0:
             raise ValueError()
     except (TypeError, ValueError):
-        unit = "USDT" if is_binance else "BDT"
+        unit = "USDT" if is_binance else "৳"
         example = max(min_dep, 1.0 if is_binance else 50.0)
-        err_msg = f"Enter valid amount in {unit}, e.g. {example:g}."
+        err_msg = f"সঠিক টাকার পরিমাণ লিখুন (Enter valid amount, e.g. {example:g} {unit})"
         await _send_or_edit_error(_build_err_card(err_msg), quick_kb)
         return
 
     if amount_num < min_dep:
         err_msg = (
-            f"Minimum deposit is {min_dep:.2f} USDT:"
+            f"সর্বনিম্ন ডিপোজিট {min_dep:.2f} USDT (Minimum deposit is {min_dep:.2f} USDT):"
             if is_binance
-            else f"Minimum deposit is {min_dep:.0f} ৳:"
+            else f"সর্বনিম্ন ডিপোজিট {min_dep:.0f} ৳ (Minimum deposit is {min_dep:.0f} ৳)"
         )
         await _send_or_edit_error(_build_err_card(err_msg), quick_kb)
         return
@@ -1608,7 +1611,7 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
     if max_dep and usd_amount > max_dep:
         limit = max_dep if is_binance else max_dep * rate
         unit = "USDT" if is_binance else "৳"
-        err_msg = f"Maximum payment is {limit:g} {unit}."
+        err_msg = f"সর্বোচ্চ পেমেন্ট সীমা {limit:g} {unit} (Maximum payment is {limit:g} {unit})"
         await _send_or_edit_error(_build_err_card(err_msg), quick_kb)
         return
 
@@ -1740,13 +1743,16 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                     else f"Minimum deposit is {min_dep:.0f} ৳:"
                 )
                 quick_kb = get_deposit_quick_amount_keyboard(is_binance=is_binance, lang=lang, back_target="dep_methods")
-                type_display, _ = get_account_type_labels(account_type)
-                num_label = "Pay ID" if is_binance else "Number"
+                clean_name = re.sub(r'^[^\w\s]+\s*', '', method_name).strip() or method_name
+                type_display, action = get_account_type_labels(account_type)
+                if type_display and type_display.lower() not in clean_name.lower():
+                    full_heading = f"{clean_name} {type_display}"
+                else:
+                    full_heading = clean_name
                 err_card = (
-                    f"<b>{escape(method_name)}{f' {type_display}' if not is_binance else ''}</b>\n\n"
-                    f"{num_label}: <code>{escape(account_info)}</code>\n\n"
+                    f"<b>{escape(full_heading)}</b>\n\n"
                     f"⚠️ <b>{escape(err_msg)}</b>\n\n"
-                    f"Tap a quick amount below or type your amount:"
+                    f"কত টাকা ডিপোজিট করতে চান তা বেছে নিন অথবা নিচে লিখে দিন:"
                 )
                 if target_msg_id and getattr(message, "bot", None) and chat_id:
                     try:
@@ -1875,7 +1881,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                 alert_header = f"❌ <b>{label} Already Used</b>"
                 alert_body = f"{err_detail}\n<b>{err_title}</b>"
 
-        type_display, _ = get_account_type_labels(account_type)
+        type_display, action = get_account_type_labels(account_type)
         num_label = "Pay ID" if is_binance else "Number"
 
         ref_prompt_id = data.get("reference_prompt_id")
@@ -1897,12 +1903,13 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                 else:
                     full_heading = clean_method
 
+                action_label = f"{action} করুন" if action else "আপনাকে দিতে হবে"
                 err_lines = [
                     f"<b>{escape(full_heading)}</b>",
                     "",
-                    f"🔹 <code>{escape(account_info)}</code>",
+                    f"✦ <code>{escape(account_info)}</code>",
                     "",
-                    f"আপনাকে দিতে হবে: <b>{pay_amount:g} ৳</b>",
+                    f"{action_label}: <b>{pay_amount:g} ৳</b>",
                 ]
                 if is_usd_user:
                     err_lines.append(f"Rate: <code>$1 = {rate_val:g}৳</code>")
@@ -2053,7 +2060,7 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         unit = "USDT" if is_binance else "BDT"
         example = max(float(data.get("min_deposit") or 1.0), 1.0 if is_binance else 50.0)
 
-        type_display, _ = get_account_type_labels(account_type)
+        type_display, action = get_account_type_labels(account_type)
         num_label = "Pay ID" if is_binance else "Number"
         ref_prompt_id = data.get("reference_prompt_id")
         if data.get("reference_first") and ref_prompt_id:
