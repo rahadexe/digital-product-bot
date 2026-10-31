@@ -496,9 +496,9 @@ async def ask_instant_amount_from_text(
     await state.update_data(is_instant=True, min_deposit=min_dep)
     clean_label = re.sub(r'^[^\w\s]+\s*', '', instant.get("label") or "").split(" - ")[0].strip() or "Instant Pay"
     prompt_txt = (
-        f"💳 <b>Deposit via {escape(clean_label)}</b>\nকত টাকা পাঠাবেন তা নিচ থেকে বেছে নিন বা লিখুন:"
+        f"💳 <b>Deposit via {escape(clean_label)}</b>\n<blockquote>কত টাকা পাঠাবেন তা নিচ থেকে বেছে নিন বা লিখুন:</blockquote>"
         if lang == "bn"
-        else f"💳 <b>Deposit via {escape(clean_label)}</b>\nChoose the amount below or type it:"
+        else f"💳 <b>Deposit via {escape(clean_label)}</b>\n<blockquote>Choose the amount below or type it:</blockquote>"
     )
     keyboard = get_deposit_quick_amount_keyboard(
         is_binance=False,
@@ -729,9 +729,9 @@ async def render_method_details(
     else:
         clean_name = re.sub(r'^[^\w\s]+\s*', '', method_name).strip() or method_name
         if not is_binance or lang == "bn":
-            lines.append(f"💳 <b>Deposit via {escape(clean_name)}</b>\nকত টাকা পাঠাবেন তা নিচ থেকে বেছে নিন বা লিখুন:")
+            lines.append(f"💳 <b>Deposit via {escape(clean_name)}</b>\n<blockquote>কত টাকা পাঠাবেন তা নিচ থেকে বেছে নিন বা লিখুন:</blockquote>")
         else:
-            lines.append(f"💳 <b>Deposit via {escape(clean_name)}</b>\nChoose the amount below or type it:")
+            lines.append(f"💳 <b>Deposit via {escape(clean_name)}</b>\n<blockquote>Choose the amount below or type it:</blockquote>")
     inst = "\n".join(lines)
     keyboard = get_deposit_quick_amount_keyboard(
         is_binance=False,
@@ -843,9 +843,9 @@ async def ask_instant_amount(query: CallbackQuery, state: FSMContext, services: 
             await state.update_data(card_msg_id=card_msg_id, card_chat_id=card_chat_id)
         clean_label = re.sub(r'^[^\w\s]+\s*', '', instant.get("label") or "").split(" - ")[0].strip() or "Instant Pay"
         prompt_txt = (
-            f"💳 <b>Deposit via {escape(clean_label)}</b>\nকত টাকা পাঠাবেন তা নিচ থেকে বেছে নিন বা লিখুন:"
+            f"💳 <b>Deposit via {escape(clean_label)}</b>\n<blockquote>কত টাকা পাঠাবেন তা নিচ থেকে বেছে নিন বা লিখুন:</blockquote>"
             if lang == "bn"
-            else f"💳 <b>Deposit via {escape(clean_label)}</b>\nChoose the amount below or type it:"
+            else f"💳 <b>Deposit via {escape(clean_label)}</b>\n<blockquote>Choose the amount below or type it:</blockquote>"
         )
         keyboard = get_deposit_quick_amount_keyboard(
             is_binance=False,
@@ -858,6 +858,62 @@ async def ask_instant_amount(query: CallbackQuery, state: FSMContext, services: 
                 reply_markup=keyboard,
             )
 
+
+def _format_deposit_tx_prompt(
+    method_name: str,
+    account_info: str,
+    account_type: str,
+    pay_amount: float,
+    usd_val: float,
+    rate: float,
+    is_binance: bool,
+    lang: str = "en",
+    amount_summary: str = "",
+) -> str:
+    clean_method_name = re.sub(r'^[^\w\s]+\s*', '', method_name).strip() or method_name
+    if is_binance:
+        if lang == "bn":
+            return (
+                f"<b>{escape(clean_method_name)}</b>\n\n"
+                f"Pay ID: <code>{escape(account_info)}</code>\n\n"
+                f"💵 পরিমাণ: <b>{pay_amount:g} USDT</b>\n\n"
+                f"<blockquote>💡 <b>উপরের Pay ID-তে USDT পাঠিয়ে নিচে Order ID দিন:</b>\n"
+                f"Enter Order ID below:</blockquote>"
+            )
+        return (
+            f"<b>{escape(clean_method_name)}</b>\n\n"
+            f"Pay ID: <code>{escape(account_info)}</code>\n\n"
+            f"{amount_summary if amount_summary else f'💵 Amount: <b>{pay_amount:g} USDT</b>'}\n\n"
+            f"<blockquote>💡 <b>Send USDT to the Pay ID above, then enter Binance Order ID:</b>\n"
+            f"Enter Order ID below:</blockquote>"
+        )
+    type_display, action = get_account_type_labels(account_type)
+    if type_display and type_display.lower() not in clean_method_name.lower():
+        full_heading = f"{clean_method_name} {type_display}"
+    else:
+        full_heading = clean_method_name
+
+    usd_str = f"${usd_val:.2f}"
+    if lang == "bn":
+        return (
+            f"💳 <b>{escape(full_heading)}</b>\n\n"
+            f"📱 নম্বর: <code>{escape(account_info)}</code> <i>(ট্যাপ করে কপি করুন)</i>\n"
+            f"💵 প্রদেয় পরিমাণ: <b>{pay_amount:g} ৳</b> ({usd_str})\n"
+            f"💱 এক্সচেঞ্জ রেট: <b>1 USD = {rate:g} ৳</b>\n\n"
+            f"<blockquote>💡 <b>উপরের নম্বরে {action} করে নিচে TrxID লিখে দিন:</b>\n"
+            f"<i>(বা সম্পূর্ণ কনফার্মেশন SMS-টি পেস্ট করুন)</i></blockquote>"
+        )
+    summary_block = f"{amount_summary}\n" if amount_summary else f"Send: <code>{pay_amount:g} ৳</code>\nAdds to balance: <code>{usd_str}</code>\n"
+    return (
+        f"<b>{escape(full_heading)}</b>\n\n"
+        f"Number: <code>{escape(account_info)}</code>\n\n"
+        f"💵 Amount: <b>{pay_amount:g} ৳ ({usd_str})</b>\n"
+        f"{summary_block}"
+        f"💱 Exchange rate: <code>1 USD = {rate:g} ৳</code>\n\n"
+        f"<blockquote>💡 <b>Send money to the number above, then enter TrxID below:</b>\n"
+        f"<i>(or paste the full confirmation SMS)</i>\n"
+        f"Enter TrxID below:</blockquote>"
+    )
 
 def _instant_keyboard(invoice: dict) -> InlineKeyboardMarkup:
     rows = []
@@ -1212,27 +1268,17 @@ async def handle_deposit_quick_amount(query: CallbackQuery, state: FSMContext, s
     await state.set_state(DepositStates.waiting_for_txid)
 
     usd_val = round(amount_num / rate, 2) if rate > 0 else amount_num
-    num_label = "Pay ID" if is_binance else "Number"
-    if is_binance:
-        tx_prompt = (
-            f"<b>{escape(method_name)}</b>\n\n"
-            f"Pay ID: <code>{escape(account_info)}</code>\n\n"
-            f"{amount_summary}\n\n"
-            "👇 <b>Send USDT to the Pay ID above, then enter Order ID:</b>\n"
-            "Enter Order ID below:"
-        )
-    else:
-        type_display, action = get_account_type_labels(account_type)
-        tx_prompt = (
-            f"<b>{escape(method_name)} {type_display}</b>\n\n"
-            f"{num_label}: <code>{escape(account_info)}</code>\n\n"
-            f"💵 প্রদেয় পরিমাণ: <b>{pay_amount:g} ৳ (${usd_val:.2f})</b>\n"
-            f"💱 এক্সচেঞ্জ রেট: <code>1 USD = {rate:g} ৳</code>\n"
-            f"{amount_summary}\n\n"
-            f"👇 <b>উপরের নম্বরে {action} করে নিচে TrxID পাঠান:</b>\n"
-            f"<i>(অথবা কনফার্মেশন SMS পেস্ট করুন)</i>\n"
-            "Enter TrxID below:"
-        )
+    tx_prompt = _format_deposit_tx_prompt(
+        method_name=method_name,
+        account_info=account_info,
+        account_type=account_type,
+        pay_amount=pay_amount,
+        usd_val=usd_val,
+        rate=rate,
+        is_binance=is_binance,
+        lang=lang,
+        amount_summary=amount_summary,
+    )
 
     keyboard = get_deposit_trxid_prompt_keyboard(lang=lang)
     if query.message:
@@ -1255,37 +1301,7 @@ async def handle_deposit_change_amount(query: CallbackQuery, state: FSMContext, 
     if not method:
         await show_deposit_methods(query, state, services)
         return
-
-    is_binance = bool(data.get("is_binance")) or "binance" in str(data.get("method_name", "")).lower()
-    method_name = str(data.get("method_name") or method.get("name") or "Payment").strip()
-    account_info = str(data.get("account_info") or method.get("account_info") or "").strip()
-    account_type = data.get("account_type") or method.get("account_type") or "personal"
-    type_display, _ = get_account_type_labels(account_type)
-    num_label = "Pay ID" if is_binance else "Number"
-    lang = await services.users.get_language(query.from_user.id) if query.from_user else "en"
-
-    prompt = (
-        f"<b>{escape(method_name)}{f' ({type_display})' if not is_binance else ''}</b>\n\n"
-        f"{num_label}: <code>{escape(account_info)}</code>\n\n"
-        f"💰 <b>How much balance do you want to add?</b>\n"
-        f"<i>Select a preset below or type the amount:</i>"
-    )
-    keyboard = get_deposit_quick_amount_keyboard(
-        is_binance=is_binance,
-        lang=lang,
-        back_target=f"dep_method_{method['id']}",
-    )
-    if query.message:
-        with suppress(TelegramBadRequest):
-            await query.message.edit_text(prompt, reply_markup=keyboard)
-
-    await state.update_data(
-        reference_first=False,
-        manual_amount=None,
-        pay_amount=None,
-        binance_usdt=None,
-    )
-    await state.set_state(DepositStates.waiting_for_amount)
+    await render_method_details(query, state, services, method)
 
 
 @router.callback_query(F.data.startswith("dep_paid_"))
@@ -1580,28 +1596,18 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
     await state.set_state(DepositStates.waiting_for_txid)
 
     usd_val = round(amount_num / rate, 2) if rate > 0 else amount_num
-    num_label = "Pay ID" if is_binance else "Number"
-    if is_binance:
-        tx_prompt = (
-            f"<b>{escape(method_name)}</b>\n\n"
-            f"Pay ID: <code>{escape(account_info)}</code>\n\n"
-            f"{amount_summary}\n\n"
-            "👇 <b>Send USDT to the Pay ID above, then enter Order ID:</b>\n"
-            "Enter Order ID below:"
-        )
-    else:
-        account_type = data.get("account_type", "personal")
-        type_display, action = get_account_type_labels(account_type)
-        tx_prompt = (
-            f"<b>{escape(method_name)} {type_display}</b>\n\n"
-            f"{num_label}: <code>{escape(account_info)}</code>\n\n"
-            f"💵 প্রদেয় পরিমাণ: <b>{pay_amount:g} ৳ (${usd_val:.2f})</b>\n"
-            f"💱 এক্সচেঞ্জ রেট: <code>1 USD = {rate:g} ৳</code>\n"
-            f"{amount_summary}\n\n"
-            f"👇 <b>উপরের নম্বরে {action} করে নিচে TrxID পাঠান:</b>\n"
-            f"<i>(অথবা কনফার্মেশন SMS পেস্ট করুন)</i>\n"
-            "Enter TrxID below:"
-        )
+    account_type = data.get("account_type", "personal")
+    tx_prompt = _format_deposit_tx_prompt(
+        method_name=method_name,
+        account_info=account_info,
+        account_type=account_type,
+        pay_amount=pay_amount,
+        usd_val=usd_val,
+        rate=rate,
+        is_binance=is_binance,
+        lang=lang,
+        amount_summary=amount_summary,
+    )
 
     keyboard = get_deposit_trxid_prompt_keyboard(lang=lang)
 
