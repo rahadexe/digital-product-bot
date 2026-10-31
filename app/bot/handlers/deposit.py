@@ -937,37 +937,19 @@ def _format_deposit_tx_prompt(
     is_usd = (currency == "USD") or (bool(amount_summary) and "Adds to balance" in amount_summary)
     credit_str = f"${usd_val:.2f}"
 
-    if lang == "bn":
-        lines = [
-            f"<b>{escape(full_heading)}</b>",
-            "",
-            f"⚡️ <code>{escape(account_info)}</code> <i>(Tap to copy)</i>",
-            "",
-            f"আপনাকে দিতে হবে: <b>{pay_amount:g} ৳</b>",
-        ]
-        if is_usd:
-            lines.append(f"Rate: <code>$1 = {rate:g}৳</code>")
-            lines.append(f"ব্যালেন্সে যোগ হবে: <b>{credit_str}</b>")
-        lines.append("")
-        lines.append(
-            "<blockquote>উপরের নাম্বারে টাকা পাঠিয়ে ট্রানজেকশন আইডিটা নিচে লিখুন:\n\n"
-            "Enter TrxID below:</blockquote>"
-        )
-        return "\n".join(lines)
-
     lines = [
         f"<b>{escape(full_heading)}</b>",
         "",
         f"⚡️ <code>{escape(account_info)}</code> <i>(Tap to copy)</i>",
         "",
-        f"Amount: <b>{pay_amount:g} ৳</b>",
+        f"আপনাকে দিতে হবে: <b>{pay_amount:g} ৳</b>",
     ]
     if is_usd:
         lines.append(f"Rate: <code>$1 = {rate:g}৳</code>")
-        lines.append(f"Adds to balance: <code>{credit_str}</code>")
+        lines.append(f"ব্যালেন্সে যোগ হবে: <b>{credit_str}</b>")
     lines.append("")
     lines.append(
-        "<blockquote>Send money to the number above, then enter TrxID below:\n\n"
+        "<blockquote>উপরের নাম্বারে টাকা পাঠিয়ে ট্রানজেকশন আইডিটা নিচে লিখুন:\n\n"
         "Enter TrxID below:</blockquote>"
     )
     return "\n".join(lines)
@@ -1791,24 +1773,19 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                 binance_usdt=usd_amt if is_binance else None,
                 reference_first=False,
             )
-            type_display, _ = get_account_type_labels(account_type)
-            num_label = "Pay ID" if is_binance else "Number"
-            ref_label = "Order ID" if is_binance else "TrxID"
+            usd_val = round(pay_amt / rate, 2) if rate > 0 else pay_amt
             curr = await resolve_user_currency(services, message.from_user.id) if message.from_user else "BDT"
-            is_usd_user = (curr == "USD") or (bool(amount_summary) and "Adds to balance" in amount_summary)
-            credit_str = format_dual_price(usd_amt, currency="USD", usd_rate=rate)
-            if is_binance:
-                amt_lines = f"Amount: <b>{pay_amt:g} USDT</b>"
-            elif is_usd_user:
-                amt_lines = f"Amount: <b>{pay_amt:g} ৳</b>\nRate: <code>1 USD = {rate:g} ৳</code>\nAdds to balance: <code>{credit_str}</code>"
-            else:
-                amt_lines = f"Amount: <b>{pay_amt:g} ৳</b>"
-
-            prompt_card = (
-                f"<b>{escape(method_name)}{f' {type_display}' if not is_binance else ''}</b>\n\n"
-                f"{num_label}: <code>{escape(account_info)}</code>\n\n"
-                f"{amt_lines}\n\n"
-                f"👇 <b>Enter your {ref_label} below:</b>"
+            prompt_card = _format_deposit_tx_prompt(
+                method_name=method_name,
+                account_info=account_info,
+                account_type=account_type,
+                pay_amount=pay_amt,
+                usd_val=usd_val,
+                rate=rate,
+                is_binance=is_binance,
+                lang=lang,
+                amount_summary=amount_summary,
+                currency=curr,
             )
             prompt_kb = get_deposit_trxid_prompt_keyboard(lang=lang, has_amount=True)
             if target_msg_id and getattr(message, "bot", None) and chat_id:
@@ -1868,21 +1845,22 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
         err_title = f"Enter valid {label}:"
         if not is_valid_format:
             err_detail = format_err
-            alert_header = "⚠️ <b>সঠিক TrxID দিন</b>" if lang == "bn" else f"⚠️ <b>Invalid {label} Format</b>"
-            if lang == "bn":
-                if "mobile number" in format_err.lower():
-                    format_err_display = "এটি একটি মোবাইল নম্বর, TrxID নয়। আপনার SMS-এ আসা সঠিক TrxID লিখুন (যেমন: BLA7X8Y9Z0)।"
-                elif "deposit account" in format_err.lower():
-                    format_err_display = "এটি আমাদের ডিপোজিট নম্বর। টাকা পাঠিয়ে যে TrxID পেয়েছেন সেটি লিখুন (যেমন: BLA7X8Y9Z0)।"
-                elif "bkash" in format_err.lower():
-                    format_err_display = "bKash TrxID ৮-১২ অক্ষরের হতে হবে এবং বর্ণ ও সংখ্যা থাকতে হবে (যেমন: BLA7X8Y9Z0)।"
-                elif "nagad" in format_err.lower():
-                    format_err_display = "Nagad TrxID ৮-১০ অক্ষরের হতে হবে এবং বর্ণ ও সংখ্যা থাকতে হবে (যেমন: 72A9B8C1)।"
-                else:
-                    format_err_display = "ভুল TrxID ফরম্যাট। আপনার SMS চেক করে সঠিক TrxID লিখুন।"
-                alert_body = f"{format_err_display}\n\n<b>{err_title}</b>"
-            else:
+            if is_binance:
+                alert_header = f"⚠️ <b>Invalid {label} Format</b>"
                 alert_body = f"{format_err}\n<b>{err_title}</b>"
+            else:
+                alert_header = "⚠️ <b>সঠিক TrxID দিন</b>"
+                if "mobile number" in format_err.lower():
+                    format_err_display = f"এটি একটি মোবাইল নম্বর, TrxID নয়। আপনার SMS-এ আসা সঠিক TrxID লিখুন (যেমন: BLA7X8Y9Z0)।\n{format_err}"
+                elif "deposit account" in format_err.lower():
+                    format_err_display = f"এটি আমাদের ডিপোজিট নম্বর। টাকা পাঠিয়ে যে TrxID পেয়েছেন সেটি লিখুন (যেমন: BLA7X8Y9Z0)।\n{format_err}"
+                elif "bkash" in format_err.lower():
+                    format_err_display = f"bKash TrxID ৮-১২ অক্ষরের হতে হবে এবং বর্ণ ও সংখ্যা থাকতে হবে (যেমন: BLA7X8Y9Z0)।\n{format_err}"
+                elif "nagad" in format_err.lower():
+                    format_err_display = f"Nagad TrxID ৮-১০ অক্ষরের হতে হবে এবং বর্ণ ও সংখ্যা থাকতে হবে (যেমন: 72A9B8C1)।\n{format_err}"
+                else:
+                    format_err_display = f"ভুল TrxID ফরম্যাট। আপনার SMS চেক করে সঠিক TrxID লিখুন।\n{format_err}"
+                alert_body = f"{format_err_display}\n\n<b>{err_title}</b>"
         else:
             dep_st = (existing_dep.get("status") or "").lower()
             if dep_st in ("approved", "completed"):
@@ -1912,21 +1890,39 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             curr = await resolve_user_currency(services, message.from_user.id) if message.from_user else "BDT"
             is_usd_user = (curr == "USD") or (bool(amount_summary) and "Adds to balance" in amount_summary)
             rate_val = float(data.get("rate") or 125)
-            credit_str = format_dual_price(usd_amount, currency="USD", usd_rate=rate_val)
-            if is_binance:
-                amt_lines = f"Amount: <b>{pay_amount:g} USDT</b>"
-            elif is_usd_user:
-                amt_lines = f"Amount: <b>{pay_amount:g} ৳</b>\nRate: <code>1 USD = {rate_val:g} ৳</code>\nAdds to balance: <code>{credit_str}</code>"
-            else:
-                amt_lines = f"Amount: <b>{pay_amount:g} ৳</b>"
+            credit_str = f"${usd_amount:.2f}"
+            if not is_binance:
+                clean_method = re.sub(r'^[^\w\s]+\s*', '', method_name).strip() or method_name
+                if type_display and type_display.lower() not in clean_method.lower():
+                    full_heading = f"{clean_method} {type_display}"
+                else:
+                    full_heading = clean_method
 
-            tx_err_card = (
-                f"<b>{escape(method_name)}{f' {type_display}' if not is_binance else ''}</b>\n"
-                f"{num_label}: <code>{escape(account_info)}</code>\n\n"
-                f"{amt_lines}\n\n"
-                f"{alert_header}\n"
-                f"{alert_body}"
-            )
+                err_lines = [
+                    f"<b>{escape(full_heading)}</b>",
+                    "",
+                    f"⚡️ <code>{escape(account_info)}</code> <i>(Tap to copy)</i>",
+                    "",
+                    f"আপনাকে দিতে হবে: <b>{pay_amount:g} ৳</b>",
+                ]
+                if is_usd_user:
+                    err_lines.append(f"Rate: <code>$1 = {rate_val:g}৳</code>")
+                    err_lines.append(f"ব্যালেন্সে যোগ হবে: <b>{credit_str}</b>")
+                err_lines.append("")
+                err_lines.append(
+                    f"<blockquote>{alert_header}\n\n"
+                    f"{alert_body}</blockquote>"
+                )
+                tx_err_card = "\n".join(err_lines)
+            else:
+                amt_lines = f"Amount: <b>{pay_amount:g} USDT</b>"
+                tx_err_card = (
+                    f"<b>{escape(method_name)}</b>\n"
+                    f"{num_label}: <code>{escape(account_info)}</code>\n\n"
+                    f"{amt_lines}\n\n"
+                    f"{alert_header}\n"
+                    f"{alert_body}"
+                )
 
         sup_url = None
         if hasattr(services, "settings") and hasattr(services.settings, "get"):
