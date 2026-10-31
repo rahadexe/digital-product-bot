@@ -496,9 +496,9 @@ async def ask_instant_amount_from_text(
     await state.update_data(is_instant=True, min_deposit=min_dep)
     clean_label = re.sub(r'^[^\w\s]+\s*', '', instant.get("label") or "").split(" - ")[0].strip() or "Instant Pay"
     prompt_txt = (
-        f"💳 <b>Deposit via {escape(clean_label)}</b>\nপরিমাণ বেছে নিন বা লিখুন:"
+        f"💳 <b>Deposit via {escape(clean_label)}</b>\nকত টাকা পাঠাবেন তা নিচ থেকে বেছে নিন বা লিখুন:"
         if lang == "bn"
-        else f"💳 <b>Deposit via {escape(clean_label)}</b>\nSelect or enter amount:"
+        else f"💳 <b>Deposit via {escape(clean_label)}</b>\nChoose the amount below or type it:"
     )
     keyboard = get_deposit_quick_amount_keyboard(
         is_binance=False,
@@ -729,9 +729,9 @@ async def render_method_details(
     else:
         clean_name = re.sub(r'^[^\w\s]+\s*', '', method_name).strip() or method_name
         if not is_binance or lang == "bn":
-            lines.append(f"💳 <b>Deposit via {escape(clean_name)}</b>\nপরিমাণ বেছে নিন বা লিখুন:")
+            lines.append(f"💳 <b>Deposit via {escape(clean_name)}</b>\nকত টাকা পাঠাবেন তা নিচ থেকে বেছে নিন বা লিখুন:")
         else:
-            lines.append(f"💳 <b>Deposit via {escape(clean_name)}</b>\nSelect or enter amount:")
+            lines.append(f"💳 <b>Deposit via {escape(clean_name)}</b>\nChoose the amount below or type it:")
     inst = "\n".join(lines)
     keyboard = get_deposit_quick_amount_keyboard(
         is_binance=False,
@@ -843,9 +843,9 @@ async def ask_instant_amount(query: CallbackQuery, state: FSMContext, services: 
             await state.update_data(card_msg_id=card_msg_id, card_chat_id=card_chat_id)
         clean_label = re.sub(r'^[^\w\s]+\s*', '', instant.get("label") or "").split(" - ")[0].strip() or "Instant Pay"
         prompt_txt = (
-            f"💳 <b>Deposit via {escape(clean_label)}</b>\nপরিমাণ বেছে নিন বা লিখুন:"
+            f"💳 <b>Deposit via {escape(clean_label)}</b>\nকত টাকা পাঠাবেন তা নিচ থেকে বেছে নিন বা লিখুন:"
             if lang == "bn"
-            else f"💳 <b>Deposit via {escape(clean_label)}</b>\nSelect or enter amount:"
+            else f"💳 <b>Deposit via {escape(clean_label)}</b>\nChoose the amount below or type it:"
         )
         keyboard = get_deposit_quick_amount_keyboard(
             is_binance=False,
