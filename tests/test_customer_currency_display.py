@@ -52,8 +52,11 @@ async def test_amount_entry_keeps_accounting_usd_and_shows_selected_currency(cur
         assert ("$4" in text) == (currency == "USD")
         assert "4 USDT" in text
     else:
-        # Deposit confirmation card explicitly shows dual BDT ($USD)
-        assert "$4.00" in text
+        if currency == "USD":
+            assert "$4" in text
+            assert "1 USD = 125 ৳" in text
+        else:
+            assert "$" not in text
         assert "500 ৳" in text
 
 

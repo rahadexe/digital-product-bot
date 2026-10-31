@@ -911,6 +911,7 @@ def _format_deposit_tx_prompt(
     is_binance: bool,
     lang: str = "en",
     amount_summary: str = "",
+    currency: str | None = None,
 ) -> str:
     clean_method_name = re.sub(r'^[^\w\s]+\s*', '', method_name).strip() or method_name
     if is_binance:
@@ -933,30 +934,44 @@ def _format_deposit_tx_prompt(
     else:
         full_heading = clean_method_name
 
-    usd_str = f"${usd_val:.2f}"
+    is_usd = (currency == "USD") or (bool(amount_summary) and "Adds to balance" in amount_summary)
+    credit_str = format_dual_price(usd_val, currency="USD", usd_rate=rate)
+
     if lang == "bn":
-        summary_block = f"\n{amount_summary}\n" if (amount_summary and "Adds to balance" in amount_summary) else ""
-        return (
-            f"<b>{escape(full_heading)}</b>\n\n"
-            f"📱 <code>{escape(account_info)}</code> <i>(ট্যাপ করে কপি করুন)</i>\n"
-            f"আপনাকে দিতে হবে: <b>{pay_amount:g} ৳</b>\n"
-            f"{summary_block}"
-            f"Rate: <code>1 USD = {rate:g} ৳</code>\n\n"
-            f"<blockquote>উপরের নাম্বারে টাকা পাঠিয়ে ট্রানজেকশন আইডিটা নিচে লিখুন:\n"
-            f"<i>(বা সম্পূর্ণ কনফার্মেশন SMS-টি পেস্ট করুন)</i>\n\n"
-            f"Enter TrxID below:</blockquote>"
+        lines = [
+            f"<b>{escape(full_heading)}</b>",
+            "",
+            f"📱 <code>{escape(account_info)}</code> <i>(ট্যাপ করে কপি করুন)</i>",
+            f"আপনাকে দিতে হবে: <b>{pay_amount:g} ৳</b>",
+        ]
+        if is_usd:
+            lines.append(f"Rate: <code>1 USD = {rate:g} ৳</code>")
+            lines.append(f"ব্যালেন্সে যোগ হবে: <code>{credit_str}</code>")
+        lines.append("")
+        lines.append(
+            "<blockquote>উপরের নাম্বারে টাকা পাঠিয়ে ট্রানজেকশন আইডিটা নিচে লিখুন:\n"
+            "<i>(বা সম্পূর্ণ কনফার্মেশন SMS-টি পেস্ট করুন)</i>\n\n"
+            "Enter TrxID below:</blockquote>"
         )
-    summary_block = f"{amount_summary}\n" if amount_summary else f"Send: <code>{pay_amount:g} ৳</code>\nAdds to balance: <code>{usd_str}</code>\n"
-    return (
-        f"<b>{escape(full_heading)}</b>\n\n"
-        f"Number: <code>{escape(account_info)}</code> <i>(tap to copy)</i>\n\n"
-        f"Amount: <b>{pay_amount:g} ৳</b> ({usd_str})\n"
-        f"{summary_block}"
-        f"Rate: <code>1 USD = {rate:g} ৳</code>\n\n"
-        f"<blockquote>Send money to the number above, then enter TrxID below:\n"
-        f"<i>(or paste the full confirmation SMS)</i>\n"
-        f"Enter TrxID below:</blockquote>"
+        return "\n".join(lines)
+
+    lines = [
+        f"<b>{escape(full_heading)}</b>",
+        "",
+        f"Number: <code>{escape(account_info)}</code> <i>(tap to copy)</i>",
+        "",
+        f"Amount: <b>{pay_amount:g} ৳</b>",
+    ]
+    if is_usd:
+        lines.append(f"Rate: <code>1 USD = {rate:g} ৳</code>")
+        lines.append(f"Adds to balance: <code>{credit_str}</code>")
+    lines.append("")
+    lines.append(
+        "<blockquote>Send money to the number above, then enter TrxID below:\n"
+        "<i>(or paste the full confirmation SMS)</i>\n\n"
+        "Enter TrxID below:</blockquote>"
     )
+    return "\n".join(lines)
 
 
 def _instant_keyboard(invoice: dict) -> InlineKeyboardMarkup:
@@ -1312,6 +1327,7 @@ async def handle_deposit_quick_amount(query: CallbackQuery, state: FSMContext, s
     await state.set_state(DepositStates.waiting_for_txid)
 
     usd_val = round(amount_num / rate, 2) if rate > 0 else amount_num
+    curr = await resolve_user_currency(services, query.from_user.id) if query.from_user else "BDT"
     tx_prompt = _format_deposit_tx_prompt(
         method_name=method_name,
         account_info=account_info,
@@ -1322,6 +1338,7 @@ async def handle_deposit_quick_amount(query: CallbackQuery, state: FSMContext, s
         is_binance=is_binance,
         lang=lang,
         amount_summary=amount_summary,
+        currency=curr,
     )
 
     keyboard = get_deposit_trxid_prompt_keyboard(lang=lang)
@@ -1641,6 +1658,7 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
 
     usd_val = round(amount_num / rate, 2) if rate > 0 else amount_num
     account_type = data.get("account_type", "personal")
+    curr = await resolve_user_currency(services, message.from_user.id) if message.from_user else "BDT"
     tx_prompt = _format_deposit_tx_prompt(
         method_name=method_name,
         account_info=account_info,
@@ -1651,6 +1669,7 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
         is_binance=is_binance,
         lang=lang,
         amount_summary=amount_summary,
+        currency=curr,
     )
 
     keyboard = get_deposit_trxid_prompt_keyboard(lang=lang)
@@ -1776,10 +1795,20 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             type_display, _ = get_account_type_labels(account_type)
             num_label = "Pay ID" if is_binance else "Number"
             ref_label = "Order ID" if is_binance else "TrxID"
+            curr = await resolve_user_currency(services, message.from_user.id) if message.from_user else "BDT"
+            is_usd_user = (curr == "USD") or (bool(amount_summary) and "Adds to balance" in amount_summary)
+            credit_str = format_dual_price(usd_amt, currency="USD", usd_rate=rate)
+            if is_binance:
+                amt_lines = f"Amount: <b>{pay_amt:g} USDT</b>"
+            elif is_usd_user:
+                amt_lines = f"Amount: <b>{pay_amt:g} ৳</b>\nRate: <code>1 USD = {rate:g} ৳</code>\nAdds to balance: <code>{credit_str}</code>"
+            else:
+                amt_lines = f"Amount: <b>{pay_amt:g} ৳</b>"
+
             prompt_card = (
                 f"<b>{escape(method_name)}{f' {type_display}' if not is_binance else ''}</b>\n\n"
-                f"{num_label}: <code>{escape(account_info)}</code>\n"
-                f"{amount_summary}\n\n"
+                f"{num_label}: <code>{escape(account_info)}</code>\n\n"
+                f"{amt_lines}\n\n"
                 f"👇 <b>Enter your {ref_label} below:</b>"
             )
             prompt_kb = get_deposit_trxid_prompt_keyboard(lang=lang, has_amount=True)
@@ -1881,10 +1910,21 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
             )
             target_msg_id = ref_prompt_id
         else:
+            curr = await resolve_user_currency(services, message.from_user.id) if message.from_user else "BDT"
+            is_usd_user = (curr == "USD") or (bool(amount_summary) and "Adds to balance" in amount_summary)
+            rate_val = float(data.get("rate") or 125)
+            credit_str = format_dual_price(usd_amount, currency="USD", usd_rate=rate_val)
+            if is_binance:
+                amt_lines = f"Amount: <b>{pay_amount:g} USDT</b>"
+            elif is_usd_user:
+                amt_lines = f"Amount: <b>{pay_amount:g} ৳</b>\nRate: <code>1 USD = {rate_val:g} ৳</code>\nAdds to balance: <code>{credit_str}</code>"
+            else:
+                amt_lines = f"Amount: <b>{pay_amount:g} ৳</b>"
+
             tx_err_card = (
                 f"<b>{escape(method_name)}{f' {type_display}' if not is_binance else ''}</b>\n"
-                f"{num_label}: <code>{escape(account_info)}</code>\n"
-                f"{amount_summary}\n\n"
+                f"{num_label}: <code>{escape(account_info)}</code>\n\n"
+                f"{amt_lines}\n\n"
                 f"{alert_header}\n"
                 f"{alert_body}"
             )
