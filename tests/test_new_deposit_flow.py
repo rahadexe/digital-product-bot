@@ -793,6 +793,109 @@ async def test_process_deposit_txid_invalid_keeps_full_card():
 
 
 @pytest.mark.asyncio
+async def test_repeated_deposit_amount_error_does_not_spawn_new_boxes():
+    from aiogram.exceptions import TelegramBadRequest
+
+    storage = MemoryStorage()
+    key = StorageKey(bot_id=123, chat_id=456, user_id=789)
+    state = FSMContext(storage=storage, key=key)
+    await state.set_state(DepositStates.method_selected)
+    await state.set_data({
+        "method_id": 1,
+        "method_name": "bKash",
+        "account_info": "01700000000",
+        "account_type": "personal",
+        "min_deposit": 50.0,
+        "rate": 125.0,
+        "card_msg_id": 555,
+        "card_chat_id": 456,
+    })
+
+    services = MagicMock()
+    services.users.get_language = AsyncMock(return_value="en")
+    services.settings.number = AsyncMock(return_value=25000.0)
+    services.settings.get = AsyncMock(return_value="৳")
+
+    bot = MagicMock()
+    # Simulate Telegram throwing "message is not modified" when the exact same error is generated
+    bot.edit_message_text = AsyncMock(
+        side_effect=TelegramBadRequest(
+            method="editMessageText",
+            message="Bad Request: message is not modified: specified new message content and text are exactly the same as a current content and text of the message",
+        )
+    )
+
+    user = User(id=789, is_bot=False, first_name="Test")
+    chat = Chat(id=456, type="private")
+    message = MagicMock(spec=Message)
+    message.from_user = user
+    message.chat = chat
+    message.bot = bot
+    message.message_id = 1001
+    message.text = "20"
+    message.answer = AsyncMock()
+    message.delete = AsyncMock()
+
+    await process_deposit_amount(message, state, services)
+
+    # Must edit existing card and NOT fallback to message.answer
+    assert bot.edit_message_text.called
+    message.answer.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_repeated_deposit_txid_error_does_not_spawn_new_boxes():
+    from aiogram.exceptions import TelegramBadRequest
+
+    storage = MemoryStorage()
+    key = StorageKey(bot_id=123, chat_id=456, user_id=789)
+    state = FSMContext(storage=storage, key=key)
+    await state.set_state(DepositStates.waiting_for_txid)
+    await state.set_data({
+        "method_id": 1,
+        "method_name": "bKash",
+        "account_info": "01700000000",
+        "account_type": "personal",
+        "min_deposit": 50.0,
+        "rate": 125.0,
+        "manual_amount": 4.0,
+        "pay_amount": 500.0,
+        "usd_amount": 4.0,
+        "card_msg_id": 555,
+        "card_chat_id": 456,
+    })
+
+    services = MagicMock()
+    services.users.get_language = AsyncMock(return_value="en")
+
+    bot = MagicMock()
+    # Simulate Telegram throwing "message is not modified" when repeated invalid TrxID gives same error
+    bot.edit_message_text = AsyncMock(
+        side_effect=TelegramBadRequest(
+            method="editMessageText",
+            message="Bad Request: message is not modified: specified new message content and text are exactly the same as a current content and text of the message",
+        )
+    )
+
+    user = User(id=789, is_bot=False, first_name="Test")
+    chat = Chat(id=456, type="private")
+    message = MagicMock(spec=Message)
+    message.from_user = user
+    message.chat = chat
+    message.bot = bot
+    message.message_id = 1002
+    message.text = "abc"
+    message.answer = AsyncMock()
+    message.delete = AsyncMock()
+
+    await process_deposit_txid(message, state, services)
+
+    # Must attempt edit on existing card and NOT fallback to message.answer
+    assert bot.edit_message_text.called
+    message.answer.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_bkash_wrong_trxid_format_rejected_immediately_without_asking_amount():
     """Invalid TrxID format (e.g. 5 chars instead of 8-12) must be rejected immediately on waiting_for_txid without asking for amount."""
     storage = MemoryStorage()

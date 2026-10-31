@@ -1588,13 +1588,23 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
                     reply_markup=kb,
                 )
                 remember_menu_message(chat_id, target_msg_id)
+                await state.update_data(card_msg_id=target_msg_id, card_chat_id=chat_id)
                 return
+            except TelegramBadRequest as exc:
+                if "message is not modified" in str(exc).lower():
+                    remember_menu_message(chat_id, target_msg_id)
+                    return
             except Exception:
                 pass
-        await message.answer(
+        sent = await message.answer(
             err_text,
             reply_markup=kb,
         )
+        if sent and chat_id:
+            sent_id = getattr(sent, "message_id", None)
+            if sent_id:
+                remember_menu_message(chat_id, sent_id)
+                await state.update_data(card_msg_id=sent_id, card_chat_id=chat_id)
 
     try:
         amount_num = float(parse_deposit_amount(raw_text, is_binance=is_binance))
@@ -1686,6 +1696,10 @@ async def process_deposit_amount(message: Message, state: FSMContext, services: 
             remember_menu_message(chat_id, target_msg_id)
             await state.update_data(card_msg_id=target_msg_id, card_chat_id=chat_id)
             edited = True
+        except TelegramBadRequest as exc:
+            if "message is not modified" in str(exc).lower():
+                remember_menu_message(chat_id, target_msg_id)
+                edited = True
         except Exception:
             edited = False
 
@@ -1776,10 +1790,21 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                         await message.bot.edit_message_text(
                             chat_id=chat_id, message_id=target_msg_id, text=err_card, reply_markup=quick_kb
                         )
+                        remember_menu_message(chat_id, target_msg_id)
+                        await state.update_data(card_msg_id=target_msg_id, card_chat_id=chat_id)
                         return
+                    except TelegramBadRequest as exc:
+                        if "message is not modified" in str(exc).lower():
+                            remember_menu_message(chat_id, target_msg_id)
+                            return
                     except Exception:
                         pass
-                await message.answer(err_card, reply_markup=quick_kb)
+                sent = await message.answer(err_card, reply_markup=quick_kb)
+                if sent and chat_id:
+                    sent_id = getattr(sent, "message_id", None)
+                    if sent_id:
+                        remember_menu_message(chat_id, sent_id)
+                        await state.update_data(card_msg_id=sent_id, card_chat_id=chat_id)
                 return
 
             # Valid amount entered first!
@@ -1815,10 +1840,21 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                     await message.bot.edit_message_text(
                         chat_id=chat_id, message_id=target_msg_id, text=prompt_card, reply_markup=prompt_kb
                     )
+                    remember_menu_message(chat_id, target_msg_id)
+                    await state.update_data(card_msg_id=target_msg_id, card_chat_id=chat_id)
                     return
+                except TelegramBadRequest as exc:
+                    if "message is not modified" in str(exc).lower():
+                        remember_menu_message(chat_id, target_msg_id)
+                        return
                 except Exception:
                     pass
-            await message.answer(prompt_card, reply_markup=prompt_kb)
+            sent = await message.answer(prompt_card, reply_markup=prompt_kb)
+            if sent and chat_id:
+                sent_id = getattr(sent, "message_id", None)
+                if sent_id:
+                    remember_menu_message(chat_id, sent_id)
+                    await state.update_data(card_msg_id=sent_id, card_chat_id=chat_id)
             return
 
     clean_tx = re.sub(r"^(uid|order\s*id|order|txid|trxid|trx\s*id|ref)[\s:#=]*", "", raw_text, flags=re.IGNORECASE).strip()
@@ -1981,7 +2017,12 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                     reply_markup=err_kb,
                 )
                 remember_menu_message(chat_id, target_msg_id)
+                await state.update_data(card_msg_id=target_msg_id, card_chat_id=chat_id)
                 edited = True
+            except TelegramBadRequest as exc:
+                if "message is not modified" in str(exc).lower():
+                    remember_menu_message(chat_id, target_msg_id)
+                    edited = True
             except Exception:
                 edited = False
         if not edited:
@@ -2111,8 +2152,13 @@ async def process_deposit_txid(message: Message, state: FSMContext, services: Se
                     text=prompt_card,
                     reply_markup=amt_kb,
                 )
-                remember_menu_message(chat_id, target_msg_id)
+                remember_menu_message(chat_id, amt_target_id)
+                await state.update_data(card_msg_id=amt_target_id, card_chat_id=chat_id)
                 edited = True
+            except TelegramBadRequest as exc:
+                if "message is not modified" in str(exc).lower():
+                    remember_menu_message(chat_id, amt_target_id)
+                    edited = True
             except Exception:
                 edited = False
         if not edited:
