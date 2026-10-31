@@ -875,17 +875,15 @@ def _format_deposit_tx_prompt(
         if lang == "bn":
             return (
                 f"<b>{escape(clean_method_name)}</b>\n\n"
-                f"Pay ID: <code>{escape(account_info)}</code>\n\n"
-                f"💵 পরিমাণ: <b>{pay_amount:g} USDT</b>\n\n"
-                f"<blockquote>💡 <b>উপরের Pay ID-তে USDT পাঠিয়ে নিচে Order ID দিন:</b>\n"
-                f"Enter Order ID below:</blockquote>"
+                f"Pay ID: <code>{escape(account_info)}</code> <i>(ট্যাপ করে কপি করুন)</i>\n"
+                f"পরিমাণ: <b>{pay_amount:g} USDT</b>\n\n"
+                f"<blockquote>উপরের Pay ID-তে USDT পাঠিয়ে নিচে Order ID দিন:</blockquote>"
             )
         return (
             f"<b>{escape(clean_method_name)}</b>\n\n"
-            f"Pay ID: <code>{escape(account_info)}</code>\n\n"
-            f"{amount_summary if amount_summary else f'💵 Amount: <b>{pay_amount:g} USDT</b>'}\n\n"
-            f"<blockquote>💡 <b>Send USDT to the Pay ID above, then enter Binance Order ID:</b>\n"
-            f"Enter Order ID below:</blockquote>"
+            f"Pay ID: <code>{escape(account_info)}</code> <i>(tap to copy)</i>\n"
+            f"{amount_summary if amount_summary else f'Amount: <b>{pay_amount:g} USDT</b>'}\n\n"
+            f"<blockquote>Send USDT to the Pay ID above, then enter Binance Order ID:</blockquote>"
         )
     type_display, action = get_account_type_labels(account_type)
     if type_display and type_display.lower() not in clean_method_name.lower():
@@ -896,24 +894,25 @@ def _format_deposit_tx_prompt(
     usd_str = f"${usd_val:.2f}"
     if lang == "bn":
         return (
-            f"💳 <b>{escape(full_heading)}</b>\n\n"
-            f"📱 নম্বর: <code>{escape(account_info)}</code> <i>(ট্যাপ করে কপি করুন)</i>\n"
-            f"💵 প্রদেয় পরিমাণ: <b>{pay_amount:g} ৳</b> ({usd_str})\n"
-            f"💱 এক্সচেঞ্জ রেট: <b>1 USD = {rate:g} ৳</b>\n\n"
-            f"<blockquote>💡 <b>উপরের নম্বরে {action} করে নিচে TrxID লিখে দিন:</b>\n"
+            f"<b>{escape(full_heading)}</b>\n\n"
+            f"নম্বর: <code>{escape(account_info)}</code> <i>(ট্যাপ করে কপি করুন)</i>\n"
+            f"পরিমাণ: <b>{pay_amount:g} ৳</b> ({usd_str})\n"
+            f"রেট: <code>1 USD = {rate:g} ৳</code>\n\n"
+            f"<blockquote>উপরের নম্বরে {action} করে নিচে TrxID দিন:\n"
             f"<i>(বা সম্পূর্ণ কনফার্মেশন SMS-টি পেস্ট করুন)</i></blockquote>"
         )
     summary_block = f"{amount_summary}\n" if amount_summary else f"Send: <code>{pay_amount:g} ৳</code>\nAdds to balance: <code>{usd_str}</code>\n"
     return (
         f"<b>{escape(full_heading)}</b>\n\n"
-        f"Number: <code>{escape(account_info)}</code>\n\n"
-        f"💵 Amount: <b>{pay_amount:g} ৳ ({usd_str})</b>\n"
+        f"Number: <code>{escape(account_info)}</code> <i>(tap to copy)</i>\n\n"
+        f"Amount: <b>{pay_amount:g} ৳</b> ({usd_str})\n"
         f"{summary_block}"
-        f"💱 Exchange rate: <code>1 USD = {rate:g} ৳</code>\n\n"
-        f"<blockquote>💡 <b>Send money to the number above, then enter TrxID below:</b>\n"
+        f"Rate: <code>1 USD = {rate:g} ৳</code>\n\n"
+        f"<blockquote>Send money to the number above, then enter TrxID below:\n"
         f"<i>(or paste the full confirmation SMS)</i>\n"
         f"Enter TrxID below:</blockquote>"
     )
+
 
 def _instant_keyboard(invoice: dict) -> InlineKeyboardMarkup:
     rows = []
