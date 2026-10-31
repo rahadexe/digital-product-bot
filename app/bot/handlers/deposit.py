@@ -1403,18 +1403,6 @@ async def ask_deposit_input(query: CallbackQuery, state: FSMContext, services: S
 
 
 @router.message(DepositStates.method_selected)
-async def handle_method_selected_input(message: Message, state: FSMContext, services: Services):
-    raw_text = (message.text or "").strip()
-    if raw_text in {"🔙 Back", "🔙 ব্যাক", "Back", "ব্যাক", "Cancel", "বাতিল", "❌ Cancel", "❌ বাতিল", "back", "cancel"}:
-        await state.clear()
-        await show_deposit_methods(message, state, services)
-        return
-    if is_navigation(raw_text):
-        await navigate(raw_text, message, state, services)
-        return
-    await process_deposit_amount(message, state, services)
-
-
 @router.message(DepositStates.waiting_for_amount)
 @router.message(DepositStates.waiting_for_binance_amount)
 async def process_deposit_amount(message: Message, state: FSMContext, services: Services):

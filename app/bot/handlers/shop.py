@@ -11,7 +11,7 @@ from uuid import uuid4
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.filters import BaseFilter
+from aiogram.filters import BaseFilter, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
@@ -180,7 +180,7 @@ async def show_category_or_validity(
     )
 
 
-@router.message(CategoryTextFilter())
+@router.message(StateFilter(None), CategoryTextFilter())
 async def handle_category_by_text(message: Message, state: FSMContext, services: Services, category: dict[str, Any]):
     """Dynamic handler for any category selected via reply keyboard button."""
     await state.clear()
@@ -255,7 +255,7 @@ class ProductTextFilter(BaseFilter):
         return False
 
 
-@router.message(ProductTextFilter())
+@router.message(StateFilter(None), ProductTextFilter())
 async def handle_product_by_text(message: Message, state: FSMContext, services: Services, product: dict[str, Any]):
     """Dynamic handler when a customer taps a product button from the reply keyboard."""
     await state.clear()
@@ -264,7 +264,7 @@ async def handle_product_by_text(message: Message, state: FSMContext, services: 
     await respond(message, text, keyboard)
 
 
-@router.message(F.text.func(lambda text: bool(text and (
+@router.message(StateFilter(None), F.text.func(lambda text: bool(text and (
     text.strip().startswith("⚡ BUY NOW")
     or text.strip().startswith("BUY NOW")
     or text.strip().startswith("⚡ Buy Now")
@@ -1222,7 +1222,7 @@ async def process_custom_quantity(message: Message, state: FSMContext, services:
     await message.answer(view_text, reply_markup=keyboard)
 
 
-@router.message(F.text.func(lambda text: bool(text and text.strip().isdigit() and 1 <= int(text.strip()) <= 1000)))
+@router.message(StateFilter(None), F.text.func(lambda text: bool(text and text.strip().isdigit() and 1 <= int(text.strip()) <= 1000)))
 async def handle_direct_quantity_input(message: Message, state: FSMContext, services: Services):
     """Allows user to simply type a number (e.g. '5' or '25') while viewing a product to change quantity."""
     cur_state = await state.get_state()

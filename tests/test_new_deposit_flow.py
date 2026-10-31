@@ -1081,5 +1081,55 @@ async def test_instant_deposit_gateway_error_shows_polite_bengali_fallback():
     assert any("dep_methods" in btn.callback_data for row in markup.inline_keyboard for btn in row)
 
 
+@pytest.mark.asyncio
+async def test_typed_deposit_amount_not_intercepted_by_shop_router():
+    from aiogram import Dispatcher
+    from datetime import datetime, timezone
+    from app.bot.handlers import shop, deposit
+
+    storage = MemoryStorage()
+    dp = Dispatcher(storage=storage)
+    dp.include_routers(shop.router, deposit.router)
+
+    bot = MagicMock()
+    bot.id = 123
+    bot.edit_message_text = AsyncMock()
+    bot.delete_message = AsyncMock()
+
+    ctx = dp.fsm.get_context(bot=bot, chat_id=456, user_id=789)
+    await ctx.set_state(DepositStates.method_selected)
+    await ctx.set_data({
+        "method_id": 1,
+        "method_name": "bKash",
+        "account_info": "01700000000",
+        "account_type": "personal",
+        "min_deposit": 50.0,
+        "rate": 125.0,
+        "card_msg_id": 100,
+    })
+
+    user = User(id=789, is_bot=False, first_name="Test")
+    chat = Chat(id=456, type="private")
+    from aiogram.types import Update
+    message = Message(message_id=2, date=datetime.now(timezone.utc), chat=chat, from_user=user, text="500").as_(bot)
+    update = Update(update_id=1, message=message)
+
+    services = MagicMock()
+    services.users.get_language = AsyncMock(return_value="bn")
+    services.settings.number = AsyncMock(return_value=125.0)
+    services.catalog.categories = AsyncMock(return_value=[])
+    services.catalog.products = AsyncMock(return_value=[])
+
+    await dp.feed_update(bot, update, services=services)
+
+    assert await ctx.get_state() == DepositStates.waiting_for_txid.state
+    assert bot.edit_message_text.called
+    edited_text = bot.edit_message_text.call_args.kwargs["text"]
+    assert "01700000000" in edited_text
+    assert "500 ৳" in edited_text
+    assert "TrxID" in edited_text
+
+
+
 
 
