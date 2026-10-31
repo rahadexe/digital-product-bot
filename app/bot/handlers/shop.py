@@ -473,7 +473,7 @@ async def product_view(
     curr = await resolve_user_currency(services, tg_user_id)
 
     unit_price = unit_price_for(product, user)
-    total_price = round(unit_price * quantity, 2)
+    total_price = round(unit_price * quantity, 4) if quantity != 1 else unit_price
 
     unit_price_str = format_dual_price(unit_price, symbol, usd_rate=usd_rate, lang=lang, currency=curr, show_usd=False)
     total_price_str = format_dual_price(total_price, symbol, usd_rate=usd_rate, lang=lang, currency=curr, show_usd=False)
@@ -540,6 +540,7 @@ async def product_view(
         product_link=product_link,
         has_description=has_description,
         lang=lang,
+        currency=curr,
         product_icon_custom_emoji_id=(
             str(custom_emoji_id).strip()
             if custom_emoji_id and str(custom_emoji_id).strip().isdigit()
@@ -721,6 +722,8 @@ async def show_products_list(
     page = 1
     page_products = products[0:PAGE_SIZE]
 
+    curr = await resolve_user_currency(services, tg_user.id) if tg_user else "BDT"
+
     keyboard = get_products_keyboard(
         products=page_products,
         page=page,
@@ -731,6 +734,7 @@ async def show_products_list(
         is_reseller=is_reseller,
         usd_rate=usd_rate,
         lang=lang,
+        currency=curr,
         categories=categories,
     )
     if category_name and duration_label:
@@ -842,6 +846,8 @@ async def paginate_products(query: CallbackQuery, state: FSMContext, services: S
     page = min(max(requested_page, 1), total_pages)
     page_products = products[(page - 1) * PAGE_SIZE : page * PAGE_SIZE]
 
+    curr = await resolve_user_currency(services, tg_user.id) if tg_user else "BDT"
+
     keyboard = get_products_keyboard(
         products=page_products,
         page=page,
@@ -852,6 +858,7 @@ async def paginate_products(query: CallbackQuery, state: FSMContext, services: S
         is_reseller=is_reseller,
         usd_rate=usd_rate,
         lang=lang,
+        currency=curr,
         categories=categories,
     )
     title = (

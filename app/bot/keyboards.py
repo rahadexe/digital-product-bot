@@ -116,6 +116,7 @@ def get_persistent_reply_keyboard(
     is_admin: bool = False,
     lang: str = "en",
     show_icons: bool = True,
+    currency: str | None = None,
 ) -> ReplyKeyboardMarkup:
     """2+3 customer actions; admins additionally get a private shortcut."""
     menu = _customer_menu(lang, show_icons)
@@ -134,6 +135,7 @@ def get_categories_reply_keyboard(
     categories: List[Dict[str, Any]],
     lang: str = "en",
     show_icons: bool = True,
+    currency: str | None = None,
 ) -> ReplyKeyboardMarkup:
     """Pure Reply Keyboard displaying each active category on its own row."""
     rows: List[List[KeyboardButton]] = []
@@ -172,6 +174,7 @@ def get_products_reply_keyboard(
     is_reseller: bool = False,
     lang: str = "en",
     show_icons: bool = True,
+    currency: str | None = None,
 ) -> ReplyKeyboardMarkup:
     """Pure Reply Keyboard listing products in a category."""
     rows: List[List[KeyboardButton]] = []
@@ -184,7 +187,14 @@ def get_products_reply_keyboard(
         if is_reseller and reseller_price is not None and float(reseller_price) > 0:
             price_num = float(reseller_price)
 
-        price_formatted = format_dual_price(price_num, currency_symbol, usd_rate=usd_rate, show_usd=show_usd, lang=lang)
+        price_formatted = format_dual_price(
+            price_num,
+            currency_symbol,
+            usd_rate=usd_rate,
+            show_usd=show_usd,
+            lang=lang,
+            currency=currency,
+        )
         custom_icon, custom_id = _catalog_icon(p)
         display_title = _catalog_button_name(title, custom_icon, custom_id)
         if custom_icon and show_icons:
@@ -234,6 +244,7 @@ def get_product_detail_reply_keyboard(
     user_has_enough_balance: bool,
     lang: str = "en",
     show_icons: bool = True,
+    currency: str | None = None,
 ) -> ReplyKeyboardMarkup:
     """Pure Reply Keyboard for product detail view."""
     rows: List[List[KeyboardButton]] = []
@@ -660,6 +671,7 @@ def get_products_keyboard(
     usd_rate: float | None = None,
     show_usd: bool = False,
     lang: str = "en",
+    currency: str | None = None,
     categories: List[Dict[str, Any]] | None = None,
 ) -> InlineKeyboardMarkup:
     """
@@ -713,7 +725,14 @@ def get_products_keyboard(
         if is_reseller and reseller_price is not None and float(reseller_price) > 0:
             price_num = float(reseller_price)
 
-        price_formatted = format_dual_price(price_num, currency_symbol, usd_rate=usd_rate, show_usd=show_usd, lang=lang)
+        price_formatted = format_dual_price(
+            price_num,
+            currency_symbol,
+            usd_rate=usd_rate,
+            show_usd=show_usd,
+            lang=lang,
+            currency=currency,
+        )
 
         clean_title, duration_label, warranty_label = product_display_labels(p)
         icon, custom_id = _catalog_icon(p)
@@ -848,6 +867,7 @@ def get_quantity_selector_keyboard(
     product_link: str = "",
     has_description: bool = False,
     lang: str = "en",
+    currency: str | None = None,
     product_icon_custom_emoji_id: str | None = None,
 ) -> InlineKeyboardMarkup:
     """
@@ -857,8 +877,15 @@ def get_quantity_selector_keyboard(
     [📝 Description] [📋 Copy Link]
     [🔙 Back] [🏠 Main Menu]
     """
-    total_price = round(unit_price * quantity, 2)
-    price_formatted = format_dual_price(total_price, currency_symbol, usd_rate=usd_rate, show_usd=show_usd, lang=lang)
+    total_price = round(unit_price * quantity, 4) if quantity != 1 else unit_price
+    price_formatted = format_dual_price(
+        total_price,
+        currency_symbol,
+        usd_rate=usd_rate,
+        show_usd=show_usd,
+        lang=lang,
+        currency=currency,
+    )
     buttons = []
 
     dec_qty = max(1, quantity - 1)
@@ -911,8 +938,15 @@ def get_quantity_selector_keyboard(
             )
         ])
     else:
-        short = round(total_price - user_balance, 2)
-        short_formatted = format_dual_price(short, currency_symbol, usd_rate=usd_rate, show_usd=show_usd, lang=lang)
+        short = round(total_price - user_balance, 4)
+        short_formatted = format_dual_price(
+            short,
+            currency_symbol,
+            usd_rate=usd_rate,
+            show_usd=show_usd,
+            lang=lang,
+            currency=currency,
+        )
         add_text = f"💳 Add {short_formatted} to Balance"
         buttons.append([
             InlineKeyboardButton(
@@ -1010,6 +1044,7 @@ def get_product_detail_keyboard(
     usd_rate: float | None = None,
     show_usd: bool = False,
     product_icon_custom_emoji_id: str | None = None,
+    currency: str | None = None,
 ) -> InlineKeyboardMarkup:
     """Fallback simple product keyboard."""
     return get_quantity_selector_keyboard(
@@ -1021,6 +1056,7 @@ def get_product_detail_keyboard(
         currency_symbol=currency_symbol,
         usd_rate=usd_rate,
         show_usd=show_usd,
+        currency=currency,
         product_icon_custom_emoji_id=product_icon_custom_emoji_id,
     )
 

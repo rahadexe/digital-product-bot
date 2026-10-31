@@ -102,3 +102,27 @@ def test_bdt_profile_formatter_has_no_implicit_second_currency():
 def test_usd_balance_preserves_wallet_precision():
     assert format_dual_price(4.0001, currency="USD") == "$4.0001"
     assert format_dual_price(4, currency="USD") == "$4"
+
+
+def test_quantity_selector_price_matches_card_unit_price():
+    from app.bot.keyboards import get_quantity_selector_keyboard
+
+    # Product price is 0.792 (99 BDT at 125 rate).
+    # Previous bug: total_price = round(unit_price * 1, 2) produced 0.79 -> 0.79 * 125 = 98.75 BDT!
+    # Card showed 'Price: 99 BDT' while button showed 'Buy · 98.75 BDT'.
+    unit_price = 0.792
+    usd_rate = 125.0
+
+    kb = get_quantity_selector_keyboard(
+        product_id=10,
+        quantity=1,
+        unit_price=unit_price,
+        max_stock=10,
+        user_balance=2000.0,
+        usd_rate=usd_rate,
+        currency='BDT',
+    )
+    # The buy button must show 99 ৳, matching card text Price: 99 ৳
+    buy_btn = next(btn for row in kb.inline_keyboard for btn in row if 'Buy' in btn.text)
+    assert buy_btn.text == 'Buy · 99 ৳'
+    assert '98.75' not in buy_btn.text
