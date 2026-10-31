@@ -54,7 +54,7 @@ async def test_amount_entry_keeps_accounting_usd_and_shows_selected_currency(cur
     else:
         if currency == "USD":
             assert "$4" in text
-            assert "1 USD = 125 ৳" in text
+            assert "$1 = 125৳" in text
         else:
             assert "$" not in text
         assert "500 ৳" in text

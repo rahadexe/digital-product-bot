@@ -935,22 +935,22 @@ def _format_deposit_tx_prompt(
         full_heading = clean_method_name
 
     is_usd = (currency == "USD") or (bool(amount_summary) and "Adds to balance" in amount_summary)
-    credit_str = format_dual_price(usd_val, currency="USD", usd_rate=rate)
+    credit_str = f"${usd_val:.2f}"
 
     if lang == "bn":
         lines = [
             f"<b>{escape(full_heading)}</b>",
             "",
-            f"📱 <code>{escape(account_info)}</code> <i>(ট্যাপ করে কপি করুন)</i>",
+            f"⚡️ <code>{escape(account_info)}</code> <i>(Tap to copy)</i>",
+            "",
             f"আপনাকে দিতে হবে: <b>{pay_amount:g} ৳</b>",
         ]
         if is_usd:
-            lines.append(f"Rate: <code>1 USD = {rate:g} ৳</code>")
-            lines.append(f"ব্যালেন্সে যোগ হবে: <code>{credit_str}</code>")
+            lines.append(f"Rate: <code>$1 = {rate:g}৳</code>")
+            lines.append(f"ব্যালেন্সে যোগ হবে: <b>{credit_str}</b>")
         lines.append("")
         lines.append(
-            "<blockquote>উপরের নাম্বারে টাকা পাঠিয়ে ট্রানজেকশন আইডিটা নিচে লিখুন:\n"
-            "<i>(বা সম্পূর্ণ কনফার্মেশন SMS-টি পেস্ট করুন)</i>\n\n"
+            "<blockquote>উপরের নাম্বারে টাকা পাঠিয়ে ট্রানজেকশন আইডিটা নিচে লিখুন:\n\n"
             "Enter TrxID below:</blockquote>"
         )
         return "\n".join(lines)
@@ -958,17 +958,16 @@ def _format_deposit_tx_prompt(
     lines = [
         f"<b>{escape(full_heading)}</b>",
         "",
-        f"Number: <code>{escape(account_info)}</code> <i>(tap to copy)</i>",
+        f"⚡️ <code>{escape(account_info)}</code> <i>(Tap to copy)</i>",
         "",
         f"Amount: <b>{pay_amount:g} ৳</b>",
     ]
     if is_usd:
-        lines.append(f"Rate: <code>1 USD = {rate:g} ৳</code>")
+        lines.append(f"Rate: <code>$1 = {rate:g}৳</code>")
         lines.append(f"Adds to balance: <code>{credit_str}</code>")
     lines.append("")
     lines.append(
-        "<blockquote>Send money to the number above, then enter TrxID below:\n"
-        "<i>(or paste the full confirmation SMS)</i>\n\n"
+        "<blockquote>Send money to the number above, then enter TrxID below:\n\n"
         "Enter TrxID below:</blockquote>"
     )
     return "\n".join(lines)

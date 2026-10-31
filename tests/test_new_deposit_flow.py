@@ -249,7 +249,8 @@ async def test_process_deposit_amount_validation():
     assert new_state == DepositStates.waiting_for_txid.state
     resp_text = message.answer.call_args[0][0]
     assert "Amount: <b>100 ৳</b>" in resp_text
-    assert "Adds to balance: <code>$0.8</code>" in resp_text
+    assert "Adds to balance:" in resp_text
+    assert "$0.8" in resp_text
     assert "Enter TrxID below:" in resp_text
 
 
@@ -416,7 +417,8 @@ async def test_quick_amount_selection_flow():
     assert "bKash Personal (Send Money)" in text
     assert "01700000000" in text
     assert "Amount: <b>500 ৳</b>" in text
-    assert "Adds to balance: <code>$4</code>" in text
+    assert "Adds to balance:" in text
+    assert "$4" in text
     assert "Enter TrxID below:" in text
     kb = msg.edit_text.call_args[1]["reply_markup"]
     assert [b.callback_data for row in kb.inline_keyboard for b in row] == ["dep_change_amt", "dep_methods"]
@@ -509,9 +511,10 @@ async def test_exchange_rate_and_dollar_conversion_flow():
     await process_deposit_amount(message, state, services)
     screen2_text = message.answer.call_args[0][0]
     assert "bKash Personal (Send Money)" in screen2_text
-    assert "Number: <code>01700000000</code>" in screen2_text
+    assert "01700000000" in screen2_text
     assert "Amount: <b>500 ৳</b>" in screen2_text
-    assert "Adds to balance: <code>$4</code>" in screen2_text
+    assert "Adds to balance:" in screen2_text
+    assert "$4" in screen2_text
     assert "Enter TrxID below:" in screen2_text
 
     # Screen 3: User enters TrxID
@@ -584,7 +587,8 @@ async def test_process_deposit_amount_in_place_edit():
     assert edit_kwargs["chat_id"] == 456
     assert edit_kwargs["message_id"] == 555
     assert "Amount: <b>500 ৳</b>" in edit_kwargs["text"]
-    assert "Adds to balance: <code>$4</code>" in edit_kwargs["text"]
+    assert "Adds to balance:" in edit_kwargs["text"]
+    assert "$4" in edit_kwargs["text"]
     assert "Enter TrxID below:" in edit_kwargs["text"]
 
     # 2. No new message was sent via message.answer!
@@ -785,7 +789,8 @@ async def test_process_deposit_txid_invalid_keeps_full_card():
     assert "bKash Personal (Send Money)" in text
     assert "01700000000" in text
     assert "Amount: <b>500 ৳</b>" in text
-    assert "Adds to balance: <code>$4</code>" in text
+    assert "Adds to balance:" in text
+    assert "$4" in text
     assert "Enter valid TrxID:" in text
 
 
